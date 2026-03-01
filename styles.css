@@ -1,0 +1,127 @@
+/* Ensure Obsidian's view-content fills the leaf */
+.workspace-leaf-content[data-type="augment-terminal"] .view-content {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Container fills the Obsidian leaf pane */
+.augment-terminal-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-primary);
+}
+
+/* Wrapper div that holds the xterm instance */
+.augment-terminal-xterm {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* xterm.js terminal fills its wrapper */
+.augment-terminal-container .xterm {
+  height: 100%;
+  padding: 4px;
+}
+
+/* Sidebar terminal: tighter padding */
+.mod-right-split .augment-terminal-container .xterm {
+  padding: 2px;
+}
+
+/* Override xterm viewport to remove default scrollbar styling conflicts */
+.augment-terminal-container .xterm-viewport {
+  overflow-y: auto;
+}
+
+/* Use Obsidian's scrollbar styling */
+.augment-terminal-container .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.augment-terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-bg);
+  border-radius: 3px;
+}
+
+/* Tab status indicator dot */
+.workspace-leaf[data-augment-status] .view-header-title-container .view-header-title::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Shell running — green */
+.workspace-leaf[data-augment-status="shell"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-green);
+}
+
+/* Claude Code idle/waiting for input — blue */
+.workspace-leaf[data-augment-status="idle"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-blue);
+}
+
+/* Claude Code thinking/generating — yellow, pulsing */
+.workspace-leaf[data-augment-status="active"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-yellow);
+  animation: augment-pulse 1.5s ease-in-out infinite;
+}
+
+/* Claude Code tool executing — green */
+.workspace-leaf[data-augment-status="tool"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-green);
+}
+
+/* Process exited — faint */
+.workspace-leaf[data-augment-status="exited"] .view-header-title-container .view-header-title::before {
+  background-color: var(--text-faint);
+}
+
+@keyframes augment-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Terminal tab title styling */
+.workspace-leaf[data-augment-status] .view-header-title {
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  letter-spacing: 0.02em;
+}
+
+/* ── Terminal manager panel ── */
+.augment-terminal-manager { padding: 0; }
+.augment-tm-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--background-modifier-border); }
+.augment-tm-title { font-size: var(--font-small); font-weight: var(--font-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.augment-tm-add { color: var(--text-muted); padding: 2px; }
+.augment-tm-add:hover { color: var(--text-normal); }
+.augment-tm-list { padding: 4px 0; }
+.augment-tm-empty { padding: 12px 10px; color: var(--text-faint); font-size: var(--font-small); font-style: italic; }
+.augment-tm-item { display: flex; align-items: center; gap: 8px; padding: 4px 10px; cursor: pointer; border-radius: var(--radius-s); margin: 0 4px; }
+.augment-tm-item:hover { background-color: var(--background-modifier-hover); }
+.augment-tm-item.is-active { background-color: var(--background-modifier-active-hover); }
+.augment-tm-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.augment-tm-dot.shell { background-color: var(--color-green); }
+.augment-tm-dot.idle { background-color: var(--color-blue); }
+.augment-tm-dot.active { background-color: var(--color-yellow); animation: augment-pulse 1.5s ease-in-out infinite; }
+.augment-tm-dot.tool { background-color: var(--color-green); }
+.augment-tm-dot.exited { background-color: var(--text-faint); }
+.augment-tm-name { font-family: var(--font-monospace); font-size: var(--font-small); color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Terminal switcher modal ── */
+.augment-ts-suggestion { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.augment-ts-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.augment-ts-dot.shell { background-color: var(--color-green); }
+.augment-ts-dot.idle { background-color: var(--color-blue); }
+.augment-ts-dot.active { background-color: var(--color-yellow); animation: augment-pulse 1.5s ease-in-out infinite; }
+.augment-ts-dot.tool { background-color: var(--color-green); }
+.augment-ts-dot.exited { background-color: var(--text-faint); }
+.augment-ts-name { font-family: var(--font-monospace); font-size: var(--font-ui-medium); }
