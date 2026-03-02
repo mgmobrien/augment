@@ -13,7 +13,7 @@ export class TerminalSwitcherModal extends FuzzySuggestModal<WorkspaceLeaf> {
 
   getItemText(leaf: WorkspaceLeaf): string {
     const view = leaf.view as TerminalView;
-    return view.getName();
+    return this.getLeafTerminalName(leaf, view);
   }
 
   renderSuggestion(leaf: { item: WorkspaceLeaf; match: any }, el: HTMLElement): void {
@@ -26,10 +26,19 @@ export class TerminalSwitcherModal extends FuzzySuggestModal<WorkspaceLeaf> {
     dot.addClass(status);
 
     // Name
-    wrapper.createSpan({ cls: "augment-ts-name", text: view.getName() });
+    wrapper.createSpan({ cls: "augment-ts-name", text: this.getLeafTerminalName(leaf.item, view) });
   }
 
   onChooseItem(leaf: WorkspaceLeaf): void {
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  private getLeafTerminalName(leaf: WorkspaceLeaf, view: TerminalView): string {
+    const leafAny = leaf as any;
+    const stateName = leafAny.getViewState?.()?.state?.name;
+    if (typeof stateName === "string" && stateName.trim()) {
+      return stateName.trim();
+    }
+    return view.getName();
   }
 }

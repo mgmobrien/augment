@@ -86,8 +86,13 @@
 }
 
 @keyframes augment-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%, 100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* Terminal tab title styling */
@@ -98,30 +103,208 @@
 }
 
 /* ── Terminal manager panel ── */
-.augment-terminal-manager { padding: 0; }
-.augment-tm-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--background-modifier-border); }
-.augment-tm-title { font-size: var(--font-small); font-weight: var(--font-semibold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.augment-tm-add { color: var(--text-muted); padding: 2px; }
-.augment-tm-add:hover { color: var(--text-normal); }
-.augment-tm-list { padding: 4px 0; }
-.augment-tm-empty { padding: 12px 10px; color: var(--text-faint); font-size: var(--font-small); font-style: italic; }
-.augment-tm-item { display: flex; align-items: center; gap: 8px; padding: 4px 10px; cursor: pointer; border-radius: var(--radius-s); margin: 0 4px; }
-.augment-tm-item:hover { background-color: var(--background-modifier-hover); }
-.augment-tm-item.is-active { background-color: var(--background-modifier-active-hover); }
-.augment-tm-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.augment-tm-dot.shell { background-color: var(--color-green); }
-.augment-tm-dot.idle { background-color: var(--color-blue); }
-.augment-tm-dot.active { background-color: var(--color-yellow); animation: augment-pulse 1.5s ease-in-out infinite; }
-.augment-tm-dot.tool { background-color: var(--color-green); }
-.augment-tm-dot.exited { background-color: var(--text-faint); }
-.augment-tm-name { font-family: var(--font-monospace); font-size: var(--font-small); color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.augment-terminal-manager {
+  padding: 0;
+}
+
+.augment-tm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.augment-tm-title {
+  font-size: var(--font-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.augment-tm-add {
+  color: var(--text-muted);
+  padding: 2px;
+}
+
+.augment-tm-add:hover {
+  color: var(--text-normal);
+}
+
+.augment-tm-list {
+  padding: 4px 0;
+}
+
+.augment-tm-empty {
+  padding: 12px 10px;
+  color: var(--text-faint);
+  font-size: var(--font-small);
+  font-style: italic;
+}
+
+.augment-tm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+  margin: 0 4px;
+}
+
+.augment-tm-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.augment-tm-item.is-active {
+  background-color: var(--background-modifier-active-hover);
+}
+
+.augment-tm-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.augment-tm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.augment-tm-dot.shell {
+  background-color: var(--color-green);
+}
+
+.augment-tm-dot.idle {
+  background-color: var(--color-blue);
+}
+
+.augment-tm-dot.active {
+  background-color: var(--color-yellow);
+  animation: augment-pulse 1.5s ease-in-out infinite;
+}
+
+.augment-tm-dot.tool {
+  background-color: var(--color-green);
+}
+
+.augment-tm-dot.exited {
+  background-color: var(--text-faint);
+}
+
+.augment-tm-name {
+  font-family: var(--font-monospace);
+  font-size: var(--font-small);
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.augment-tm-spacer {
+  flex: 1;
+}
+
+.augment-tm-unread {
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 9px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  padding: 0 5px;
+}
+
+.augment-tm-summary {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  padding-left: 15px;
+  font-family: var(--font-monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.augment-tm-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 15px;
+}
+
+.augment-tm-team {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+}
+
+.augment-tm-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.augment-tm-member {
+  appearance: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  padding: 1px 7px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-family: var(--font-monospace);
+  cursor: pointer;
+}
+
+.augment-tm-member:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
 
 /* ── Terminal switcher modal ── */
-.augment-ts-suggestion { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
-.augment-ts-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.augment-ts-dot.shell { background-color: var(--color-green); }
-.augment-ts-dot.idle { background-color: var(--color-blue); }
-.augment-ts-dot.active { background-color: var(--color-yellow); animation: augment-pulse 1.5s ease-in-out infinite; }
-.augment-ts-dot.tool { background-color: var(--color-green); }
-.augment-ts-dot.exited { background-color: var(--text-faint); }
-.augment-ts-name { font-family: var(--font-monospace); font-size: var(--font-ui-medium); }
+.augment-ts-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.augment-ts-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.augment-ts-dot.shell {
+  background-color: var(--color-green);
+}
+
+.augment-ts-dot.idle {
+  background-color: var(--color-blue);
+}
+
+.augment-ts-dot.active {
+  background-color: var(--color-yellow);
+  animation: augment-pulse 1.5s ease-in-out infinite;
+}
+
+.augment-ts-dot.tool {
+  background-color: var(--color-green);
+}
+
+.augment-ts-dot.exited {
+  background-color: var(--text-faint);
+}
+
+.augment-ts-name {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-medium);
+}
