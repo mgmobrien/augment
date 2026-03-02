@@ -6948,64 +6948,6 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.pendingStatus = null;
     }, 150);
   }
-  detectTeamEvents(rawData) {
-    var _a, _b, _c;
-    const clean = stripAnsi(rawData).replace(/\r/g, "\n");
-    if (!clean.trim()) return;
-    this.parseBuffer += clean;
-    if (this.parseBuffer.length > 16e3) {
-      this.parseBuffer = this.parseBuffer.slice(-16e3);
-    }
-    const lines = this.parseBuffer.split("\n");
-    this.parseBuffer = (_a = lines.pop()) != null ? _a : "";
-    let hits = 0;
-    let changed = false;
-    for (const line of lines) {
-      AGENT_PROMPT_PATTERN.lastIndex = 0;
-      TASK_ASSIGN_PATTERN.lastIndex = 0;
-      let match;
-      while ((match = AGENT_PROMPT_PATTERN.exec(line)) !== null) {
-        const name = (_b = match[1]) == null ? void 0 : _b.trim();
-        if (!name) continue;
-        hits += 1;
-        if (!this.teamAgents.has(name)) {
-          this.teamAgents.add(name);
-          changed = true;
-        }
-      }
-      while ((match = TASK_ASSIGN_PATTERN.exec(line)) !== null) {
-        const name = (_c = match[1]) == null ? void 0 : _c.trim();
-        if (!name) continue;
-        hits += 1;
-        if (!this.teamAgents.has(name)) {
-          this.teamAgents.add(name);
-          changed = true;
-        }
-      }
-      if (/\b\d+\s+agents?\s+(?:running|launched|spawned)\b/i.test(line)) {
-        hits += 1;
-      }
-    }
-    if (hits > 0) {
-      this.teamEvents += hits;
-      if (!this.isLeafActive) {
-        this.teamUnread += hits;
-      }
-      changed = true;
-    }
-    if (changed) {
-      this.app.workspace.trigger("augment-terminal:changed");
-    }
-  }
-  updateActiveState() {
-    const isActive = this.app.workspace.activeLeaf === this.leaf;
-    if (isActive === this.isLeafActive) return;
-    this.isLeafActive = isActive;
-    if (isActive && this.teamUnread > 0) {
-      this.teamUnread = 0;
-      this.app.workspace.trigger("augment-terminal:changed");
-    }
-  }
   setStatus(newStatus) {
     var _a;
     this.status = newStatus;
