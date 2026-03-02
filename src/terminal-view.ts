@@ -21,6 +21,12 @@ type TeamEvent = {
   members?: string[];
 };
 
+export type TeamCreateSpawnHint = {
+  sourceName: string;
+  team?: string;
+  members: string[];
+};
+
 type OrchestrationState = {
   teams?: string[];
   members?: string[];
@@ -477,13 +483,20 @@ export class TerminalView extends ItemView {
     }
 
     if (TEAM_CREATE_ACTIVITY_PATTERN.test(clean)) {
-      changed =
-        this.recordTeamEvent({
-          type: "teamcreate",
-          at: Date.now(),
+      const created = this.recordTeamEvent({
+        type: "teamcreate",
+        at: Date.now(),
+        team: team ?? undefined,
+        members: names,
+      });
+      if (created) {
+        this.emitTeamCreateSpawnHint({
+          sourceName: this.terminalName,
           team: team ?? undefined,
           members: names,
-        }) || changed;
+        });
+      }
+      changed = created || changed;
     }
 
     if (SEND_MESSAGE_ACTIVITY_PATTERN.test(clean) || MAILBOX_WRITE_PATTERN.test(clean)) {
@@ -524,6 +537,28 @@ export class TerminalView extends ItemView {
     }
 
     return true;
+  }
+
+  private emitTeamCreateSpawnHint(hint: TeamCreateSpawnHint): void {
+    const members = Array.from(
+      new Set(
+        hint.members
+          .map((name) => this.normalizeIdentifier(name))
+          .filter((name) => !!name)
+      )
+    );
+
+    if (members.length === 0) return;
+
+    const source = this.normalizeIdentifier(hint.sourceName);
+    const filtered = members.filter((name) => name.toLowerCase() !== source.toLowerCase());
+    if (filtered.length === 0) return;
+
+    (this.app.workspace as any).trigger("augment-terminal:teamcreate", {
+      sourceName: hint.sourceName,
+      team: hint.team,
+      members: filtered,
+    } as TeamCreateSpawnHint);
   }
 
   private extractTeamName(text: string): string | null {
