@@ -7031,12 +7031,20 @@ var TerminalView = class extends import_obsidian.ItemView {
       changed = this.addTeamMember(name) || changed;
     }
     if (TEAM_CREATE_ACTIVITY_PATTERN.test(clean)) {
-      changed = this.recordTeamEvent({
+      const created = this.recordTeamEvent({
         type: "teamcreate",
         at: Date.now(),
         team: team != null ? team : void 0,
         members: names
-      }) || changed;
+      });
+      if (created) {
+        this.emitTeamCreateSpawnHint({
+          sourceName: this.terminalName,
+          team: team != null ? team : void 0,
+          members: names
+        });
+      }
+      changed = created || changed;
     }
     if (SEND_MESSAGE_ACTIVITY_PATTERN.test(clean) || MAILBOX_WRITE_PATTERN.test(clean)) {
       const details = this.extractSendMessageDetails(clean, team);
@@ -7067,6 +7075,22 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.unreadActivity += 1;
     }
     return true;
+  }
+  emitTeamCreateSpawnHint(hint) {
+    const members = Array.from(
+      new Set(
+        hint.members.map((name) => this.normalizeIdentifier(name)).filter((name) => !!name)
+      )
+    );
+    if (members.length === 0) return;
+    const source = this.normalizeIdentifier(hint.sourceName);
+    const filtered = members.filter((name) => name.toLowerCase() !== source.toLowerCase());
+    if (filtered.length === 0) return;
+    this.app.workspace.trigger("augment-terminal:teamcreate", {
+      sourceName: hint.sourceName,
+      team: hint.team,
+      members: filtered
+    });
   }
   extractTeamName(text) {
     const idMatch = text.match(AGENT_ID_PATTERN);
