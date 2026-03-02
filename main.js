@@ -6623,6 +6623,10 @@ var xterm_default = `/**
 
 // src/terminal-view.ts
 var VIEW_TYPE_TERMINAL = "augment-terminal";
+var MAX_SNAPSHOT_CHARS = 2e5;
+var MAX_PARSE_BUFFER_CHARS = 24e3;
+var MAX_TEAM_EVENTS = 40;
+var EVENT_DEDUP_WINDOW_MS = 1200;
 var xtermStyleEl = null;
 function cleanupXtermStyle() {
   if (xtermStyleEl) {
@@ -6722,7 +6726,16 @@ function generateTerminalName() {
 function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "").replace(/\x1b[()][0-9A-B]/g, "");
 }
-var TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task)\s*\(/;
+var TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(/;
+var TEAM_CREATE_ACTIVITY_PATTERN = /\bTeamCreate\b/i;
+var SEND_MESSAGE_ACTIVITY_PATTERN = /\bSendMessage\b/i;
+var TEAM_NAME_PATTERN = /\bteam(?:Name)?\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i;
+var TEAM_PATH_PATTERN = /\/teams\/([a-zA-Z0-9._-]+)\//i;
+var AGENT_ID_PATTERN = /\bagentId\s*[:=]\s*["']?([a-zA-Z0-9._-]+)@([a-zA-Z0-9._-]+)/i;
+var AGENT_ID_GLOBAL_PATTERN = /\bagentId\s*[:=]\s*["']?([a-zA-Z0-9._-]+)@([a-zA-Z0-9._-]+)/ig;
+var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/ig;
+var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
+var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
 var TerminalView = class extends import_obsidian.ItemView {
   constructor(leaf, pluginDir) {
     super(leaf);
@@ -6730,10 +6743,20 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.fitAddon = null;
     this.ptyBridge = null;
     this.resizeObserver = null;
+    this.parseBuffer = "";
     this.isExited = false;
     this.status = "shell";
+    this.restoredSnapshot = "";
+    this.scrollbackBuffer = "";
     this.statusDebounceTimer = null;
     this.pendingStatus = null;
+    this.teamNames = /* @__PURE__ */ new Set();
+    this.teamMembers = /* @__PURE__ */ new Set();
+    this.unreadActivity = 0;
+    this.recentTeamEvents = [];
+    this.agentIdentity = null;
+    this.lastEventSignature = "";
+    this.lastEventAt = 0;
     this.pluginDir = pluginDir;
     this.terminalName = generateTerminalName();
   }
@@ -6755,10 +6778,78 @@ var TerminalView = class extends import_obsidian.ItemView {
   getStatus() {
     return this.status;
   }
+  getUnreadActivity() {
+    return this.unreadActivity;
+  }
+  getTeamNames() {
+    return Array.from(this.teamNames);
+  }
+  getTeamMembers() {
+    return Array.from(this.teamMembers);
+  }
+  getAgentIdentity() {
+    return this.agentIdentity;
+  }
+  getLastTeamEventSummary() {
+    var _a, _b;
+    const event = this.recentTeamEvents[this.recentTeamEvents.length - 1];
+    if (!event) return null;
+    if (event.type === "teamcreate") {
+      const memberCount = (_b = (_a = event.members) == null ? void 0 : _a.length) != null ? _b : 0;
+      const parts2 = ["TeamCreate"];
+      if (event.team) parts2.push(event.team);
+      if (memberCount > 0) parts2.push(`(${memberCount} members)`);
+      return parts2.join(" ");
+    }
+    const parts = ["SendMessage"];
+    if (event.from) parts.push(event.from);
+    if (event.to) parts.push(`\u2192 ${event.to}`);
+    if (event.team) parts.push(`(${event.team})`);
+    return parts.join(" ");
+  }
   setName(name) {
     this.terminalName = name;
     this.leaf.updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
+  }
+  getState() {
+    var _a;
+    let snapshot = this.scrollbackBuffer;
+    if (snapshot.length > MAX_SNAPSHOT_CHARS) {
+      snapshot = snapshot.slice(-MAX_SNAPSHOT_CHARS);
+    }
+    return {
+      name: this.terminalName,
+      snapshot,
+      orchestration: {
+        teams: this.getTeamNames(),
+        members: this.getTeamMembers(),
+        unreadActivity: this.unreadActivity,
+        recentEvents: [...this.recentTeamEvents],
+        agentIdentity: (_a = this.agentIdentity) != null ? _a : void 0
+      }
+    };
+  }
+  async setState(state) {
+    if (typeof (state == null ? void 0 : state.name) === "string" && state.name.trim()) {
+      this.terminalName = state.name.trim();
+    }
+    if (typeof (state == null ? void 0 : state.snapshot) === "string") {
+      this.restoredSnapshot = state.snapshot;
+    }
+    const orchestration = state == null ? void 0 : state.orchestration;
+    if (orchestration) {
+      this.teamNames = new Set(
+        Array.isArray(orchestration.teams) ? orchestration.teams.map((name) => this.normalizeIdentifier(name)).filter(Boolean) : []
+      );
+      this.teamMembers = new Set(
+        Array.isArray(orchestration.members) ? orchestration.members.map((name) => this.normalizeIdentifier(name)).filter(Boolean) : []
+      );
+      this.unreadActivity = Number.isFinite(orchestration.unreadActivity) ? Math.max(0, Math.floor(orchestration.unreadActivity)) : 0;
+      this.recentTeamEvents = Array.isArray(orchestration.recentEvents) ? orchestration.recentEvents.slice(-MAX_TEAM_EVENTS) : [];
+      this.agentIdentity = typeof orchestration.agentIdentity === "string" && orchestration.agentIdentity.trim() ? orchestration.agentIdentity.trim() : null;
+    }
+    this.leaf.updateHeader();
   }
   async onOpen() {
     if (!xtermStyleEl) {
@@ -6784,6 +6875,12 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.terminal.loadAddon(new import_addon_web_links.WebLinksAddon());
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
+    if (this.restoredSnapshot) {
+      this.terminal.write(this.restoredSnapshot);
+      this.terminal.write(
+        "\r\n\x1B[2m[Session restored: previous output snapshot; started new shell]\x1B[0m\r\n"
+      );
+    }
     const vaultPath = this.app.vault.adapter.basePath || ".";
     this.ptyBridge = new PtyBridge(
       this.pluginDir,
@@ -6791,7 +6888,9 @@ var TerminalView = class extends import_obsidian.ItemView {
       (data) => {
         var _a;
         (_a = this.terminal) == null ? void 0 : _a.write(data);
+        this.appendToScrollback(data);
         this.detectStatus(data);
+        this.detectOrchestrationActivity(data);
       },
       (code) => {
         var _a;
@@ -6811,6 +6910,16 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.resizeObserver = new ResizeObserver(() => {
       this.handleResize();
     });
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (leaf === this.leaf) {
+          this.markActivityRead();
+        }
+      })
+    );
+    if (this.app.workspace.activeLeaf === this.leaf) {
+      this.markActivityRead();
+    }
     this.resizeObserver.observe(container);
   }
   detectStatus(rawData) {
@@ -6821,7 +6930,7 @@ var TerminalView = class extends import_obsidian.ItemView {
       detected = "tool";
     } else if (clean.includes("\u23FA")) {
       detected = "active";
-    } else if (/❯\s*$/.test(clean) || />\s*$/.test(clean) && clean.includes("claude")) {
+    } else if (/❯\s*$/.test(clean) || /\>\s*$/.test(clean) && clean.includes("claude")) {
       detected = "idle";
     }
     if (detected !== null) {
@@ -6846,6 +6955,157 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.leaf.updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
   }
+  markActivityRead() {
+    if (this.unreadActivity === 0) return;
+    this.unreadActivity = 0;
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+  detectOrchestrationActivity(rawData) {
+    var _a;
+    if (this.isExited) return;
+    const cleanChunk = stripAnsi(rawData);
+    if (!cleanChunk) return;
+    this.parseBuffer = (this.parseBuffer + cleanChunk).slice(-MAX_PARSE_BUFFER_CHARS);
+    const lines = this.parseBuffer.split(/\r?\n/);
+    this.parseBuffer = (_a = lines.pop()) != null ? _a : "";
+    let changed = false;
+    for (const line of lines) {
+      changed = this.parseOrchestrationLine(line) || changed;
+    }
+    if (!/[\r\n]/.test(cleanChunk)) {
+      changed = this.parseOrchestrationLine(cleanChunk) || changed;
+    }
+    if (changed) {
+      this.app.workspace.trigger("augment-terminal:changed");
+    }
+  }
+  parseOrchestrationLine(line) {
+    const clean = line.trim();
+    if (!clean) return false;
+    let changed = false;
+    const team = this.extractTeamName(clean);
+    if (team) changed = this.addTeamName(team) || changed;
+    const identity = this.extractAgentIdentity(clean);
+    if (identity && identity !== this.agentIdentity) {
+      this.agentIdentity = identity;
+      changed = true;
+    }
+    const names = this.extractAgentNames(clean);
+    for (const name of names) {
+      changed = this.addTeamMember(name) || changed;
+    }
+    if (TEAM_CREATE_ACTIVITY_PATTERN.test(clean)) {
+      changed = this.recordTeamEvent({
+        type: "teamcreate",
+        at: Date.now(),
+        team: team != null ? team : void 0,
+        members: names
+      }) || changed;
+    }
+    if (SEND_MESSAGE_ACTIVITY_PATTERN.test(clean) || MAILBOX_WRITE_PATTERN.test(clean)) {
+      const details = this.extractSendMessageDetails(clean, team);
+      changed = this.recordTeamEvent({
+        type: "sendmessage",
+        at: Date.now(),
+        team: details.team,
+        from: details.from,
+        to: details.to
+      }) || changed;
+    }
+    return changed;
+  }
+  recordTeamEvent(event) {
+    var _a, _b, _c;
+    const signature = `${event.type}|${(_a = event.team) != null ? _a : ""}|${(_b = event.from) != null ? _b : ""}|${(_c = event.to) != null ? _c : ""}`;
+    const now = Date.now();
+    if (signature === this.lastEventSignature && now - this.lastEventAt < EVENT_DEDUP_WINDOW_MS) {
+      return false;
+    }
+    this.lastEventSignature = signature;
+    this.lastEventAt = now;
+    this.recentTeamEvents.push(event);
+    if (this.recentTeamEvents.length > MAX_TEAM_EVENTS) {
+      this.recentTeamEvents = this.recentTeamEvents.slice(-MAX_TEAM_EVENTS);
+    }
+    if (this.app.workspace.activeLeaf !== this.leaf) {
+      this.unreadActivity += 1;
+    }
+    return true;
+  }
+  extractTeamName(text) {
+    const idMatch = text.match(AGENT_ID_PATTERN);
+    if (idMatch == null ? void 0 : idMatch[2]) {
+      return this.normalizeIdentifier(idMatch[2]);
+    }
+    const teamMatch = text.match(TEAM_NAME_PATTERN);
+    if (teamMatch == null ? void 0 : teamMatch[1]) {
+      return this.normalizeIdentifier(teamMatch[1]);
+    }
+    const pathMatch = text.match(TEAM_PATH_PATTERN);
+    if (pathMatch == null ? void 0 : pathMatch[1]) {
+      return this.normalizeIdentifier(pathMatch[1]);
+    }
+    return null;
+  }
+  extractAgentIdentity(text) {
+    const inbox = text.match(GET_INBOX_AGENT_PATTERN);
+    if (inbox == null ? void 0 : inbox[1]) {
+      return this.normalizeIdentifier(inbox[1]);
+    }
+    const byName = text.match(/\bagentName\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i);
+    if (byName == null ? void 0 : byName[1]) {
+      return this.normalizeIdentifier(byName[1]);
+    }
+    return null;
+  }
+  extractAgentNames(text) {
+    const names = /* @__PURE__ */ new Set();
+    for (const match of text.matchAll(AGENT_ID_GLOBAL_PATTERN)) {
+      names.add(this.normalizeIdentifier(match[1]));
+    }
+    for (const match of text.matchAll(AGENT_KEY_PATTERN)) {
+      names.add(this.normalizeIdentifier(match[1]));
+    }
+    const mailboxWrite = text.match(MAILBOX_WRITE_PATTERN);
+    if (mailboxWrite == null ? void 0 : mailboxWrite[1]) names.add(this.normalizeIdentifier(mailboxWrite[1]));
+    if (mailboxWrite == null ? void 0 : mailboxWrite[2]) names.add(this.normalizeIdentifier(mailboxWrite[2]));
+    const identity = this.extractAgentIdentity(text);
+    if (identity) names.add(identity);
+    return Array.from(names).filter(Boolean);
+  }
+  extractSendMessageDetails(text, fallbackTeam) {
+    const mailboxWrite = text.match(MAILBOX_WRITE_PATTERN);
+    if ((mailboxWrite == null ? void 0 : mailboxWrite[1]) || (mailboxWrite == null ? void 0 : mailboxWrite[2])) {
+      return {
+        team: fallbackTeam != null ? fallbackTeam : void 0,
+        to: (mailboxWrite == null ? void 0 : mailboxWrite[1]) ? this.normalizeIdentifier(mailboxWrite[1]) : void 0,
+        from: (mailboxWrite == null ? void 0 : mailboxWrite[2]) ? this.normalizeIdentifier(mailboxWrite[2]) : void 0
+      };
+    }
+    const recipient = text.match(/\brecipient\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i);
+    const from = text.match(/\bfrom\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i);
+    const agent = text.match(/\bagent(?:Name)?\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i);
+    return {
+      team: fallbackTeam != null ? fallbackTeam : void 0,
+      to: (recipient == null ? void 0 : recipient[1]) ? this.normalizeIdentifier(recipient[1]) : void 0,
+      from: (from == null ? void 0 : from[1]) ? this.normalizeIdentifier(from[1]) : (agent == null ? void 0 : agent[1]) ? this.normalizeIdentifier(agent[1]) : void 0
+    };
+  }
+  addTeamName(value) {
+    if (!value || this.teamNames.has(value)) return false;
+    this.teamNames.add(value);
+    return true;
+  }
+  addTeamMember(value) {
+    if (!value || this.teamMembers.has(value)) return false;
+    this.teamMembers.add(value);
+    return true;
+  }
+  normalizeIdentifier(value) {
+    const trimmed = value.trim();
+    const withoutQuotes = trimmed.replace(/^["']+|["']+$/g, "");
+    return withoutQuotes.replace(/[^a-zA-Z0-9._-]+$/g, "");
+  }
   handleResize() {
     var _a;
     if (!this.fitAddon || !this.terminal) return;
@@ -6856,6 +7116,12 @@ var TerminalView = class extends import_obsidian.ItemView {
         (_a = this.ptyBridge) == null ? void 0 : _a.resize(dims.rows, dims.cols);
       }
     } catch (e) {
+    }
+  }
+  appendToScrollback(data) {
+    this.scrollbackBuffer += data;
+    if (this.scrollbackBuffer.length > MAX_SNAPSHOT_CHARS) {
+      this.scrollbackBuffer = this.scrollbackBuffer.slice(-MAX_SNAPSHOT_CHARS);
     }
   }
   getTheme() {
@@ -6908,27 +7174,94 @@ var TerminalManagerView = class extends import_obsidian2.ItemView {
     container.addClass("augment-terminal-manager");
     const header = container.createDiv({ cls: "augment-tm-header" });
     header.createSpan({ cls: "augment-tm-title", text: "TERMINALS" });
-    const addBtn = header.createEl("button", { cls: "augment-tm-add clickable-icon" });
+    const addBtn = header.createEl("button", {
+      cls: "augment-tm-add clickable-icon"
+    });
     (0, import_obsidian2.setIcon)(addBtn, "plus");
     addBtn.addEventListener("click", () => {
-      this.app.commands.executeCommandById("augment-terminal:open-terminal");
+      this.app.commands.executeCommandById(
+        "augment-terminal:open-terminal"
+      );
     });
     this.listEl = container.createDiv({ cls: "augment-tm-list" });
     this.refresh();
+    window.setTimeout(() => this.refresh(), 0);
+    this.app.workspace.onLayoutReady(() => this.refresh());
     this.registerEvent(
       this.app.workspace.on("layout-change", () => this.refresh())
     );
     this.registerEvent(
-      this.app.workspace.on("augment-terminal:changed", () => this.refresh())
+      this.app.workspace.on("active-leaf-change", () => this.refresh())
     );
+    this.registerEvent(
+      this.app.workspace.on(
+        "augment-terminal:changed",
+        () => this.refresh()
+      )
+    );
+  }
+  getTerminalLeaves() {
+    const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    if (byType.length > 0) {
+      return byType;
+    }
+    const found = [];
+    const workspaceAny = this.app.workspace;
+    if (typeof workspaceAny.iterateAllLeaves === "function") {
+      workspaceAny.iterateAllLeaves((leaf) => {
+        const viewAny = leaf.view;
+        const viewType = typeof (viewAny == null ? void 0 : viewAny.getViewType) === "function" ? viewAny.getViewType() : viewAny == null ? void 0 : viewAny.getViewType;
+        if (viewType === VIEW_TYPE_TERMINAL) {
+          found.push(leaf);
+        }
+      });
+    }
+    return found;
+  }
+  focusLeaf(leaf) {
+    this.app.workspace.revealLeaf(leaf);
+    const view = leaf.view;
+    if (typeof view.markActivityRead === "function") {
+      view.markActivityRead();
+    }
+  }
+  findLeafForAgent(agentName) {
+    var _a, _b, _c;
+    const target = agentName.toLowerCase();
+    const leaves = this.getTerminalLeaves();
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const identity = typeof view.getAgentIdentity === "function" ? (_a = view.getAgentIdentity()) != null ? _a : "" : "";
+      if (identity.toLowerCase() === target) {
+        return leaf;
+      }
+    }
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const name = typeof view.getName === "function" ? (_b = view.getName()) != null ? _b : "" : "";
+      if (name.toLowerCase() === target) {
+        return leaf;
+      }
+    }
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const name = typeof view.getName === "function" ? (_c = view.getName()) != null ? _c : "" : "";
+      if (name.toLowerCase().includes(target)) {
+        return leaf;
+      }
+    }
+    return null;
   }
   refresh() {
     if (!this.listEl) return;
     this.listEl.empty();
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    const leaves = this.getTerminalLeaves();
     const activeLeaf = this.app.workspace.activeLeaf;
     if (leaves.length === 0) {
-      this.listEl.createDiv({ cls: "augment-tm-empty", text: "No terminals open" });
+      this.listEl.createDiv({
+        cls: "augment-tm-empty",
+        text: "No terminals open"
+      });
       return;
     }
     for (const leaf of leaves) {
@@ -6937,12 +7270,53 @@ var TerminalManagerView = class extends import_obsidian2.ItemView {
       if (leaf === activeLeaf) {
         row.addClass("is-active");
       }
-      const dot = row.createDiv({ cls: "augment-tm-dot" });
-      const status = view.getStatus();
+      const line = row.createDiv({ cls: "augment-tm-line" });
+      const dot = line.createDiv({ cls: "augment-tm-dot" });
+      const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
       dot.addClass(status);
-      row.createSpan({ cls: "augment-tm-name", text: view.getName() });
+      const name = typeof view.getName === "function" ? view.getName() : "terminal";
+      line.createSpan({ cls: "augment-tm-name", text: name });
+      line.createDiv({ cls: "augment-tm-spacer" });
+      const unread = typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0;
+      if (unread > 0) {
+        line.createSpan({
+          cls: "augment-tm-unread",
+          text: unread > 99 ? "99+" : String(unread)
+        });
+      }
+      const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
+      if (summary) {
+        row.createDiv({ cls: "augment-tm-summary", text: summary });
+      }
+      const teams = typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+      const members = typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
+      if (teams.length > 0 || members.length > 0) {
+        const meta = row.createDiv({ cls: "augment-tm-meta" });
+        if (teams.length > 0) {
+          const teamLabel = teams.slice(0, 2).join(", ");
+          meta.createSpan({ cls: "augment-tm-team", text: teamLabel });
+        }
+        if (members.length > 0) {
+          const membersWrap = meta.createDiv({ cls: "augment-tm-members" });
+          for (const member of members.slice(0, 8)) {
+            const chip = membersWrap.createEl("button", {
+              cls: "augment-tm-member",
+              text: member,
+              attr: { type: "button" }
+            });
+            chip.addEventListener("click", (evt) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+              const targetLeaf = this.findLeafForAgent(member);
+              if (targetLeaf) {
+                this.focusLeaf(targetLeaf);
+              }
+            });
+          }
+        }
+      }
       row.addEventListener("click", () => {
-        this.app.workspace.revealLeaf(leaf);
+        this.focusLeaf(leaf);
       });
     }
   }
@@ -6963,7 +7337,7 @@ var TerminalSwitcherModal = class extends import_obsidian3.FuzzySuggestModal {
   }
   getItemText(leaf) {
     const view = leaf.view;
-    return view.getName();
+    return this.getLeafTerminalName(leaf, view);
   }
   renderSuggestion(leaf, el) {
     const view = leaf.item.view;
@@ -6971,10 +7345,19 @@ var TerminalSwitcherModal = class extends import_obsidian3.FuzzySuggestModal {
     const dot = wrapper.createDiv({ cls: "augment-ts-dot" });
     const status = view.getStatus();
     dot.addClass(status);
-    wrapper.createSpan({ cls: "augment-ts-name", text: view.getName() });
+    wrapper.createSpan({ cls: "augment-ts-name", text: this.getLeafTerminalName(leaf.item, view) });
   }
   onChooseItem(leaf) {
     this.app.workspace.revealLeaf(leaf);
+  }
+  getLeafTerminalName(leaf, view) {
+    var _a, _b, _c;
+    const leafAny = leaf;
+    const stateName = (_c = (_b = (_a = leafAny.getViewState) == null ? void 0 : _a.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
+    if (typeof stateName === "string" && stateName.trim()) {
+      return stateName.trim();
+    }
+    return view.getName();
   }
 };
 
