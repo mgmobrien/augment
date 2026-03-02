@@ -7482,6 +7482,10 @@ var RenameModal = class extends import_obsidian4.Modal {
   }
 };
 var AugmentTerminalPlugin = class extends import_obsidian4.Plugin {
+  constructor() {
+    super(...arguments);
+    this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
+  }
   async onload() {
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
       return new TerminalView(leaf, this.getPluginDir());
@@ -7551,6 +7555,11 @@ var AugmentTerminalPlugin = class extends import_obsidian4.Plugin {
         new TerminalSwitcherModal(this.app).open();
       }
     });
+    this.registerEvent(
+      this.app.workspace.on("augment-terminal:teamcreate", (event) => {
+        void this.handleTeamCreateSpawn(event);
+      })
+    );
   }
   async onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -7560,8 +7569,12 @@ var AugmentTerminalPlugin = class extends import_obsidian4.Plugin {
   getPluginDir() {
     return this.app.vault.adapter.basePath + "/.obsidian/plugins/augment-terminal";
   }
-  async openTerminal(mode = "tab") {
+  async openTerminal(mode = "tab", options) {
+    var _a, _b, _c;
     const { workspace } = this.app;
+    const desiredName = (_a = options == null ? void 0 : options.name) == null ? void 0 : _a.trim();
+    const active = (_b = options == null ? void 0 : options.active) != null ? _b : true;
+    const reveal = (_c = options == null ? void 0 : options.reveal) != null ? _c : true;
     let leaf;
     if (mode === "split-vertical") {
       leaf = workspace.getLeaf("split", "vertical");
@@ -7572,9 +7585,18 @@ var AugmentTerminalPlugin = class extends import_obsidian4.Plugin {
     }
     await leaf.setViewState({
       type: VIEW_TYPE_TERMINAL,
-      active: true
+      active,
+      state: desiredName ? { name: desiredName } : void 0
     });
-    workspace.revealLeaf(leaf);
+    if (desiredName) {
+      const view = leaf.view;
+      if (typeof view.setName === "function") {
+        view.setName(desiredName);
+      }
+    }
+    if (reveal) {
+      workspace.revealLeaf(leaf);
+    }
   }
   async openTerminalSidebar() {
     const { workspace } = this.app;
@@ -7614,5 +7636,55 @@ var AugmentTerminalPlugin = class extends import_obsidian4.Plugin {
     const bottomRight = workspace.createLeafBySplit(topRight, "horizontal");
     await bottomRight.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
     workspace.revealLeaf(topLeft);
+  }
+  async handleTeamCreateSpawn(event) {
+    var _a, _b;
+    const members = Array.from(
+      new Set(
+        ((_a = event.members) != null ? _a : []).map((name) => name.trim()).filter((name) => name.length > 0)
+      )
+    );
+    if (members.length === 0) return;
+    const signature = `${(_b = event.team) != null ? _b : ""}|${members.slice().sort().join(",")}`;
+    const now = Date.now();
+    const previous = this.recentTeamCreateSpawnSignatures.get(signature);
+    if (previous && now - previous < 15e3) {
+      return;
+    }
+    this.recentTeamCreateSpawnSignatures.set(signature, now);
+    if (this.recentTeamCreateSpawnSignatures.size > 150) {
+      for (const [key, ts] of this.recentTeamCreateSpawnSignatures) {
+        if (now - ts > 6e4) {
+          this.recentTeamCreateSpawnSignatures.delete(key);
+        }
+      }
+    }
+    for (const member of members) {
+      if (this.hasTerminalNamed(member)) continue;
+      await this.openTerminal("tab", {
+        name: member,
+        active: false,
+        reveal: false
+      });
+    }
+  }
+  hasTerminalNamed(name) {
+    var _a, _b, _c;
+    const target = name.trim().toLowerCase();
+    if (!target) return false;
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const viewName = typeof view.getName === "function" ? view.getName().trim() : "";
+      if (viewName.toLowerCase() === target) {
+        return true;
+      }
+      const leafAny = leaf;
+      const stateName = (_c = (_b = (_a = leafAny.getViewState) == null ? void 0 : _a.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
+      if (typeof stateName === "string" && stateName.trim().toLowerCase() === target) {
+        return true;
+      }
+    }
+    return false;
   }
 };

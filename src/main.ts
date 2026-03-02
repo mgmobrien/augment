@@ -3,6 +3,12 @@ import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
 
+type TeamCreateSpawnEvent = {
+  sourceName?: string;
+  team?: string;
+  members?: string[];
+};
+
 class RenameModal extends Modal {
   private view: TerminalView;
   private newName: string;
@@ -58,6 +64,8 @@ class RenameModal extends Modal {
 }
 
 export default class AugmentTerminalPlugin extends Plugin {
+  private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
+
   async onload(): Promise<void> {
     // Register views
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
@@ -144,6 +152,12 @@ export default class AugmentTerminalPlugin extends Plugin {
         new TerminalSwitcherModal(this.app).open();
       },
     });
+
+    this.registerEvent(
+      (this.app.workspace as any).on("augment-terminal:teamcreate", (event: TeamCreateSpawnEvent) => {
+        void this.handleTeamCreateSpawn(event);
+      })
+    );
   }
 
   async onunload(): Promise<void> {
@@ -156,8 +170,14 @@ export default class AugmentTerminalPlugin extends Plugin {
     return (this.app.vault.adapter as any).basePath + "/.obsidian/plugins/augment-terminal";
   }
 
-  private async openTerminal(mode: "tab" | "split-vertical" | "split-horizontal" = "tab"): Promise<void> {
+  private async openTerminal(
+    mode: "tab" | "split-vertical" | "split-horizontal" = "tab",
+    options?: { name?: string; active?: boolean; reveal?: boolean }
+  ): Promise<void> {
     const { workspace } = this.app;
+    const desiredName = options?.name?.trim();
+    const active = options?.active ?? true;
+    const reveal = options?.reveal ?? true;
 
     let leaf;
     if (mode === "split-vertical") {
@@ -170,10 +190,20 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     await leaf.setViewState({
       type: VIEW_TYPE_TERMINAL,
-      active: true,
+      active,
+      state: desiredName ? { name: desiredName } : undefined,
     });
 
-    workspace.revealLeaf(leaf);
+    if (desiredName) {
+      const view = leaf.view as Partial<TerminalView>;
+      if (typeof view.setName === "function") {
+        view.setName(desiredName);
+      }
+    }
+
+    if (reveal) {
+      workspace.revealLeaf(leaf);
+    }
   }
 
   private async openTerminalSidebar(): Promise<void> {
@@ -225,5 +255,62 @@ export default class AugmentTerminalPlugin extends Plugin {
     await bottomRight.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
 
     workspace.revealLeaf(topLeft);
+  }
+
+  private async handleTeamCreateSpawn(event: TeamCreateSpawnEvent): Promise<void> {
+    const members = Array.from(
+      new Set(
+        (event.members ?? [])
+          .map((name) => name.trim())
+          .filter((name) => name.length > 0)
+      )
+    );
+    if (members.length === 0) return;
+
+    const signature = `${event.team ?? ""}|${members.slice().sort().join(",")}`;
+    const now = Date.now();
+    const previous = this.recentTeamCreateSpawnSignatures.get(signature);
+    if (previous && now - previous < 15_000) {
+      return;
+    }
+    this.recentTeamCreateSpawnSignatures.set(signature, now);
+    if (this.recentTeamCreateSpawnSignatures.size > 150) {
+      for (const [key, ts] of this.recentTeamCreateSpawnSignatures) {
+        if (now - ts > 60_000) {
+          this.recentTeamCreateSpawnSignatures.delete(key);
+        }
+      }
+    }
+
+    for (const member of members) {
+      if (this.hasTerminalNamed(member)) continue;
+      await this.openTerminal("tab", {
+        name: member,
+        active: false,
+        reveal: false,
+      });
+    }
+  }
+
+  private hasTerminalNamed(name: string): boolean {
+    const target = name.trim().toLowerCase();
+    if (!target) return false;
+
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view as Partial<TerminalView>;
+      const viewName = typeof view.getName === "function" ? view.getName().trim() : "";
+      if (viewName.toLowerCase() === target) {
+        return true;
+      }
+
+      const leafAny = leaf as any;
+      const stateName = leafAny.getViewState?.()?.state?.name;
+      if (typeof stateName === "string" && stateName.trim().toLowerCase() === target) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }
