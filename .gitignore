@@ -1,2 +1,5 @@
-node_modules/
+node_modules
 .DS_Store
+electron/renderer.js
+electron/renderer.js.map
+dist-electron/

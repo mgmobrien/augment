@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Augment Standalone</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0f1115;
+        color: #d7dce8;
+        font-family: "SF Mono", "Fira Code", Menlo, monospace;
+      }
+
+      #app {
+        display: grid;
+        grid-template-rows: 40px 1fr;
+        width: 100%;
+        height: 100%;
+      }
+
+      #tabbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-bottom: 1px solid #272c36;
+        background: #131822;
+      }
+
+      #tabs {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+        overflow-x: auto;
+      }
+
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #313746;
+        background: #1a2130;
+        color: #c7d0e3;
+        border-radius: 8px;
+        padding: 5px 10px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .tab.is-active {
+        border-color: #4f6ad2;
+        background: #243157;
+      }
+
+      .tab .close {
+        border: 0;
+        background: transparent;
+        color: #8f9abb;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+      }
+
+      #new-tab {
+        border: 1px solid #42506d;
+        background: #1e2a45;
+        color: #d7dce8;
+        border-radius: 8px;
+        padding: 5px 10px;
+        cursor: pointer;
+      }
+
+      #panes {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      .pane {
+        position: absolute;
+        inset: 0;
+        display: none;
+        width: 100%;
+        height: 100%;
+        padding: 6px;
+      }
+
+      .pane.is-active {
+        display: block;
+      }
+
+      .terminal-root {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="tabbar">
+        <div id="tabs"></div>
+        <button id="new-tab" type="button">+ new terminal</button>
+      </div>
+      <div id="panes"></div>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
