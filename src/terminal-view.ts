@@ -179,8 +179,12 @@ export class TerminalView extends ItemView {
   }
 
   setName(name: string): void {
-    this.terminalName = name;
-    (this.leaf as any).updateHeader();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    this.terminalName = trimmed;
+    this.refreshLeafName();
+    this.persistNameToLeafState();
     this.app.workspace.trigger("augment-terminal:changed");
   }
 
@@ -244,7 +248,46 @@ export class TerminalView extends ItemView {
           : null;
     }
 
-    (this.leaf as any).updateHeader();
+    this.refreshLeafName();
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+
+  private refreshLeafName(): void {
+    const leafAny = this.leaf as any;
+    if (typeof leafAny.updateHeader === "function") {
+      leafAny.updateHeader();
+    }
+
+    const leafEl = this.contentEl.closest(".workspace-leaf");
+    const headerTitleEl = leafEl?.querySelector(".view-header-title");
+    if (headerTitleEl) {
+      headerTitleEl.textContent = this.terminalName;
+    }
+
+    if (leafAny?.tabHeaderInnerTitleEl && typeof leafAny.tabHeaderInnerTitleEl.setText === "function") {
+      leafAny.tabHeaderInnerTitleEl.setText(this.terminalName);
+    }
+    if (leafAny?.tabHeaderEl && typeof leafAny.tabHeaderEl.setAttribute === "function") {
+      leafAny.tabHeaderEl.setAttribute("aria-label", this.terminalName);
+    }
+  }
+
+  private persistNameToLeafState(): void {
+    const leafAny = this.leaf as any;
+    if (typeof leafAny.getViewState !== "function") return;
+
+    const current = leafAny.getViewState();
+    if (!current || current.type !== VIEW_TYPE_TERMINAL) return;
+
+    const nextState = {
+      ...current,
+      state: {
+        ...(current.state ?? {}),
+        name: this.terminalName,
+      },
+    };
+
+    void this.leaf.setViewState(nextState, { focus: false });
   }
 
   async onOpen(): Promise<void> {

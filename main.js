@@ -6808,8 +6808,11 @@ var TerminalView = class extends import_obsidian.ItemView {
     return parts.join(" ");
   }
   setName(name) {
-    this.terminalName = name;
-    this.leaf.updateHeader();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    this.terminalName = trimmed;
+    this.refreshLeafName();
+    this.persistNameToLeafState();
     this.app.workspace.trigger("augment-terminal:changed");
   }
   getState() {
@@ -6849,7 +6852,40 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.recentTeamEvents = Array.isArray(orchestration.recentEvents) ? orchestration.recentEvents.slice(-MAX_TEAM_EVENTS) : [];
       this.agentIdentity = typeof orchestration.agentIdentity === "string" && orchestration.agentIdentity.trim() ? orchestration.agentIdentity.trim() : null;
     }
-    this.leaf.updateHeader();
+    this.refreshLeafName();
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+  refreshLeafName() {
+    const leafAny = this.leaf;
+    if (typeof leafAny.updateHeader === "function") {
+      leafAny.updateHeader();
+    }
+    const leafEl = this.contentEl.closest(".workspace-leaf");
+    const headerTitleEl = leafEl == null ? void 0 : leafEl.querySelector(".view-header-title");
+    if (headerTitleEl) {
+      headerTitleEl.textContent = this.terminalName;
+    }
+    if ((leafAny == null ? void 0 : leafAny.tabHeaderInnerTitleEl) && typeof leafAny.tabHeaderInnerTitleEl.setText === "function") {
+      leafAny.tabHeaderInnerTitleEl.setText(this.terminalName);
+    }
+    if ((leafAny == null ? void 0 : leafAny.tabHeaderEl) && typeof leafAny.tabHeaderEl.setAttribute === "function") {
+      leafAny.tabHeaderEl.setAttribute("aria-label", this.terminalName);
+    }
+  }
+  persistNameToLeafState() {
+    var _a;
+    const leafAny = this.leaf;
+    if (typeof leafAny.getViewState !== "function") return;
+    const current = leafAny.getViewState();
+    if (!current || current.type !== VIEW_TYPE_TERMINAL) return;
+    const nextState = {
+      ...current,
+      state: {
+        ...(_a = current.state) != null ? _a : {},
+        name: this.terminalName
+      }
+    };
+    void this.leaf.setViewState(nextState, { focus: false });
   }
   async onOpen() {
     if (!xtermStyleEl) {
@@ -7274,7 +7310,7 @@ var TerminalManagerView = class extends import_obsidian2.ItemView {
       const dot = line.createDiv({ cls: "augment-tm-dot" });
       const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
       dot.addClass(status);
-      const name = typeof view.getName === "function" ? view.getName() : "terminal";
+      const name = this.getLeafTerminalName(leaf, view);
       line.createSpan({ cls: "augment-tm-name", text: name });
       line.createDiv({ cls: "augment-tm-spacer" });
       const unread = typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0;
@@ -7322,6 +7358,26 @@ var TerminalManagerView = class extends import_obsidian2.ItemView {
   }
   async onClose() {
     this.listEl = null;
+  }
+  getLeafTerminalName(leaf, view) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    const leafAny = leaf;
+    const stateName = (_c = (_b = (_a = leafAny.getViewState) == null ? void 0 : _a.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
+    if (typeof stateName === "string" && stateName.trim()) {
+      return stateName.trim();
+    }
+    if (typeof view.getName === "function") {
+      const value = view.getName();
+      if (value == null ? void 0 : value.trim()) {
+        return value.trim();
+      }
+    }
+    const leafEl = (_f = (_e = (_d = leafAny == null ? void 0 : leafAny.view) == null ? void 0 : _d.containerEl) == null ? void 0 : _e.closest) == null ? void 0 : _f.call(_e, ".workspace-leaf");
+    const headerName = (_i = (_h = (_g = leafEl == null ? void 0 : leafEl.querySelector) == null ? void 0 : _g.call(leafEl, ".view-header-title")) == null ? void 0 : _h.textContent) == null ? void 0 : _i.trim();
+    if (headerName) {
+      return headerName;
+    }
+    return ((_j = leafAny.getDisplayText) == null ? void 0 : _j.call(leafAny)) || "terminal";
   }
 };
 

@@ -177,8 +177,7 @@ export class TerminalManagerView extends ItemView {
       dot.addClass(status);
 
       // Name.
-      const name =
-        typeof view.getName === "function" ? view.getName() : "terminal";
+      const name = this.getLeafTerminalName(leaf, view);
       line.createSpan({ cls: "augment-tm-name", text: name });
       line.createDiv({ cls: "augment-tm-spacer" });
 
@@ -245,5 +244,33 @@ export class TerminalManagerView extends ItemView {
 
   async onClose(): Promise<void> {
     this.listEl = null;
+  }
+
+  private getLeafTerminalName(
+    leaf: WorkspaceLeaf,
+    view: TerminalViewLike
+  ): string {
+    const leafAny = leaf as any;
+    const stateName = leafAny.getViewState?.()?.state?.name;
+    if (typeof stateName === "string" && stateName.trim()) {
+      return stateName.trim();
+    }
+
+    if (typeof view.getName === "function") {
+      const value = view.getName();
+      if (value?.trim()) {
+        return value.trim();
+      }
+    }
+
+    const leafEl = leafAny?.view?.containerEl?.closest?.(".workspace-leaf");
+    const headerName = leafEl
+      ?.querySelector?.(".view-header-title")
+      ?.textContent?.trim();
+    if (headerName) {
+      return headerName;
+    }
+
+    return leafAny.getDisplayText?.() || "terminal";
   }
 }
