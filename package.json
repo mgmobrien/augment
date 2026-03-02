@@ -10,8 +10,10 @@
     "electron:build": "node electron/build.mjs",
     "electron:watch": "node electron/build.mjs --watch",
     "electron:dev": "npm run electron:build && electron electron/main.cjs",
+    "electron:open": "npm run electron:build && open -n node_modules/electron/dist/Electron.app --args electron/main.cjs",
     "electron:pack": "npm run electron:build && electron-builder --dir -m -c.mac.identity=null",
-    "electron:dist": "npm run electron:build && electron-builder -m -c.mac.identity=null"
+    "electron:dist": "npm run electron:build && electron-builder -m -c.mac.identity=null",
+    "electron:open-pack": "npm run electron:pack && open -n dist-electron/mac-arm64/Electron.app"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

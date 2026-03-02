@@ -25,6 +25,8 @@ This directory is the first standalone desktop surface for desideratum 12.
    - `npm run electron:build`
 4. Launch app in dev mode:
    - `npm run electron:dev`
+   - If direct Electron launch aborts on macOS, use LaunchServices path:
+     - `npm run electron:open`
 
 ## Package app artifacts
 
@@ -32,6 +34,8 @@ This directory is the first standalone desktop surface for desideratum 12.
   - `npm run electron:pack`
 - Build distributable zip:
   - `npm run electron:dist`
+- Open packaged app:
+  - `npm run electron:open-pack`
 
 ## Current constraints
 
