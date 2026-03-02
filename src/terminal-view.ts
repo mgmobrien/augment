@@ -10,6 +10,12 @@ import xtermCssText from "@xterm/xterm/css/xterm.css";
 export const VIEW_TYPE_TERMINAL = "augment-terminal";
 
 type TerminalStatus = "idle" | "active" | "tool" | "exited" | "shell";
+type TerminalViewState = {
+  name?: string;
+  snapshot?: string;
+};
+
+const MAX_SNAPSHOT_CHARS = 200_000;
 
 let xtermStyleEl: HTMLStyleElement | null = null;
 
@@ -61,6 +67,8 @@ export class TerminalView extends ItemView {
   private terminalName: string;
   private isExited: boolean = false;
   private status: TerminalStatus = "shell";
+  private restoredSnapshot: string = "";
+  private scrollbackBuffer: string = "";
   private statusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingStatus: TerminalStatus | null = null;
 
@@ -100,6 +108,28 @@ export class TerminalView extends ItemView {
     this.app.workspace.trigger("augment-terminal:changed");
   }
 
+  getState(): TerminalViewState {
+    let snapshot = this.scrollbackBuffer;
+    if (snapshot.length > MAX_SNAPSHOT_CHARS) {
+      snapshot = snapshot.slice(-MAX_SNAPSHOT_CHARS);
+    }
+
+    return {
+      name: this.terminalName,
+      snapshot,
+    };
+  }
+
+  async setState(state: TerminalViewState): Promise<void> {
+    if (typeof state?.name === "string" && state.name.trim()) {
+      this.terminalName = state.name.trim();
+    }
+    if (typeof state?.snapshot === "string") {
+      this.restoredSnapshot = state.snapshot;
+    }
+    (this.leaf as any).updateHeader();
+  }
+
   async onOpen(): Promise<void> {
     // Inject xterm.js CSS into document head (once)
     if (!xtermStyleEl) {
@@ -134,6 +164,12 @@ export class TerminalView extends ItemView {
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
 
+    // Restore previous terminal output snapshot, then spawn a fresh shell.
+    if (this.restoredSnapshot) {
+      this.terminal.write(this.restoredSnapshot);
+      this.terminal.write("\r\n\x1b[2m[Session restored: previous output snapshot; started new shell]\x1b[0m\r\n");
+    }
+
     // Start PTY
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
     this.ptyBridge = new PtyBridge(
@@ -141,6 +177,7 @@ export class TerminalView extends ItemView {
       vaultPath,
       (data) => {
         this.terminal?.write(data);
+        this.appendToScrollback(data);
         this.detectStatus(data);
       },
       (code) => {
@@ -220,6 +257,13 @@ export class TerminalView extends ItemView {
       }
     } catch (e) {
       // Ignore resize errors during teardown
+    }
+  }
+
+  private appendToScrollback(data: string): void {
+    this.scrollbackBuffer += data;
+    if (this.scrollbackBuffer.length > MAX_SNAPSHOT_CHARS) {
+      this.scrollbackBuffer = this.scrollbackBuffer.slice(-MAX_SNAPSHOT_CHARS);
     }
   }
 

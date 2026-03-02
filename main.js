@@ -6623,6 +6623,7 @@ var xterm_default = `/**
 
 // src/terminal-view.ts
 var VIEW_TYPE_TERMINAL = "augment-terminal";
+var MAX_SNAPSHOT_CHARS = 2e5;
 var xtermStyleEl = null;
 function cleanupXtermStyle() {
   if (xtermStyleEl) {
@@ -6732,6 +6733,8 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.resizeObserver = null;
     this.isExited = false;
     this.status = "shell";
+    this.restoredSnapshot = "";
+    this.scrollbackBuffer = "";
     this.statusDebounceTimer = null;
     this.pendingStatus = null;
     this.pluginDir = pluginDir;
@@ -6760,6 +6763,25 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.leaf.updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
   }
+  getState() {
+    let snapshot = this.scrollbackBuffer;
+    if (snapshot.length > MAX_SNAPSHOT_CHARS) {
+      snapshot = snapshot.slice(-MAX_SNAPSHOT_CHARS);
+    }
+    return {
+      name: this.terminalName,
+      snapshot
+    };
+  }
+  async setState(state) {
+    if (typeof (state == null ? void 0 : state.name) === "string" && state.name.trim()) {
+      this.terminalName = state.name.trim();
+    }
+    if (typeof (state == null ? void 0 : state.snapshot) === "string") {
+      this.restoredSnapshot = state.snapshot;
+    }
+    this.leaf.updateHeader();
+  }
   async onOpen() {
     if (!xtermStyleEl) {
       xtermStyleEl = document.createElement("style");
@@ -6784,6 +6806,10 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.terminal.loadAddon(new import_addon_web_links.WebLinksAddon());
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
+    if (this.restoredSnapshot) {
+      this.terminal.write(this.restoredSnapshot);
+      this.terminal.write("\r\n\x1B[2m[Session restored: previous output snapshot; started new shell]\x1B[0m\r\n");
+    }
     const vaultPath = this.app.vault.adapter.basePath || ".";
     this.ptyBridge = new PtyBridge(
       this.pluginDir,
@@ -6791,6 +6817,7 @@ var TerminalView = class extends import_obsidian.ItemView {
       (data) => {
         var _a;
         (_a = this.terminal) == null ? void 0 : _a.write(data);
+        this.appendToScrollback(data);
         this.detectStatus(data);
       },
       (code) => {
@@ -6858,6 +6885,12 @@ var TerminalView = class extends import_obsidian.ItemView {
     } catch (e) {
     }
   }
+  appendToScrollback(data) {
+    this.scrollbackBuffer += data;
+    if (this.scrollbackBuffer.length > MAX_SNAPSHOT_CHARS) {
+      this.scrollbackBuffer = this.scrollbackBuffer.slice(-MAX_SNAPSHOT_CHARS);
+    }
+  }
   getTheme() {
     const style = getComputedStyle(document.body);
     const isDark = document.body.classList.contains("theme-dark");
@@ -6915,17 +6948,41 @@ var TerminalManagerView = class extends import_obsidian2.ItemView {
     });
     this.listEl = container.createDiv({ cls: "augment-tm-list" });
     this.refresh();
+    window.setTimeout(() => this.refresh(), 0);
+    this.app.workspace.onLayoutReady(() => this.refresh());
     this.registerEvent(
       this.app.workspace.on("layout-change", () => this.refresh())
+    );
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => this.refresh())
     );
     this.registerEvent(
       this.app.workspace.on("augment-terminal:changed", () => this.refresh())
     );
   }
+  getTerminalLeaves() {
+    const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    if (byType.length > 0) {
+      return byType;
+    }
+    const found = [];
+    const workspaceAny = this.app.workspace;
+    if (typeof workspaceAny.iterateAllLeaves === "function") {
+      workspaceAny.iterateAllLeaves((leaf) => {
+        const viewAny = leaf.view;
+        const viewType = typeof (viewAny == null ? void 0 : viewAny.getViewType) === "function" ? viewAny.getViewType() : viewAny == null ? void 0 : viewAny.getViewType;
+        if (viewType === VIEW_TYPE_TERMINAL) {
+          found.push(leaf);
+        }
+      });
+    }
+    return found;
+  }
   refresh() {
+    var _a;
     if (!this.listEl) return;
     this.listEl.empty();
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    const leaves = this.getTerminalLeaves();
     const activeLeaf = this.app.workspace.activeLeaf;
     if (leaves.length === 0) {
       this.listEl.createDiv({ cls: "augment-tm-empty", text: "No terminals open" });
@@ -6938,9 +6995,11 @@ var TerminalManagerView = class extends import_obsidian2.ItemView {
         row.addClass("is-active");
       }
       const dot = row.createDiv({ cls: "augment-tm-dot" });
-      const status = view.getStatus();
+      const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
       dot.addClass(status);
-      row.createSpan({ cls: "augment-tm-name", text: view.getName() });
+      const leafAny = leaf;
+      const name = typeof view.getName === "function" ? view.getName() : ((_a = leafAny.getDisplayText) == null ? void 0 : _a.call(leafAny)) || "terminal";
+      row.createSpan({ cls: "augment-tm-name", text: name });
       row.addEventListener("click", () => {
         this.app.workspace.revealLeaf(leaf);
       });
