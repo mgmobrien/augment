@@ -12,11 +12,14 @@ function getPtyScriptPath() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 900,
+    width: 1600,
+    height: 1000,
+    minWidth: 1000,
     minHeight: 600,
     backgroundColor: "#0f1115",
+    title: "Augment",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 14, y: 12 },
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
