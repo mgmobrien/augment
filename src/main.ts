@@ -1,4 +1,5 @@
-import { Modal, Plugin, Setting } from "obsidian";
+import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
+import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -64,15 +65,41 @@ class RenameModal extends Modal {
 }
 
 export default class AugmentTerminalPlugin extends Plugin {
+  settings: AugmentSettings = { ...DEFAULT_SETTINGS };
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
 
   async onload(): Promise<void> {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
     // Register views
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
       return new TerminalView(leaf, this.getPluginDir());
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
+    });
+
+    // AI generation commands
+    this.addCommand({
+      id: "augment-generate",
+      name: "Generate",
+      editorCallback: (editor, view) => {
+        if (!(view instanceof MarkdownView)) return;
+        const ctx = assembleVaultContext(this.app, editor, this.settings);
+        console.log("[Augment] Generate context:", ctx);
+        new Notice(`Augment: captured context for "${ctx.title}" (${ctx.linkedNotes.length} linked notes)`);
+      },
+    });
+
+    this.addCommand({
+      id: "augment-generate-from-template",
+      name: "Generate from template",
+      editorCallback: (editor, view) => {
+        if (!(view instanceof MarkdownView)) return;
+        const ctx = assembleVaultContext(this.app, editor, this.settings);
+        console.log("[Augment] Generate from template context:", ctx);
+        new Notice(`Augment: captured context for "${ctx.title}" (${ctx.linkedNotes.length} linked notes)`);
+      },
     });
 
     // Add ribbon icon
