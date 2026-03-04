@@ -74,8 +74,10 @@ export function modelDisplayName(modelId: string): string {
 
 export function applyOutputFormat(text: string, settings: AugmentSettings): string {
   switch (settings.outputFormat) {
-    case "codeblock":
-      return `\`\`\`\n${text}\n\`\`\``;
+    case "codeblock": {
+      const label = "AI-" + modelDisplayName(settings.model).toLowerCase().replace(/\s+/g, "-");
+      return `\`\`\`${label}\n${text}\n\`\`\``;
+    }
     case "blockquote":
       return text.split("\n").map((line) => `> ${line}`).join("\n");
     case "heading": {

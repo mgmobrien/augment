@@ -11270,10 +11270,12 @@ function modelDisplayName(modelId) {
 function applyOutputFormat(text, settings) {
   var _a2;
   switch (settings.outputFormat) {
-    case "codeblock":
-      return `\`\`\`
+    case "codeblock": {
+      const label = "AI-" + modelDisplayName(settings.model).toLowerCase().replace(/\s+/g, "-");
+      return `\`\`\`${label}
 ${text}
 \`\`\``;
+    }
     case "blockquote":
       return text.split("\n").map((line) => `> ${line}`).join("\n");
     case "heading": {
