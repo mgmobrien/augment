@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal } from "obsidian";
 
 export class GenerateModal extends Modal {
   private instruction: string = "";
@@ -20,23 +20,25 @@ export class GenerateModal extends Modal {
       cls: "augment-gen-context-hint",
     });
 
-    new Setting(contentEl).addText((text) => {
-      text.setPlaceholder("What do you want to generate?").onChange((value) => {
-        this.instruction = value;
-      });
-      text.inputEl.addClass("augment-gen-input");
-      text.inputEl.addEventListener("keydown", (e: KeyboardEvent) => {
-        if (e.key === "Enter") this.submit();
-      });
-      setTimeout(() => text.inputEl.focus(), 10);
+    const input = contentEl.createEl("input", {
+      type: "text",
+      cls: "augment-gen-input",
     });
+    input.placeholder = "What do you want to generate?";
+    input.addEventListener("input", () => {
+      this.instruction = input.value;
+    });
+    input.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter") this.submit();
+    });
+    setTimeout(() => input.focus(), 10);
 
-    new Setting(contentEl).addButton((btn) => {
-      btn
-        .setButtonText("Generate")
-        .setCta()
-        .onClick(() => this.submit());
+    const btnRow = contentEl.createDiv({ cls: "augment-gen-btn-row" });
+    const btn = btnRow.createEl("button", {
+      text: "Generate",
+      cls: "mod-cta",
     });
+    btn.addEventListener("click", () => this.submit());
   }
 
   private submit(): void {

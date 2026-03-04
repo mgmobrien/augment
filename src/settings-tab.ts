@@ -60,6 +60,9 @@ export class AugmentSettingTab extends PluginSettingTab {
       .setName("Linked notes in context")
       .setDesc("Number of linked notes to include per generation (0–10)")
       .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "0";
+        text.inputEl.max = "10";
         text
           .setPlaceholder("3")
           .setValue(String(this.plugin.settings.linkedNoteCount))
@@ -76,6 +79,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       .setName("Max context tokens")
       .setDesc("Soft cap on assembled context sent to the model")
       .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "1";
         text
           .setPlaceholder("2000")
           .setValue(String(this.plugin.settings.maxContextTokens))

@@ -318,6 +318,13 @@
 
 .augment-gen-modal .augment-gen-input {
   width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.augment-gen-modal .augment-gen-btn-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ── Settings tab ── */
