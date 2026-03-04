@@ -6,6 +6,42 @@ import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
+import { Decoration, DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { StateEffect, StateField } from "@codemirror/state";
+
+// CM6 spinner widget — inserts an HTML triangle animation at cursor without modifying document text
+const addSpinnerEffect = StateEffect.define<number>();
+const removeSpinnerEffect = StateEffect.define<null>();
+
+class SpinnerWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const wrap = document.createElement("span");
+    wrap.className = "augment-spinner";
+    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
+      const dot = document.createElement("span");
+      dot.className = "augment-spinner-dot " + cls;
+      wrap.appendChild(dot);
+    }
+    return wrap;
+  }
+  ignoreEvent(): boolean { return true; }
+}
+
+const spinnerField = StateField.define<DecorationSet>({
+  create() { return Decoration.none; },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(addSpinnerEffect)) {
+        decos = decos.update({ add: [Decoration.widget({ widget: new SpinnerWidget(), side: 1 }).range(e.value)] });
+      } else if (e.is(removeSpinnerEffect)) {
+        decos = Decoration.none;
+      }
+    }
+    return decos;
+  },
+  provide: f => EditorView.decorations.from(f),
+});
 
 type TeamCreateSpawnEvent = {
   sourceName?: string;
@@ -98,9 +134,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
-    // Orion's belt: three-dot bounce, single line, 5 chars wide
-    const SPINNER_FRAMES = ["\u00B7 \u00B7 \u00B7", "\u2022 \u00B7 \u00B7", "\u00B7 \u2022 \u00B7", "\u00B7 \u00B7 \u2022", "\u00B7 \u2022 \u00B7", "\u2022 \u00B7 \u00B7"];
-    const SPINNER_WIDTH = SPINNER_FRAMES[0].length;
+    this.registerEditorExtension(spinnerField);
 
     // AI generation commands
     this.addCommand({
@@ -124,44 +158,44 @@ export default class AugmentTerminalPlugin extends Plugin {
         const promptText = aboveCursor.trim() || editor.getValue().trim();
         const ctx = assembleVaultContext(this.app, editor, this.settings);
 
-        if (this.statusBarEl) this.statusBarEl.setText("\u00B7 \u00B7 \u00B7 generating");
-
-        const isBlock = this.settings.outputFormat !== "plain";
-        let spinnerStart: { line: number; ch: number };
-        if (isBlock && cursor.ch > 0) {
-          editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
-          spinnerStart = { line: cursor.line + 1, ch: 0 };
-        } else {
-          editor.replaceRange(SPINNER_FRAMES[0], cursor);
-          spinnerStart = { line: cursor.line, ch: cursor.ch };
+        if (this.statusBarEl) {
+          this.statusBarEl.empty();
+          const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+          this.statusBarEl.createEl("span", { text: " generating" });
         }
 
-        let frameIdx = 0;
-        const spinnerInterval = setInterval(() => {
-          frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-          editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-        }, 150);
+        const isBlock = this.settings.outputFormat !== "plain";
+        let insertPos: number;
+        if (isBlock && cursor.ch > 0) {
+          editor.replaceRange("\n", cursor);
+          insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+        } else {
+          insertPos = editor.posToOffset(cursor);
+        }
+
+        const cmView = (editor as any).cm as EditorView;
+        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos) });
 
         void (async () => {
           try {
             const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings);
-            clearInterval(spinnerInterval);
+            cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
             const formatted = applyOutputFormat(result, this.settings);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+            const insertPosLine = editor.offsetToPos(insertPos);
             if (isBlock) {
               const withTrail = formatted + "\n";
-              editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
+              editor.replaceRange(withTrail, insertPosLine);
               const lines = withTrail.split("\n");
-              editor.setCursor({ line: spinnerStart.line + lines.length - 1, ch: 0 });
+              editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
             } else {
-              editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+              editor.replaceRange(formatted, insertPosLine);
             }
           } catch (err) {
             console.error("[Augment]", err);
-            clearInterval(spinnerInterval);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-            editor.replaceRange("", spinnerStart, spinnerEnd);
+            cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
             new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             this.refreshStatusBar();
@@ -197,42 +231,42 @@ export default class AugmentTerminalPlugin extends Plugin {
           const rendered = substituteVariables(templateContent, ctx);
 
           const runGenerate = async () => {
-            if (this.statusBarEl) this.statusBarEl.setText("\u00B7 \u00B7 \u00B7 generating");
+            if (this.statusBarEl) {
+              this.statusBarEl.empty();
+              const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+              this.statusBarEl.createEl("span", { text: " generating" });
+            }
             const isBlock = this.settings.outputFormat !== "plain";
-            let spinnerStart: { line: number; ch: number };
+            let insertPos: number;
             if (isBlock && cursor.ch > 0) {
-              editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
-              spinnerStart = { line: cursor.line + 1, ch: 0 };
+              editor.replaceRange("\n", cursor);
+              insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
             } else {
-              editor.replaceRange(SPINNER_FRAMES[0], cursor);
-              spinnerStart = { line: cursor.line, ch: cursor.ch };
+              insertPos = editor.posToOffset(cursor);
             }
 
-            let frameIdx = 0;
-            const spinnerInterval = setInterval(() => {
-              frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-              editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-            }, 150);
+            const cmView = (editor as any).cm as EditorView;
+            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos) });
 
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
-              clearInterval(spinnerInterval);
+              cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const formatted = applyOutputFormat(result, this.settings);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+              const insertPosLine = editor.offsetToPos(insertPos);
               if (isBlock) {
                 const withTrail = formatted + "\n";
-                editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
+                editor.replaceRange(withTrail, insertPosLine);
                 const lines = withTrail.split("\n");
-                editor.setCursor({ line: spinnerStart.line + lines.length - 1, ch: 0 });
+                editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
               } else {
-                editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+                editor.replaceRange(formatted, insertPosLine);
               }
             } catch (err) {
               console.error("[Augment]", err);
-              clearInterval(spinnerInterval);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-              editor.replaceRange("", spinnerStart, spinnerEnd);
+              cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             } finally {
               this.refreshStatusBar();

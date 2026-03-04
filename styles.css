@@ -309,6 +309,83 @@
   font-size: var(--font-ui-medium);
 }
 
+/* ── In-document generation spinner (S3 triangle) ── */
+.augment-spinner {
+  display: inline-block;
+  position: relative;
+  width: 15px;
+  height: 14px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.augment-spinner-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  transform-origin: center center;
+  animation: augment-spinner-pulse 1.5s ease-in-out infinite;
+}
+
+/* Red: top center — clockwise start */
+.augment-dot-red {
+  background: #ff3d00;
+  left: 5px;
+  top: 0;
+  animation-delay: 0s;
+}
+
+/* Green: bottom right — clockwise second */
+.augment-dot-green {
+  background: #2e7d32;
+  left: 10px;
+  top: 9px;
+  animation-delay: 0.5s;
+}
+
+/* Blue: bottom left — clockwise third */
+.augment-dot-blue {
+  background: #1565c0;
+  left: 0;
+  top: 9px;
+  animation-delay: 1.0s;
+}
+
+@keyframes augment-spinner-pulse {
+  0%, 100% { transform: scale(0.6); opacity: 0.3; }
+  50%       { transform: scale(1.2); opacity: 1.0; }
+}
+
+.theme-dark .augment-dot-red   { background: #ff6e40; }
+.theme-dark .augment-dot-green { background: #43a047; }
+.theme-dark .augment-dot-blue  { background: #1e88e5; }
+
+/* ── Status bar generation dots ── */
+@keyframes augment-sb-pulse {
+  0%, 100% { transform: scale(0.6);  opacity: 0.25; }
+  50%       { transform: scale(1.15); opacity: 1.0;  }
+}
+
+.augment-sb-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.augment-sb-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: augment-sb-pulse 1.2s ease-in-out infinite;
+}
+
+.augment-sb-dot:nth-child(1) { animation-delay: 0s;   }
+.augment-sb-dot:nth-child(2) { animation-delay: 0.4s; }
+.augment-sb-dot:nth-child(3) { animation-delay: 0.8s; }
+
 /* ── Generate modal ── */
 .augment-gen-modal .augment-gen-context-hint {
   color: var(--text-muted);
