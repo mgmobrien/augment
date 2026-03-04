@@ -12900,7 +12900,7 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
           insertPos = editor.posToOffset(cursor);
         }
         const cmView = editor.cm;
-        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos) });
+        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
         void (async () => {
           try {
             const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings);
@@ -12968,7 +12968,7 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
               insertPos = editor.posToOffset(cursor);
             }
             const cmView = editor.cm;
-            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos) });
+            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });

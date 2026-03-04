@@ -7,7 +7,7 @@ import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
 import { Decoration, DecorationSet, EditorView, WidgetType } from "@codemirror/view";
-import { StateEffect, StateField } from "@codemirror/state";
+import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
 // CM6 spinner widget — inserts an HTML triangle animation at cursor without modifying document text
 const addSpinnerEffect = StateEffect.define<number>();
@@ -177,7 +177,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
 
         const cmView = (editor as any).cm as EditorView;
-        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos) });
+        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
 
         void (async () => {
           try {
@@ -249,7 +249,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             }
 
             const cmView = (editor as any).cm as EditorView;
-            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos) });
+            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
 
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
