@@ -592,9 +592,12 @@
       }
 
       /* When sidebar is collapsed, shift focus header right to clear traffic lights
-         and show the toggle prominently */
+         and show the toggle prominently. Match sidebar-header vertical padding
+         so the toggle icon stays at the same Y coordinate between states. */
       .sidebar-collapsed #focus-header {
         padding-left: 78px;
+        padding-top: 12px;
+        padding-bottom: 8px;
       }
 
       .sidebar-collapsed #focus-sidebar-toggle {

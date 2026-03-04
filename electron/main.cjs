@@ -9,8 +9,9 @@ let mainWindow = null;
 let nextSessionId = 1;
 const sessions = new Map();
 
-// Maps tmux shim pane names to Augment session IDs
+// Maps tmux shim pane IDs and names to Augment session IDs
 const shimPaneMap = new Map(); // name → sessionId
+let nextShimPaneId = 1; // incrementing pane counter for %N IDs
 
 function getPtyScriptPath() {
   return path.resolve(__dirname, "..", "scripts", "terminal_pty.py");
@@ -340,10 +341,13 @@ function handleShimMessage(conn, raw) {
 
   switch (msg.type) {
     case "spawn": {
-      // CC wants to create a new agent pane
+      // CC wants to create a new agent pane (via new-window or split-window)
       // msg.name = agent name, msg.cmd = full shell command
+      // msg.method = "new-window" | "split-window" (how CC spawned it)
+      // msg.target = target pane for split-window
       const name = msg.name || "agent";
       const cmdStr = msg.cmd || "";
+      const method = msg.method || "new-window";
 
       // Parse the command string to extract the actual command
       // CC typically sends: bash -c "claude --agent-id ..."
@@ -356,17 +360,26 @@ function handleShimMessage(conn, raw) {
 
       const session = createSession({ cmd: cmdArgs });
 
-      // Map the pane name to the session ID
-      shimPaneMap.set(name, session.id);
+      // Assign a stable pane ID for this session
+      const paneId = nextShimPaneId++;
+      const paneIdStr = `%${paneId}`;
+
+      // Map both the pane ID and name to the session ID
+      shimPaneMap.set(paneIdStr, session.id);
+      if (name) {
+        shimPaneMap.set(name, session.id);
+      }
 
       // Notify renderer about the new agent session
       sendToRenderer("shim:agent-spawned", {
         id: session.id,
         name: name,
         cmd: cmdStr,
+        method: method,
+        paneId: paneIdStr,
       });
 
-      conn.end(`{"ok":true,"id":${session.id},"pane":"%${session.id}"}\n`);
+      conn.end(`{"ok":true,"id":${session.id},"pane":"${paneIdStr}"}\n`);
       break;
     }
 
@@ -375,13 +388,8 @@ function handleShimMessage(conn, raw) {
       const target = msg.target || "";
       const keys = msg.keys || "";
 
-      // Find session by pane name or pane ID
-      let sessionId = null;
-      if (target.startsWith("%")) {
-        sessionId = parseInt(target.slice(1), 10);
-      } else {
-        sessionId = shimPaneMap.get(target) || null;
-      }
+      // Find session by pane ID (%N) or name — both are in shimPaneMap
+      let sessionId = shimPaneMap.get(target) || null;
 
       if (sessionId !== null) {
         const session = sessions.get(sessionId);
@@ -409,15 +417,32 @@ function handleShimMessage(conn, raw) {
     }
 
     case "list-panes": {
-      // Return all active agent panes
+      // Return all active agent panes in tmux format: %ID name
+      // Deduplicate: shimPaneMap has both %ID→sessionId and name→sessionId entries
+      const seen = new Set();
       const panes = [];
-      for (const [name, id] of shimPaneMap.entries()) {
-        if (sessions.has(id)) {
-          panes.push(`%${id} ${name}`);
+      // Always include the leader pane first
+      panes.push("%0 augment");
+      seen.add(0);
+      for (const [key, id] of shimPaneMap.entries()) {
+        if (!sessions.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        // Find the pane ID key (starts with %)
+        let paneKey = key;
+        if (!key.startsWith("%")) {
+          // Find the %N key for this session
+          for (const [k, v] of shimPaneMap.entries()) {
+            if (v === id && k.startsWith("%")) { paneKey = k; break; }
+          }
         }
-      }
-      if (panes.length === 0) {
-        panes.push("%0 augment");
+        // Find the name key (doesn't start with %)
+        let nameKey = key;
+        if (key.startsWith("%")) {
+          for (const [k, v] of shimPaneMap.entries()) {
+            if (v === id && !k.startsWith("%")) { nameKey = k; break; }
+          }
+        }
+        panes.push(`${paneKey} ${nameKey}`);
       }
       conn.end(panes.join("\n") + "\n");
       break;
@@ -425,14 +450,14 @@ function handleShimMessage(conn, raw) {
 
     case "kill": {
       const target = msg.target || "";
-      let sessionId = null;
-      if (target.startsWith("%")) {
-        sessionId = parseInt(target.slice(1), 10);
-      } else {
-        sessionId = shimPaneMap.get(target) || null;
-      }
+      // Look up by pane ID or name — both are in shimPaneMap
+      const sessionId = shimPaneMap.get(target) || null;
       if (sessionId !== null) {
         killSession(sessionId);
+        // Clean up shimPaneMap entries for this session
+        for (const [key, id] of shimPaneMap.entries()) {
+          if (id === sessionId) shimPaneMap.delete(key);
+        }
       }
       conn.end('{"ok":true}\n');
       break;
