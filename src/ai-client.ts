@@ -67,7 +67,7 @@ export async function generateText(
   userMessage: string,
   settings: AugmentSettings
 ): Promise<string> {
-  const client = new Anthropic({ apiKey: settings.apiKey });
+  const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create({
     model: settings.model,
     max_tokens: 1024,

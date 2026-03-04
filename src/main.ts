@@ -1,6 +1,5 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
 import { buildSystemPrompt, buildUserMessage, generateText, substituteVariables } from "./ai-client";
-import { GenerateModal } from "./generate-modal";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
@@ -90,7 +89,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings → Augment", 0);
+          const notice = new Notice("Augment: add your API key in Settings \u2192 Augment", 0);
           notice.noticeEl.addEventListener("click", () => {
             (this.app as any).setting.open();
             (this.app as any).setting.openTabById("augment-terminal");
@@ -98,27 +97,32 @@ export default class AugmentTerminalPlugin extends Plugin {
           });
           return;
         }
+
+        const cursor = editor.getCursor();
+        const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
+        const promptText = aboveCursor.trim() || editor.getValue().trim();
+
         const ctx = assembleVaultContext(this.app, editor, this.settings);
-        new GenerateModal(this.app, ctx.title, async (instruction) => {
-          const notice = new Notice("Generating\u2026", 0);
+
+        const placeholder = "\u23F3";
+        editor.replaceRange(placeholder, cursor);
+
+        void (async () => {
           try {
             const result = await generateText(
               buildSystemPrompt(ctx),
-              buildUserMessage(ctx, instruction),
+              promptText,
               this.settings
             );
-            if (ctx.selection) {
-              editor.replaceSelection(result);
-            } else {
-              editor.replaceRange(result, editor.getCursor());
-            }
-            notice.hide();
-            new Notice("Done", 2000);
+            const placeholderEnd = { line: cursor.line, ch: cursor.ch + placeholder.length };
+            editor.replaceRange(result, cursor, placeholderEnd);
           } catch (err) {
-            notice.hide();
+            console.error("[Augment]", err);
+            const placeholderEnd = { line: cursor.line, ch: cursor.ch + placeholder.length };
+            editor.replaceRange("", cursor, placeholderEnd);
             new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
           }
-        }).open();
+        })();
       },
     });
 
@@ -158,6 +162,7 @@ export default class AugmentTerminalPlugin extends Plugin {
               notice.hide();
               new Notice("Done", 2000);
             } catch (err) {
+              console.error("[Augment]", err);
               notice.hide();
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             }
