@@ -386,6 +386,16 @@
 .augment-sb-dot:nth-child(2) { animation-delay: 0.4s; }
 .augment-sb-dot:nth-child(3) { animation-delay: 0.8s; }
 
+/* ── Format row secondary slot ── */
+.augment-format-secondary {
+  min-width: 120px;
+}
+
+.augment-format-secondary.is-placeholder {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
 /* ── Generate modal ── */
 .augment-gen-modal .augment-gen-context-hint {
   color: var(--text-muted);

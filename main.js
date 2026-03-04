@@ -11457,45 +11457,53 @@ var AugmentSettingTab = class extends import_obsidian.PluginSettingTab {
         this.plugin.refreshStatusBar();
       });
     });
-    let calloutTypeSetting;
     let calloutExpandedSetting;
-    let headingDropComponent = null;
     const isCallout = () => this.plugin.settings.outputFormat === "callout";
-    const formatDescDefault = "How generated text is inserted into the editor.";
-    const formatDescCallout = "Wrap output in an Obsidian callout box. Set the callout type below \u2193";
-    const formatSetting = new import_obsidian.Setting(generatePane).setName("Output format").setDesc(isCallout() ? formatDescCallout : formatDescDefault).addDropdown((drop) => {
+    const calloutTypes = detectCalloutTypes();
+    const formatSetting = new import_obsidian.Setting(generatePane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
         this.plugin.settings.outputFormat = value;
         await this.plugin.saveData(this.plugin.settings);
-        if (headingDropComponent) {
-          headingDropComponent.selectEl.style.display = value === "heading" ? "" : "none";
-        }
-        calloutTypeSetting.settingEl.style.display = value === "callout" ? "" : "none";
+        updateSecondarySlot(value);
         calloutExpandedSetting.settingEl.style.display = value === "callout" ? "" : "none";
-        formatSetting.setDesc(value === "callout" ? formatDescCallout : formatDescDefault);
-      });
-    }).addDropdown((drop) => {
-      headingDropComponent = drop;
-      for (let i = 1; i <= 7; i++) drop.addOption(String(i), `H${i}`);
-      drop.setValue(String(this.plugin.settings.headingLevel));
-      drop.selectEl.style.marginLeft = "8px";
-      drop.selectEl.style.display = this.plugin.settings.outputFormat === "heading" ? "" : "none";
-      drop.onChange(async (value) => {
-        this.plugin.settings.headingLevel = parseInt(value, 10);
-        await this.plugin.saveData(this.plugin.settings);
       });
     });
-    const calloutTypes = detectCalloutTypes();
-    calloutTypeSetting = new import_obsidian.Setting(generatePane).setName("Callout type").setDesc("Obsidian callout type for generated output").addDropdown((drop) => {
-      for (const t of calloutTypes) drop.addOption(t, t);
-      const current = calloutTypes.includes(this.plugin.settings.calloutType) ? this.plugin.settings.calloutType : "ai";
-      drop.setValue(current);
-      drop.onChange(async (value) => {
-        this.plugin.settings.calloutType = value;
-        await this.plugin.saveData(this.plugin.settings);
-      });
+    const secondarySelect = formatSetting.controlEl.createEl("select", {
+      cls: "augment-format-secondary"
     });
-    calloutTypeSetting.settingEl.style.display = isCallout() ? "" : "none";
+    secondarySelect.style.marginLeft = "8px";
+    const updateSecondarySlot = (format) => {
+      secondarySelect.empty();
+      if (format === "heading") {
+        secondarySelect.disabled = false;
+        secondarySelect.removeClass("is-placeholder");
+        for (let i = 1; i <= 7; i++) {
+          const opt = secondarySelect.createEl("option", { value: String(i), text: `H${i}` });
+          if (i === this.plugin.settings.headingLevel) opt.selected = true;
+        }
+      } else if (format === "callout") {
+        secondarySelect.disabled = false;
+        secondarySelect.removeClass("is-placeholder");
+        for (const t of calloutTypes) {
+          const opt = secondarySelect.createEl("option", { value: t, text: t });
+          if (t === this.plugin.settings.calloutType) opt.selected = true;
+        }
+      } else {
+        secondarySelect.disabled = true;
+        secondarySelect.addClass("is-placeholder");
+        secondarySelect.createEl("option", { value: "", text: "\u2014" });
+      }
+    };
+    updateSecondarySlot(this.plugin.settings.outputFormat);
+    secondarySelect.addEventListener("change", async () => {
+      const format = this.plugin.settings.outputFormat;
+      if (format === "heading") {
+        this.plugin.settings.headingLevel = parseInt(secondarySelect.value, 10);
+      } else if (format === "callout") {
+        this.plugin.settings.calloutType = secondarySelect.value;
+      }
+      await this.plugin.saveData(this.plugin.settings);
+    });
     calloutExpandedSetting = new import_obsidian.Setting(generatePane).setName("Callout default state").setDesc("Whether generated callouts are expanded or collapsed by default").addDropdown((drop) => {
       drop.addOption("expanded", "Expanded").addOption("collapsed", "Collapsed").setValue(this.plugin.settings.calloutExpanded !== false ? "expanded" : "collapsed").onChange(async (value) => {
         this.plugin.settings.calloutExpanded = value === "expanded";
