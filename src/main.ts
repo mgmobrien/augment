@@ -82,10 +82,13 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
+    const SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
+
     // AI generation commands
     this.addCommand({
       id: "augment-generate",
       name: "Generate",
+      hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
@@ -104,8 +107,15 @@ export default class AugmentTerminalPlugin extends Plugin {
 
         const ctx = assembleVaultContext(this.app, editor, this.settings);
 
-        const placeholder = "\u23F3";
-        editor.replaceRange(placeholder, cursor);
+        const spinnerStart = { line: cursor.line, ch: cursor.ch };
+        let frameIdx = 0;
+        editor.replaceRange(SPINNER_FRAMES[0], spinnerStart);
+
+        const spinnerInterval = setInterval(() => {
+          frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
+          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+          editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
+        }, 100);
 
         void (async () => {
           try {
@@ -114,12 +124,14 @@ export default class AugmentTerminalPlugin extends Plugin {
               promptText,
               this.settings
             );
-            const placeholderEnd = { line: cursor.line, ch: cursor.ch + placeholder.length };
-            editor.replaceRange(result, cursor, placeholderEnd);
+            clearInterval(spinnerInterval);
+            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+            editor.replaceRange(result, spinnerStart, spinnerEnd);
           } catch (err) {
             console.error("[Augment]", err);
-            const placeholderEnd = { line: cursor.line, ch: cursor.ch + placeholder.length };
-            editor.replaceRange("", cursor, placeholderEnd);
+            clearInterval(spinnerInterval);
+            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+            editor.replaceRange("", spinnerStart, spinnerEnd);
             new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
           }
         })();
@@ -129,6 +141,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.addCommand({
       id: "augment-generate-from-template",
       name: "Generate from template",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
