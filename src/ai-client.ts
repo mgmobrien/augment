@@ -86,7 +86,8 @@ export function applyOutputFormat(text: string, settings: AugmentSettings): stri
       const type = settings.calloutType || "ai";
       const title = modelDisplayName(settings.model);
       const body = text.split("\n").map((line) => `> ${line}`).join("\n");
-      return `> [!${type}]- ${title}\n>\n${body}`;
+      const expansion = settings.calloutExpanded !== false ? "+" : "-";
+      return `> [!${type}]${expansion} ${title}\n>\n${body}`;
     }
     default:
       return text;

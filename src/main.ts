@@ -85,7 +85,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
     this.calloutStyleEl.textContent = [
-      `.callout[data-callout="ai"] { --callout-icon: lucide-bot; --callout-color: 139, 92, 246; }`,
+      `.callout[data-callout="ai"] { --callout-icon: bot; --callout-color: 139, 92, 246; }`,
       `.callout[data-callout="ai"] .callout-icon { display: flex !important; }`,
       `.callout[data-callout="ai"] .callout-title::before { content: "" !important; display: none !important; }`,
     ].join("\n");
@@ -280,14 +280,14 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon — wand-2, triggers template picker (requires active markdown editor)
-    this.addRibbonIcon("wand-2", "Augment: Generate from template", () => {
+    // Ribbon — wand-2, triggers quick generate (requires active markdown editor)
+    this.addRibbonIcon("wand-2", "Augment: Generate continuation", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to use Augment.");
         return;
       }
-      (this.app as any).commands.executeCommandById("augment-terminal:augment-generate-from-template");
+      (this.app as any).commands.executeCommandById("augment-terminal:augment-generate");
     });
 
     // Add ribbon icon

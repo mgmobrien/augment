@@ -2,6 +2,28 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings } from "./vault-context";
 
+const BUILTIN_CALLOUT_TYPES = [
+  "note", "abstract", "info", "todo", "tip", "success",
+  "question", "warning", "failure", "danger", "bug", "example", "quote",
+].sort();
+
+function detectCalloutTypes(): string[] {
+  const custom = new Set<string>();
+  try {
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          for (const match of rule.cssText.matchAll(/\[data-callout="([^"]+)"\]/g)) {
+            const t = match[1];
+            if (t !== "ai" && !BUILTIN_CALLOUT_TYPES.includes(t)) custom.add(t);
+          }
+        }
+      } catch { /* cross-origin sheet */ }
+    }
+  } catch { /* browser restriction */ }
+  return ["ai", ...BUILTIN_CALLOUT_TYPES, ...Array.from(custom).sort()];
+}
+
 export class AugmentSettingTab extends PluginSettingTab {
   plugin: AugmentTerminalPlugin;
 
@@ -47,6 +69,9 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     let headingLevelSetting: Setting;
     let calloutTypeSetting: Setting;
+    let calloutExpandedSetting: Setting;
+
+    const isCallout = () => this.plugin.settings.outputFormat === "callout";
 
     new Setting(containerEl)
       .setName("Output format")
@@ -64,6 +89,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
             headingLevelSetting.settingEl.style.display = value === "heading" ? "" : "none";
             calloutTypeSetting.settingEl.style.display = value === "callout" ? "" : "none";
+            calloutExpandedSetting.settingEl.style.display = value === "callout" ? "" : "none";
           });
       });
 
@@ -85,20 +111,37 @@ export class AugmentSettingTab extends PluginSettingTab {
     headingLevelSetting.settingEl.style.display =
       this.plugin.settings.outputFormat === "heading" ? "" : "none";
 
+    const calloutTypes = detectCalloutTypes();
     calloutTypeSetting = new Setting(containerEl)
       .setName("Callout type")
-      .setDesc("Obsidian callout type (e.g. ai, note, info)")
-      .addText((text) => {
-        text
-          .setPlaceholder("ai")
-          .setValue(this.plugin.settings.calloutType)
+      .setDesc("Obsidian callout type for generated output")
+      .addDropdown((drop) => {
+        for (const t of calloutTypes) drop.addOption(t, t);
+        const current = calloutTypes.includes(this.plugin.settings.calloutType)
+          ? this.plugin.settings.calloutType
+          : "ai";
+        drop.setValue(current);
+        drop.onChange(async (value) => {
+          this.plugin.settings.calloutType = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+    calloutTypeSetting.settingEl.style.display = isCallout() ? "" : "none";
+
+    calloutExpandedSetting = new Setting(containerEl)
+      .setName("Callout default state")
+      .setDesc("Whether generated callouts are expanded or collapsed by default")
+      .addDropdown((drop) => {
+        drop
+          .addOption("expanded", "Expanded")
+          .addOption("collapsed", "Collapsed")
+          .setValue(this.plugin.settings.calloutExpanded !== false ? "expanded" : "collapsed")
           .onChange(async (value) => {
-            this.plugin.settings.calloutType = value.trim() || "ai";
+            this.plugin.settings.calloutExpanded = value === "expanded";
             await this.plugin.saveData(this.plugin.settings);
           });
       });
-    calloutTypeSetting.settingEl.style.display =
-      this.plugin.settings.outputFormat === "callout" ? "" : "none";
+    calloutExpandedSetting.settingEl.style.display = isCallout() ? "" : "none";
 
     new Setting(containerEl)
       .setName("Template folder")

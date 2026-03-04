@@ -10,6 +10,7 @@ export interface AugmentSettings {
   outputFormat: "plain" | "codeblock" | "blockquote" | "heading" | "callout";
   headingLevel: number;
   calloutType: string;
+  calloutExpanded: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   outputFormat: "plain",
   headingLevel: 2,
   calloutType: "ai",
+  calloutExpanded: true,
 };
 
 export interface LinkedNoteSummary {
