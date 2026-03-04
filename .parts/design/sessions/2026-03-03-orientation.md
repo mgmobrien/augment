@@ -209,3 +209,16 @@ Signal tower approved. Built the icon:
 - Verified silhouette at 32x32 — tower shape and arcs distinguishable
 
 Output: `build/icon.icns` (340KB), `build/icon-1024.png`, `build/render-icon.py` (deterministic, editable). Sent wiring instructions to CTO: add `"icon": "build/icon.icns"` to `build.mac` in package.json, re-run `electron:install`.
+
+## 8:40pm — Sidebar toggle icons replaced with Lucide
+
+Matt reported the collapse/expand icons looked like "two different buttons." Replaced both with standard Lucide icons matching Obsidian's sidebar toggles:
+- **Collapse** (sidebar visible): `panel-left-close` — panel outline + left-pointing chevron
+- **Expand** (sidebar hidden): `panel-left-open` — panel outline + right-pointing chevron
+
+Updated both `#collapse-sidebar-btn` (sidebar header) and `#focus-sidebar-toggle` (focus header) with identical SVG markup. Built, launched with CDP (`--remote-debugging-port=9222`), and took three verification screenshots:
+1. Expanded — `panel-left-close` icon visible in sidebar header
+2. Collapsed — `panel-left-open` icon visible in focus header with blue accent highlight
+3. Re-expanded — returns to `panel-left-close`, identical to state 1
+
+All states verified working. Icons are now visually consistent — same base shape, differentiated only by chevron direction.
