@@ -1,5 +1,7 @@
 # Augment
 
+> **Beta.** Docs are AI-generated and rough. Use at your own risk.
+
 Obsidian plugin for vault-aware AI text generation using Claude. Select text in any note, press Mod+Enter, get a completion that knows your note's title, frontmatter, and linked notes.
 
 Also includes a terminal manager for running Claude Code sessions inside Obsidian (optional — AI generation works without it).
