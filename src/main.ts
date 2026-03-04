@@ -1,5 +1,5 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
-import { applyOutputFormat, buildSystemPrompt, buildUserMessage, generateText, substituteVariables } from "./ai-client";
+import { applyOutputFormat, buildSystemPrompt, buildUserMessage, generateText, modelDisplayName, substituteVariables } from "./ai-client";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
@@ -71,6 +71,13 @@ export default class AugmentTerminalPlugin extends Plugin {
   settings: AugmentSettings = { ...DEFAULT_SETTINGS };
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
+  private statusBarEl: HTMLElement | null = null;
+
+  public refreshStatusBar(): void {
+    if (this.statusBarEl) {
+      this.statusBarEl.setText(`Augment: ${modelDisplayName(this.settings.model)}`);
+    }
+  }
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -236,6 +243,47 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     this.addSettingTab(new AugmentSettingTab(this.app, this));
+
+    // Status bar — model name, click to open settings
+    this.statusBarEl = this.addStatusBarItem();
+    this.statusBarEl.style.cursor = "pointer";
+    this.statusBarEl.addEventListener("click", () => {
+      (this.app as any).setting.open();
+      (this.app as any).setting.openTabById("augment-terminal");
+    });
+    this.refreshStatusBar();
+
+    // Right-click context menu
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu) => {
+        menu.addItem((item) => {
+          item
+            .setTitle("Augment: Generate")
+            .setIcon("wand-2")
+            .onClick(() => {
+              (this.app as any).commands.executeCommandById("augment-terminal:augment-generate");
+            });
+        });
+        menu.addItem((item) => {
+          item
+            .setTitle("Augment: Generate from template\u2026")
+            .setIcon("wand-2")
+            .onClick(() => {
+              (this.app as any).commands.executeCommandById("augment-terminal:augment-generate-from-template");
+            });
+        });
+      })
+    );
+
+    // Ribbon — wand-2, triggers template picker (requires active markdown editor)
+    this.addRibbonIcon("wand-2", "Augment: Generate from template", () => {
+      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!view) {
+        new Notice("Open a note to use Augment.");
+        return;
+      }
+      (this.app as any).commands.executeCommandById("augment-terminal:augment-generate-from-template");
+    });
 
     // Add ribbon icon
     this.addRibbonIcon("terminal", "Open terminal", () => {
