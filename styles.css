@@ -332,6 +332,25 @@
   color: var(--text-muted);
 }
 
+.augment-settings-section {
+  margin: 1.5em 0 0.5em;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 1em;
+}
+
+.augment-settings-section-heading {
+  margin: 0 0 0.4em;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+}
+
+.augment-settings-section-desc {
+  margin: 0 0 0.5em;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 /* ── Template preview modal ── */
 .augment-gen-preview-prompt {
   background-color: var(--background-secondary);

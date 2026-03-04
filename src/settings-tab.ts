@@ -113,9 +113,16 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
+    const contextSection = containerEl.createEl("div", { cls: "augment-settings-section" });
+    contextSection.createEl("h3", { text: "Context", cls: "augment-settings-section-heading" });
+    contextSection.createEl("p", {
+      text: "Each generation sends the model: your note\u2019s title and frontmatter, the text around your cursor (or your selection if you have one selected), and a configurable number of linked notes. For linked notes, only the note title and frontmatter are included \u2014 not the note body.",
+      cls: "augment-settings-section-desc",
+    });
+
     new Setting(containerEl)
       .setName("Linked notes in context")
-      .setDesc("Number of linked notes to include per generation (0–10)")
+      .setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.")
       .addText((text) => {
         text.inputEl.type = "number";
         text.inputEl.min = "0";
@@ -133,8 +140,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Max context tokens")
-      .setDesc("Soft cap on assembled context sent to the model")
+      .setName("Context limit")
+      .setDesc("Maximum characters of context sent per generation (measured in tokens; 1 token \u2248 4 characters). The default of 2000 tokens (~8000 characters) fits most notes. Raise this if you have long notes or many linked notes and want to include more context.")
       .addText((text) => {
         text.inputEl.type = "number";
         text.inputEl.min = "1";
