@@ -128,9 +128,8 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     // ── Generate pane ────────────────────────────────────────
-    new Setting(generatePane)
+    const apiKeySetting = new Setting(generatePane)
       .setName("API key")
-      .setDesc("Anthropic API key")
       .addText((text) => {
         text.inputEl.type = "password";
         text
@@ -141,6 +140,17 @@ export class AugmentSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
           });
       });
+    apiKeySetting.descEl.appendChild(
+      createFragment((frag) => {
+        frag.appendText("Anthropic API key. ");
+        const a = frag.createEl("a", {
+          text: "Get your API key",
+          href: "https://platform.claude.com/settings/keys",
+        });
+        a.target = "_blank";
+        a.rel = "noopener";
+      })
+    );
 
     new Setting(generatePane)
       .setName("Model")

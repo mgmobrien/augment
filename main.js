@@ -11432,13 +11432,24 @@ var AugmentSettingTab = class extends import_obsidian.PluginSettingTab {
         pane.style.display = "";
       });
     }
-    new import_obsidian.Setting(generatePane).setName("API key").setDesc("Anthropic API key").addText((text) => {
+    const apiKeySetting = new import_obsidian.Setting(generatePane).setName("API key").addText((text) => {
       text.inputEl.type = "password";
       text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
         this.plugin.settings.apiKey = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
+    apiKeySetting.descEl.appendChild(
+      createFragment((frag) => {
+        frag.appendText("Anthropic API key. ");
+        const a = frag.createEl("a", {
+          text: "Get your API key",
+          href: "https://platform.claude.com/settings/keys"
+        });
+        a.target = "_blank";
+        a.rel = "noopener";
+      })
+    );
     new import_obsidian.Setting(generatePane).setName("Model").setDesc("Claude model to use for generation").addDropdown((drop) => {
       drop.addOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5 (fast)").addOption("claude-sonnet-4-6", "Claude Sonnet 4.6").addOption("claude-opus-4-6", "Claude Opus 4.6").setValue(this.plugin.settings.model).onChange(async (value) => {
         this.plugin.settings.model = value;
