@@ -3,3 +3,10 @@ node_modules
 electron/renderer.js
 electron/renderer.js.map
 dist-electron/
+
+# AI team working files — ephemeral, regenerated each session
+.parts/
+
+# Build artifacts and dev test files
+build/
+spinner-test.html
