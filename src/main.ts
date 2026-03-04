@@ -1,5 +1,5 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
-import { buildSystemPrompt, buildUserMessage, generateText, substituteVariables } from "./ai-client";
+import { applyOutputFormat, buildSystemPrompt, buildUserMessage, generateText, substituteVariables } from "./ai-client";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
@@ -70,9 +70,14 @@ class RenameModal extends Modal {
 export default class AugmentTerminalPlugin extends Plugin {
   settings: AugmentSettings = { ...DEFAULT_SETTINGS };
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
+  private calloutStyleEl: HTMLStyleElement | null = null;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    this.calloutStyleEl = document.head.createEl("style");
+    this.calloutStyleEl.id = "augment-callout-styles";
+    this.calloutStyleEl.textContent = `.callout[data-callout="ai"] .callout-icon { --callout-icon: lucide-bot; }`;
 
     // Register views
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
@@ -107,10 +112,17 @@ export default class AugmentTerminalPlugin extends Plugin {
 
         const ctx = assembleVaultContext(this.app, editor, this.settings);
 
-        const spinnerStart = { line: cursor.line, ch: cursor.ch };
-        let frameIdx = 0;
-        editor.replaceRange(SPINNER_FRAMES[0], spinnerStart);
+        const isBlock = this.settings.outputFormat !== "plain";
+        let spinnerStart: { line: number; ch: number };
+        if (isBlock && cursor.ch > 0) {
+          editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
+          spinnerStart = { line: cursor.line + 1, ch: 0 };
+        } else {
+          editor.replaceRange(SPINNER_FRAMES[0], cursor);
+          spinnerStart = { line: cursor.line, ch: cursor.ch };
+        }
 
+        let frameIdx = 0;
         const spinnerInterval = setInterval(() => {
           frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
           const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
@@ -125,8 +137,9 @@ export default class AugmentTerminalPlugin extends Plugin {
               this.settings
             );
             clearInterval(spinnerInterval);
+            const formatted = applyOutputFormat(result, this.settings);
             const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
-            editor.replaceRange(result, spinnerStart, spinnerEnd);
+            editor.replaceRange(formatted, spinnerStart, spinnerEnd);
           } catch (err) {
             console.error("[Augment]", err);
             clearInterval(spinnerInterval);
@@ -158,144 +171,21 @@ export default class AugmentTerminalPlugin extends Plugin {
           new Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
+        const cursor = editor.getCursor();
         const ctx = assembleVaultContext(this.app, editor, this.settings);
         new TemplatePicker(this.app, files, async (templateFile) => {
           const templateContent = await this.app.vault.read(templateFile);
           const rendered = substituteVariables(templateContent, ctx);
 
           const runGenerate = async () => {
-            const notice = new Notice("Generating\u2026", 0);
-            try {
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
-              if (ctx.selection) {
-                editor.replaceSelection(result);
-              } else {
-                editor.replaceRange(result, editor.getCursor());
-              }
-              notice.hide();
-              new Notice("Done", 2000);
-            } catch (err) {
-              console.error("[Augment]", err);
-              notice.hide();
-              new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
-            }
-          };
-
-          if (!this.settings.showTemplatePreview) {
-            await runGenerate();
-            return;
-          }
-
-          new TemplatePreviewModal(this.app, rendered, ctx, async (skipPreviewInFuture) => {
-            if (skipPreviewInFuture) {
-              this.settings.showTemplatePreview = false;
-              await this.saveData(this.settings);
-            }
-            await runGenerate();
-          }).open();
-        }).open();
-      },
-    });
-
-    this.addCommand({
-      id: "augment-generate-callout",
-      name: "Generate into callout",
-      editorCallback: (editor, view) => {
-        if (!(view instanceof MarkdownView)) return;
-        if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings \u2192 Augment", 0);
-          notice.noticeEl.addEventListener("click", () => {
-            (this.app as any).setting.open();
-            (this.app as any).setting.openTabById("augment-terminal");
-            notice.hide();
-          });
-          return;
-        }
-
-        const cursor = editor.getCursor();
-        const selection = editor.getSelection();
-
-        let promptText: string;
-        let spinnerStart: { line: number; ch: number };
-
-        if (selection) {
-          promptText = selection;
-          const selFrom = editor.getCursor("from");
-          spinnerStart = { line: selFrom.line, ch: selFrom.ch };
-          editor.replaceSelection(SPINNER_FRAMES[0]);
-        } else {
-          const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
-          promptText = aboveCursor.trim() || editor.getValue().trim();
-          if (cursor.ch > 0) {
-            editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
-            spinnerStart = { line: cursor.line + 1, ch: 0 };
-          } else {
-            editor.replaceRange(SPINNER_FRAMES[0], cursor);
-            spinnerStart = { line: cursor.line, ch: 0 };
-          }
-        }
-
-        const ctx = assembleVaultContext(this.app, editor, this.settings);
-        let frameIdx = 0;
-
-        const spinnerInterval = setInterval(() => {
-          frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
-          editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-        }, 100);
-
-        void (async () => {
-          try {
-            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings);
-            clearInterval(spinnerInterval);
-            const callout = `> [!ai]- Generated\n>\n> ${result.replace(/\n/g, "\n> ")}`;
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
-            editor.replaceRange(callout, spinnerStart, spinnerEnd);
-          } catch (err) {
-            console.error("[Augment]", err);
-            clearInterval(spinnerInterval);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
-            editor.replaceRange("", spinnerStart, spinnerEnd);
-            new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
-          }
-        })();
-      },
-    });
-
-    this.addCommand({
-      id: "augment-generate-from-template-callout",
-      name: "Generate from template into callout",
-      editorCallback: (editor, view) => {
-        if (!(view instanceof MarkdownView)) return;
-        if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings \u2192 Augment", 0);
-          notice.noticeEl.addEventListener("click", () => {
-            (this.app as any).setting.open();
-            (this.app as any).setting.openTabById("augment-terminal");
-            notice.hide();
-          });
-          return;
-        }
-        const files = getTemplateFiles(this.app, this.settings.templateFolder);
-        if (files.length === 0) {
-          new Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
-          return;
-        }
-        const cursor = editor.getCursor();
-        const ctx = assembleVaultContext(this.app, editor, this.settings);
-
-        new TemplatePicker(this.app, files, async (templateFile) => {
-          const templateContent = await this.app.vault.read(templateFile);
-          const rendered = substituteVariables(templateContent, ctx);
-
-          const runGenerate = async () => {
+            const isBlock = this.settings.outputFormat !== "plain";
             let spinnerStart: { line: number; ch: number };
-            if (cursor.ch > 0) {
+            if (isBlock && cursor.ch > 0) {
               editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
               spinnerStart = { line: cursor.line + 1, ch: 0 };
             } else {
               editor.replaceRange(SPINNER_FRAMES[0], cursor);
-              spinnerStart = { line: cursor.line, ch: 0 };
+              spinnerStart = { line: cursor.line, ch: cursor.ch };
             }
 
             let frameIdx = 0;
@@ -308,9 +198,9 @@ export default class AugmentTerminalPlugin extends Plugin {
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
               clearInterval(spinnerInterval);
-              const callout = `> [!ai]- ${templateFile.basename}\n>\n> ${result.replace(/\n/g, "\n> ")}`;
+              const formatted = applyOutputFormat(result, this.settings);
               const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
-              editor.replaceRange(callout, spinnerStart, spinnerEnd);
+              editor.replaceRange(formatted, spinnerStart, spinnerEnd);
             } catch (err) {
               console.error("[Augment]", err);
               clearInterval(spinnerInterval);
@@ -436,6 +326,8 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
     cleanupXtermStyle();
+    this.calloutStyleEl?.remove();
+    this.calloutStyleEl = null;
   }
 
   private getPluginDir(): string {

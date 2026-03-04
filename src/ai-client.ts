@@ -62,6 +62,37 @@ export function substituteVariables(template: string, ctx: VaultContext): string
   return result;
 }
 
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+  "claude-sonnet-4-6": "Claude Sonnet 4.6",
+  "claude-opus-4-6": "Claude Opus 4.6",
+};
+
+export function modelDisplayName(modelId: string): string {
+  return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
+}
+
+export function applyOutputFormat(text: string, settings: AugmentSettings): string {
+  switch (settings.outputFormat) {
+    case "codeblock":
+      return `\`\`\`\n${text}\n\`\`\``;
+    case "blockquote":
+      return text.split("\n").map((line) => `> ${line}`).join("\n");
+    case "heading": {
+      const hashes = "#".repeat(Math.max(1, Math.min(4, settings.headingLevel ?? 2)));
+      return `${hashes} ${text}`;
+    }
+    case "callout": {
+      const type = settings.calloutType || "ai";
+      const title = modelDisplayName(settings.model);
+      const body = text.split("\n").map((line) => `> ${line}`).join("\n");
+      return `> [!${type}]- ${title}\n>\n${body}`;
+    }
+    default:
+      return text;
+  }
+}
+
 export async function generateText(
   systemPrompt: string,
   userMessage: string,

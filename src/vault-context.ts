@@ -7,6 +7,9 @@ export interface AugmentSettings {
   linkedNoteCount: number;
   maxContextTokens: number;
   showTemplatePreview: boolean;
+  outputFormat: "plain" | "codeblock" | "blockquote" | "heading" | "callout";
+  headingLevel: number;
+  calloutType: string;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -16,6 +19,9 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   linkedNoteCount: 3,
   maxContextTokens: 2000,
   showTemplatePreview: true,
+  outputFormat: "plain",
+  headingLevel: 2,
+  calloutType: "ai",
 };
 
 export interface LinkedNoteSummary {

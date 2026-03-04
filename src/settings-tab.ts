@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import AugmentTerminalPlugin from "./main";
+import { AugmentSettings } from "./vault-context";
 
 export class AugmentSettingTab extends PluginSettingTab {
   plugin: AugmentTerminalPlugin;
@@ -42,6 +43,61 @@ export class AugmentSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
           });
       });
+
+    let headingLevelSetting: Setting;
+    let calloutTypeSetting: Setting;
+
+    new Setting(containerEl)
+      .setName("Output format")
+      .setDesc("How generated text is inserted into the editor")
+      .addDropdown((drop) => {
+        drop
+          .addOption("plain", "Plain text")
+          .addOption("codeblock", "Code block")
+          .addOption("blockquote", "Blockquote")
+          .addOption("heading", "Heading")
+          .addOption("callout", "Callout box")
+          .setValue(this.plugin.settings.outputFormat)
+          .onChange(async (value) => {
+            this.plugin.settings.outputFormat = value as AugmentSettings["outputFormat"];
+            await this.plugin.saveData(this.plugin.settings);
+            headingLevelSetting.settingEl.style.display = value === "heading" ? "" : "none";
+            calloutTypeSetting.settingEl.style.display = value === "callout" ? "" : "none";
+          });
+      });
+
+    headingLevelSetting = new Setting(containerEl)
+      .setName("Heading level")
+      .setDesc("Number of # characters (1–4)")
+      .addDropdown((drop) => {
+        drop
+          .addOption("1", "H1")
+          .addOption("2", "H2")
+          .addOption("3", "H3")
+          .addOption("4", "H4")
+          .setValue(String(this.plugin.settings.headingLevel))
+          .onChange(async (value) => {
+            this.plugin.settings.headingLevel = parseInt(value, 10);
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+    headingLevelSetting.settingEl.style.display =
+      this.plugin.settings.outputFormat === "heading" ? "" : "none";
+
+    calloutTypeSetting = new Setting(containerEl)
+      .setName("Callout type")
+      .setDesc("Obsidian callout type (e.g. ai, note, info)")
+      .addText((text) => {
+        text
+          .setPlaceholder("ai")
+          .setValue(this.plugin.settings.calloutType)
+          .onChange(async (value) => {
+            this.plugin.settings.calloutType = value.trim() || "ai";
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+    calloutTypeSetting.settingEl.style.display =
+      this.plugin.settings.outputFormat === "callout" ? "" : "none";
 
     new Setting(containerEl)
       .setName("Template folder")
