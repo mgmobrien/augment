@@ -102,6 +102,9 @@ export class AugmentSettingTab extends PluginSettingTab {
           .addOption("2", "H2")
           .addOption("3", "H3")
           .addOption("4", "H4")
+          .addOption("5", "H5")
+          .addOption("6", "H6")
+          .addOption("7", "H7")
           .setValue(String(this.plugin.settings.headingLevel))
           .onChange(async (value) => {
             this.plugin.settings.headingLevel = parseInt(value, 10);

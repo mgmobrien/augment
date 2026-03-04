@@ -79,7 +79,7 @@ export function applyOutputFormat(text: string, settings: AugmentSettings): stri
     case "blockquote":
       return text.split("\n").map((line) => `> ${line}`).join("\n");
     case "heading": {
-      const hashes = "#".repeat(Math.max(1, Math.min(4, settings.headingLevel ?? 2)));
+      const hashes = "#".repeat(Math.max(1, Math.min(7, settings.headingLevel ?? 2)));
       return `${hashes} ${text}`;
     }
     case "callout": {
