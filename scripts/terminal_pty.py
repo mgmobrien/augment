@@ -27,6 +27,9 @@ def set_pty_size(fd, rows, cols):
 
 
 def main():
+    # If extra args provided, run that command instead of the default shell
+    # Usage: terminal_pty.py [cmd arg1 arg2 ...]
+    custom_cmd = sys.argv[1:] if len(sys.argv) > 1 else None
     shell = os.environ.get("SHELL", "/bin/zsh")
 
     # Verify control fd is available
@@ -63,7 +66,10 @@ def main():
         # Set TERM for color support
         os.environ["TERM"] = "xterm-256color"
 
-        os.execvp(shell, [shell, "-l"])
+        if custom_cmd:
+            os.execvp(custom_cmd[0], custom_cmd)
+        else:
+            os.execvp(shell, [shell, "-l"])
 
     else:
         # Parent process — bridges I/O

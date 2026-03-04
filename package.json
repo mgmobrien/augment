@@ -12,15 +12,17 @@
     "electron:watch": "node electron/build.mjs --watch",
     "electron:dev": "npm run electron:build && electron electron/main.cjs",
     "electron:open": "npm run electron:build && open -n node_modules/electron/dist/Electron.app --args electron/main.cjs",
-    "electron:pack": "npm run electron:build && electron-builder --dir -m -c.mac.identity=null",
-    "electron:dist": "npm run electron:build && electron-builder -m -c.mac.identity=null",
-    "electron:open-pack": "npm run electron:pack && open -n dist-electron/mac-arm64/Electron.app"
+    "electron:pack": "npm run electron:build && npx electron-builder --dir -m -c.mac.identity=null",
+    "electron:dist": "npm run electron:build && npx electron-builder -m -c.mac.identity=null",
+    "electron:open-pack": "npm run electron:pack && open -n dist-electron/mac-arm64/Augment.app",
+    "electron:install": "npm run electron:pack && rm -rf ~/Applications/Augment.app && cp -R dist-electron/mac-arm64/Augment.app ~/Applications/Augment.app"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-serialize": "^0.13.0",
     "@xterm/addon-web-links": "^0.11.0",
-    "@xterm/xterm": "^5.5.0"
+    "@xterm/xterm": "^5.5.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -33,7 +35,7 @@
   },
   "build": {
     "appId": "md.augment.standalone",
-    "productName": "Augment Standalone",
+    "productName": "Augment",
     "asar": false,
     "directories": {
       "output": "dist-electron"
@@ -42,12 +44,15 @@
     "files": [
       "electron/**/*",
       "scripts/terminal_pty.py",
+      "scripts/tmux-shim.sh",
+      "scripts/shim-bin/**/*",
       "package.json"
     ],
     "extraMetadata": {
       "main": "electron/main.cjs"
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dir",
         "zip"

@@ -32,9 +32,20 @@ type TeamEvent = {
   members?: string[];
 };
 
+type SessionGroup = {
+  id: number;
+  name: string;
+  parentSessionId: number | null;  // session that spawned this group (TeamCreate)
+  collapsed: boolean;
+};
+
 type SessionView = {
   id: number;
   name: string;
+  groupId: number | null;  // which group this session belongs to
+  ccSessionId: string | null;  // CC session ID captured from terminal output
+  cwd: string | null;
+  exitCode: number | null;
   status: SessionStatus;
   statusText: string;
   lastOutputLines: string[];  // last N stripped lines for context preview
@@ -58,8 +69,63 @@ type SessionView = {
   lastEventAt: number;
 };
 
+type ArchivedSession = {
+  name: string;
+  groupId: number | null;
+  groupName: string | null;
+  ccSessionId: string | null;
+  cwd: string | null;
+  displayText: string | null;  // user's first message from CC history
+  archivedAt: number;
+  exitCode: number | null;
+};
+
+type CcSessionMeta = {
+  sessionId: string;
+  timestamp: string;
+  agentName: string | null;
+  teamName: string | null;
+  cwd: string;
+  file: string;
+};
+
+type DiscoveredProcess = {
+  pid: number;
+  stat: string;
+  isRunning: boolean;
+  agentName: string | null;
+  teamName: string | null;
+  agentColor: string | null;
+  agentId: string | null;
+  parentSessionId: string | null;
+  resumeSessionId: string | null;
+  displayName: string;
+  cmdLine: string;
+};
+
+type DiscoveredTeamMember = {
+  name: string;
+  agentId: string | null;
+  agentType: string | null;
+  color: string | null;
+  isActive: boolean;
+  cwd: string | null;
+};
+
+type DiscoveredTeam = {
+  name: string;
+  leadSessionId: string | null;
+  members: DiscoveredTeamMember[];
+};
+
+type DiscoverySnapshot = {
+  processes: DiscoveredProcess[];
+  teams: DiscoveredTeam[];
+  timestamp: number;
+};
+
 type AugmentApp = {
-  createTerminal: (options?: { cwd?: string }) => Promise<TerminalCreated>;
+  createTerminal: (options?: { cwd?: string; cmd?: string[] }) => Promise<TerminalCreated>;
   listTerminals: () => Promise<Array<{ id: number; cwd: string }>>;
   write: (id: number, data: string) => void;
   resize: (id: number, rows: number, cols: number) => void;
@@ -68,6 +134,17 @@ type AugmentApp = {
   onStderr: (callback: (payload: TerminalData) => void) => void;
   onExit: (callback: (payload: TerminalExit) => void) => void;
   onError: (callback: (payload: { id: number; error: string }) => void) => void;
+  // History
+  saveHistory: (entries: ArchivedSession[]) => Promise<boolean>;
+  loadHistory: () => Promise<ArchivedSession[]>;
+  scanCCSessions: (projectPath: string) => Promise<CcSessionMeta[]>;
+  getCCHistory: () => Promise<Record<string, string>>;
+  // Tmux shim events
+  onAgentSpawned: (callback: (payload: { id: number; name: string; cmd: string }) => void) => void;
+  onAgentRenamed: (callback: (payload: { target: string; title: string }) => void) => void;
+  // Discovery
+  onDiscoveryUpdate: (callback: (payload: DiscoverySnapshot) => void) => void;
+  requestDiscoveryScan: () => Promise<DiscoverySnapshot>;
 };
 
 declare global {
@@ -103,6 +180,10 @@ const QUESTION_PATTERN = /\?\s*(?:\[|$)/m;
 const THINKING_MARKER = "\u23FA"; // ⏺ — Claude Code thinking indicator
 const IDLE_PROMPT_PATTERN = /[❯>]\s*$/;
 
+// CC session ID capture — CC prints session info on startup
+const CC_SESSION_ID_PATTERN = /session(?:Id)?\s*[:=]\s*["']?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+const CC_RESUME_HINT_PATTERN = /claude\s+--resume\s+([0-9a-f-]{36})/i;
+
 // Orchestration activity patterns (ported from Obsidian plugin terminal-view.ts)
 const TEAM_CREATE_ACTIVITY_PATTERN = /\bTeamCreate\b/i;
 const SEND_MESSAGE_ACTIVITY_PATTERN = /\bSendMessage\b/i;
@@ -122,8 +203,13 @@ const MAX_PARSE_BUFFER_CHARS = 24_000;
 // ============================================================
 
 const sessions = new Map<number, SessionView>();
+const groups = new Map<number, SessionGroup>();
+let archivedSessions: ArchivedSession[] = [];
 let activeId: number | null = null;
 let sessionCounter = 0;
+let groupCounter = 0;
+let showHistory = true;
+let latestDiscovery: DiscoverySnapshot | null = null;
 const statusTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
 // DOM refs
@@ -134,7 +220,8 @@ const attentionBanner = document.getElementById("attention-banner") as HTMLDivEl
 const attentionCountEl = document.getElementById("attention-count") as HTMLSpanElement;
 const newSessionBtn = document.getElementById("new-session-btn") as HTMLButtonElement;
 const collapseSidebarBtn = document.getElementById("collapse-sidebar-btn") as HTMLButtonElement;
-const collapseContextBtn = document.getElementById("collapse-context-btn") as HTMLButtonElement;
+const focusSidebarToggle = document.getElementById("focus-sidebar-toggle") as HTMLButtonElement;
+const focusAttentionBadge = document.getElementById("focus-attention-badge") as HTMLButtonElement;
 const focusDot = document.getElementById("focus-dot") as HTMLDivElement;
 const focusNameEl = document.getElementById("focus-session-name") as HTMLSpanElement;
 const focusStatusEl = document.getElementById("focus-status-text") as HTMLSpanElement;
@@ -144,7 +231,6 @@ const panesEl = document.getElementById("panes") as HTMLDivElement;
 const prevBtn = document.getElementById("prev-btn") as HTMLButtonElement;
 const nextBtn = document.getElementById("next-btn") as HTMLButtonElement;
 const goNextBtn = document.getElementById("go-next-btn") as HTMLButtonElement;
-const contextListEl = document.getElementById("context-list") as HTMLDivElement;
 const keyHintEl = document.getElementById("key-hint") as HTMLDivElement;
 
 // Rename state
@@ -249,6 +335,14 @@ function detectStatus(session: SessionView, rawData: string): void {
     debouncedSetStatus(session, detected, statusText, needsAttention, attentionReason);
   }
 
+  // Capture CC session ID from output
+  if (!session.ccSessionId) {
+    const sessionMatch = clean.match(CC_SESSION_ID_PATTERN) || clean.match(CC_RESUME_HINT_PATTERN);
+    if (sessionMatch?.[1]) {
+      session.ccSessionId = sessionMatch[1];
+    }
+  }
+
   session.lastActivityAt = Date.now();
 }
 
@@ -274,7 +368,6 @@ function debouncedSetStatus(
           session.attentionReason = attentionReason;
         }
         renderSidebar();
-        renderContextPane();
         renderFocusHeader();
       }
     }, STATUS_DEBOUNCE_MS)
@@ -319,7 +412,7 @@ function goToNextAttention(): void {
   next.needsAttention = false;
   next.attentionReason = "";
   renderSidebar();
-  renderContextPane();
+
   showKeyHint(`→ ${next.name}`);
 }
 
@@ -368,14 +461,12 @@ function startRename(sessionId: number, nameEl: HTMLElement, context: "sidebar" 
     renameActiveSessionId = null;
     renderSidebar();
     renderFocusHeader();
-    renderContextPane();
   };
 
   const cancel = () => {
     renameActiveSessionId = null;
     renderSidebar();
     renderFocusHeader();
-    renderContextPane();
   };
 
   input.addEventListener("keydown", (e) => {
@@ -532,6 +623,11 @@ function parseOrchestrationLine(session: SessionView, line: string): boolean {
       members: names,
     });
     changed = created || changed;
+
+    // Auto-create group for the team
+    if (team) {
+      ensureGroupForTeam(session, team);
+    }
   }
 
   if (SEND_MESSAGE_ACTIVITY_PATTERN.test(clean) || MAILBOX_WRITE_PATTERN.test(clean)) {
@@ -567,7 +663,6 @@ function parseOrchestrationActivity(session: SessionView, rawData: string): void
 
   if (changed) {
     renderSidebar();
-    renderContextPane();
   }
 }
 
@@ -588,6 +683,60 @@ function getLastTeamEventSummary(session: SessionView): string | null {
   if (event.to) parts.push(`→ ${event.to}`);
   if (event.team) parts.push(`(${event.team})`);
   return parts.join(" ");
+}
+
+// ============================================================
+// Group lifecycle
+// ============================================================
+
+function createGroup(name: string, parentSessionId: number | null = null): SessionGroup {
+  groupCounter += 1;
+  const group: SessionGroup = {
+    id: groupCounter,
+    name,
+    parentSessionId,
+    collapsed: false,
+  };
+  groups.set(group.id, group);
+  return group;
+}
+
+function getGroupSessions(groupId: number): SessionView[] {
+  return Array.from(sessions.values()).filter((s) => s.groupId === groupId && !s.closed);
+}
+
+function getUngroupedSessions(): SessionView[] {
+  return Array.from(sessions.values()).filter((s) => s.groupId === null && !s.closed);
+}
+
+function getGroupList(): SessionGroup[] {
+  return Array.from(groups.values());
+}
+
+function groupNeedsAttention(groupId: number): boolean {
+  return getGroupSessions(groupId).some((s) => s.needsAttention);
+}
+
+function groupAttentionCount(groupId: number): number {
+  return getGroupSessions(groupId).filter((s) => s.needsAttention).length;
+}
+
+/** Auto-create a group when TeamCreate is detected, if one doesn't exist for this team */
+function ensureGroupForTeam(session: SessionView, teamName: string): void {
+  // Check if a group already exists for this team
+  for (const group of groups.values()) {
+    if (group.name === teamName) {
+      // Assign session to existing group if not already assigned
+      if (session.groupId === null) {
+        session.groupId = group.id;
+      }
+      return;
+    }
+  }
+
+  // Create new group named after the team, parented to this session
+  const group = createGroup(teamName, session.id);
+  session.groupId = group.id;
 }
 
 // ============================================================
@@ -651,7 +800,7 @@ function setActive(id: number): void {
 
   renderSidebar();
   renderFocusHeader();
-  renderContextPane();
+
   renderEmptyState();
 }
 
@@ -659,6 +808,58 @@ function disposeSession(id: number): void {
   const session = sessions.get(id);
   if (!session) return;
 
+  // Three-stage Cmd+W lifecycle:
+  // 1. Active/running → kill process (becomes exited, buffer preserved)
+  // 2. Exited → archive (metadata saved, buffer released)
+  if (session.status === "exited") {
+    // Stage 2: exited → archive
+    archiveSession(id);
+    return;
+  }
+
+  // Stage 1: running → kill (will become exited via onExit handler)
+  // The kill signal will trigger markExited() which preserves the session
+  window.augmentApp.kill(id);
+}
+
+function markExited(id: number, code: number): void {
+  const session = sessions.get(id);
+  if (!session || session.closed) return;
+  session.status = "exited";
+  session.exitCode = code;
+  session.statusText = `Exited (${code})`;
+  session.terminal.write(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m\r\n`);
+  renderSidebar();
+  renderFocusHeader();
+}
+
+function archiveSession(id: number): void {
+  const session = sessions.get(id);
+  if (!session) return;
+
+  const groupName = session.groupId !== null ? groups.get(session.groupId)?.name ?? null : null;
+
+  const archived: ArchivedSession = {
+    name: session.name,
+    groupId: session.groupId,
+    groupName,
+    ccSessionId: session.ccSessionId,
+    cwd: session.cwd,
+    displayText: null,
+    archivedAt: Date.now(),
+    exitCode: session.exitCode,
+  };
+
+  archivedSessions.unshift(archived);
+  // Keep last 50
+  if (archivedSessions.length > 50) {
+    archivedSessions = archivedSessions.slice(0, 50);
+  }
+
+  // Persist to disk
+  void window.augmentApp.saveHistory(archivedSessions);
+
+  // Now dispose the live session
   session.closed = true;
   session.resizeObserver.disconnect();
   session.terminal.dispose();
@@ -679,24 +880,45 @@ function disposeSession(id: number): void {
     } else {
       renderSidebar();
       renderFocusHeader();
-      renderContextPane();
       renderEmptyState();
     }
   } else {
     renderSidebar();
-    renderContextPane();
   }
+
+  showKeyHint(`Archived ${archived.name}`);
 }
 
-function markExited(id: number, code: number): void {
-  const session = sessions.get(id);
-  if (!session || session.closed) return;
-  session.status = "exited";
-  session.statusText = `Exited (${code})`;
-  session.terminal.write(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m\r\n`);
-  renderSidebar();
-  renderFocusHeader();
-  renderContextPane();
+async function resumeSession(archived: ArchivedSession): Promise<void> {
+  if (!archived.ccSessionId) {
+    showKeyHint("No CC session ID — cannot resume");
+    return;
+  }
+
+  const cmd = ["claude", "--resume", archived.ccSessionId];
+  const cwd = archived.cwd || undefined;
+  const created = await window.augmentApp.createTerminal({ cwd, cmd });
+  const session = createSessionView(created);
+  session.name = `${archived.name} (resumed)`;
+  session.ccSessionId = archived.ccSessionId;
+  session.cwd = archived.cwd;
+
+  // Restore group membership if the group still exists
+  if (archived.groupId !== null && groups.has(archived.groupId)) {
+    session.groupId = archived.groupId;
+  }
+
+  sessions.set(created.id, session);
+  setActive(created.id);
+
+  // Remove from archive
+  const idx = archivedSessions.indexOf(archived);
+  if (idx >= 0) {
+    archivedSessions.splice(idx, 1);
+    void window.augmentApp.saveHistory(archivedSessions);
+  }
+
+  showKeyHint(`Resumed ${archived.name}`);
 }
 
 function createSessionView(created: TerminalCreated): SessionView {
@@ -745,6 +967,10 @@ function createSessionView(created: TerminalCreated): SessionView {
   return {
     id: created.id,
     name,
+    groupId: null,
+    ccSessionId: null,
+    cwd: created.cwd || null,
+    exitCode: null,
     status: "shell",
     statusText: "Shell",
     lastOutputLines: [],
@@ -802,27 +1028,94 @@ function renderSidebar(): void {
     return;
   }
 
-  // Group: needing attention first, then active, then rest
-  const needingAttention = list.filter((s) => s.needsAttention);
-  const active = list.filter((s) => !s.needsAttention && (s.status === "active" || s.status === "tool"));
-  const rest = list.filter((s) => !s.needsAttention && s.status !== "active" && s.status !== "tool");
+  // Render groups first, then ungrouped sessions
+  const groupList = getGroupList();
+  const ungrouped = getUngroupedSessions();
 
-  if (needingAttention.length > 0) {
-    appendGroupLabel("Needs attention");
-    needingAttention.forEach((s) => appendSessionCard(s));
-  }
+  for (const group of groupList) {
+    const members = getGroupSessions(group.id);
+    if (members.length === 0) continue; // skip empty groups
 
-  if (active.length > 0) {
-    appendGroupLabel("Working");
-    active.forEach((s) => appendSessionCard(s));
-  }
+    appendGroupHeader(group, members);
 
-  if (rest.length > 0) {
-    if (needingAttention.length > 0 || active.length > 0) {
-      appendGroupLabel("Other");
+    if (!group.collapsed) {
+      for (const session of members) {
+        appendSessionCard(session, true);
+      }
+
+      // Archived sessions for this group
+      if (showHistory) {
+        const groupArchived = archivedSessions.filter(
+          (a) => a.groupId === group.id || a.groupName === group.name
+        );
+        if (groupArchived.length > 0) {
+          appendArchivedSection(groupArchived, true);
+        }
+      }
     }
-    rest.forEach((s) => appendSessionCard(s));
   }
+
+  // Ungrouped sessions
+  if (ungrouped.length > 0) {
+    if (groupList.length > 0 && groupList.some((g) => getGroupSessions(g.id).length > 0)) {
+      appendGroupLabel("Ungrouped");
+    }
+    for (const session of ungrouped) {
+      appendSessionCard(session, false);
+    }
+  }
+
+  // Ungrouped archived sessions
+  if (showHistory) {
+    const ungroupedArchived = archivedSessions.filter(
+      (a) => a.groupId === null && a.groupName === null
+    );
+    if (ungroupedArchived.length > 0) {
+      appendArchivedSection(ungroupedArchived, false);
+    }
+  }
+
+  // Discovered external sessions
+  if (latestDiscovery && latestDiscovery.processes.length > 0) {
+    appendDiscoveredSection(latestDiscovery);
+  }
+}
+
+function appendGroupHeader(group: SessionGroup, members: SessionView[]): void {
+  const header = document.createElement("div");
+  header.className = "group-header";
+
+  const chevron = document.createElement("span");
+  chevron.className = "group-chevron";
+  chevron.textContent = group.collapsed ? "\u25B6" : "\u25BC"; // ▶ or ▼
+  header.appendChild(chevron);
+
+  const name = document.createElement("span");
+  name.className = "group-name";
+  name.textContent = group.name;
+  header.appendChild(name);
+
+  const count = document.createElement("span");
+  count.className = "group-count";
+  count.textContent = String(members.length);
+  header.appendChild(count);
+
+  // Attention rollup badge
+  const attCount = groupAttentionCount(group.id);
+  if (attCount > 0) {
+    const badge = document.createElement("span");
+    badge.className = "session-badge";
+    badge.textContent = String(attCount);
+    badge.title = `${attCount} session${attCount > 1 ? "s" : ""} need attention`;
+    header.appendChild(badge);
+  }
+
+  header.addEventListener("click", () => {
+    group.collapsed = !group.collapsed;
+    renderSidebar();
+  });
+
+  sessionListEl.appendChild(header);
 }
 
 function appendGroupLabel(text: string): void {
@@ -832,9 +1125,10 @@ function appendGroupLabel(text: string): void {
   sessionListEl.appendChild(label);
 }
 
-function appendSessionCard(session: SessionView): void {
+function appendSessionCard(session: SessionView, indented: boolean = false): void {
   const card = document.createElement("div");
   card.className = "session-card";
+  if (indented) card.classList.add("indented");
   if (session.id === activeId) {
     card.classList.add("is-active");
   }
@@ -878,7 +1172,6 @@ function appendSessionCard(session: SessionView): void {
   closeBtn.title = "Close session";
   closeBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    window.augmentApp.kill(session.id);
     disposeSession(session.id);
   });
   header.appendChild(closeBtn);
@@ -951,12 +1244,293 @@ function appendSessionCard(session: SessionView): void {
   sessionListEl.appendChild(card);
 }
 
+function appendArchivedSection(archived: ArchivedSession[], indented: boolean): void {
+  const toggle = document.createElement("div");
+  toggle.className = "archived-toggle";
+  if (indented) toggle.classList.add("indented");
+  toggle.textContent = `${archived.length} past session${archived.length > 1 ? "s" : ""}`;
+
+  let expanded = false;
+  const container = document.createElement("div");
+  container.style.display = "none";
+
+  toggle.addEventListener("click", () => {
+    expanded = !expanded;
+    container.style.display = expanded ? "block" : "none";
+    toggle.textContent = expanded
+      ? `\u25BC ${archived.length} past session${archived.length > 1 ? "s" : ""}`
+      : `${archived.length} past session${archived.length > 1 ? "s" : ""}`;
+  });
+
+  for (const entry of archived.slice(0, 20)) {
+    appendArchivedCard(entry, container, indented);
+  }
+
+  sessionListEl.appendChild(toggle);
+  sessionListEl.appendChild(container);
+}
+
+function appendArchivedCard(
+  archived: ArchivedSession,
+  container: HTMLElement,
+  indented: boolean
+): void {
+  const card = document.createElement("div");
+  card.className = "session-card archived";
+  if (indented) card.classList.add("indented");
+
+  // Header row
+  const header = document.createElement("div");
+  header.className = "session-card-header";
+
+  const dot = document.createElement("div");
+  dot.className = "status-dot exited";
+  header.appendChild(dot);
+
+  const name = document.createElement("span");
+  name.className = "session-name";
+  name.textContent = archived.name;
+  header.appendChild(name);
+
+  card.appendChild(header);
+
+  // Info line
+  const info = document.createElement("div");
+  info.className = "session-status-line";
+  const time = new Date(archived.archivedAt);
+  const timeStr = time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  info.textContent = archived.displayText
+    ? `${timeStr} — ${archived.displayText}`
+    : `Archived ${timeStr}`;
+  card.appendChild(info);
+
+  // Resume button (only if CC session ID is available)
+  if (archived.ccSessionId) {
+    const resumeBtn = document.createElement("button");
+    resumeBtn.className = "resume-btn";
+    resumeBtn.textContent = "Resume";
+    resumeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void resumeSession(archived);
+    });
+    card.appendChild(resumeBtn);
+  }
+
+  // Remove from history button
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "close-btn";
+  removeBtn.textContent = "\u00D7";
+  removeBtn.title = "Remove from history";
+  removeBtn.style.display = "block";
+  removeBtn.style.position = "absolute";
+  removeBtn.style.right = "8px";
+  removeBtn.style.top = "8px";
+  removeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const idx = archivedSessions.indexOf(archived);
+    if (idx >= 0) {
+      archivedSessions.splice(idx, 1);
+      void window.augmentApp.saveHistory(archivedSessions);
+      renderSidebar();
+    }
+  });
+  card.appendChild(removeBtn);
+
+  card.style.position = "relative";
+
+  container.appendChild(card);
+}
+
+// ============================================================
+// Render: discovered external sessions
+// ============================================================
+
+function appendDiscoveredSection(snapshot: DiscoverySnapshot): void {
+  // Group processes by team
+  const teamProcesses = new Map<string, DiscoveredProcess[]>();
+  const ungroupedProcesses: DiscoveredProcess[] = [];
+
+  for (const proc of snapshot.processes) {
+    if (proc.teamName) {
+      if (!teamProcesses.has(proc.teamName)) {
+        teamProcesses.set(proc.teamName, []);
+      }
+      teamProcesses.get(proc.teamName)!.push(proc);
+    } else {
+      ungroupedProcesses.push(proc);
+    }
+  }
+
+  // Section header
+  const sectionHeader = document.createElement("div");
+  sectionHeader.className = "session-group-label";
+  sectionHeader.style.marginTop = "12px";
+  sectionHeader.textContent = `Discovered (${snapshot.processes.length})`;
+  sessionListEl.appendChild(sectionHeader);
+
+  // Render team-grouped discovered sessions
+  for (const [teamName, procs] of teamProcesses) {
+    // Find team config for enrichment
+    const teamConfig = snapshot.teams.find((t) => t.name === teamName);
+
+    const teamHeader = document.createElement("div");
+    teamHeader.className = "group-header discovered-group";
+
+    const chevron = document.createElement("span");
+    chevron.className = "group-chevron";
+    chevron.textContent = "\u25BC"; // ▼
+    teamHeader.appendChild(chevron);
+
+    const name = document.createElement("span");
+    name.className = "group-name";
+    name.textContent = teamName;
+    teamHeader.appendChild(name);
+
+    const count = document.createElement("span");
+    count.className = "group-count";
+    const runningCount = procs.filter((p) => p.isRunning).length;
+    count.textContent = `${runningCount}/${procs.length}`;
+    count.title = `${runningCount} running, ${procs.length - runningCount} idle`;
+    teamHeader.appendChild(count);
+
+    let collapsed = false;
+    teamHeader.addEventListener("click", () => {
+      collapsed = !collapsed;
+      chevron.textContent = collapsed ? "\u25B6" : "\u25BC";
+      container.style.display = collapsed ? "none" : "block";
+    });
+
+    sessionListEl.appendChild(teamHeader);
+
+    const container = document.createElement("div");
+
+    // If we have team config, show all members (even ones without processes)
+    if (teamConfig) {
+      for (const member of teamConfig.members) {
+        const proc = procs.find((p) => p.agentName === member.name);
+        appendDiscoveredCard(container, {
+          name: member.name,
+          color: member.color || proc?.agentColor || null,
+          isRunning: proc?.isRunning ?? false,
+          hasProcess: !!proc,
+          pid: proc?.pid ?? null,
+          teamName,
+        });
+      }
+    } else {
+      for (const proc of procs) {
+        appendDiscoveredCard(container, {
+          name: proc.agentName || proc.displayName,
+          color: proc.agentColor,
+          isRunning: proc.isRunning,
+          hasProcess: true,
+          pid: proc.pid,
+          teamName,
+        });
+      }
+    }
+
+    sessionListEl.appendChild(container);
+  }
+
+  // Ungrouped discovered sessions
+  for (const proc of ungroupedProcesses) {
+    appendDiscoveredCard(sessionListEl, {
+      name: proc.agentName || proc.displayName,
+      color: proc.agentColor,
+      isRunning: proc.isRunning,
+      hasProcess: true,
+      pid: proc.pid,
+      teamName: null,
+    });
+  }
+}
+
+function appendDiscoveredCard(
+  container: HTMLElement,
+  info: {
+    name: string;
+    color: string | null;
+    isRunning: boolean;
+    hasProcess: boolean;
+    pid: number | null;
+    teamName: string | null;
+  }
+): void {
+  const card = document.createElement("div");
+  card.className = "session-card discovered";
+  if (info.teamName) card.classList.add("indented");
+
+  const header = document.createElement("div");
+  header.className = "session-card-header";
+
+  const dot = document.createElement("div");
+  dot.className = "status-dot discovered";
+  if (info.isRunning) {
+    dot.classList.add("discovered-running");
+  }
+  // Apply agent color if available
+  if (info.color) {
+    dot.style.background = getAgentColorValue(info.color);
+  }
+  header.appendChild(dot);
+
+  const name = document.createElement("span");
+  name.className = "session-name";
+  name.textContent = info.name;
+  header.appendChild(name);
+
+  if (info.isRunning) {
+    const badge = document.createElement("span");
+    badge.className = "discovered-running-badge";
+    badge.textContent = "R";
+    badge.title = "Running (CPU active)";
+    header.appendChild(badge);
+  }
+
+  card.appendChild(header);
+
+  const statusLine = document.createElement("div");
+  statusLine.className = "session-status-line";
+  statusLine.textContent = info.hasProcess
+    ? (info.isRunning ? "Running" : "Idle")
+    : "No process";
+  if (info.pid) statusLine.textContent += ` (PID ${info.pid})`;
+  card.appendChild(statusLine);
+
+  container.appendChild(card);
+}
+
+function getAgentColorValue(colorName: string): string {
+  const map: Record<string, string> = {
+    green: "var(--accent-green)",
+    blue: "var(--accent-blue)",
+    yellow: "var(--accent-yellow)",
+    red: "var(--accent-red)",
+    purple: "var(--accent-purple)",
+    orange: "#e0915a",
+    pink: "#e06a9a",
+    cyan: "#56c8d8",
+  };
+  return map[colorName] || "var(--text-dim)";
+}
+
 // ============================================================
 // Render: focus header
 // ============================================================
 
 function renderFocusHeader(): void {
   const active = activeId !== null ? sessions.get(activeId) : null;
+
+  // Attention badge — show when sidebar is collapsed and sessions need attention
+  const sidebarCollapsed = appEl.classList.contains("sidebar-collapsed");
+  const attentionQueue = getAttentionQueue();
+  if (sidebarCollapsed && attentionQueue.length > 0) {
+    focusAttentionBadge.textContent = `${attentionQueue.length} need attention`;
+    focusAttentionBadge.classList.add("visible");
+  } else {
+    focusAttentionBadge.classList.remove("visible");
+  }
 
   if (!active) {
     focusNameEl.textContent = "";
@@ -971,129 +1545,6 @@ function renderFocusHeader(): void {
   }
   focusStatusEl.textContent = active.statusText;
   focusDot.className = `status-dot ${active.status}`;
-}
-
-// ============================================================
-// Render: context pane (nearby sessions)
-// ============================================================
-
-function renderContextPane(): void {
-  contextListEl.innerHTML = "";
-
-  const list = getSessionList();
-  // Show all sessions except the active one, prioritizing those needing attention
-  const others = list.filter((s) => s.id !== activeId);
-
-  if (others.length === 0) {
-    const empty = document.createElement("div");
-    empty.style.cssText = "padding: 20px 8px; text-align: center; color: var(--text-dim); font-size: 11px;";
-    empty.textContent = "No other sessions";
-    contextListEl.appendChild(empty);
-    return;
-  }
-
-  // Sort: needing attention first, then by last activity
-  others.sort((a, b) => {
-    if (a.needsAttention && !b.needsAttention) return -1;
-    if (!a.needsAttention && b.needsAttention) return 1;
-    return b.lastActivityAt - a.lastActivityAt;
-  });
-
-  for (const session of others) {
-    const card = document.createElement("div");
-    card.className = "context-card";
-
-    // Header
-    const header = document.createElement("div");
-    header.className = "context-card-header";
-
-    const dot = document.createElement("div");
-    dot.className = `status-dot ${session.status}`;
-    header.appendChild(dot);
-
-    const name = document.createElement("span");
-    name.className = "session-name";
-    name.textContent = session.name;
-    header.appendChild(name);
-
-    if (session.needsAttention) {
-      const badge = document.createElement("span");
-      badge.className = "session-badge";
-      badge.textContent = "!";
-      badge.style.fontSize = "9px";
-      badge.style.padding = "0 4px";
-      header.appendChild(badge);
-    }
-
-    // Unread badge in context card
-    if (session.unreadActivity > 0) {
-      const unread = document.createElement("span");
-      unread.className = "session-unread";
-      unread.style.fontSize = "8px";
-      unread.textContent = session.unreadActivity > 99 ? "99+" : String(session.unreadActivity);
-      header.appendChild(unread);
-    }
-
-    card.appendChild(header);
-
-    // Status
-    const statusDiv = document.createElement("div");
-    statusDiv.className = "context-card-status";
-    statusDiv.textContent = session.statusText;
-    card.appendChild(statusDiv);
-
-    // Team event summary in context card
-    const ctxSummary = getLastTeamEventSummary(session);
-    if (ctxSummary) {
-      const summaryEl = document.createElement("div");
-      summaryEl.className = "context-card-status";
-      summaryEl.style.color = "var(--accent-blue)";
-      summaryEl.style.fontSize = "9px";
-      summaryEl.textContent = ctxSummary;
-      card.appendChild(summaryEl);
-    }
-
-    // Team member chips in context card
-    const ctxMembers = Array.from(session.teamMembers);
-    if (ctxMembers.length > 0) {
-      const membersWrap = document.createElement("div");
-      membersWrap.className = "session-team-members";
-      membersWrap.style.padding = "2px 0";
-      for (const member of ctxMembers.slice(0, 4)) {
-        const chip = document.createElement("button");
-        chip.className = "session-member-chip";
-        chip.textContent = member;
-        chip.addEventListener("click", (evt) => {
-          evt.preventDefault();
-          evt.stopPropagation();
-          for (const [id, s] of sessions) {
-            if (s.agentIdentity?.toLowerCase() === member.toLowerCase() ||
-                s.name.toLowerCase() === member.toLowerCase()) {
-              setActive(id);
-              return;
-            }
-          }
-        });
-        membersWrap.appendChild(chip);
-      }
-      card.appendChild(membersWrap);
-    }
-
-    // Preview (last few lines of output, stripped)
-    if (session.lastOutputLines.length > 0) {
-      const preview = document.createElement("div");
-      preview.className = "context-card-preview";
-      preview.textContent = session.lastOutputLines.join("\n");
-      card.appendChild(preview);
-    }
-
-    card.addEventListener("click", () => {
-      setActive(session.id);
-      session.unreadActivity = 0;
-    });
-
-    contextListEl.appendChild(card);
-  }
 }
 
 // ============================================================
@@ -1150,7 +1601,6 @@ window.augmentApp.onStderr((payload) => {
     session.needsAttention = true;
     session.attentionReason = "Error detected";
     renderSidebar();
-    renderContextPane();
     renderFocusHeader();
   }
 });
@@ -1168,8 +1618,57 @@ window.augmentApp.onError((payload) => {
   session.needsAttention = true;
   session.attentionReason = "Process error";
   renderSidebar();
-  renderContextPane();
+
   renderFocusHeader();
+});
+
+// Tmux shim: agent spawned — create a session view for the new agent
+window.augmentApp.onAgentSpawned((payload) => {
+  const session = createSessionView({ id: payload.id, cwd: "" });
+  session.name = payload.name || `agent-${payload.id}`;
+  sessions.set(payload.id, session);
+
+  // Find the parent session (the one that triggered TeamCreate) and
+  // assign this new agent session to the same group
+  for (const [, s] of sessions) {
+    if (s.id === payload.id) continue;
+    if (s.teamNames.size > 0 && s.groupId !== null) {
+      session.groupId = s.groupId;
+      break;
+    }
+  }
+
+  // If no group found via parent, try to match by team name from the group list
+  if (session.groupId === null) {
+    for (const group of groups.values()) {
+      // Assign to the most recently created group
+      session.groupId = group.id;
+    }
+  }
+
+  renderSidebar();
+  showKeyHint(`Agent spawned: ${session.name}`);
+});
+
+// Tmux shim: agent renamed
+window.augmentApp.onAgentRenamed((payload) => {
+  // Find session by matching the pane target pattern
+  // Target could be a pane ID (%N) or a name
+  for (const [, session] of sessions) {
+    if (session.name === payload.target ||
+        `%${session.id}` === payload.target) {
+      session.name = payload.title;
+      renderSidebar();
+      if (session.id === activeId) renderFocusHeader();
+      break;
+    }
+  }
+});
+
+// Discovery: external CC sessions discovered via process table + team configs
+window.augmentApp.onDiscoveryUpdate((snapshot) => {
+  latestDiscovery = snapshot;
+  renderSidebar();
 });
 
 // ============================================================
@@ -1180,26 +1679,34 @@ newSessionBtn.addEventListener("click", () => {
   void spawnSession();
 });
 
-collapseSidebarBtn.addEventListener("click", () => {
+function toggleSidebar(): void {
   appEl.classList.toggle("sidebar-collapsed");
-});
-
-collapseContextBtn.addEventListener("click", () => {
-  appEl.classList.toggle("context-collapsed");
-  // Re-fit the active terminal since the focus area width changed
+  renderFocusHeader(); // update attention badge visibility
+  // Re-fit active terminal after grid transition
   if (activeId !== null) {
     const active = sessions.get(activeId);
     if (active) {
       setTimeout(() => {
         active.fit.fit();
         const dims = active.fit.proposeDimensions();
-        if (dims) {
-          window.augmentApp.resize(active.id, dims.rows, dims.cols);
-        }
-      }, 250); // wait for grid transition
+        if (dims) window.augmentApp.resize(active.id, dims.rows, dims.cols);
+      }, 250);
     }
   }
+}
+
+collapseSidebarBtn.addEventListener("click", () => {
+  toggleSidebar();
 });
+
+focusSidebarToggle.addEventListener("click", () => {
+  toggleSidebar();
+});
+
+focusAttentionBadge.addEventListener("click", () => {
+  goToNextAttention();
+});
+
 
 // Double-click focus header name to rename
 focusNameEl.addEventListener("dblclick", () => {
@@ -1245,11 +1752,10 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Cmd+W — close current session
+  // Cmd+W — close/archive current session (three-stage lifecycle)
   if (meta && e.key === "w" && !e.shiftKey) {
     e.preventDefault();
     if (activeId !== null) {
-      window.augmentApp.kill(activeId);
       disposeSession(activeId);
     }
     return;
@@ -1272,36 +1778,17 @@ document.addEventListener("keydown", (e) => {
   // Cmd+B — toggle sidebar
   if (meta && e.key === "b" && !e.shiftKey) {
     e.preventDefault();
-    appEl.classList.toggle("sidebar-collapsed");
-    // Re-fit active terminal after grid transition
-    if (activeId !== null) {
-      const active = sessions.get(activeId);
-      if (active) {
-        setTimeout(() => {
-          active.fit.fit();
-          const dims = active.fit.proposeDimensions();
-          if (dims) window.augmentApp.resize(active.id, dims.rows, dims.cols);
-        }, 250);
-      }
-    }
+    toggleSidebar();
     return;
   }
 
-  // Cmd+\ — toggle context pane
-  if (meta && e.key === "\\" && !e.shiftKey) {
+
+  // Cmd+H — toggle history visibility
+  if (meta && e.key === "h" && !e.shiftKey) {
     e.preventDefault();
-    appEl.classList.toggle("context-collapsed");
-    // Re-fit active terminal after grid transition
-    if (activeId !== null) {
-      const active = sessions.get(activeId);
-      if (active) {
-        setTimeout(() => {
-          active.fit.fit();
-          const dims = active.fit.proposeDimensions();
-          if (dims) window.augmentApp.resize(active.id, dims.rows, dims.cols);
-        }, 250);
-      }
-    }
+    showHistory = !showHistory;
+    renderSidebar();
+    showKeyHint(showHistory ? "History visible" : "History hidden");
     return;
   }
 
@@ -1314,13 +1801,29 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Cmd+1-9 — switch to session by position
+  // Cmd+1-9 — jump to group (or session if no groups)
   if (meta && !e.shiftKey && e.key >= "1" && e.key <= "9") {
     e.preventDefault();
     const idx = parseInt(e.key) - 1;
-    const list = getSessionList();
-    if (idx < list.length) {
-      setActive(list[idx].id);
+    const gList = getGroupList();
+
+    if (gList.length > 0) {
+      // Jump to group: expand it and focus its first session
+      if (idx < gList.length) {
+        const group = gList[idx];
+        group.collapsed = false;
+        const members = getGroupSessions(group.id);
+        if (members.length > 0) {
+          setActive(members[0].id);
+          showKeyHint(`→ ${group.name}`);
+        }
+      }
+    } else {
+      // No groups — fall back to session-by-position
+      const list = getSessionList();
+      if (idx < list.length) {
+        setActive(list[idx].id);
+      }
     }
     return;
   }
@@ -1332,5 +1835,17 @@ document.addEventListener("keydown", (e) => {
 
 renderEmptyState();
 renderSidebar();
-renderContextPane();
-void spawnSession();
+
+// Load archived sessions from disk, then spawn first session
+void (async () => {
+  try {
+    const loaded = await window.augmentApp.loadHistory();
+    if (Array.isArray(loaded) && loaded.length > 0) {
+      archivedSessions = loaded;
+      renderSidebar();
+    }
+  } catch {
+    // History load failure is non-fatal
+  }
+  void spawnSession();
+})();

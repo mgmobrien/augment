@@ -23,7 +23,6 @@
         --accent-red: #f7768e;
         --accent-purple: #bb9af7;
         --sidebar-width: 260px;
-        --context-width: 280px;
         --transition-fast: 150ms ease;
         --transition-normal: 250ms ease;
       }
@@ -50,22 +49,14 @@
          ============================================================ */
       #app {
         display: grid;
-        grid-template-columns: var(--sidebar-width) 1fr var(--context-width);
+        grid-template-columns: var(--sidebar-width) 1fr;
         width: 100%;
         height: 100%;
         transition: grid-template-columns 200ms ease;
       }
 
       #app.sidebar-collapsed {
-        grid-template-columns: 0px 1fr var(--context-width);
-      }
-
-      #app.context-collapsed {
-        grid-template-columns: var(--sidebar-width) 1fr 0px;
-      }
-
-      #app.sidebar-collapsed.context-collapsed {
-        grid-template-columns: 0px 1fr 0px;
+        grid-template-columns: 1fr;
       }
 
       /* ============================================================
@@ -377,6 +368,136 @@
         color: var(--accent-red);
       }
 
+      /* Group headers */
+      .group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px 4px;
+        margin-top: 4px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background var(--transition-fast);
+      }
+
+      .group-header:hover {
+        background: var(--bg-elevated);
+      }
+
+      .group-chevron {
+        font-size: 8px;
+        color: var(--text-dim);
+        flex-shrink: 0;
+        width: 10px;
+        text-align: center;
+      }
+
+      .group-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .group-count {
+        font-size: 10px;
+        color: var(--text-dim);
+        flex-shrink: 0;
+      }
+
+      /* Indented session cards (inside groups) */
+      .session-card.indented {
+        margin-left: 14px;
+        border-left: 2px solid var(--border-dim);
+      }
+
+      .session-card.indented.is-active {
+        border-left-color: var(--border-accent);
+      }
+
+      /* Archived sessions */
+      .session-card.archived {
+        opacity: 0.5;
+        transition: opacity var(--transition-fast);
+      }
+
+      .session-card.archived:hover {
+        opacity: 0.8;
+      }
+
+      .archived-toggle {
+        font-size: 10px;
+        color: var(--text-dim);
+        padding: 6px 10px;
+        cursor: pointer;
+        transition: color var(--transition-fast);
+      }
+
+      .archived-toggle:hover {
+        color: var(--text-secondary);
+      }
+
+      .archived-toggle.indented {
+        margin-left: 14px;
+      }
+
+      .resume-btn {
+        display: inline-block;
+        margin: 4px 0 0 15px;
+        padding: 2px 10px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--accent-blue);
+        background: transparent;
+        border: 1px solid var(--accent-blue);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background var(--transition-fast), color var(--transition-fast);
+      }
+
+      .resume-btn:hover {
+        background: var(--accent-blue);
+        color: var(--bg-base);
+      }
+
+      /* Discovered (external) sessions */
+      .session-card.discovered {
+        opacity: 0.65;
+        border-left: 2px solid var(--border-dim);
+        transition: opacity var(--transition-fast);
+      }
+
+      .session-card.discovered:hover {
+        opacity: 0.9;
+      }
+
+      .status-dot.discovered {
+        background: var(--text-dim);
+      }
+
+      .status-dot.discovered-running {
+        background: var(--accent-green);
+        opacity: 0.7;
+      }
+
+      .discovered-running-badge {
+        font-size: 9px;
+        font-weight: 700;
+        background: var(--accent-green);
+        color: var(--bg-base);
+        border-radius: 3px;
+        padding: 0 4px;
+        flex-shrink: 0;
+        opacity: 0.8;
+      }
+
+      .discovered-group {
+        opacity: 0.75;
+      }
+
       /* New session button */
       #new-session-btn {
         display: flex;
@@ -426,6 +547,81 @@
 
       #focus-header button, #focus-header span {
         -webkit-app-region: no-drag;
+      }
+
+      .sidebar-toggle-btn {
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background var(--transition-fast), color var(--transition-fast);
+      }
+
+      .sidebar-toggle-btn:hover {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+      }
+
+      .sidebar-toggle-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* Two-state icon: show/hide the appropriate SVG based on sidebar state */
+      .sidebar-toggle-btn .icon-collapse {
+        display: block;
+      }
+      .sidebar-toggle-btn .icon-expand {
+        display: none;
+      }
+      .sidebar-collapsed .sidebar-toggle-btn .icon-collapse {
+        display: none;
+      }
+      .sidebar-collapsed .sidebar-toggle-btn .icon-expand {
+        display: block;
+      }
+
+      /* Hide the focus-area sidebar toggle by default — only show when sidebar is collapsed */
+      #focus-sidebar-toggle {
+        display: none;
+      }
+
+      /* When sidebar is collapsed, show the toggle prominently */
+      .sidebar-collapsed #focus-sidebar-toggle {
+        display: flex;
+        color: var(--accent-blue);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-accent);
+      }
+
+      /* Attention badge in focus header — visible when sidebar collapsed + sessions need attention */
+      #focus-attention-badge {
+        display: none;
+        border: none;
+        background: var(--accent-yellow);
+        color: var(--bg-base);
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 8px;
+        padding: 1px 7px;
+        cursor: pointer;
+        flex-shrink: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        animation: pulse 2s ease-in-out infinite;
+        -webkit-app-region: no-drag;
+      }
+
+      #focus-attention-badge.visible {
+        display: inline-block;
+      }
+
+      #focus-attention-badge:hover {
+        filter: brightness(1.15);
       }
 
       #focus-header .status-dot {
@@ -510,110 +706,6 @@
       }
 
       /* ============================================================
-         Context pane (near-context preview)
-         ============================================================ */
-      #context-area {
-        display: flex;
-        flex-direction: column;
-        background: var(--bg-surface);
-        border-left: 1px solid var(--border-default);
-        overflow: hidden;
-        min-width: 0;
-      }
-
-      .context-collapsed #context-area {
-        display: none;
-      }
-
-      #context-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 12px 6px;
-        flex-shrink: 0;
-        -webkit-app-region: drag;
-      }
-
-      #context-header h3 {
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        color: var(--text-dim);
-      }
-
-      #collapse-context-btn:hover {
-        opacity: 1 !important;
-        background: var(--bg-elevated) !important;
-      }
-
-      #context-list {
-        flex: 1;
-        overflow-y: auto;
-        padding: 0 8px 8px;
-      }
-
-      #context-list::-webkit-scrollbar {
-        width: 4px;
-      }
-
-      #context-list::-webkit-scrollbar-thumb {
-        background: var(--border-default);
-        border-radius: 2px;
-      }
-
-      .context-card {
-        margin: 4px 0;
-        padding: 8px 10px;
-        background: var(--bg-elevated);
-        border-radius: 6px;
-        border: 1px solid var(--border-dim);
-        cursor: pointer;
-        transition: border-color var(--transition-fast);
-      }
-
-      .context-card:hover {
-        border-color: var(--border-accent);
-      }
-
-      .context-card-header {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 4px;
-      }
-
-      .context-card .status-dot {
-        width: 6px;
-        height: 6px;
-      }
-
-      .context-card .session-name {
-        font-size: 11px;
-        font-weight: 600;
-      }
-
-      .context-card-status {
-        font-size: 10px;
-        color: var(--text-secondary);
-        margin-bottom: 6px;
-      }
-
-      .context-card-preview {
-        font-family: "SF Mono", "Fira Code", Menlo, monospace;
-        font-size: 10px;
-        line-height: 1.4;
-        color: var(--text-dim);
-        max-height: 84px;
-        overflow: hidden;
-        white-space: pre-wrap;
-        word-break: break-all;
-        background: var(--bg-base);
-        border-radius: 4px;
-        padding: 4px 6px;
-      }
-
-      /* ============================================================
          Hidden terminal panes (not focused)
          ============================================================ */
       #panes {
@@ -685,7 +777,20 @@
         <div id="sidebar-header">
           <h2>Sessions</h2>
           <div class="sidebar-actions">
-            <button id="collapse-sidebar-btn" title="Toggle sidebar (Cmd+B)">&#x25C0;</button>
+            <button id="collapse-sidebar-btn" class="sidebar-toggle-btn" title="Toggle sidebar (Cmd+B)">
+              <!-- Collapse icon: sidebar panel with left section filled -->
+              <svg class="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+                <rect x="3" y="3" width="6" height="18" rx="2" ry="0" fill="currentColor" opacity="0.25"></rect>
+              </svg>
+              <!-- Expand icon: sidebar panel with arrow pointing right -->
+              <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+                <polyline points="13,9 16,12 13,15"></polyline>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -703,6 +808,21 @@
       <!-- Focus: main terminal -->
       <div id="focus-area">
         <div id="focus-header">
+          <button id="focus-sidebar-toggle" class="sidebar-toggle-btn" title="Toggle sidebar (Cmd+B)">
+            <!-- Collapse icon: sidebar panel with left section filled -->
+            <svg class="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <rect x="3" y="3" width="6" height="18" rx="2" ry="0" fill="currentColor" opacity="0.25"></rect>
+            </svg>
+            <!-- Expand icon: sidebar panel with arrow pointing right -->
+            <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <polyline points="13,9 16,12 13,15"></polyline>
+            </svg>
+          </button>
+          <button id="focus-attention-badge" title="Sessions need attention (Cmd+J)"></button>
           <div id="focus-dot" class="status-dot"></div>
           <span id="focus-session-name"></span>
           <span id="focus-status-text"></span>
@@ -722,14 +842,6 @@
         </div>
       </div>
 
-      <!-- Context: near-context preview -->
-      <div id="context-area">
-        <div id="context-header">
-          <h3>Nearby</h3>
-          <button id="collapse-context-btn" title="Toggle context pane (Cmd+\)" style="border:none;background:transparent;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;-webkit-app-region:no-drag;opacity:0.7;transition:opacity 150ms;">&#x25B6;</button>
-        </div>
-        <div id="context-list"></div>
-      </div>
     </div>
 
     <div id="key-hint"></div>
