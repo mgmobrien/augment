@@ -98,8 +98,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
-    const SPINNER_FRAMES = ["\u00B7 \u00B7 \u00B7", "\u2022 \u00B7 \u00B7", "\u00B7 \u2022 \u00B7", "\u00B7 \u00B7 \u2022", "\u00B7 \u2022 \u00B7", "\u2022 \u00B7 \u00B7"];
-    const SPINNER_WIDTH = SPINNER_FRAMES[0].length;
+    // Triangle spinner: 3-dot S3 logo shape, clockwise rotation (top → bottom-left → bottom-right)
+    // Each frame is 2 lines: line 1 = 2 chars (" •" or " ·"), line 2 = 3 chars ("• ·" etc.)
+    const SPINNER_FRAMES = [" \u2022\n\u00B7 \u00B7", " \u00B7\n\u2022 \u00B7", " \u00B7\n\u00B7 \u2022"];
 
     // AI generation commands
     this.addCommand({
@@ -137,7 +138,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         let frameIdx = 0;
         const spinnerInterval = setInterval(() => {
           frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+          const spinnerEnd = { line: spinnerStart.line + 1, ch: 3 };
           editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
         }, 150);
 
@@ -150,7 +151,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             );
             clearInterval(spinnerInterval);
             const formatted = applyOutputFormat(result, this.settings);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+            const spinnerEnd = { line: spinnerStart.line + 1, ch: 3 };
             if (isBlock) {
               const withTrail = formatted + "\n";
               editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
@@ -162,7 +163,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           } catch (err) {
             console.error("[Augment]", err);
             clearInterval(spinnerInterval);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+            const spinnerEnd = { line: spinnerStart.line + 1, ch: 3 };
             editor.replaceRange("", spinnerStart, spinnerEnd);
             new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
           }
@@ -210,7 +211,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             let frameIdx = 0;
             const spinnerInterval = setInterval(() => {
               frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+              const spinnerEnd = { line: spinnerStart.line + 1, ch: 3 };
               editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
             }, 150);
 
@@ -218,7 +219,7 @@ export default class AugmentTerminalPlugin extends Plugin {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
               clearInterval(spinnerInterval);
               const formatted = applyOutputFormat(result, this.settings);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+              const spinnerEnd = { line: spinnerStart.line + 1, ch: 3 };
               if (isBlock) {
                 const withTrail = formatted + "\n";
                 editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
@@ -230,7 +231,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             } catch (err) {
               console.error("[Augment]", err);
               clearInterval(spinnerInterval);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+              const spinnerEnd = { line: spinnerStart.line + 1, ch: 3 };
               editor.replaceRange("", spinnerStart, spinnerEnd);
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             }
