@@ -6,7 +6,7 @@ Standalone Electron app (and Obsidian plugin) for running and managing Claude Co
 
 This project has a persistent parts architecture at `.parts/`. See `.parts/PARTS.md` for the full project constitution, roster, and conventions.
 
-To boot the project team from the vault, Matt says "Augment CEO" — this invokes the `augment-ceo` skill which spawns the domain parts.
+To boot the project team from the vault, Matt says "Augment CEO" or "CEO augment" — this invokes the generic `project-ceo` skill which resolves the project, reads `.parts/PARTS.md`, and spawns domain parts using `project-*` vault skills parameterized with local `config.md` files.
 
 @.parts/PARTS.md
 
