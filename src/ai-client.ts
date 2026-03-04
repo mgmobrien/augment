@@ -48,6 +48,20 @@ export function buildUserMessage(ctx: VaultContext, instruction: string): string
   return parts.join("\n").trimEnd();
 }
 
+export function substituteVariables(template: string, ctx: VaultContext): string {
+  let result = template;
+  result = result.replace(/\{\{selection\}\}/g, ctx.selection);
+  result = result.replace(/\{\{title\}\}/g, ctx.title);
+  result = result.replace(/\{\{context\}\}/g, ctx.surroundingContext);
+  result = result.replace(/\{\{linked_notes\}\}/g, formatLinkedNotes(ctx.linkedNotes));
+  result = result.replace(/\{\{frontmatter\.([^}]+)\}\}/g, (_, key) => {
+    const val = ctx.frontmatter?.[key];
+    if (val === undefined || val === null) return "";
+    return Array.isArray(val) ? val.join(", ") : String(val);
+  });
+  return result;
+}
+
 export async function generateText(
   systemPrompt: string,
   userMessage: string,

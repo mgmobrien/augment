@@ -1,7 +1,8 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
-import { buildSystemPrompt, buildUserMessage, generateText } from "./ai-client";
+import { buildSystemPrompt, buildUserMessage, generateText, substituteVariables } from "./ai-client";
 import { GenerateModal } from "./generate-modal";
 import { AugmentSettingTab } from "./settings-tab";
+import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
@@ -126,9 +127,41 @@ export default class AugmentTerminalPlugin extends Plugin {
       name: "Generate from template",
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
+        if (!this.settings.apiKey) {
+          const notice = new Notice("Augment: add your API key in Settings → Augment", 6000);
+          notice.noticeEl.addEventListener("click", () => {
+            (this.app as any).setting.open();
+            (this.app as any).setting.openTabById("augment-terminal");
+            notice.hide();
+          });
+          return;
+        }
+        const files = getTemplateFiles(this.app, this.settings.templateFolder);
+        if (files.length === 0) {
+          new Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
+          return;
+        }
         const ctx = assembleVaultContext(this.app, editor, this.settings);
-        console.log("[Augment] Generate from template context (template picker coming in next commit):", ctx);
-        new Notice("Augment: template picker coming soon");
+        new TemplatePicker(this.app, files, async (templateFile) => {
+          const templateContent = await this.app.vault.read(templateFile);
+          const rendered = substituteVariables(templateContent, ctx);
+          new TemplatePreviewModal(this.app, rendered, ctx, async () => {
+            const notice = new Notice("Generating\u2026", 0);
+            try {
+              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
+              if (ctx.selection) {
+                editor.replaceSelection(result);
+              } else {
+                editor.replaceRange(result, editor.getCursor());
+              }
+              notice.hide();
+              new Notice("Done", 2000);
+            } catch (err) {
+              notice.hide();
+              new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }).open();
+        }).open();
       },
     });
 
