@@ -11,6 +11,10 @@ if [ ! -f "$PLUGIN_DIR/main.js" ]; then
     exit 1
 fi
 
+# Enforce automated rename-sync regression guard before deploy.
+echo "Running rename-sync smoke check..."
+(cd "$PLUGIN_DIR" && npm run test:rename-sync)
+
 # Create plugin dir
 mkdir -p "$VAULT_PLUGIN_DIR"
 mkdir -p "$VAULT_PLUGIN_DIR/scripts"

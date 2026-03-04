@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs watch",
-    "build": "node esbuild.config.mjs build"
+    "build": "node esbuild.config.mjs build",
+    "test:rename-sync": "node scripts/check-rename-sync.mjs"
   },
   "dependencies": {
     "@xterm/xterm": "^5.5.0",
