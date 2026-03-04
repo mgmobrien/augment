@@ -203,9 +203,6 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    let calloutExpandedSetting: Setting;
-
-    const isCallout = () => this.plugin.settings.outputFormat === "callout";
     const calloutTypes = detectCalloutTypes();
 
     const formatSetting = new Setting(generatePane)
@@ -223,38 +220,59 @@ export class AugmentSettingTab extends PluginSettingTab {
             this.plugin.settings.outputFormat = value as AugmentSettings["outputFormat"];
             await this.plugin.saveData(this.plugin.settings);
             updateSecondarySlot(value);
-            calloutExpandedSetting.settingEl.style.display = value === "callout" ? "" : "none";
           });
       });
 
-    // Single secondary slot — morphs between heading level, callout type, or a
-    // grayed-out placeholder dash when the selected format has no sub-option.
-    const secondarySelect = formatSetting.controlEl.createEl("select", {
-      cls: "augment-format-secondary",
-    }) as HTMLSelectElement;
-    secondarySelect.style.marginLeft = "8px";
+    // Secondary slot: heading level or callout type, placeholder otherwise.
+    // Wrapped in .dropdown so Obsidian renders the native chevron.
+    const secondaryWrapper = formatSetting.controlEl.createEl("div", {
+      cls: "dropdown augment-format-secondary",
+    });
+    secondaryWrapper.style.marginLeft = "8px";
+    const secondarySelect = secondaryWrapper.createEl("select") as HTMLSelectElement;
+
+    // Tertiary slot: expanded/collapsed for callout, placeholder otherwise.
+    const tertiaryWrapper = formatSetting.controlEl.createEl("div", {
+      cls: "dropdown augment-format-tertiary",
+    });
+    tertiaryWrapper.style.marginLeft = "6px";
+    const tertiarySelect = tertiaryWrapper.createEl("select") as HTMLSelectElement;
 
     const updateSecondarySlot = (format: string) => {
+      // secondary
       secondarySelect.empty();
-
       if (format === "heading") {
+        secondaryWrapper.removeClass("is-placeholder");
         secondarySelect.disabled = false;
-        secondarySelect.removeClass("is-placeholder");
         for (let i = 1; i <= 7; i++) {
           const opt = secondarySelect.createEl("option", { value: String(i), text: `H${i}` });
           if (i === this.plugin.settings.headingLevel) opt.selected = true;
         }
       } else if (format === "callout") {
+        secondaryWrapper.removeClass("is-placeholder");
         secondarySelect.disabled = false;
-        secondarySelect.removeClass("is-placeholder");
         for (const t of calloutTypes) {
           const opt = secondarySelect.createEl("option", { value: t, text: t });
           if (t === this.plugin.settings.calloutType) opt.selected = true;
         }
       } else {
+        secondaryWrapper.addClass("is-placeholder");
         secondarySelect.disabled = true;
-        secondarySelect.addClass("is-placeholder");
         secondarySelect.createEl("option", { value: "", text: "\u2014" });
+      }
+
+      // tertiary
+      tertiarySelect.empty();
+      if (format === "callout") {
+        tertiaryWrapper.removeClass("is-placeholder");
+        tertiarySelect.disabled = false;
+        tertiarySelect.createEl("option", { value: "expanded", text: "Expanded" });
+        tertiarySelect.createEl("option", { value: "collapsed", text: "Collapsed" });
+        tertiarySelect.value = this.plugin.settings.calloutExpanded !== false ? "expanded" : "collapsed";
+      } else {
+        tertiaryWrapper.addClass("is-placeholder");
+        tertiarySelect.disabled = true;
+        tertiarySelect.createEl("option", { value: "", text: "\u2014" });
       }
     };
 
@@ -270,20 +288,10 @@ export class AugmentSettingTab extends PluginSettingTab {
       await this.plugin.saveData(this.plugin.settings);
     });
 
-    calloutExpandedSetting = new Setting(generatePane)
-      .setName("Callout default state")
-      .setDesc("Whether generated callouts are expanded or collapsed by default")
-      .addDropdown((drop) => {
-        drop
-          .addOption("expanded", "Expanded")
-          .addOption("collapsed", "Collapsed")
-          .setValue(this.plugin.settings.calloutExpanded !== false ? "expanded" : "collapsed")
-          .onChange(async (value) => {
-            this.plugin.settings.calloutExpanded = value === "expanded";
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
-    calloutExpandedSetting.settingEl.style.display = isCallout() ? "" : "none";
+    tertiarySelect.addEventListener("change", async () => {
+      this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
+      await this.plugin.saveData(this.plugin.settings);
+    });
 
     new Setting(generatePane)
       .setName("Show template preview")
