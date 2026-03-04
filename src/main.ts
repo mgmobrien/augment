@@ -151,7 +151,14 @@ export default class AugmentTerminalPlugin extends Plugin {
             clearInterval(spinnerInterval);
             const formatted = applyOutputFormat(result, this.settings);
             const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-            editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+            if (isBlock) {
+              const withTrail = formatted + "\n";
+              editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
+              const lines = withTrail.split("\n");
+              editor.setCursor({ line: spinnerStart.line + lines.length - 1, ch: 0 });
+            } else {
+              editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+            }
           } catch (err) {
             console.error("[Augment]", err);
             clearInterval(spinnerInterval);
@@ -212,7 +219,14 @@ export default class AugmentTerminalPlugin extends Plugin {
               clearInterval(spinnerInterval);
               const formatted = applyOutputFormat(result, this.settings);
               const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-              editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+              if (isBlock) {
+                const withTrail = formatted + "\n";
+                editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
+                const lines = withTrail.split("\n");
+                editor.setCursor({ line: spinnerStart.line + lines.length - 1, ch: 0 });
+              } else {
+                editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+              }
             } catch (err) {
               console.error("[Augment]", err);
               clearInterval(spinnerInterval);
