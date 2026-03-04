@@ -98,10 +98,6 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
-    // Orion's belt: three-dot bounce, single line, 5 chars wide
-    const SPINNER_FRAMES = ["\u00B7 \u00B7 \u00B7", "\u2022 \u00B7 \u00B7", "\u00B7 \u2022 \u00B7", "\u00B7 \u00B7 \u2022", "\u00B7 \u2022 \u00B7", "\u2022 \u00B7 \u00B7"];
-    const SPINNER_WIDTH = SPINNER_FRAMES[0].length;
-
     // AI generation commands
     this.addCommand({
       id: "augment-generate",
@@ -122,50 +118,29 @@ export default class AugmentTerminalPlugin extends Plugin {
         const cursor = editor.getCursor();
         const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
         const promptText = aboveCursor.trim() || editor.getValue().trim();
-
         const ctx = assembleVaultContext(this.app, editor, this.settings);
 
-        const isBlock = this.settings.outputFormat !== "plain";
-        let spinnerStart: { line: number; ch: number };
-        if (isBlock && cursor.ch > 0) {
-          editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
-          spinnerStart = { line: cursor.line + 1, ch: 0 };
-        } else {
-          editor.replaceRange(SPINNER_FRAMES[0], cursor);
-          spinnerStart = { line: cursor.line, ch: cursor.ch };
-        }
-
-        let frameIdx = 0;
-        const spinnerInterval = setInterval(() => {
-          frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-          editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-        }, 150);
+        if (this.statusBarEl) this.statusBarEl.setText("\u00B7 \u00B7 \u00B7 generating");
 
         void (async () => {
           try {
-            const result = await generateText(
-              buildSystemPrompt(ctx),
-              promptText,
-              this.settings
-            );
-            clearInterval(spinnerInterval);
+            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings);
             const formatted = applyOutputFormat(result, this.settings);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+            const isBlock = this.settings.outputFormat !== "plain";
             if (isBlock) {
-              const withTrail = formatted + "\n";
-              editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
-              const lines = withTrail.split("\n");
-              editor.setCursor({ line: spinnerStart.line + lines.length - 1, ch: 0 });
+              const prefix = cursor.ch > 0 ? "\n" : "";
+              const insertion = prefix + formatted + "\n";
+              editor.replaceRange(insertion, cursor);
+              const lines = insertion.split("\n");
+              editor.setCursor({ line: cursor.line + lines.length - 1, ch: 0 });
             } else {
-              editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+              editor.replaceRange(formatted, cursor);
             }
           } catch (err) {
             console.error("[Augment]", err);
-            clearInterval(spinnerInterval);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-            editor.replaceRange("", spinnerStart, spinnerEnd);
             new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            this.refreshStatusBar();
           }
         })();
       },
@@ -178,7 +153,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings → Augment", 0);
+          const notice = new Notice("Augment: add your API key in Settings \u2192 Augment", 0);
           notice.noticeEl.addEventListener("click", () => {
             (this.app as any).setting.open();
             (this.app as any).setting.openTabById("augment-terminal");
@@ -198,42 +173,25 @@ export default class AugmentTerminalPlugin extends Plugin {
           const rendered = substituteVariables(templateContent, ctx);
 
           const runGenerate = async () => {
-            const isBlock = this.settings.outputFormat !== "plain";
-            let spinnerStart: { line: number; ch: number };
-            if (isBlock && cursor.ch > 0) {
-              editor.replaceRange("\n" + SPINNER_FRAMES[0], cursor);
-              spinnerStart = { line: cursor.line + 1, ch: 0 };
-            } else {
-              editor.replaceRange(SPINNER_FRAMES[0], cursor);
-              spinnerStart = { line: cursor.line, ch: cursor.ch };
-            }
-
-            let frameIdx = 0;
-            const spinnerInterval = setInterval(() => {
-              frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-              editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-            }, 150);
-
+            if (this.statusBarEl) this.statusBarEl.setText("\u00B7 \u00B7 \u00B7 generating");
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
-              clearInterval(spinnerInterval);
               const formatted = applyOutputFormat(result, this.settings);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
+              const isBlock = this.settings.outputFormat !== "plain";
               if (isBlock) {
-                const withTrail = formatted + "\n";
-                editor.replaceRange(withTrail, spinnerStart, spinnerEnd);
-                const lines = withTrail.split("\n");
-                editor.setCursor({ line: spinnerStart.line + lines.length - 1, ch: 0 });
+                const prefix = cursor.ch > 0 ? "\n" : "";
+                const insertion = prefix + formatted + "\n";
+                editor.replaceRange(insertion, cursor);
+                const lines = insertion.split("\n");
+                editor.setCursor({ line: cursor.line + lines.length - 1, ch: 0 });
               } else {
-                editor.replaceRange(formatted, spinnerStart, spinnerEnd);
+                editor.replaceRange(formatted, cursor);
               }
             } catch (err) {
               console.error("[Augment]", err);
-              clearInterval(spinnerInterval);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
-              editor.replaceRange("", spinnerStart, spinnerEnd);
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+            } finally {
+              this.refreshStatusBar();
             }
           };
 
