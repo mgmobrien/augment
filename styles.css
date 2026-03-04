@@ -351,6 +351,164 @@
   line-height: 1.5;
 }
 
+/* ── Settings header ── */
+.augment-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.augment-settings-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-m);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  flex-shrink: 0;
+}
+
+.augment-settings-header-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.augment-settings-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.augment-settings-wordmark {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  line-height: 1.2;
+}
+
+.augment-settings-tagline {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+/* ── Settings tab nav ── */
+.augment-tab-nav {
+  display: flex;
+  gap: 2px;
+  padding: 10px 0 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 16px;
+}
+
+.augment-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 14px;
+  margin-bottom: -1px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.augment-tab:hover {
+  color: var(--text-normal);
+}
+
+.augment-tab.is-active {
+  color: var(--text-accent);
+  border-bottom-color: var(--interactive-accent);
+  font-weight: var(--font-medium);
+}
+
+/* ── Overview pane ── */
+.augment-overview-intro {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
+.augment-overview-how {
+  margin-bottom: 16px;
+}
+
+.augment-overview-how-title,
+.augment-overview-links-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  margin-bottom: 6px;
+}
+
+.augment-overview-steps {
+  margin: 0;
+  padding-left: 1.4em;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.8;
+}
+
+.augment-overview-mock {
+  margin-bottom: 16px;
+}
+
+.augment-overview-mock-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.augment-overview-mock-code {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 10px 12px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin: 0;
+  white-space: pre;
+}
+
+.augment-overview-links {
+  margin-bottom: 8px;
+}
+
+.augment-overview-link-list {
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: var(--font-ui-small);
+  line-height: 1.8;
+}
+
+.augment-overview-link {
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.augment-overview-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Context pane intro ── */
+.augment-context-intro {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
 /* ── Template preview modal ── */
 .augment-gen-preview-prompt {
   background-color: var(--background-secondary);

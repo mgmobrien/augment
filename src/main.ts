@@ -295,14 +295,10 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon — wand-2, triggers quick generate (requires active markdown editor)
-    this.addRibbonIcon("wand-2", "Augment: Generate continuation", () => {
-      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-      if (!view) {
-        new Notice("Open a note to use Augment.");
-        return;
-      }
-      (this.app as any).commands.executeCommandById("augment-terminal:augment-generate");
+    // Ribbon — radio-tower, opens settings
+    this.addRibbonIcon("radio-tower", "Augment", () => {
+      (this.app as any).setting.open();
+      (this.app as any).setting.openTabById("augment-terminal");
     });
 
     // Add ribbon icon

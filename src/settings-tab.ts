@@ -1,4 +1,4 @@
-import { App, DropdownComponent, PluginSettingTab, Setting } from "obsidian";
+import { App, DropdownComponent, PluginSettingTab, Setting, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings } from "./vault-context";
 
@@ -37,7 +37,98 @@ export class AugmentSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("augment-settings-container");
 
-    new Setting(containerEl)
+    // ── Header ──────────────────────────────────────────────
+    const header = containerEl.createEl("div", { cls: "augment-settings-header" });
+    const iconEl = header.createEl("div", { cls: "augment-settings-header-icon" });
+    setIcon(iconEl, "radio-tower");
+    const wordmark = header.createEl("div", { cls: "augment-settings-header-text" });
+    wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
+    wordmark.createEl("div", {
+      cls: "augment-settings-tagline",
+      text: "Vault-aware AI generation for Obsidian",
+    });
+
+    // ── Tab nav ──────────────────────────────────────────────
+    const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
+    const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
+    const generateTab = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
+    const contextTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Context" });
+
+    // ── Panes ────────────────────────────────────────────────
+    const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const generatePane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const contextPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    generatePane.style.display = "none";
+    contextPane.style.display  = "none";
+
+    const tabs = [
+      { btn: overviewTab, pane: overviewPane },
+      { btn: generateTab, pane: generatePane },
+      { btn: contextTab,  pane: contextPane  },
+    ];
+
+    tabs.forEach(({ btn, pane }) => {
+      btn.addEventListener("click", () => {
+        tabs.forEach(({ btn: b, pane: p }) => {
+          b.removeClass("is-active");
+          p.style.display = "none";
+        });
+        btn.addClass("is-active");
+        pane.style.display = "";
+      });
+    });
+
+    // ── Overview pane ────────────────────────────────────────
+    overviewPane.createEl("p", {
+      cls: "augment-overview-intro",
+      text: "Augment generates text inline using Claude, with context drawn from your current note — title, frontmatter, the text around your cursor, and linked notes.",
+    });
+
+    const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
+    howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
+    const steps = [
+      "Position your cursor where you want output to appear.",
+      "Press Mod+Enter (or right-click → Augment: Generate).",
+      "A loading indicator appears while Claude generates.",
+      "The result is inserted at your cursor in the chosen format.",
+    ];
+    const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
+    for (const step of steps) {
+      ol.createEl("li", { text: step });
+    }
+
+    const mockEl = overviewPane.createEl("div", { cls: "augment-overview-mock" });
+    mockEl.createEl("div", { cls: "augment-overview-mock-label", text: "Example output (Callout format)" });
+    mockEl.createEl("pre", {
+      cls: "augment-overview-mock-code",
+      text: `> [!ai]+ Claude Haiku 4.5\n>\n> Your generated text appears here,\n> inline in the document.`,
+    });
+
+    const linksEl = overviewPane.createEl("div", { cls: "augment-overview-links" });
+    linksEl.createEl("div", { cls: "augment-overview-links-title", text: "Quick start" });
+    const linkList = linksEl.createEl("ul", { cls: "augment-overview-link-list" });
+    const items = [
+      { label: "Set your API key", tab: generateTab, pane: generatePane },
+      { label: "Choose a model", tab: generateTab, pane: generatePane },
+      { label: "Configure output format", tab: generateTab, pane: generatePane },
+      { label: "Set template folder", tab: contextTab, pane: contextPane },
+    ];
+    for (const { label, tab, pane } of items) {
+      const li = linkList.createEl("li");
+      const a = li.createEl("a", { cls: "augment-overview-link", text: label });
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        tabs.forEach(({ btn: b, pane: p }) => {
+          b.removeClass("is-active");
+          p.style.display = "none";
+        });
+        tab.addClass("is-active");
+        pane.style.display = "";
+      });
+    }
+
+    // ── Generate pane ────────────────────────────────────────
+    new Setting(generatePane)
       .setName("API key")
       .setDesc("Anthropic API key")
       .addText((text) => {
@@ -51,7 +142,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(containerEl)
+    new Setting(generatePane)
       .setName("Model")
       .setDesc("Claude model to use for generation")
       .addDropdown((drop) => {
@@ -71,12 +162,13 @@ export class AugmentSettingTab extends PluginSettingTab {
     let calloutExpandedSetting: Setting;
     let headingDropComponent: DropdownComponent | null = null;
 
+    const isCallout = () => this.plugin.settings.outputFormat === "callout";
     const formatDescDefault = "How generated text is inserted into the editor.";
     const formatDescCallout = "Wrap output in an Obsidian callout box. Set the callout type below \u2193";
 
-    const formatSetting = new Setting(containerEl)
+    const formatSetting = new Setting(generatePane)
       .setName("Output format")
-      .setDesc(this.plugin.settings.outputFormat === "callout" ? formatDescCallout : formatDescDefault)
+      .setDesc(isCallout() ? formatDescCallout : formatDescDefault)
       .addDropdown((drop) => {
         drop
           .addOption("plain", "Plain text")
@@ -109,7 +201,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
 
     const calloutTypes = detectCalloutTypes();
-    calloutTypeSetting = new Setting(containerEl)
+    calloutTypeSetting = new Setting(generatePane)
       .setName("Callout type")
       .setDesc("Obsidian callout type for generated output")
       .addDropdown((drop) => {
@@ -125,7 +217,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     calloutTypeSetting.settingEl.style.display = isCallout() ? "" : "none";
 
-    calloutExpandedSetting = new Setting(containerEl)
+    calloutExpandedSetting = new Setting(generatePane)
       .setName("Callout default state")
       .setDesc("Whether generated callouts are expanded or collapsed by default")
       .addDropdown((drop) => {
@@ -140,7 +232,25 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     calloutExpandedSetting.settingEl.style.display = isCallout() ? "" : "none";
 
-    new Setting(containerEl)
+    new Setting(generatePane)
+      .setName("Show template preview")
+      .setDesc("Preview the rendered prompt before generating from a template")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showTemplatePreview)
+          .onChange(async (value) => {
+            this.plugin.settings.showTemplatePreview = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
+    // ── Context pane ─────────────────────────────────────────
+    contextPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Each generation sends the model: your note\u2019s title and frontmatter, the text around your cursor (or your selection if you have one selected), and a configurable number of linked notes. For linked notes, only the note title and frontmatter are included \u2014 not the note body.",
+    });
+
+    new Setting(contextPane)
       .setName("Template folder")
       .setDesc("Vault path to folder containing .md prompt templates")
       .addText((text) => {
@@ -153,14 +263,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    const contextSection = containerEl.createEl("div", { cls: "augment-settings-section" });
-    contextSection.createEl("h3", { text: "Context", cls: "augment-settings-section-heading" });
-    contextSection.createEl("p", {
-      text: "Each generation sends the model: your note\u2019s title and frontmatter, the text around your cursor (or your selection if you have one selected), and a configurable number of linked notes. For linked notes, only the note title and frontmatter are included \u2014 not the note body.",
-      cls: "augment-settings-section-desc",
-    });
-
-    new Setting(containerEl)
+    new Setting(contextPane)
       .setName("Linked notes in context")
       .setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.")
       .addText((text) => {
@@ -179,7 +282,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(containerEl)
+    new Setting(contextPane)
       .setName("Context limit")
       .setDesc("Maximum characters of context sent per generation (measured in tokens; 1 token \u2248 4 characters). The default of 2000 tokens (~8000 characters) fits most notes. Raise this if you have long notes or many linked notes and want to include more context.")
       .addText((text) => {
@@ -194,18 +297,6 @@ export class AugmentSettingTab extends PluginSettingTab {
               this.plugin.settings.maxContextTokens = n;
               await this.plugin.saveData(this.plugin.settings);
             }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Show template preview")
-      .setDesc("Preview the rendered prompt before generating from a template")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.showTemplatePreview)
-          .onChange(async (value) => {
-            this.plugin.settings.showTemplatePreview = value;
-            await this.plugin.saveData(this.plugin.settings);
           });
       });
   }
