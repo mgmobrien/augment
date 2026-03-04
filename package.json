@@ -18,6 +18,7 @@
     "electron:install": "npm run electron:pack && rm -rf ~/Applications/Augment.app && cp -R dist-electron/mac-arm64/Augment.app ~/Applications/Augment.app"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-serialize": "^0.13.0",
     "@xterm/addon-web-links": "^0.11.0",

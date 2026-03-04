@@ -308,3 +308,19 @@
   font-family: var(--font-monospace);
   font-size: var(--font-ui-medium);
 }
+
+/* ── Generate modal ── */
+.augment-gen-modal .augment-gen-context-hint {
+  color: var(--text-muted);
+  font-size: var(--font-small);
+  margin: 0 0 8px 0;
+}
+
+.augment-gen-modal .augment-gen-input {
+  width: 100%;
+}
+
+/* ── Settings tab ── */
+.augment-settings-container .setting-item-description {
+  color: var(--text-muted);
+}
