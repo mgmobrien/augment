@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, DropdownComponent, PluginSettingTab, Setting } from "obsidian";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings } from "./vault-context";
 
@@ -67,15 +67,16 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    let headingLevelSetting: Setting;
     let calloutTypeSetting: Setting;
     let calloutExpandedSetting: Setting;
+    let headingDropComponent: DropdownComponent | null = null;
 
-    const isCallout = () => this.plugin.settings.outputFormat === "callout";
+    const formatDescDefault = "How generated text is inserted into the editor.";
+    const formatDescCallout = "Wrap output in an Obsidian callout box. Set the callout type below \u2193";
 
-    new Setting(containerEl)
+    const formatSetting = new Setting(containerEl)
       .setName("Output format")
-      .setDesc("How generated text is inserted into the editor")
+      .setDesc(this.plugin.settings.outputFormat === "callout" ? formatDescCallout : formatDescDefault)
       .addDropdown((drop) => {
         drop
           .addOption("plain", "Plain text")
@@ -87,32 +88,25 @@ export class AugmentSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.outputFormat = value as AugmentSettings["outputFormat"];
             await this.plugin.saveData(this.plugin.settings);
-            headingLevelSetting.settingEl.style.display = value === "heading" ? "" : "none";
+            if (headingDropComponent) {
+              headingDropComponent.selectEl.style.display = value === "heading" ? "" : "none";
+            }
             calloutTypeSetting.settingEl.style.display = value === "callout" ? "" : "none";
             calloutExpandedSetting.settingEl.style.display = value === "callout" ? "" : "none";
+            formatSetting.setDesc(value === "callout" ? formatDescCallout : formatDescDefault);
           });
-      });
-
-    headingLevelSetting = new Setting(containerEl)
-      .setName("Heading level")
-      .setDesc("Number of # characters (1–4)")
+      })
       .addDropdown((drop) => {
-        drop
-          .addOption("1", "H1")
-          .addOption("2", "H2")
-          .addOption("3", "H3")
-          .addOption("4", "H4")
-          .addOption("5", "H5")
-          .addOption("6", "H6")
-          .addOption("7", "H7")
-          .setValue(String(this.plugin.settings.headingLevel))
-          .onChange(async (value) => {
-            this.plugin.settings.headingLevel = parseInt(value, 10);
-            await this.plugin.saveData(this.plugin.settings);
-          });
+        headingDropComponent = drop;
+        for (let i = 1; i <= 7; i++) drop.addOption(String(i), `H${i}`);
+        drop.setValue(String(this.plugin.settings.headingLevel));
+        drop.selectEl.style.marginLeft = "8px";
+        drop.selectEl.style.display = this.plugin.settings.outputFormat === "heading" ? "" : "none";
+        drop.onChange(async (value) => {
+          this.plugin.settings.headingLevel = parseInt(value, 10);
+          await this.plugin.saveData(this.plugin.settings);
+        });
       });
-    headingLevelSetting.settingEl.style.display =
-      this.plugin.settings.outputFormat === "heading" ? "" : "none";
 
     const calloutTypes = detectCalloutTypes();
     calloutTypeSetting = new Setting(containerEl)
