@@ -12,6 +12,8 @@ export interface AugmentSettings {
   calloutType: string;
   calloutExpanded: boolean;
   useWsl: boolean;
+  setupCardDismissed: boolean;
+  hasGenerated: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -26,6 +28,8 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   calloutType: "ai",
   calloutExpanded: true,
   useWsl: false,
+  setupCardDismissed: false,
+  hasGenerated: false,
 };
 
 export interface LinkedNoteSummary {

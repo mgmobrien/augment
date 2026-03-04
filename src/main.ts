@@ -224,6 +224,10 @@ export default class AugmentTerminalPlugin extends Plugin {
             } else {
               editor.replaceRange(formatted, insertPosLine);
             }
+            if (!this.settings.hasGenerated) {
+              this.settings.hasGenerated = true;
+              await this.saveData(this.settings);
+            }
           } catch (err) {
             console.error("[Augment]", err);
             cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -297,6 +301,10 @@ export default class AugmentTerminalPlugin extends Plugin {
                 editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
               } else {
                 editor.replaceRange(formatted, insertPosLine);
+              }
+              if (!this.settings.hasGenerated) {
+                this.settings.hasGenerated = true;
+                await this.saveData(this.settings);
               }
             } catch (err) {
               console.error("[Augment]", err);

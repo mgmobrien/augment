@@ -81,28 +81,95 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Overview pane ────────────────────────────────────────
 
-    // Setup status card — rendered once at display time
-    const statusCard = overviewPane.createEl("div", { cls: "augment-setup-status" });
-    const apiKeyOk = !!this.plugin.settings.apiKey;
+    // Input refs — populated below when the Settings are created
+    let apiKeyInputEl: HTMLInputElement | undefined;
+    let templateFolderInputEl: HTMLInputElement | undefined;
 
-    const jumpToGenerate = () => {
+    const jumpToTab = (targetBtn: HTMLElement, targetPane: HTMLElement) => {
       tabs.forEach(({ btn: b, pane: p }) => { b.removeClass("is-active"); p.style.display = "none"; });
-      generateTab.addClass("is-active");
-      generatePane.style.display = "";
+      targetBtn.addClass("is-active");
+      targetPane.style.display = "";
     };
 
-    const mkRow = (label: string, ok: boolean, onClickIfBad?: () => void) => {
-      const row = statusCard.createEl("div", { cls: "augment-status-row" });
-      row.createEl("span", { cls: ok ? "augment-status-ok" : "augment-status-warn", text: ok ? "\u2713" : "\u2717" });
-      row.createEl("span", { text: label });
-      if (!ok && onClickIfBad) {
-        row.style.cursor = "pointer";
-        row.addEventListener("click", onClickIfBad);
+    // Onboarding checklist card
+    const statusCard = overviewPane.createEl("div", { cls: "augment-onboarding-card" });
+
+    type OnboardingStep = {
+      label: string;
+      done: boolean;
+      optional: boolean;
+      cta: string | null;
+      hotkey: string | null;
+      onCta: (() => void) | null;
+    };
+
+    const renderSetupCard = () => {
+      statusCard.empty();
+      if (this.plugin.settings.setupCardDismissed) return;
+
+      const header = statusCard.createEl("div", { cls: "augment-onboarding-header" });
+      header.createEl("span", { cls: "augment-onboarding-title", text: "Get started" });
+      const dismissBtn = header.createEl("button", { cls: "augment-onboarding-dismiss", text: "\u00d7" });
+      dismissBtn.addEventListener("click", async () => {
+        this.plugin.settings.setupCardDismissed = true;
+        await this.plugin.saveData(this.plugin.settings);
+        statusCard.empty();
+      });
+
+      const steps: OnboardingStep[] = [
+        {
+          label: "Add your API key",
+          done: !!this.plugin.settings.apiKey,
+          optional: false,
+          cta: "Add key",
+          hotkey: null,
+          onCta: () => {
+            jumpToTab(generateTab, generatePane);
+            setTimeout(() => apiKeyInputEl?.focus(), 50);
+          },
+        },
+        {
+          label: "Generate text for the first time",
+          done: this.plugin.settings.hasGenerated,
+          optional: false,
+          cta: null,
+          hotkey: process.platform === "darwin" ? "\u2318\u21a9" : "Ctrl+\u21a9",
+          onCta: null,
+        },
+        {
+          label: "Set up templates",
+          done: !!this.plugin.settings.templateFolder,
+          optional: true,
+          cta: "Set folder",
+          hotkey: null,
+          onCta: () => {
+            jumpToTab(contextTab, contextPane);
+            setTimeout(() => templateFolderInputEl?.focus(), 50);
+          },
+        },
+      ];
+
+      for (const step of steps) {
+        const row = statusCard.createEl("div", {
+          cls: ["augment-onboarding-step", step.done ? "is-done" : "", step.optional ? "is-optional" : ""].join(" ").trim(),
+        });
+        row.createEl("span", { cls: "augment-onboarding-check", text: step.done ? "\u2713" : "\u00b7" });
+        const labelEl = row.createEl("span", { cls: "augment-onboarding-label" });
+        labelEl.setText(step.label + (step.optional ? " (optional)" : ""));
+        if (!step.done) {
+          if (step.hotkey) {
+            row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
+          } else if (step.cta && step.onCta) {
+            const ctaEl = row.createEl("a", { cls: "augment-onboarding-cta", text: step.cta + " \u2192" });
+            ctaEl.href = "#";
+            ctaEl.addEventListener("click", (e) => { e.preventDefault(); step.onCta!(); });
+          }
+        }
       }
     };
 
-    mkRow(apiKeyOk ? "API key configured" : "API key not set \u2014 click to configure", apiKeyOk, jumpToGenerate);
-    mkRow(`Model: ${this.plugin.resolveModelDisplayName()}`, true);
+    renderSetupCard();
+    overviewTab.addEventListener("click", renderSetupCard);
 
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
@@ -156,6 +223,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     const apiKeySetting = new Setting(generatePane)
       .setName("API key")
       .addText((text) => {
+        apiKeyInputEl = text.inputEl;
         text.inputEl.type = "password";
         text
           .setPlaceholder("sk-ant-...")
@@ -334,6 +402,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       .setName("Template folder")
       .setDesc("Vault path to folder containing .md prompt templates")
       .addText((text) => {
+        templateFolderInputEl = text.inputEl;
         text
           .setPlaceholder("Augment/templates")
           .setValue(this.plugin.settings.templateFolder)

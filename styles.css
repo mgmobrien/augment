@@ -419,11 +419,8 @@
   justify-content: flex-end;
 }
 
-/* ── Overview setup status card ── */
-.augment-setup-status {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* ── Onboarding checklist card ── */
+.augment-onboarding-card {
   margin-bottom: 20px;
   padding: 12px 14px;
   background: var(--background-secondary);
@@ -431,24 +428,78 @@
   font-size: 13px;
 }
 
-.augment-status-row {
+.augment-onboarding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.augment-onboarding-title {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.augment-onboarding-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.4;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.augment-onboarding-dismiss:hover {
+  opacity: 0.8;
+}
+
+.augment-onboarding-step {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 3px 0;
 }
 
-.augment-status-ok {
+.augment-onboarding-check {
+  font-size: 13px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+
+.augment-onboarding-step.is-done .augment-onboarding-check {
   color: var(--color-green);
-  font-weight: 600;
+  opacity: 1;
 }
 
-.augment-status-warn {
-  color: var(--color-red);
-  font-weight: 600;
+.augment-onboarding-step.is-done .augment-onboarding-label {
+  opacity: 0.45;
 }
 
-.augment-status-row[style*="cursor: pointer"]:hover {
-  text-decoration: underline;
+.augment-onboarding-step.is-optional .augment-onboarding-label {
+  opacity: 0.65;
+}
+
+.augment-onboarding-cta {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.augment-onboarding-hotkey {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  border: 1px solid var(--background-modifier-border);
 }
 
 /* ── Settings tab ── */
