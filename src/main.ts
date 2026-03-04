@@ -90,7 +90,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings → Augment", 6000);
+          const notice = new Notice("Augment: add your API key in Settings → Augment", 0);
           notice.noticeEl.addEventListener("click", () => {
             (this.app as any).setting.open();
             (this.app as any).setting.openTabById("augment-terminal");
@@ -128,7 +128,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings → Augment", 6000);
+          const notice = new Notice("Augment: add your API key in Settings → Augment", 0);
           notice.noticeEl.addEventListener("click", () => {
             (this.app as any).setting.open();
             (this.app as any).setting.openTabById("augment-terminal");
@@ -145,7 +145,8 @@ export default class AugmentTerminalPlugin extends Plugin {
         new TemplatePicker(this.app, files, async (templateFile) => {
           const templateContent = await this.app.vault.read(templateFile);
           const rendered = substituteVariables(templateContent, ctx);
-          new TemplatePreviewModal(this.app, rendered, ctx, async () => {
+
+          const runGenerate = async () => {
             const notice = new Notice("Generating\u2026", 0);
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
@@ -160,6 +161,19 @@ export default class AugmentTerminalPlugin extends Plugin {
               notice.hide();
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             }
+          };
+
+          if (!this.settings.showTemplatePreview) {
+            await runGenerate();
+            return;
+          }
+
+          new TemplatePreviewModal(this.app, rendered, ctx, async (skipPreviewInFuture) => {
+            if (skipPreviewInFuture) {
+              this.settings.showTemplatePreview = false;
+              await this.saveData(this.settings);
+            }
+            await runGenerate();
           }).open();
         }).open();
       },

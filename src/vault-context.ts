@@ -6,6 +6,7 @@ export interface AugmentSettings {
   templateFolder: string;
   linkedNoteCount: number;
   maxContextTokens: number;
+  showTemplatePreview: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   templateFolder: "Augment/templates",
   linkedNoteCount: 3,
   maxContextTokens: 2000,
+  showTemplatePreview: true,
 };
 
 export interface LinkedNoteSummary {

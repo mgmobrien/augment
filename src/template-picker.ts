@@ -36,9 +36,15 @@ export class TemplatePicker extends FuzzySuggestModal<TFile> {
 export class TemplatePreviewModal extends Modal {
   private renderedPrompt: string;
   private ctx: VaultContext;
-  private onConfirm: () => void;
+  private onConfirm: (skipPreviewInFuture: boolean) => void;
+  private skipPreview = false;
 
-  constructor(app: App, renderedPrompt: string, ctx: VaultContext, onConfirm: () => void) {
+  constructor(
+    app: App,
+    renderedPrompt: string,
+    ctx: VaultContext,
+    onConfirm: (skipPreviewInFuture: boolean) => void
+  ) {
     super(app);
     this.renderedPrompt = renderedPrompt;
     this.ctx = ctx;
@@ -60,6 +66,14 @@ export class TemplatePreviewModal extends Modal {
     contentEl.createEl("p", { text: summaryText, cls: "augment-gen-context-hint" });
 
     new Setting(contentEl)
+      .setName("Don't show preview")
+      .addToggle((toggle) => {
+        toggle.setValue(false).onChange((val) => {
+          this.skipPreview = val;
+        });
+      });
+
+    new Setting(contentEl)
       .addButton((btn) => {
         btn.setButtonText("Cancel").onClick(() => this.close());
       })
@@ -69,7 +83,7 @@ export class TemplatePreviewModal extends Modal {
           .setCta()
           .onClick(() => {
             this.close();
-            this.onConfirm();
+            this.onConfirm(this.skipPreview);
           });
       });
   }

@@ -87,5 +87,17 @@ export class AugmentSettingTab extends PluginSettingTab {
             }
           });
       });
+
+    new Setting(containerEl)
+      .setName("Show template preview")
+      .setDesc("Preview the rendered prompt before generating from a template")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showTemplatePreview)
+          .onChange(async (value) => {
+            this.plugin.settings.showTemplatePreview = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
   }
 }
