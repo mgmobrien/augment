@@ -72,10 +72,57 @@ export function modelDisplayName(modelId: string): string {
   return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
 }
 
-export function applyOutputFormat(text: string, settings: AugmentSettings): string {
+export interface ModelInfo {
+  id: string;
+  display_name: string;
+}
+
+// Rank a model ID by tier and version for "Auto" resolution.
+// Opus > Sonnet > Haiku; within a tier, higher version number wins.
+function modelTier(id: string): number {
+  if (id.includes("opus")) return 3;
+  if (id.includes("sonnet")) return 2;
+  if (id.includes("haiku")) return 1;
+  return 0;
+}
+
+function modelVersion(id: string): number {
+  const m = id.match(/(\d+)[.-](\d+)/);
+  return m ? parseInt(m[1]) * 100 + parseInt(m[2]) : 0;
+}
+
+// Returns the ID of the best available model, or null if the list is empty.
+export function bestModelId(models: ModelInfo[]): string | null {
+  if (models.length === 0) return null;
+  return models.reduce((best, m) => {
+    const bt = modelTier(best.id), mt = modelTier(m.id);
+    if (mt > bt) return m;
+    if (mt === bt && modelVersion(m.id) > modelVersion(best.id)) return m;
+    return best;
+  }).id;
+}
+
+// Fetch available models from the Anthropic API. Returns [] on failure.
+export async function fetchModels(apiKey: string): Promise<ModelInfo[]> {
+  try {
+    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+    const result = await client.models.list();
+    return result.data.map((m: any) => ({
+      id: m.id,
+      display_name: m.display_name ?? modelDisplayName(m.id),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// resolvedModelName: the display name of the actual model used (after Auto resolution).
+// Pass this when settings.model may be "auto" so formats show the real model name.
+export function applyOutputFormat(text: string, settings: AugmentSettings, resolvedModelName?: string): string {
+  const displayName = resolvedModelName ?? modelDisplayName(settings.model);
   switch (settings.outputFormat) {
     case "codeblock": {
-      const label = "AI-" + modelDisplayName(settings.model).toLowerCase().replace(/\s+/g, "-");
+      const label = "AI-" + displayName.toLowerCase().replace(/\s+/g, "-");
       return `\`\`\`${label}\n${text}\n\`\`\``;
     }
     case "blockquote":
@@ -86,24 +133,25 @@ export function applyOutputFormat(text: string, settings: AugmentSettings): stri
     }
     case "callout": {
       const type = settings.calloutType || "ai";
-      const title = modelDisplayName(settings.model);
       const body = text.split("\n").map((line) => `> ${line}`).join("\n");
       const expansion = settings.calloutExpanded !== false ? "+" : "-";
-      return `> [!${type}]${expansion} ${title}\n>\n${body}`;
+      return `> [!${type}]${expansion} ${displayName}\n>\n${body}`;
     }
     default:
       return text;
   }
 }
 
+// modelOverride: pass the resolved model ID when settings.model is "auto".
 export async function generateText(
   systemPrompt: string,
   userMessage: string,
-  settings: AugmentSettings
+  settings: AugmentSettings,
+  modelOverride?: string
 ): Promise<string> {
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create({
-    model: settings.model,
+    model: modelOverride ?? settings.model,
     max_tokens: 1024,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }],

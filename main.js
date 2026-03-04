@@ -11267,11 +11267,46 @@ function modelDisplayName(modelId) {
   var _a2;
   return (_a2 = MODEL_DISPLAY_NAMES[modelId]) != null ? _a2 : modelId;
 }
-function applyOutputFormat(text, settings) {
+function modelTier(id) {
+  if (id.includes("opus")) return 3;
+  if (id.includes("sonnet")) return 2;
+  if (id.includes("haiku")) return 1;
+  return 0;
+}
+function modelVersion(id) {
+  const m = id.match(/(\d+)[.-](\d+)/);
+  return m ? parseInt(m[1]) * 100 + parseInt(m[2]) : 0;
+}
+function bestModelId(models) {
+  if (models.length === 0) return null;
+  return models.reduce((best, m) => {
+    const bt = modelTier(best.id), mt = modelTier(m.id);
+    if (mt > bt) return m;
+    if (mt === bt && modelVersion(m.id) > modelVersion(best.id)) return m;
+    return best;
+  }).id;
+}
+async function fetchModels(apiKey) {
+  try {
+    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+    const result = await client.models.list();
+    return result.data.map((m) => {
+      var _a2;
+      return {
+        id: m.id,
+        display_name: (_a2 = m.display_name) != null ? _a2 : modelDisplayName(m.id)
+      };
+    });
+  } catch (e) {
+    return [];
+  }
+}
+function applyOutputFormat(text, settings, resolvedModelName) {
   var _a2;
+  const displayName = resolvedModelName != null ? resolvedModelName : modelDisplayName(settings.model);
   switch (settings.outputFormat) {
     case "codeblock": {
-      const label = "AI-" + modelDisplayName(settings.model).toLowerCase().replace(/\s+/g, "-");
+      const label = "AI-" + displayName.toLowerCase().replace(/\s+/g, "-");
       return `\`\`\`${label}
 ${text}
 \`\`\``;
@@ -11284,10 +11319,9 @@ ${text}
     }
     case "callout": {
       const type = settings.calloutType || "ai";
-      const title = modelDisplayName(settings.model);
       const body = text.split("\n").map((line) => `> ${line}`).join("\n");
       const expansion = settings.calloutExpanded !== false ? "+" : "-";
-      return `> [!${type}]${expansion} ${title}
+      return `> [!${type}]${expansion} ${displayName}
 >
 ${body}`;
     }
@@ -11295,10 +11329,10 @@ ${body}`;
       return text;
   }
 }
-async function generateText(systemPrompt, userMessage, settings) {
+async function generateText(systemPrompt, userMessage, settings, modelOverride) {
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create({
-    model: settings.model,
+    model: modelOverride != null ? modelOverride : settings.model,
     max_tokens: 1024,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }]
@@ -11450,8 +11484,18 @@ var AugmentSettingTab = class extends import_obsidian.PluginSettingTab {
         a.rel = "noopener";
       })
     );
-    new import_obsidian.Setting(generatePane).setName("Model").setDesc("Claude model to use for generation").addDropdown((drop) => {
-      drop.addOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5 (fast)").addOption("claude-sonnet-4-6", "Claude Sonnet 4.6").addOption("claude-opus-4-6", "Claude Opus 4.6").setValue(this.plugin.settings.model).onChange(async (value) => {
+    const FALLBACK_MODELS = [
+      { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
+    ];
+    const modelList = this.plugin.availableModels.length > 0 ? this.plugin.availableModels : FALLBACK_MODELS;
+    new import_obsidian.Setting(generatePane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
+      drop.addOption("auto", "Auto (best available)");
+      for (const m of modelList) {
+        drop.addOption(m.id, m.display_name);
+      }
+      drop.setValue(this.plugin.settings.model).onChange(async (value) => {
         this.plugin.settings.model = value;
         await this.plugin.saveData(this.plugin.settings);
         this.plugin.refreshStatusBar();
@@ -11627,7 +11671,7 @@ var TemplatePreviewModal = class extends import_obsidian2.Modal {
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
   apiKey: "",
-  model: "claude-haiku-4-5-20251001",
+  model: "auto",
   templateFolder: "Augment/templates",
   linkedNoteCount: 3,
   maxContextTokens: 2e3,
@@ -12888,17 +12932,37 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
+    this.availableModels = [];
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
   }
+  // Returns the actual model ID to use, resolving "auto" to the best available.
+  resolveModel() {
+    var _a2;
+    if (this.settings.model !== "auto") return this.settings.model;
+    return (_a2 = bestModelId(this.availableModels)) != null ? _a2 : "claude-opus-4-6";
+  }
+  // Display name for the resolved model — used in status bar and output formats.
+  resolveModelDisplayName() {
+    var _a2;
+    const id = this.resolveModel();
+    const found = this.availableModels.find((m) => m.id === id);
+    return (_a2 = found == null ? void 0 : found.display_name) != null ? _a2 : modelDisplayName(id);
+  }
   refreshStatusBar() {
     if (this.statusBarEl) {
-      this.statusBarEl.setText(`Augment: ${modelDisplayName(this.settings.model)}`);
+      this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+  async loadAvailableModels() {
+    if (!this.settings.apiKey) return;
+    this.availableModels = await fetchModels(this.settings.apiKey);
+    this.refreshStatusBar();
   }
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    void this.loadAvailableModels();
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
     this.calloutStyleEl.textContent = [
@@ -12952,9 +13016,11 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
         cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
         void (async () => {
           try {
-            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings);
+            const resolvedModel = this.resolveModel();
+            const resolvedModelName = this.resolveModelDisplayName();
+            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
             cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-            const formatted = applyOutputFormat(result, this.settings);
+            const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
             const insertPosLine = editor.offsetToPos(insertPos);
             if (isBlock) {
               const withTrail = formatted + "\n";
@@ -13019,9 +13085,11 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
             const cmView = editor.cm;
             cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
             try {
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
+              const resolvedModel = this.resolveModel();
+              const resolvedModelName = this.resolveModelDisplayName();
+              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              const formatted = applyOutputFormat(result, this.settings);
+              const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
               const insertPosLine = editor.offsetToPos(insertPos);
               if (isBlock) {
                 const withTrail = formatted + "\n";

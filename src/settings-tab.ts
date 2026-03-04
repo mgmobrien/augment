@@ -152,14 +152,24 @@ export class AugmentSettingTab extends PluginSettingTab {
       })
     );
 
+    const FALLBACK_MODELS = [
+      { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
+    ];
+    const modelList = this.plugin.availableModels.length > 0
+      ? this.plugin.availableModels
+      : FALLBACK_MODELS;
+
     new Setting(generatePane)
       .setName("Model")
-      .setDesc("Claude model to use for generation")
+      .setDesc("Claude model to use for generation. Auto selects the best available model.")
       .addDropdown((drop) => {
+        drop.addOption("auto", "Auto (best available)");
+        for (const m of modelList) {
+          drop.addOption(m.id, m.display_name);
+        }
         drop
-          .addOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5 (fast)")
-          .addOption("claude-sonnet-4-6", "Claude Sonnet 4.6")
-          .addOption("claude-opus-4-6", "Claude Opus 4.6")
           .setValue(this.plugin.settings.model)
           .onChange(async (value) => {
             this.plugin.settings.model = value;

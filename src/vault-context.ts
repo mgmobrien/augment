@@ -16,7 +16,7 @@ export interface AugmentSettings {
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
   apiKey: "",
-  model: "claude-haiku-4-5-20251001",
+  model: "auto",
   templateFolder: "Augment/templates",
   linkedNoteCount: 3,
   maxContextTokens: 2000,

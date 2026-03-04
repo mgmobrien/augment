@@ -1,5 +1,5 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
-import { applyOutputFormat, buildSystemPrompt, buildUserMessage, generateText, modelDisplayName, substituteVariables } from "./ai-client";
+import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, generateText, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
@@ -105,18 +105,43 @@ class RenameModal extends Modal {
 
 export default class AugmentTerminalPlugin extends Plugin {
   settings: AugmentSettings = { ...DEFAULT_SETTINGS };
+  public availableModels: ModelInfo[] = [];
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
 
+  // Returns the actual model ID to use, resolving "auto" to the best available.
+  public resolveModel(): string {
+    if (this.settings.model !== "auto") return this.settings.model;
+    return bestModelId(this.availableModels) ?? "claude-opus-4-6";
+  }
+
+  // Display name for the resolved model — used in status bar and output formats.
+  public resolveModelDisplayName(): string {
+    const id = this.resolveModel();
+    const found = this.availableModels.find(m => m.id === id);
+    return found?.display_name ?? modelDisplayName(id);
+  }
+
   public refreshStatusBar(): void {
     if (this.statusBarEl) {
-      this.statusBarEl.setText(`Augment: ${modelDisplayName(this.settings.model)}`);
+      this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+
+  private async loadAvailableModels(): Promise<void> {
+    if (!this.settings.apiKey) return;
+    this.availableModels = await fetchModels(this.settings.apiKey);
+    // Refresh status bar in case "auto" now resolves to a fetched model name.
+    this.refreshStatusBar();
   }
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    // Fetch available models in the background — populates the model dropdown
+    // and resolves "auto" to the best available model name in the status bar.
+    void this.loadAvailableModels();
 
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
@@ -181,9 +206,11 @@ export default class AugmentTerminalPlugin extends Plugin {
 
         void (async () => {
           try {
-            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings);
+            const resolvedModel = this.resolveModel();
+            const resolvedModelName = this.resolveModelDisplayName();
+            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
             cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-            const formatted = applyOutputFormat(result, this.settings);
+            const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
             const insertPosLine = editor.offsetToPos(insertPos);
             if (isBlock) {
               const withTrail = formatted + "\n";
@@ -252,9 +279,11 @@ export default class AugmentTerminalPlugin extends Plugin {
             cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
 
             try {
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
+              const resolvedModel = this.resolveModel();
+              const resolvedModelName = this.resolveModelDisplayName();
+              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              const formatted = applyOutputFormat(result, this.settings);
+              const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
               const insertPosLine = editor.offsetToPos(insertPos);
               if (isBlock) {
                 const withTrail = formatted + "\n";
