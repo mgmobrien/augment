@@ -94,7 +94,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
-    const SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
+    const SPINNER_FRAMES = ["\u00B7 \u00B7 \u00B7", "\u2022 \u00B7 \u00B7", "\u00B7 \u2022 \u00B7", "\u00B7 \u00B7 \u2022", "\u00B7 \u2022 \u00B7", "\u2022 \u00B7 \u00B7"];
+    const SPINNER_WIDTH = SPINNER_FRAMES[0].length;
 
     // AI generation commands
     this.addCommand({
@@ -132,9 +133,9 @@ export default class AugmentTerminalPlugin extends Plugin {
         let frameIdx = 0;
         const spinnerInterval = setInterval(() => {
           frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+          const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
           editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-        }, 100);
+        }, 150);
 
         void (async () => {
           try {
@@ -145,12 +146,12 @@ export default class AugmentTerminalPlugin extends Plugin {
             );
             clearInterval(spinnerInterval);
             const formatted = applyOutputFormat(result, this.settings);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
             editor.replaceRange(formatted, spinnerStart, spinnerEnd);
           } catch (err) {
             console.error("[Augment]", err);
             clearInterval(spinnerInterval);
-            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+            const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
             editor.replaceRange("", spinnerStart, spinnerEnd);
             new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
           }
@@ -198,20 +199,20 @@ export default class AugmentTerminalPlugin extends Plugin {
             let frameIdx = 0;
             const spinnerInterval = setInterval(() => {
               frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
               editor.replaceRange(SPINNER_FRAMES[frameIdx], spinnerStart, spinnerEnd);
-            }, 100);
+            }, 150);
 
             try {
               const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings);
               clearInterval(spinnerInterval);
               const formatted = applyOutputFormat(result, this.settings);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
               editor.replaceRange(formatted, spinnerStart, spinnerEnd);
             } catch (err) {
               console.error("[Augment]", err);
               clearInterval(spinnerInterval);
-              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + 1 };
+              const spinnerEnd = { line: spinnerStart.line, ch: spinnerStart.ch + SPINNER_WIDTH };
               editor.replaceRange("", spinnerStart, spinnerEnd);
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             }
