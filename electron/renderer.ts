@@ -144,6 +144,7 @@ type AugmentApp = {
   onAgentRenamed: (callback: (payload: { target: string; title: string }) => void) => void;
   // Discovery
   onDiscoveryUpdate: (callback: (payload: DiscoverySnapshot) => void) => void;
+  getCachedDiscovery: () => Promise<DiscoverySnapshot | null>;
   requestDiscoveryScan: () => Promise<DiscoverySnapshot>;
   resolveDiscoveredSession: (opts: {
     parentSessionId?: string | null;
@@ -1923,7 +1924,7 @@ document.addEventListener("keydown", (e) => {
 renderEmptyState();
 renderSidebar();
 
-// Load archived sessions from disk, then spawn first session
+// Load archived sessions and cached discovery from disk, then spawn first session
 void (async () => {
   try {
     const loaded = await window.augmentApp.loadHistory();
@@ -1933,6 +1934,16 @@ void (async () => {
     }
   } catch {
     // History load failure is non-fatal
+  }
+  // Load cached discovery snapshot for instant sidebar population
+  try {
+    const cached = await window.augmentApp.getCachedDiscovery();
+    if (cached && (cached.processes?.length || cached.teams?.length)) {
+      latestDiscovery = cached;
+      renderSidebar();
+    }
+  } catch {
+    // Cache load failure is non-fatal
   }
   void spawnSession();
 })();

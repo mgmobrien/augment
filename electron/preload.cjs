@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("augmentApp", {
   onAgentRenamed: (callback) => ipcRenderer.on("shim:agent-renamed", (_event, payload) => callback(payload)),
   // Discovery — external CC sessions
   onDiscoveryUpdate: (callback) => ipcRenderer.on("discovery:update", (_event, payload) => callback(payload)),
+  getCachedDiscovery: () => ipcRenderer.invoke("discovery:getCached"),
   requestDiscoveryScan: () => ipcRenderer.invoke("discovery:scan"),
   resolveDiscoveredSession: (opts) => ipcRenderer.invoke("discovery:resolveSession", opts),
   // Transcript reading

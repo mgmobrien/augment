@@ -488,6 +488,7 @@ const { execFile } = require("child_process");
 
 const TEAMS_DIR = path.join(os.homedir(), ".claude", "teams");
 const DISCOVERY_POLL_MS = 10_000;
+const DISCOVERY_CACHE_PATH = path.join(AUGMENT_DIR, "discovery-cache.json");
 
 let discoveryTimer = null;
 let teamWatchers = new Map(); // team dir path → FSWatcher
@@ -616,11 +617,31 @@ async function runDiscoveryCycle() {
   if (serialized !== lastSerialized) {
     lastDiscovery = snapshot;
     sendToRenderer("discovery:update", snapshot);
+
+    // Persist to disk so next app launch can show cached data instantly
+    try {
+      fs.writeFileSync(DISCOVERY_CACHE_PATH, serialized, "utf-8");
+    } catch { /* ignore write errors */ }
   }
 }
 
+function loadDiscoveryCache() {
+  try {
+    if (fs.existsSync(DISCOVERY_CACHE_PATH)) {
+      const cached = JSON.parse(fs.readFileSync(DISCOVERY_CACHE_PATH, "utf-8"));
+      if (cached && cached.processes && cached.teams) {
+        lastDiscovery = cached;
+        sendToRenderer("discovery:update", cached);
+      }
+    }
+  } catch { /* ignore cache read errors */ }
+}
+
 function startDiscovery() {
-  // Initial scan
+  // Load cached snapshot immediately so renderer has data on first paint
+  loadDiscoveryCache();
+
+  // Initial live scan
   void runDiscoveryCycle();
 
   // Poll process table every 10s
@@ -659,6 +680,11 @@ function stopDiscovery() {
   }
   teamWatchers.clear();
 }
+
+// IPC: renderer can request the cached discovery snapshot (instant, no scan)
+ipcMain.handle("discovery:getCached", () => {
+  return lastDiscovery || null;
+});
 
 // IPC: renderer can request an immediate discovery scan
 ipcMain.handle("discovery:scan", async () => {
