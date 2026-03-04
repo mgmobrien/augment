@@ -173,7 +173,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
-      text: "Augment generates text inline using Claude, with context drawn from your current note — title, frontmatter, the text around your cursor, and linked notes.",
+      text: "Augment generates text inline using Claude, with context drawn from your current note — title, frontmatter, everything you\u2019ve written above your cursor, and linked notes.",
     });
 
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
@@ -395,7 +395,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     // ── Context pane ─────────────────────────────────────────
     contextPane.createEl("p", {
       cls: "augment-context-intro",
-      text: "Each generation sends the model: your note\u2019s title and frontmatter, the text around your cursor (or your selection if you have one selected), and a configurable number of linked notes. For linked notes, only the note title and frontmatter are included \u2014 not the note body.",
+      text: "Augment sends everything in the current note above your cursor, along with the note title, frontmatter, and linked note summaries. If you have text selected, the selection is used instead of the above-cursor context.",
     });
 
     new Setting(contextPane)
