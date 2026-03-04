@@ -19,7 +19,7 @@ export interface AugmentSettings {
 export const DEFAULT_SETTINGS: AugmentSettings = {
   apiKey: "",
   model: "auto",
-  templateFolder: "Augment/templates",
+  templateFolder: "",
   linkedNoteCount: 3,
   maxContextTokens: 2000,
   showTemplatePreview: true,

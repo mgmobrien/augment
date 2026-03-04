@@ -255,6 +255,16 @@ export default class AugmentTerminalPlugin extends Plugin {
           });
           return;
         }
+        if (!this.settings.templateFolder) {
+          const notice = new Notice("Augment: no template folder set \u2014 click to configure", 0);
+          notice.noticeEl.style.cursor = "pointer";
+          notice.noticeEl.addEventListener("click", () => {
+            notice.hide();
+            (this.app as any).setting.open();
+            (this.app as any).setting.openTabById("augment-terminal");
+          });
+          return;
+        }
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
           new Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
