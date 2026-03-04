@@ -21,4 +21,7 @@ contextBridge.exposeInMainWorld("augmentApp", {
   // Discovery — external CC sessions
   onDiscoveryUpdate: (callback) => ipcRenderer.on("discovery:update", (_event, payload) => callback(payload)),
   requestDiscoveryScan: () => ipcRenderer.invoke("discovery:scan"),
+  resolveDiscoveredSession: (opts) => ipcRenderer.invoke("discovery:resolveSession", opts),
+  // Transcript reading
+  readSessionTranscript: (pid) => ipcRenderer.invoke("transcript:read", pid),
 });

@@ -641,6 +641,150 @@ ipcMain.handle("discovery:scan", async () => {
   return lastDiscovery;
 });
 
+// IPC: resolve a CC session ID for resuming a discovered process
+// Searches ~/.claude/projects/ for a session file matching the given criteria
+ipcMain.handle("discovery:resolveSession", (_event, { parentSessionId, agentName, pid }) => {
+  try {
+    const projectsDir = path.join(os.homedir(), ".claude", "projects");
+    if (!fs.existsSync(projectsDir)) return null;
+
+    // If we have a parentSessionId, look in the subagents directory
+    if (parentSessionId && agentName) {
+      const projectDirs = fs.readdirSync(projectsDir);
+      for (const pDir of projectDirs) {
+        const subagentsDir = path.join(projectsDir, pDir, parentSessionId, "subagents");
+        if (!fs.existsSync(subagentsDir)) continue;
+
+        const files = fs.readdirSync(subagentsDir).filter((f) => f.endsWith(".jsonl"));
+        for (const file of files) {
+          const filePath = path.join(subagentsDir, file);
+          const fd = fs.openSync(filePath, "r");
+          const buf = Buffer.alloc(4096);
+          const bytesRead = fs.readSync(fd, buf, 0, 4096, 0);
+          fs.closeSync(fd);
+
+          const firstLine = buf.toString("utf-8", 0, bytesRead).split("\n")[0];
+          try {
+            const meta = JSON.parse(firstLine);
+            if (meta.sessionId) {
+              return { sessionId: meta.sessionId, cwd: meta.cwd || null };
+            }
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    // For standalone processes, scan recent session files
+    if (!agentName) {
+      const projectDirs = fs.readdirSync(projectsDir);
+      for (const pDir of projectDirs) {
+        const dir = path.join(projectsDir, pDir);
+        let stat;
+        try { stat = fs.statSync(dir); } catch { continue; }
+        if (!stat.isDirectory()) continue;
+
+        const files = fs.readdirSync(dir)
+          .filter((f) => f.endsWith(".jsonl") && !f.includes("subagent"))
+          .sort()
+          .slice(-10); // check last 10 sessions
+
+        for (const file of files) {
+          const filePath = path.join(dir, file);
+          const fd = fs.openSync(filePath, "r");
+          const buf = Buffer.alloc(4096);
+          const bytesRead = fs.readSync(fd, buf, 0, 4096, 0);
+          fs.closeSync(fd);
+
+          const firstLine = buf.toString("utf-8", 0, bytesRead).split("\n")[0];
+          try {
+            const meta = JSON.parse(firstLine);
+            if (meta.sessionId && meta.pid === pid) {
+              return { sessionId: meta.sessionId, cwd: meta.cwd || null };
+            }
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+});
+
+// IPC: read a session transcript from JSONL for display
+// Finds the session file by PID, then extracts human-readable conversation
+ipcMain.handle("transcript:read", (_event, pid) => {
+  try {
+    const projectsDir = path.join(os.homedir(), ".claude", "projects");
+    if (!fs.existsSync(projectsDir)) return null;
+
+    // Scan all project dirs for a session with matching PID
+    const projectDirs = fs.readdirSync(projectsDir);
+    for (const pDir of projectDirs) {
+      const dir = path.join(projectsDir, pDir);
+      let stat;
+      try { stat = fs.statSync(dir); } catch { continue; }
+      if (!stat.isDirectory()) continue;
+
+      const files = fs.readdirSync(dir)
+        .filter((f) => f.endsWith(".jsonl"))
+        .sort()
+        .reverse()
+        .slice(0, 30);
+
+      for (const file of files) {
+        const filePath = path.join(dir, file);
+        let content;
+        try { content = fs.readFileSync(filePath, "utf-8"); } catch { continue; }
+
+        const lines = content.trim().split("\n");
+        if (lines.length === 0) continue;
+
+        // Check first line for PID match or session identity
+        let meta;
+        try { meta = JSON.parse(lines[0]); } catch { continue; }
+
+        // Match by PID if provided, or just grab recent sessions
+        if (pid && meta.pid !== pid) continue;
+
+        // Extract conversation turns into readable text
+        const parts = [];
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line);
+            if (entry.type === "human" && entry.message?.content) {
+              const text = typeof entry.message.content === "string"
+                ? entry.message.content
+                : entry.message.content
+                    .filter((c) => c.type === "text")
+                    .map((c) => c.text)
+                    .join("\n");
+              if (text.trim()) parts.push(`\x1b[36m❯ ${text.trim()}\x1b[0m`);
+            } else if (entry.type === "assistant" && entry.message?.content) {
+              const text = typeof entry.message.content === "string"
+                ? entry.message.content
+                : entry.message.content
+                    .filter((c) => c.type === "text")
+                    .map((c) => c.text)
+                    .join("\n");
+              if (text.trim()) parts.push(text.trim());
+            }
+          } catch { /* skip malformed lines */ }
+        }
+
+        if (parts.length > 0) {
+          return parts.join("\r\n\r\n");
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+});
+
 app.whenReady().then(() => {
   startShimServer();
   startDiscovery();

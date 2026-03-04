@@ -145,6 +145,13 @@ type AugmentApp = {
   // Discovery
   onDiscoveryUpdate: (callback: (payload: DiscoverySnapshot) => void) => void;
   requestDiscoveryScan: () => Promise<DiscoverySnapshot>;
+  resolveDiscoveredSession: (opts: {
+    parentSessionId?: string | null;
+    agentName?: string | null;
+    pid?: number | null;
+  }) => Promise<{ sessionId: string; cwd: string | null } | null>;
+  // Transcript reading
+  readSessionTranscript: (pid: number) => Promise<string | null>;
 };
 
 declare global {
@@ -1415,6 +1422,9 @@ function appendDiscoveredSection(snapshot: DiscoverySnapshot): void {
           hasProcess: !!proc,
           pid: proc?.pid ?? null,
           teamName,
+          agentId: member.agentId || proc?.agentId || null,
+          resumeSessionId: proc?.resumeSessionId || null,
+          parentSessionId: proc?.parentSessionId || null,
         });
       }
     } else {
@@ -1426,6 +1436,9 @@ function appendDiscoveredSection(snapshot: DiscoverySnapshot): void {
           hasProcess: true,
           pid: proc.pid,
           teamName,
+          agentId: proc.agentId,
+          resumeSessionId: proc.resumeSessionId,
+          parentSessionId: proc.parentSessionId,
         });
       }
     }
@@ -1442,6 +1455,9 @@ function appendDiscoveredSection(snapshot: DiscoverySnapshot): void {
       hasProcess: true,
       pid: proc.pid,
       teamName: null,
+      agentId: proc.agentId,
+      resumeSessionId: proc.resumeSessionId,
+      parentSessionId: proc.parentSessionId,
     });
   }
 }
@@ -1455,6 +1471,9 @@ function appendDiscoveredCard(
     hasProcess: boolean;
     pid: number | null;
     teamName: string | null;
+    agentId: string | null;
+    resumeSessionId: string | null;
+    parentSessionId: string | null;
   }
 ): void {
   const card = document.createElement("div");
@@ -1498,7 +1517,75 @@ function appendDiscoveredCard(
   if (info.pid) statusLine.textContent += ` (PID ${info.pid})`;
   card.appendChild(statusLine);
 
+  // Click to attach/resume discovered session
+  card.style.cursor = "pointer";
+  card.addEventListener("click", () => {
+    void attachDiscoveredSession(info);
+  });
+
   container.appendChild(card);
+}
+
+async function attachDiscoveredSession(info: {
+  name: string;
+  agentId: string | null;
+  resumeSessionId: string | null;
+  parentSessionId: string | null;
+  hasProcess: boolean;
+  pid: number | null;
+}): Promise<void> {
+  // Determine the CC session ID to resume
+  let sessionId = info.resumeSessionId;
+  let cwd: string | null = null;
+
+  // If no explicit resume ID, try resolving from the session files
+  if (!sessionId) {
+    const resolved = await window.augmentApp.resolveDiscoveredSession({
+      parentSessionId: info.parentSessionId,
+      agentName: info.name,
+      pid: info.pid,
+    });
+    if (resolved) {
+      sessionId = resolved.sessionId;
+      cwd = resolved.cwd;
+    }
+  }
+
+  if (sessionId) {
+    // Spawn a new terminal that resumes the CC session
+    const created = await window.augmentApp.createTerminal({
+      cwd: cwd || undefined,
+      cmd: ["claude", "--resume", sessionId],
+    });
+    const session = createSessionView(created);
+    session.name = info.name;
+    session.ccSessionId = sessionId;
+    sessions.set(created.id, session);
+    setActive(created.id);
+    showKeyHint(`Attached: ${info.name}`);
+  } else if (info.hasProcess && info.pid) {
+    // No session ID — show transcript as fallback
+    try {
+      const transcript = await window.augmentApp.readSessionTranscript(info.pid);
+      if (transcript) {
+        const created = await window.augmentApp.createTerminal();
+        const session = createSessionView(created);
+        session.name = `${info.name} (transcript)`;
+        sessions.set(created.id, session);
+        setActive(created.id);
+        session.terminal.write(`\x1b[2m── Transcript for ${info.name} (PID ${info.pid}) ──\x1b[0m\r\n\r\n`);
+        session.terminal.write(transcript);
+        session.terminal.write(`\r\n\x1b[2m── End of transcript ──\x1b[0m\r\n`);
+        showKeyHint(`Transcript: ${info.name}`);
+      } else {
+        showKeyHint(`No session data for ${info.name}`);
+      }
+    } catch {
+      showKeyHint(`Cannot read transcript for ${info.name}`);
+    }
+  } else {
+    showKeyHint(`No session data for ${info.name}`);
+  }
 }
 
 function getAgentColorValue(colorName: string): string {
