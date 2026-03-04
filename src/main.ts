@@ -1,8 +1,9 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
 import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, generateText, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
+import { ContextInspectorModal } from "./context-inspector";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
-import { assembleVaultContext, AugmentSettings, DEFAULT_SETTINGS } from "./vault-context";
+import { assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -106,6 +107,7 @@ class RenameModal extends Modal {
 export default class AugmentTerminalPlugin extends Plugin {
   settings: AugmentSettings = { ...DEFAULT_SETTINGS };
   public availableModels: ModelInfo[] = [];
+  public contextHistory: ContextEntry[] = [];
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
@@ -130,6 +132,11 @@ export default class AugmentTerminalPlugin extends Plugin {
     } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+
+  private pushContextHistory(entry: ContextEntry): void {
+    this.contextHistory.push(entry);
+    if (this.contextHistory.length > 5) this.contextHistory.shift();
   }
 
   private async loadAvailableModels(): Promise<void> {
@@ -224,6 +231,26 @@ export default class AugmentTerminalPlugin extends Plugin {
             } else {
               editor.replaceRange(formatted, insertPosLine);
             }
+            const entry: ContextEntry = {
+              timestamp: Date.now(),
+              noteName: ctx.title,
+              model: resolvedModelName,
+              systemPrompt: buildSystemPrompt(ctx),
+              userMessage: buildUserMessage(ctx, promptText),
+            };
+            this.pushContextHistory(entry);
+            const notice = new Notice("", 5000);
+            notice.noticeEl.empty();
+            notice.noticeEl.createEl("span", { text: "Augment: done" });
+            notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \u00b7 " });
+            const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
+            viewLink.href = "#";
+            viewLink.addEventListener("click", (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              notice.hide();
+              new ContextInspectorModal(this.app, this.contextHistory, this.contextHistory.length - 1).open();
+            });
             if (!this.settings.hasGenerated) {
               this.settings.hasGenerated = true;
               await this.saveData(this.settings);
@@ -312,6 +339,26 @@ export default class AugmentTerminalPlugin extends Plugin {
               } else {
                 editor.replaceRange(formatted, insertPosLine);
               }
+              const entry: ContextEntry = {
+                timestamp: Date.now(),
+                noteName: ctx.title,
+                model: resolvedModelName,
+                systemPrompt: buildSystemPrompt(ctx),
+                userMessage: rendered,
+              };
+              this.pushContextHistory(entry);
+              const notice = new Notice("", 5000);
+              notice.noticeEl.empty();
+              notice.noticeEl.createEl("span", { text: "Augment: done" });
+              notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \u00b7 " });
+              const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
+              viewLink.href = "#";
+              viewLink.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                notice.hide();
+                new ContextInspectorModal(this.app, this.contextHistory, this.contextHistory.length - 1).open();
+              });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
                 await this.saveData(this.settings);
@@ -347,6 +394,22 @@ export default class AugmentTerminalPlugin extends Plugin {
       callback: () => {
         (this.app as any).setting.open();
         (this.app as any).setting.openTabById("augment-terminal");
+      },
+    });
+
+    this.addCommand({
+      id: "augment-view-context",
+      name: "View sent context",
+      callback: () => {
+        if (this.contextHistory.length === 0) {
+          new Notice("Augment: no generations yet this session");
+          return;
+        }
+        new ContextInspectorModal(
+          this.app,
+          this.contextHistory,
+          this.contextHistory.length - 1,
+        ).open();
       },
     });
 

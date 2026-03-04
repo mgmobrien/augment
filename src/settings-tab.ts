@@ -1,7 +1,9 @@
-import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, MarkdownView, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
-import { AugmentSettings } from "./vault-context";
-import { modelDisplayName } from "./ai-client";
+import { AugmentSettings, ContextEntry } from "./vault-context";
+import { buildSystemPrompt, buildUserMessage, modelDisplayName } from "./ai-client";
+import { assembleVaultContext } from "./vault-context";
+import { ContextInspectorModal } from "./context-inspector";
 
 const BUILTIN_CALLOUT_TYPES = [
   "note", "abstract", "info", "todo", "tip", "success",
@@ -170,6 +172,27 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     renderSetupCard();
     overviewTab.addEventListener("click", renderSetupCard);
+
+    const previewBtn = overviewPane.createEl("button", {
+      cls: "mod-cta augment-ctx-preview-btn",
+      text: "Preview context for current note",
+    });
+    previewBtn.addEventListener("click", () => {
+      const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!activeView) {
+        new Notice("Open a note to preview context");
+        return;
+      }
+      const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
+      const entry: ContextEntry = {
+        timestamp: 0,
+        noteName: ctx.title,
+        model: this.plugin.resolveModelDisplayName(),
+        systemPrompt: buildSystemPrompt(ctx),
+        userMessage: "[your prompt would go here]",
+      };
+      new ContextInspectorModal(this.plugin.app, [entry], 0).open();
+    });
 
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",

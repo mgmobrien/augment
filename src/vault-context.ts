@@ -32,6 +32,14 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   hasGenerated: false,
 };
 
+export interface ContextEntry {
+  timestamp: number;      // Date.now(); 0 = preview (no generation happened)
+  noteName: string;       // ctx.title
+  model: string;          // resolved display name (e.g. "Claude Haiku 4.5")
+  systemPrompt: string;   // buildSystemPrompt(ctx)
+  userMessage: string;    // buildUserMessage(ctx, instruction) or rendered template
+}
+
 export interface LinkedNoteSummary {
   title: string;
   frontmatter: Record<string, unknown> | null;
