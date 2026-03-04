@@ -591,7 +591,12 @@
         display: none;
       }
 
-      /* When sidebar is collapsed, show the toggle prominently */
+      /* When sidebar is collapsed, shift focus header right to clear traffic lights
+         and show the toggle prominently */
+      .sidebar-collapsed #focus-header {
+        padding-left: 78px;
+      }
+
       .sidebar-collapsed #focus-sidebar-toggle {
         display: flex;
         color: var(--accent-blue);
