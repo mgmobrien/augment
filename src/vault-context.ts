@@ -11,6 +11,7 @@ export interface AugmentSettings {
   headingLevel: number;
   calloutType: string;
   calloutExpanded: boolean;
+  useWsl: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   headingLevel: 2,
   calloutType: "ai",
   calloutExpanded: true,
+  useWsl: false,
 };
 
 export interface LinkedNoteSummary {

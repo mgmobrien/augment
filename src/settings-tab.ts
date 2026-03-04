@@ -244,6 +244,25 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
+    // WSL terminal setting — only relevant on Windows
+    if (process.platform === "win32") {
+      new Setting(generatePane)
+        .setName("Run terminal via WSL")
+        .setDesc(
+          "Spawn the terminal PTY bridge through WSL (Windows Subsystem for Linux) instead of native Python. " +
+          "Required on Windows — Python\u2019s pty module is Unix-only. " +
+          "Requires WSL installed with python3 available in the default distro."
+        )
+        .addToggle((toggle) => {
+          toggle
+            .setValue(this.plugin.settings.useWsl)
+            .onChange(async (value) => {
+              this.plugin.settings.useWsl = value;
+              await this.plugin.saveData(this.plugin.settings);
+            });
+        });
+    }
+
     // ── Context pane ─────────────────────────────────────────
     contextPane.createEl("p", {
       cls: "augment-context-intro",

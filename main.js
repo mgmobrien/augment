@@ -11498,6 +11498,16 @@ var AugmentSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveData(this.plugin.settings);
       });
     });
+    if (process.platform === "win32") {
+      new import_obsidian.Setting(generatePane).setName("Run terminal via WSL").setDesc(
+        "Spawn the terminal PTY bridge through WSL (Windows Subsystem for Linux) instead of native Python. Required on Windows \u2014 Python\u2019s pty module is Unix-only. Requires WSL installed with python3 available in the default distro."
+      ).addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.useWsl).onChange(async (value) => {
+          this.plugin.settings.useWsl = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+    }
     contextPane.createEl("p", {
       cls: "augment-context-intro",
       text: "Each generation sends the model: your note\u2019s title and frontmatter, the text around your cursor (or your selection if you have one selected), and a configurable number of linked notes. For linked notes, only the note title and frontmatter are included \u2014 not the note body."
@@ -11606,7 +11616,8 @@ var DEFAULT_SETTINGS = {
   outputFormat: "plain",
   headingLevel: 2,
   calloutType: "ai",
-  calloutExpanded: true
+  calloutExpanded: true,
+  useWsl: false
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -11657,9 +11668,13 @@ var import_addon_web_links = __toESM(require_addon_web_links());
 // src/pty-bridge.ts
 var import_child_process = require("child_process");
 var import_path8 = require("path");
+function toWslPath(winPath) {
+  return winPath.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, "/");
+}
 var PtyBridge = class {
-  constructor(pluginDir, cwd, onData, onExit) {
+  constructor(pluginDir, cwd, useWsl, onData, onExit) {
     this.cwd = cwd;
+    this.useWsl = useWsl;
     this.onData = onData;
     this.onExit = onExit;
     this.process = null;
@@ -11669,13 +11684,26 @@ var PtyBridge = class {
   start() {
     var _a2, _b, _c, _d;
     const ptyScript = (0, import_path8.join)(this.pluginDir, "scripts", "terminal_pty.py");
-    this.process = (0, import_child_process.spawn)("python3", [ptyScript], {
+    let cmd;
+    let args;
+    if (this.useWsl && process.platform === "win32") {
+      const wslScript = toWslPath(ptyScript);
+      cmd = "wsl";
+      args = ["python3", wslScript];
+    } else {
+      cmd = "python3";
+      args = [ptyScript];
+    }
+    this.process = (0, import_child_process.spawn)(cmd, args, {
       cwd: this.cwd,
       env: {
         ...process.env,
         TERM: "xterm-256color",
         LANG: process.env.LANG || "en_US.UTF-8"
       },
+      // stdio tuple: [stdin, stdout, stderr, fd-3-control-channel]
+      // fd 3 is a writable pipe that carries out-of-band control messages
+      // (resize commands) without polluting the terminal data stream.
       stdio: ["pipe", "pipe", "pipe", "pipe"]
     });
     this.controlStream = this.process.stdio[3];
@@ -12055,7 +12083,7 @@ var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?(
 var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
 var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
 var TerminalView = class extends import_obsidian3.ItemView {
-  constructor(leaf, pluginDir) {
+  constructor(leaf, pluginDir, getUseWsl = () => false) {
     super(leaf);
     this.terminal = null;
     this.fitAddon = null;
@@ -12076,6 +12104,7 @@ var TerminalView = class extends import_obsidian3.ItemView {
     this.lastEventSignature = "";
     this.lastEventAt = 0;
     this.pluginDir = pluginDir;
+    this.getUseWsl = getUseWsl;
     this.terminalName = generateTerminalName();
   }
   getViewType() {
@@ -12239,6 +12268,7 @@ var TerminalView = class extends import_obsidian3.ItemView {
     this.ptyBridge = new PtyBridge(
       this.pluginDir,
       vaultPath,
+      this.getUseWsl(),
       (data) => {
         var _a2;
         (_a2 = this.terminal) == null ? void 0 : _a2.write(data);
@@ -12858,7 +12888,7 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
       `.callout[data-callout="ai"] .callout-title::before { content: "" !important; display: none !important; }`
     ].join("\n");
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
-      return new TerminalView(leaf, this.getPluginDir());
+      return new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);

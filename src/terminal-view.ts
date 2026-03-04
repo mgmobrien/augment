@@ -104,6 +104,7 @@ export class TerminalView extends ItemView {
   private resizeObserver: ResizeObserver | null = null;
   private parseBuffer: string = "";
   private pluginDir: string;
+  private getUseWsl: () => boolean;
   private terminalName: string;
   private isExited: boolean = false;
   private status: TerminalStatus = "shell";
@@ -119,9 +120,10 @@ export class TerminalView extends ItemView {
   private lastEventSignature: string = "";
   private lastEventAt: number = 0;
 
-  constructor(leaf: WorkspaceLeaf, pluginDir: string) {
+  constructor(leaf: WorkspaceLeaf, pluginDir: string, getUseWsl: () => boolean = () => false) {
     super(leaf);
     this.pluginDir = pluginDir;
+    this.getUseWsl = getUseWsl;
     this.terminalName = generateTerminalName();
   }
 
@@ -343,6 +345,7 @@ export class TerminalView extends ItemView {
     this.ptyBridge = new PtyBridge(
       this.pluginDir,
       vaultPath,
+      this.getUseWsl(),
       (data) => {
         this.terminal?.write(data);
         this.appendToScrollback(data);

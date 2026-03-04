@@ -128,7 +128,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     // Register views
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
-      return new TerminalView(leaf, this.getPluginDir());
+      return new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
