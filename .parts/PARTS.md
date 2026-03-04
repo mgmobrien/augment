@@ -19,10 +19,10 @@ The standalone app is the current focus surface. The Obsidian plugin is the orig
 
 ## Boot protocol
 
-CEO boots from vault skill (`agents/skills/augment-ceo/SKILL.md` in the Obsidian vault).
-Domain parts boot when CEO spawns them — each reads `.parts/[name]/SKILL.md`.
+CEO boots from generic vault skill (`agents/skills/project-ceo/SKILL.md` in the Obsidian vault).
+Domain parts boot when CEO spawns them — each reads its generic vault skill (`agents/skills/project-[role]/SKILL.md`) parameterized with project root and project-local config from `.parts/[role]/config.md`.
 
-Matt invokes by saying "Augment CEO" or "CEO" from a Claude Code session in the vault.
+Matt invokes by saying "Augment CEO" or "CEO augment" from a Claude Code session in the vault.
 
 ## Project sources
 
