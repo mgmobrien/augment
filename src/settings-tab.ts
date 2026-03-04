@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings } from "./vault-context";
+import { modelDisplayName } from "./ai-client";
 
 const BUILTIN_CALLOUT_TYPES = [
   "note", "abstract", "info", "todo", "tip", "success",
@@ -79,6 +80,30 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
 
     // ── Overview pane ────────────────────────────────────────
+
+    // Setup status card — rendered once at display time
+    const statusCard = overviewPane.createEl("div", { cls: "augment-setup-status" });
+    const apiKeyOk = !!this.plugin.settings.apiKey;
+
+    const jumpToGenerate = () => {
+      tabs.forEach(({ btn: b, pane: p }) => { b.removeClass("is-active"); p.style.display = "none"; });
+      generateTab.addClass("is-active");
+      generatePane.style.display = "";
+    };
+
+    const mkRow = (label: string, ok: boolean, onClickIfBad?: () => void) => {
+      const row = statusCard.createEl("div", { cls: "augment-status-row" });
+      row.createEl("span", { cls: ok ? "augment-status-ok" : "augment-status-warn", text: ok ? "\u2713" : "\u2717" });
+      row.createEl("span", { text: label });
+      if (!ok && onClickIfBad) {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", onClickIfBad);
+      }
+    };
+
+    mkRow(apiKeyOk ? "API key configured" : "API key not set \u2014 click to configure", apiKeyOk, jumpToGenerate);
+    mkRow(`Model: ${this.plugin.resolveModelDisplayName()}`, true);
+
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
       text: "Augment generates text inline using Claude, with context drawn from your current note — title, frontmatter, the text around your cursor, and linked notes.",

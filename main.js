@@ -11419,6 +11419,27 @@ var AugmentSettingTab = class extends import_obsidian.PluginSettingTab {
         pane.style.display = "";
       });
     });
+    const statusCard = overviewPane.createEl("div", { cls: "augment-setup-status" });
+    const apiKeyOk = !!this.plugin.settings.apiKey;
+    const jumpToGenerate = () => {
+      tabs.forEach(({ btn: b, pane: p }) => {
+        b.removeClass("is-active");
+        p.style.display = "none";
+      });
+      generateTab.addClass("is-active");
+      generatePane.style.display = "";
+    };
+    const mkRow = (label, ok, onClickIfBad) => {
+      const row = statusCard.createEl("div", { cls: "augment-status-row" });
+      row.createEl("span", { cls: ok ? "augment-status-ok" : "augment-status-warn", text: ok ? "\u2713" : "\u2717" });
+      row.createEl("span", { text: label });
+      if (!ok && onClickIfBad) {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", onClickIfBad);
+      }
+    };
+    mkRow(apiKeyOk ? "API key configured" : "API key not set \u2014 click to configure", apiKeyOk, jumpToGenerate);
+    mkRow(`Model: ${this.plugin.resolveModelDisplayName()}`, true);
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
       text: "Augment generates text inline using Claude, with context drawn from your current note \u2014 title, frontmatter, the text around your cursor, and linked notes."
@@ -12951,7 +12972,10 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
     return (_a2 = found == null ? void 0 : found.display_name) != null ? _a2 : modelDisplayName(id);
   }
   refreshStatusBar() {
-    if (this.statusBarEl) {
+    if (!this.statusBarEl) return;
+    if (!this.settings.apiKey) {
+      this.statusBarEl.setText("Augment: API key needed");
+    } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
   }
@@ -12984,11 +13008,12 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof import_obsidian6.MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new import_obsidian6.Notice("Augment: add your API key in Settings \u2192 Augment", 0);
+          const notice = new import_obsidian6.Notice("Augment: API key required \u2014 click to open settings", 0);
+          notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
+            notice.hide();
             this.app.setting.open();
             this.app.setting.openTabById("augment-terminal");
-            notice.hide();
           });
           return;
         }
@@ -13047,11 +13072,12 @@ var AugmentTerminalPlugin = class extends import_obsidian6.Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof import_obsidian6.MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new import_obsidian6.Notice("Augment: add your API key in Settings \u2192 Augment", 0);
+          const notice = new import_obsidian6.Notice("Augment: API key required \u2014 click to open settings", 0);
+          notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
+            notice.hide();
             this.app.setting.open();
             this.app.setting.openTabById("augment-terminal");
-            notice.hide();
           });
           return;
         }

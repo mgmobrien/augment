@@ -414,6 +414,38 @@
   justify-content: flex-end;
 }
 
+/* ── Overview setup status card ── */
+.augment-setup-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.augment-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.augment-status-ok {
+  color: var(--color-green);
+  font-weight: 600;
+}
+
+.augment-status-warn {
+  color: var(--color-red);
+  font-weight: 600;
+}
+
+.augment-status-row[style*="cursor: pointer"]:hover {
+  text-decoration: underline;
+}
+
 /* ── Settings tab ── */
 .augment-settings-container .setting-item-description {
   color: var(--text-muted);

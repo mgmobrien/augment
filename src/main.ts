@@ -124,7 +124,10 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public refreshStatusBar(): void {
-    if (this.statusBarEl) {
+    if (!this.statusBarEl) return;
+    if (!this.settings.apiKey) {
+      this.statusBarEl.setText("Augment: API key needed");
+    } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
   }
@@ -169,11 +172,12 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings \u2192 Augment", 0);
+          const notice = new Notice("Augment: API key required \u2014 click to open settings", 0);
+          notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
+            notice.hide();
             (this.app as any).setting.open();
             (this.app as any).setting.openTabById("augment-terminal");
-            notice.hide();
           });
           return;
         }
@@ -238,11 +242,12 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new Notice("Augment: add your API key in Settings \u2192 Augment", 0);
+          const notice = new Notice("Augment: API key required \u2014 click to open settings", 0);
+          notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
+            notice.hide();
             (this.app as any).setting.open();
             (this.app as any).setting.openTabById("augment-terminal");
-            notice.hide();
           });
           return;
         }
