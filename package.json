@@ -1,24 +1,58 @@
 {
   "name": "augment-terminal",
   "version": "0.0.1",
+  "author": "System 3",
   "description": "Terminal panes in Obsidian for running Claude Code sessions",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs watch",
     "build": "node esbuild.config.mjs build",
-    "test:rename-sync": "node scripts/check-rename-sync.mjs"
+    "test:rename-sync": "node scripts/check-rename-sync.mjs",
+    "electron:build": "node electron/build.mjs",
+    "electron:watch": "node electron/build.mjs --watch",
+    "electron:dev": "npm run electron:build && electron electron/main.cjs",
+    "electron:open": "npm run electron:build && open -n node_modules/electron/dist/Electron.app --args electron/main.cjs",
+    "electron:pack": "npm run electron:build && electron-builder --dir -m -c.mac.identity=null",
+    "electron:dist": "npm run electron:build && electron-builder -m -c.mac.identity=null",
+    "electron:open-pack": "npm run electron:pack && open -n dist-electron/mac-arm64/Electron.app"
   },
   "dependencies": {
-    "@xterm/xterm": "^5.5.0",
     "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-serialize": "^0.13.0",
     "@xterm/addon-web-links": "^0.11.0",
-    "@xterm/addon-serialize": "^0.13.0"
+    "@xterm/xterm": "^5.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "builtin-modules": "^3.3.0",
+    "electron": "^40.6.1",
+    "electron-builder": "^26.8.1",
     "esbuild": "^0.21.0",
     "obsidian": "latest",
     "typescript": "^5.4.0"
+  },
+  "build": {
+    "appId": "md.augment.standalone",
+    "productName": "Augment Standalone",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "electron/**/*",
+      "scripts/terminal_pty.py",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "mac": {
+      "target": [
+        "dir",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    }
   }
 }
