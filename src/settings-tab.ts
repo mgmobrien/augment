@@ -1043,14 +1043,10 @@ export class AugmentSettingTab extends PluginSettingTab {
     };
 
     // Lazy detection — run when Terminal tab is first clicked.
-    let wizardRan = false;
-    wizardBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Click to check setup status" });
-    terminalTab.addEventListener("click", () => {
-      if (!wizardRan) {
-        wizardRan = true;
-        void renderWizard();
-      }
-    });
+    // Auto-run on display — dependency checks are fast and the wizard is the primary
+    // reason users visit this tab. On Windows especially, users may arrive here after
+    // a 9009 exit and need to see their status immediately.
+    void renderWizard();
 
     // Configuration section label
     terminalPane.createDiv({ cls: "augment-section-label", text: "Configuration" });

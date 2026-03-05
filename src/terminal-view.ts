@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -373,6 +373,22 @@ export class TerminalView extends ItemView {
       },
       onExit: (code) => {
         this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
+        if (code === 9009 && process.platform === "win32") {
+          this.terminal?.write(
+            `\r\n\x1b[33m[Windows: Python not found in PATH. Augment requires WSL with python3.]\r\n` +
+            `[Open Settings \u2192 Augment \u2192 Terminal to check setup status.]\x1b[0m\r\n`
+          );
+          const notice = new Notice(
+            "Augment terminal: Python not found (exit 9009). Open Settings \u2192 Augment \u2192 Terminal to check setup.",
+            0
+          );
+          notice.noticeEl.style.cursor = "pointer";
+          notice.noticeEl.addEventListener("click", () => {
+            notice.hide();
+            (this.app as any).setting?.open?.();
+            (this.app as any).setting?.openTabById?.("augment-terminal");
+          });
+        }
         this.isExited = true;
         const exitStatus: TerminalStatus = code === 0 ? "exited" : "crashed";
         this.setStatus(exitStatus);

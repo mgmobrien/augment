@@ -18374,14 +18374,7 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
         });
       }
     };
-    let wizardRan = false;
-    wizardBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Click to check setup status" });
-    terminalTab.addEventListener("click", () => {
-      if (!wizardRan) {
-        wizardRan = true;
-        void renderWizard();
-      }
-    });
+    void renderWizard();
     terminalPane.createDiv({ cls: "augment-section-label", text: "Configuration" });
     if (process.platform === "win32") {
       new import_obsidian3.Setting(terminalPane).setName("Run terminal via WSL").setDesc(
@@ -19137,14 +19130,33 @@ var TerminalView = class extends import_obsidian5.ItemView {
         this.detectOrchestrationActivity(data);
       },
       onExit: (code) => {
-        var _a2, _b;
+        var _a2, _b, _c;
         (_a2 = this.terminal) == null ? void 0 : _a2.write(`\r
 [Process exited with code ${code}]\r
 `);
+        if (code === 9009 && process.platform === "win32") {
+          (_b = this.terminal) == null ? void 0 : _b.write(
+            `\r
+\x1B[33m[Windows: Python not found in PATH. Augment requires WSL with python3.]\r
+[Open Settings \u2192 Augment \u2192 Terminal to check setup status.]\x1B[0m\r
+`
+          );
+          const notice = new import_obsidian5.Notice(
+            "Augment terminal: Python not found (exit 9009). Open Settings \u2192 Augment \u2192 Terminal to check setup.",
+            0
+          );
+          notice.noticeEl.style.cursor = "pointer";
+          notice.noticeEl.addEventListener("click", () => {
+            var _a3, _b2, _c2, _d;
+            notice.hide();
+            (_b2 = (_a3 = this.app.setting) == null ? void 0 : _a3.open) == null ? void 0 : _b2.call(_a3);
+            (_d = (_c2 = this.app.setting) == null ? void 0 : _c2.openTabById) == null ? void 0 : _d.call(_c2, "augment-terminal");
+          });
+        }
         this.isExited = true;
         const exitStatus = code === 0 ? "exited" : "crashed";
         this.setStatus(exitStatus);
-        (_b = this.onSessionExit) == null ? void 0 : _b.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
+        (_c = this.onSessionExit) == null ? void 0 : _c.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
       }
     });
