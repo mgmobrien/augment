@@ -2,9 +2,9 @@
 
 > **Beta.** Docs are AI-generated and rough. Use at your own risk.
 
-Obsidian plugin for vault-aware AI text generation using Claude. Select text in any note, press Mod+Enter, get a completion that knows your note's title, frontmatter, and linked notes.
+Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code.
 
-Also includes a terminal manager for running Claude Code sessions inside Obsidian (optional — AI generation works without it).
+Press Mod+Enter in any note to generate inline — Augment uses your note's title, frontmatter, linked notes, and everything above your cursor as context. The terminal manager runs Claude Code sessions inside Obsidian alongside your notes.
 
 ## Prerequisites
 
@@ -18,10 +18,20 @@ Also includes a terminal manager for running Claude Code sessions inside Obsidia
 ```bash
 npm install
 npm run build
-npm run obsidian:install   # copies main.js, styles.css, manifest.json to Obsidian plugin dir
 ```
 
-The install path in `package.json` targets Matt's vault. For a different vault, edit the path in `scripts.obsidian:install`.
+Then copy the three plugin files into your Obsidian vault:
+
+```bash
+mkdir -p "{vault}/.obsidian/plugins/augment/"
+cp main.js manifest.json styles.css "{vault}/.obsidian/plugins/augment/"
+```
+
+Replace `{vault}` with the absolute path to your Obsidian vault.
+
+`main.js` is committed to the repo — if you don't want to build from source, skip `npm run build` and copy the files directly.
+
+> `npm run obsidian:install` exists but is hardcoded to the maintainer's vault path. Use the manual copy above instead.
 
 ## Configure
 
