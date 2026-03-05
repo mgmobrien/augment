@@ -1321,6 +1321,18 @@
   padding: 20px 0;
 }
 
+/* ── Hotkey override notice ── */
+.augment-hotkey-notice {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  padding: 6px 0 12px 0;
+  line-height: 1.5;
+}
+.augment-hotkey-restore {
+  color: var(--text-accent);
+  cursor: pointer;
+}
+
 /* ── API key info tooltip ── */
 .augment-api-key-info {
   cursor: default;

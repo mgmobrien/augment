@@ -545,6 +545,24 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
+    if (this.plugin.settings.clearedLinkHotkey) {
+      const restoreEl = overviewPane.createEl("div", { cls: "augment-hotkey-notice" });
+      restoreEl.createEl("span", {
+        text: "Ctrl+Enter was Obsidian\u2019s \u201cOpen link under cursor\u201d default. Augment removed that binding so Ctrl+Enter is free to use.",
+      });
+      restoreEl.appendText(" ");
+      const restoreBtn = restoreEl.createEl("a", {
+        cls: "augment-hotkey-restore",
+        text: "Restore Obsidian\u2019s binding",
+        href: "#",
+      });
+      restoreBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await this.plugin.restoreObsidianLinkHotkey();
+        this.display();
+      });
+    }
+
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
     const howSteps = [

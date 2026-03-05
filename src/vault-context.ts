@@ -33,6 +33,7 @@ export interface AugmentSettings {
   hasSeenWelcome: boolean;
   systemPrompt: string;
   showGenerationToast: boolean;
+  clearedLinkHotkey: boolean;
   sessionHistory: SessionRecord[];
 }
 
@@ -59,6 +60,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   hasSeenWelcome: false,
   systemPrompt: "",
   showGenerationToast: true,
+  clearedLinkHotkey: false,
   sessionHistory: [],
 };
 

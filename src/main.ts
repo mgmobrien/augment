@@ -440,6 +440,39 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.refreshStatusBar();
   }
 
+  private async clearObsidianLinkHotkey(): Promise<void> {
+    try {
+      const hotkeyPath = ".obsidian/hotkeys.json";
+      let hotkeys: Record<string, unknown> = {};
+      try {
+        const raw = await this.app.vault.adapter.read(hotkeyPath);
+        hotkeys = JSON.parse(raw);
+      } catch { /* file may not exist yet */ }
+      hotkeys["editor:open-link-in-new-leaf"] = [];
+      await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
+      (this.app as any).hotkeyManager?.load?.();
+      this.settings.clearedLinkHotkey = true;
+      await this.saveData(this.settings);
+    } catch (e) {
+      console.warn("[Augment] could not clear link hotkey:", e);
+    }
+  }
+
+  async restoreObsidianLinkHotkey(): Promise<void> {
+    try {
+      const hotkeyPath = ".obsidian/hotkeys.json";
+      const raw = await this.app.vault.adapter.read(hotkeyPath);
+      const hotkeys = JSON.parse(raw);
+      delete hotkeys["editor:open-link-in-new-leaf"];
+      await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
+      (this.app as any).hotkeyManager?.load?.();
+      this.settings.clearedLinkHotkey = false;
+      await this.saveData(this.settings);
+    } catch (e) {
+      console.warn("[Augment] could not restore link hotkey:", e);
+    }
+  }
+
   private async scaffoldDefaultTemplates(): Promise<void> {
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
 
@@ -471,6 +504,11 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    // Clear Obsidian's Ctrl+Enter binding on first install so Augment can use it.
+    if (!this.settings.clearedLinkHotkey) {
+      void this.clearObsidianLinkHotkey();
+    }
 
     // Scaffold default templates on first install (fire-and-forget — doesn't block onload).
     void this.scaffoldDefaultTemplates();

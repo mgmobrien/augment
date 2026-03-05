@@ -17264,6 +17264,7 @@ var DEFAULT_SETTINGS = {
   hasSeenWelcome: false,
   systemPrompt: "",
   showGenerationToast: true,
+  clearedLinkHotkey: false,
   sessionHistory: []
 };
 function stripObsidianMeta(fm) {
@@ -17947,6 +17948,23 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         this.plugin.refreshStatusBar();
       });
     });
+    if (this.plugin.settings.clearedLinkHotkey) {
+      const restoreEl = overviewPane.createEl("div", { cls: "augment-hotkey-notice" });
+      restoreEl.createEl("span", {
+        text: "Ctrl+Enter was Obsidian\u2019s \u201COpen link under cursor\u201D default. Augment removed that binding so Ctrl+Enter is free to use."
+      });
+      restoreEl.appendText(" ");
+      const restoreBtn = restoreEl.createEl("a", {
+        cls: "augment-hotkey-restore",
+        text: "Restore Obsidian\u2019s binding",
+        href: "#"
+      });
+      restoreBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await this.plugin.restoreObsidianLinkHotkey();
+        this.display();
+      });
+    }
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
     const howSteps = [
@@ -20293,6 +20311,40 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.availableModels = await fetchModels(this.settings.apiKey);
     this.refreshStatusBar();
   }
+  async clearObsidianLinkHotkey() {
+    var _a2, _b;
+    try {
+      const hotkeyPath = ".obsidian/hotkeys.json";
+      let hotkeys = {};
+      try {
+        const raw = await this.app.vault.adapter.read(hotkeyPath);
+        hotkeys = JSON.parse(raw);
+      } catch (e) {
+      }
+      hotkeys["editor:open-link-in-new-leaf"] = [];
+      await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
+      (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);
+      this.settings.clearedLinkHotkey = true;
+      await this.saveData(this.settings);
+    } catch (e) {
+      console.warn("[Augment] could not clear link hotkey:", e);
+    }
+  }
+  async restoreObsidianLinkHotkey() {
+    var _a2, _b;
+    try {
+      const hotkeyPath = ".obsidian/hotkeys.json";
+      const raw = await this.app.vault.adapter.read(hotkeyPath);
+      const hotkeys = JSON.parse(raw);
+      delete hotkeys["editor:open-link-in-new-leaf"];
+      await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
+      (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);
+      this.settings.clearedLinkHotkey = false;
+      await this.saveData(this.settings);
+    } catch (e) {
+      console.warn("[Augment] could not restore link hotkey:", e);
+    }
+  }
   async scaffoldDefaultTemplates() {
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
     if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
@@ -20319,6 +20371,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (!this.settings.clearedLinkHotkey) {
+      void this.clearObsidianLinkHotkey();
+    }
     void this.scaffoldDefaultTemplates();
     void this.loadAvailableModels();
     this.calloutStyleEl = document.head.createEl("style");
