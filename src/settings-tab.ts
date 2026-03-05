@@ -883,10 +883,10 @@ export class AugmentSettingTab extends PluginSettingTab {
         secLink.rel = "noopener";
       }
 
-      // "Done — Check ↺" link with 2s delay (not needed for vault action — it auto-advances)
+      // "Done — check ↺" link with 2s delay (not needed for vault action — it auto-advances)
       if (step.action !== "vault") {
         const recheck = body.createDiv({ cls: "augment-cc-recheck" });
-        const recheckLink = recheck.createEl("a", { text: "Done \u2014 Check \u21ba" });
+        const recheckLink = recheck.createEl("a", { text: "Done \u2014 check \u21ba" });
         recheckLink.href = "#";
         recheckLink.addEventListener("click", (e) => {
           e.preventDefault();
