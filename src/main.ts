@@ -841,7 +841,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       const view = new TerminalView(
         leaf,
         this.getPluginDir(),
-        () => this.settings.useWsl,
+        () => process.platform === "win32" ? true : this.settings.useWsl,
         () => this.settings.pythonPath,
         () => this.settings.shellPath,
         () => this.settings.defaultWorkingDirectory

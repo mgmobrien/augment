@@ -24,6 +24,7 @@ export interface PtyBridgeOptions {
   shellPath?: string;
   onData: (data: string) => void;
   onExit: (code: number) => void;
+  onError?: (err: Error) => void;
 }
 
 export class PtyBridge {
@@ -36,6 +37,7 @@ export class PtyBridge {
   private shellPath: string;
   private onData: (data: string) => void;
   private onExit: (code: number) => void;
+  private onError?: (err: Error) => void;
 
   constructor(opts: PtyBridgeOptions) {
     this.pluginDir = opts.pluginDir;
@@ -45,6 +47,7 @@ export class PtyBridge {
     this.shellPath = opts.shellPath || "";
     this.onData = opts.onData;
     this.onExit = opts.onExit;
+    this.onError = opts.onError;
   }
 
   start(): void {
@@ -131,6 +134,7 @@ export class PtyBridge {
 
     this.process.on("error", (err) => {
       console.error("[augment-pty] Process error:", err);
+      this.onError?.(err);
       this.process = null;
       this.controlStream = null;
       this.onExit(1);

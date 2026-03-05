@@ -48,6 +48,30 @@ const EVENT_DEDUP_WINDOW_MS = 1200;
 
 let xtermStyleEl: HTMLStyleElement | null = null;
 
+// Map raw PTY errors and exit codes to user-friendly messages.
+function translatePtyError(raw: string): string {
+  const l = raw.toLowerCase();
+  if (l.includes("enoent") && l.includes("wsl")) {
+    return "Windows Subsystem for Linux isn't installed yet.";
+  }
+  if (l.includes("enoent") || l.includes("no such file") || l.includes("command not found")) {
+    if (l.includes("python")) return "Python 3 not found. Check setup in Settings → Augment → Terminal.";
+    if (l.includes("claude")) return "Claude Code isn't installed yet.";
+    return "A required program is missing.";
+  }
+  if (l.includes("eacces") || l.includes("permission denied")) {
+    return "Permission error — try running the install again.";
+  }
+  return "The terminal connection failed.";
+}
+
+function translateExitCode(code: number): string | null {
+  if (code === 0) return null;
+  if (code === 9009 && process.platform === "win32") return "Python 3 not found. Check setup in Settings → Augment → Terminal.";
+  if (code === 127) return "Claude Code isn't installed yet.";
+  return null;
+}
+
 export function cleanupXtermStyle(): void {
   if (xtermStyleEl) {
     xtermStyleEl.remove();
@@ -130,6 +154,7 @@ export class TerminalView extends ItemView {
   private userRenamed: boolean = false;
   private autoRenameNeeded: boolean = false;
   private autoNamedThisTurn: boolean = false;
+  private errorBannerEl: HTMLDivElement | null = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
 
   constructor(
@@ -351,6 +376,11 @@ export class TerminalView extends ItemView {
     this.terminal.loadAddon(this.fitAddon);
     this.terminal.loadAddon(new WebLinksAddon());
 
+    // Error recovery banner — shown when the PTY fails to start or crashes.
+    const errorBanner = container.createDiv({ cls: "augment-terminal-error-banner" });
+    errorBanner.style.display = "none";
+    this.errorBannerEl = errorBanner;
+
     // Mount terminal.
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
@@ -364,46 +394,12 @@ export class TerminalView extends ItemView {
     }
 
     // Start PTY.
-    const vaultPath = (this.app.vault.adapter as any).basePath || ".";
-    const customCwd = this.getDefaultWorkingDirectory();
-    this.ptyBridge = new PtyBridge({
-      pluginDir: this.pluginDir,
-      cwd: customCwd || vaultPath,
-      useWsl: this.getUseWsl(),
-      pythonPath: this.getPythonPath(),
-      shellPath: this.getShellPath(),
-      onData: (data) => {
-        this.terminal?.write(data);
-        this.appendToScrollback(data);
-        this.detectStatus(data);
-        this.detectOrchestrationActivity(data);
-      },
-      onExit: (code) => {
-        this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
-        if (code === 9009 && process.platform === "win32") {
-          this.terminal?.write(
-            `\r\n\x1b[33m[Windows: Python not found in PATH. Augment requires WSL with python3.]\r\n` +
-            `[Open Settings \u2192 Augment \u2192 Terminal to check setup status.]\x1b[0m\r\n`
-          );
-          const notice = new Notice(
-            "Augment terminal: Python not found (exit 9009). Open Settings \u2192 Augment \u2192 Terminal to check setup.",
-            0
-          );
-          notice.noticeEl.style.cursor = "pointer";
-          notice.noticeEl.addEventListener("click", () => {
-            notice.hide();
-            (this.app as any).setting?.open?.();
-            (this.app as any).setting?.openTabById?.("augment-terminal");
-          });
-        }
-        this.isExited = true;
-        const exitStatus: TerminalStatus = code === 0 ? "exited" : "crashed";
-        this.setStatus(exitStatus);
-        this.onSessionExit?.(this.terminalName, exitStatus, this.startedAt, this.skillName);
-        this.app.workspace.trigger("augment-terminal:changed");
-      },
+    this.startPtyBridge();
+
+    // Terminal input → PTY.
+    this.terminal.onData((data) => {
+      this.ptyBridge?.write(data);
     });
-    this.ptyBridge.start();
 
     // Terminal input → PTY.
     this.terminal.onData((data) => {
@@ -429,6 +425,81 @@ export class TerminalView extends ItemView {
     }
 
     this.resizeObserver.observe(container);
+  }
+
+  private startPtyBridge(): void {
+    const vaultPath = (this.app.vault.adapter as any).basePath || ".";
+    const customCwd = this.getDefaultWorkingDirectory();
+    this.ptyBridge?.kill();
+    this.ptyBridge = new PtyBridge({
+      pluginDir: this.pluginDir,
+      cwd: customCwd || vaultPath,
+      useWsl: this.getUseWsl(),
+      pythonPath: this.getPythonPath(),
+      shellPath: this.getShellPath(),
+      onData: (data) => {
+        this.terminal?.write(data);
+        this.appendToScrollback(data);
+        this.detectStatus(data);
+        this.detectOrchestrationActivity(data);
+      },
+      onError: (err) => {
+        const friendly = translatePtyError(err.message);
+        this.showErrorBanner(friendly, err.message);
+      },
+      onExit: (code) => {
+        this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
+        this.isExited = true;
+        const exitStatus: TerminalStatus = code === 0 ? "exited" : "crashed";
+        this.setStatus(exitStatus);
+        this.onSessionExit?.(this.terminalName, exitStatus, this.startedAt, this.skillName);
+        this.app.workspace.trigger("augment-terminal:changed");
+        if (code !== 0) {
+          const friendly = translateExitCode(code) ?? translatePtyError(`exit ${code}`);
+          this.showErrorBanner(friendly, `Exit code: ${code}`);
+        }
+      },
+    });
+    this.ptyBridge.start();
+  }
+
+  private showErrorBanner(friendly: string, raw?: string): void {
+    const banner = this.errorBannerEl;
+    if (!banner) return;
+    banner.empty();
+    banner.style.display = "";
+
+    const msg = banner.createDiv({ cls: "augment-terminal-error-msg" });
+    msg.setText(friendly);
+
+    const actions = banner.createDiv({ cls: "augment-terminal-error-actions" });
+
+    const retryBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Retry" });
+    retryBtn.addEventListener("click", () => {
+      banner.style.display = "none";
+      this.isExited = false;
+      this.setStatus("shell");
+      this.terminal?.write("\r\n\x1b[2m[Retrying connection\u2026]\x1b[0m\r\n");
+      this.startPtyBridge();
+    });
+
+    const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open setup wizard" });
+    setupBtn.addEventListener("click", () => {
+      (this.app as any).setting?.open?.();
+      (this.app as any).setting?.openTabById?.("augment-terminal");
+    });
+
+    if (raw) {
+      let detailsVisible = false;
+      const detailsBtn = actions.createEl("button", { cls: "augment-terminal-error-btn augment-terminal-error-btn--ghost", text: "Show details" });
+      const rawEl = banner.createEl("pre", { cls: "augment-terminal-error-raw", text: raw });
+      rawEl.style.display = "none";
+      detailsBtn.addEventListener("click", () => {
+        detailsVisible = !detailsVisible;
+        rawEl.style.display = detailsVisible ? "" : "none";
+        detailsBtn.setText(detailsVisible ? "Hide details" : "Show details");
+      });
+    }
   }
 
   private detectStatus(rawData: string): void {

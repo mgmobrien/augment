@@ -147,19 +147,19 @@ interface WizardStep {
 function getMacSteps(deps: CCDeps): WizardStep | null {
   if (!deps.python) {
     return {
-      title: "Install Python 3",
-      desc: "Python 3 is required for Augment's terminal connection.",
+      title: "Set up terminal support",
+      desc: "Augment needs a small helper script. A terminal will open and install it automatically.",
       action: "terminal",
-      actionLabel: "Install developer tools",
+      actionLabel: "Install",
       terminalCmd: "xcode-select --install\n",
-      secondaryLabel: "Download Python from python.org \u2197",
+      secondaryLabel: "Download from python.org \u2197",
       secondaryUrl: "https://www.python.org/downloads/",
     };
   }
   if (!deps.node) {
     return {
-      title: "Install Node.js",
-      desc: "Node.js is required to install Claude Code. Download and run the installer from nodejs.org.",
+      title: "Install AI tools",
+      desc: "Node.js is needed to run Claude Code. Download and run the installer from nodejs.org.",
       action: "link",
       actionLabel: "Open nodejs.org \u2197",
       actionUrl: "https://nodejs.org",
@@ -167,25 +167,25 @@ function getMacSteps(deps: CCDeps): WizardStep | null {
   }
   if (!deps.cc) {
     return {
-      title: "Install Claude Code",
+      title: "Set up your AI assistant",
       desc: "A terminal will open and install Claude Code automatically.",
       action: "terminal",
-      actionLabel: "Install Claude Code",
+      actionLabel: "Install",
       terminalCmd: "npm install -g @anthropic-ai/claude-code\n",
     };
   }
   if (!deps.authed) {
     return {
-      title: "Sign in to Claude",
-      desc: "A terminal will open and your browser will open for sign-in. Use the same account as claude.ai.",
+      title: "Connect your Claude account",
+      desc: "A terminal will open and your browser will launch for sign-in. Use the same account as claude.ai.",
       action: "terminal",
-      actionLabel: "Sign in to Claude",
+      actionLabel: "Sign in",
       terminalCmd: "claude auth login\n",
     };
   }
   if (!deps.vaultConfigured) {
     return {
-      title: "Set up your vault",
+      title: "Prepare your notes for AI",
       desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
       action: "vault",
       actionLabel: "Set up vault",
@@ -197,8 +197,8 @@ function getMacSteps(deps: CCDeps): WizardStep | null {
 function getWindowsSteps(deps: CCDeps): WizardStep | null {
   if (!deps.wsl) {
     return {
-      title: "Install WSL",
-      desc: "Claude Code runs through Windows Subsystem for Linux (WSL). Open PowerShell as Administrator, run this command, and restart when prompted:",
+      title: "Enable Linux compatibility",
+      desc: "Claude Code runs on Linux. Open PowerShell as Administrator, run this command, then restart Windows when prompted:",
       action: "copy",
       actionLabel: "Copy",
       copyText: "wsl --install",
@@ -206,43 +206,43 @@ function getWindowsSteps(deps: CCDeps): WizardStep | null {
   }
   if (!deps.pythonInWsl) {
     return {
-      title: "Install Python",
-      desc: "Python 3 is required for Augment's terminal connection. A terminal will open and install Python inside WSL. You may be prompted for your WSL password.",
+      title: "Set up terminal support",
+      desc: "Augment needs a small helper script. A terminal will open and install it automatically. You may be prompted for your password.",
       action: "terminal",
-      actionLabel: "Install Python",
+      actionLabel: "Install",
       terminalCmd: "sudo apt update && sudo apt install -y python3\n",
     };
   }
   if (!deps.nodeInWsl) {
     return {
-      title: "Install Node.js",
-      desc: "Node.js is required to install Claude Code. A terminal will open and install Node.js inside WSL.",
+      title: "Install AI tools",
+      desc: "Node.js is needed to run Claude Code. A terminal will open and install it automatically.",
       action: "terminal",
-      actionLabel: "Install Node.js",
+      actionLabel: "Install",
       terminalCmd: "sudo apt update && sudo apt install -y nodejs npm\n",
     };
   }
   if (!deps.ccInWsl) {
     return {
-      title: "Install Claude Code",
-      desc: "A terminal will open and install Claude Code inside WSL.",
+      title: "Set up your AI assistant",
+      desc: "A terminal will open and install Claude Code automatically.",
       action: "terminal",
-      actionLabel: "Install Claude Code",
+      actionLabel: "Install",
       terminalCmd: "npm install -g @anthropic-ai/claude-code\n",
     };
   }
   if (!deps.authedInWsl) {
     return {
-      title: "Sign in to Claude",
-      desc: "A terminal will open and your browser will open for sign-in. Use the same account as claude.ai.",
+      title: "Connect your Claude account",
+      desc: "A terminal will open and your browser will launch for sign-in. Use the same account as claude.ai.",
       action: "terminal",
-      actionLabel: "Sign in to Claude",
+      actionLabel: "Sign in",
       terminalCmd: "claude auth login\n",
     };
   }
   if (!deps.vaultConfigured) {
     return {
-      title: "Set up your vault",
+      title: "Prepare your notes for AI",
       desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
       action: "vault",
       actionLabel: "Set up vault",
@@ -280,20 +280,20 @@ interface DepRow {
 }
 
 const MAC_DEP_ROWS: DepRow[] = [
-  { label: "Python 3",    done: d => d.python,          readyText: "ready",      pendingText: "\u2014" },
-  { label: "Node.js",     done: d => d.node,            readyText: "ready",      pendingText: "\u2014" },
-  { label: "Claude Code", done: d => d.cc,              readyText: "ready",      pendingText: "\u2014" },
-  { label: "Sign in",     done: d => d.authed,          readyText: "signed in",  pendingText: "\u2014" },
-  { label: "Vault",       done: d => d.vaultConfigured, readyText: "configured", pendingText: "\u2014" },
+  { label: "Terminal support", done: d => d.python,          readyText: "ready",      pendingText: "\u2014" },
+  { label: "Node.js",          done: d => d.node,            readyText: "ready",      pendingText: "\u2014" },
+  { label: "Claude Code",      done: d => d.cc,              readyText: "ready",      pendingText: "\u2014" },
+  { label: "Claude account",   done: d => d.authed,          readyText: "connected",  pendingText: "\u2014" },
+  { label: "Vault",            done: d => d.vaultConfigured, readyText: "ready",      pendingText: "\u2014" },
 ];
 
 const WINDOWS_DEP_ROWS: DepRow[] = [
-  { label: "WSL",         done: d => !!d.wsl,           readyText: "ready",      pendingText: "\u2014" },
-  { label: "Python 3",    done: d => !!d.pythonInWsl,   readyText: "ready",      pendingText: "\u2014" },
-  { label: "Node.js",     done: d => !!d.nodeInWsl,     readyText: "ready",      pendingText: "\u2014" },
-  { label: "Claude Code", done: d => !!d.ccInWsl,       readyText: "ready",      pendingText: "\u2014" },
-  { label: "Sign in",     done: d => !!d.authedInWsl,   readyText: "signed in",  pendingText: "\u2014" },
-  { label: "Vault",       done: d => d.vaultConfigured, readyText: "configured", pendingText: "\u2014" },
+  { label: "Linux environment", done: d => !!d.wsl,           readyText: "ready",     pendingText: "\u2014" },
+  { label: "Terminal support",  done: d => !!d.pythonInWsl,   readyText: "ready",     pendingText: "\u2014" },
+  { label: "Node.js",           done: d => !!d.nodeInWsl,     readyText: "ready",     pendingText: "\u2014" },
+  { label: "Claude Code",       done: d => !!d.ccInWsl,       readyText: "ready",     pendingText: "\u2014" },
+  { label: "Claude account",    done: d => !!d.authedInWsl,   readyText: "connected", pendingText: "\u2014" },
+  { label: "Vault",             done: d => d.vaultConfigured, readyText: "ready",     pendingText: "\u2014" },
 ];
 
 const TEMPLATE_SCAFFOLD = `---
@@ -1106,23 +1106,6 @@ export class AugmentSettingTab extends PluginSettingTab {
     const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
     advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
 
-    if (process.platform === "win32") {
-      new Setting(advancedDetails)
-        .setName("Run terminal via WSL")
-        .setDesc(
-          "Spawn the PTY bridge through WSL instead of native Python. Required on Windows. " +
-          "WSL must be installed with python3 available in the default distro."
-        )
-        .addToggle((toggle) => {
-          toggle
-            .setValue(this.plugin.settings.useWsl)
-            .onChange(async (value) => {
-              this.plugin.settings.useWsl = value;
-              await this.plugin.saveData(this.plugin.settings);
-            });
-        });
-    }
-
     new Setting(advancedDetails)
       .setName("Python path")
       .setDesc("Path to python3 binary for the PTY bridge. Leave blank to use system default.")
@@ -1191,15 +1174,17 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     }
 
-    // WSL doc link
-    const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
-    const wslLink = termFooter.createEl("a", {
-      cls: "augment-folder-open",
-      text: "WSL setup guide \u2197",
-      href: "https://github.com/mgmobrien/augment/blob/main/WSL.md",
-    });
-    wslLink.target = "_blank";
-    wslLink.rel = "noopener";
+    // WSL doc link (Windows only)
+    if (process.platform === "win32") {
+      const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
+      const wslLink = termFooter.createEl("a", {
+        cls: "augment-folder-open",
+        text: "WSL setup guide \u2197",
+        href: "https://github.com/mgmobrien/augment/blob/main/WSL.md",
+      });
+      wslLink.target = "_blank";
+      wslLink.rel = "noopener";
+    }
 
     // Filesystem rename notice
     terminalPane.createEl("p", {

@@ -1490,3 +1490,52 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
+
+/* ── Terminal error banner (Fix-it buttons) ──────────────────────────────── */
+.augment-terminal-error-banner {
+  padding: 10px 14px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.augment-terminal-error-msg {
+  font-size: 13px;
+  color: var(--text-normal);
+}
+.augment-terminal-error-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.augment-terminal-error-btn {
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--interactive-normal);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+}
+.augment-terminal-error-btn:hover {
+  background: var(--interactive-hover);
+}
+.augment-terminal-error-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+.augment-terminal-error-raw {
+  font-size: 11px;
+  font-family: var(--font-monospace);
+  color: var(--text-muted);
+  background: var(--background-primary);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
