@@ -5,6 +5,28 @@ import { assembleVaultContext, VaultContext } from "./vault-context";
 
 export const VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
 
+// Input/output price in USD per million tokens.
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-haiku-4-5-20251001": { input: 0.80,  output: 4.00  },
+  "claude-sonnet-4-6":         { input: 3.00,  output: 15.00 },
+  "claude-opus-4-6":           { input: 15.00, output: 75.00 },
+};
+const DEFAULT_PRICING = { input: 3.00, output: 15.00 }; // sonnet as fallback
+
+function estimateCost(inputTokens: number, modelId: string): number {
+  const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
+  const outputTokens = 1024; // max_tokens configured in generateText
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+}
+
+function formatCost(dollars: number): string {
+  if (dollars < 0.0001) return `$${dollars.toFixed(6)}`;
+  if (dollars < 0.001)  return `$${dollars.toFixed(5)}`;
+  if (dollars < 0.01)   return `$${dollars.toFixed(4)}`;
+  if (dollars < 0.10)   return `$${dollars.toFixed(3)}`;
+  return `$${dollars.toFixed(2)}`;
+}
+
 export class ContextInspectorView extends ItemView {
   private plugin: AugmentTerminalPlugin;
   private contentDiv!: HTMLElement;
@@ -82,7 +104,7 @@ export class ContextInspectorView extends ItemView {
     const sysTokens = this.estimateTokens(sysPromptText);
     totalTokens += sysTokens;
 
-    const sysDetails = sysSection.createEl("details");
+    const sysDetails = sysSection.createEl("details", { attr: { open: "" } });
     const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
     sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
     sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
@@ -191,6 +213,13 @@ export class ContextInspectorView extends ItemView {
     const totalHdr = totalSection.createEl("div", { cls: "augment-ctx-section-hdr" });
     totalHdr.createEl("span", { cls: "augment-ctx-section-label", text: "Total" });
     totalHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${totalTokens} tokens` });
+
+    const modelId = this.plugin.resolveModel();
+    const cost = estimateCost(totalTokens, modelId);
+    totalSection.createEl("div", {
+      cls: "augment-ctx-cost",
+      text: `~${formatCost(cost)} per generation (assumes ${1024}-token output)`,
+    });
   }
 
   async onClose(): Promise<void> {

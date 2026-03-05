@@ -448,6 +448,9 @@ export default class AugmentTerminalPlugin extends Plugin {
         const raw = await this.app.vault.adapter.read(hotkeyPath);
         hotkeys = JSON.parse(raw);
       } catch { /* file may not exist yet */ }
+      // Clear both — primary culprit is cycle-list-checklist (Toggle checkbox status),
+      // which uses Ctrl+Enter by default. open-link-in-new-leaf conflicts in some versions.
+      hotkeys["editor:cycle-list-checklist"] = [];
       hotkeys["editor:open-link-in-new-leaf"] = [];
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (this.app as any).hotkeyManager?.load?.();
@@ -463,6 +466,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       const hotkeyPath = ".obsidian/hotkeys.json";
       const raw = await this.app.vault.adapter.read(hotkeyPath);
       const hotkeys = JSON.parse(raw);
+      delete hotkeys["editor:cycle-list-checklist"];
       delete hotkeys["editor:open-link-in-new-leaf"];
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (this.app as any).hotkeyManager?.load?.();

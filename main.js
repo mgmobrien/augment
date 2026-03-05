@@ -17309,6 +17309,25 @@ function assembleVaultContext(app, editor, settings) {
 
 // src/context-inspector-view.ts
 var VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
+var MODEL_PRICING = {
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-opus-4-6": { input: 15, output: 75 }
+};
+var DEFAULT_PRICING = { input: 3, output: 15 };
+function estimateCost(inputTokens, modelId) {
+  var _a2;
+  const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+  const outputTokens = 1024;
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1e6;
+}
+function formatCost(dollars) {
+  if (dollars < 1e-4) return `$${dollars.toFixed(6)}`;
+  if (dollars < 1e-3) return `$${dollars.toFixed(5)}`;
+  if (dollars < 0.01) return `$${dollars.toFixed(4)}`;
+  if (dollars < 0.1) return `$${dollars.toFixed(3)}`;
+  return `$${dollars.toFixed(2)}`;
+}
 var ContextInspectorView = class extends import_obsidian2.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -17375,7 +17394,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || void 0);
     const sysTokens = this.estimateTokens(sysPromptText);
     totalTokens += sysTokens;
-    const sysDetails = sysSection.createEl("details");
+    const sysDetails = sysSection.createEl("details", { attr: { open: "" } });
     const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
     sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
     sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
@@ -17469,6 +17488,12 @@ ${ctx.surroundingContext}`;
     const totalHdr = totalSection.createEl("div", { cls: "augment-ctx-section-hdr" });
     totalHdr.createEl("span", { cls: "augment-ctx-section-label", text: "Total" });
     totalHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${totalTokens} tokens` });
+    const modelId = this.plugin.resolveModel();
+    const cost = estimateCost(totalTokens, modelId);
+    totalSection.createEl("div", {
+      cls: "augment-ctx-cost",
+      text: `~${formatCost(cost)} per generation (assumes ${1024}-token output)`
+    });
   }
   async onClose() {
     this.contentDiv.empty();
@@ -20321,6 +20346,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         hotkeys = JSON.parse(raw);
       } catch (e) {
       }
+      hotkeys["editor:cycle-list-checklist"] = [];
       hotkeys["editor:open-link-in-new-leaf"] = [];
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);
@@ -20336,6 +20362,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       const hotkeyPath = ".obsidian/hotkeys.json";
       const raw = await this.app.vault.adapter.read(hotkeyPath);
       const hotkeys = JSON.parse(raw);
+      delete hotkeys["editor:cycle-list-checklist"];
       delete hotkeys["editor:open-link-in-new-leaf"];
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);

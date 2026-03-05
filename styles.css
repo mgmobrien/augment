@@ -1320,6 +1320,11 @@
   font-style: italic;
   padding: 20px 0;
 }
+.augment-ctx-cost {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
 
 /* ── Hotkey override notice ── */
 .augment-hotkey-notice {
