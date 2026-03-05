@@ -127,86 +127,179 @@ Edit the file directly. Show what you changed.
     "stack-setup",
     `---
 name: stack-setup
-description: Set up or update the System 3 recommended vault configuration \u2014 idempotent, re-runnable
+description: Vault architect \u2014 assesses vault against S3 reference model, closes gaps
 ---
 
 # Stack setup
 
-You are running the System 3 stack setup skill. This is an opinionated, idempotent setup that configures the vault for the System 3 ecosystem (Augment + Claude Code + Relay). It can be re-run at any time to add missing pieces without breaking existing configuration.
+You are the System 3 vault architect. You know the target vault structure (the S3 reference model below) and your job is to: (1) scan the current vault, (2) compare it against the reference model, (3) close gaps by creating missing structure, and (4) report what you did.
 
-## What to configure
+This skill is idempotent. Running it twice produces the same result. It never deletes or overwrites existing content.
 
-Run through each section. For each item: check if it already exists, skip if configured, create or update if missing. Always tell the user what you did and what you skipped.
+## S3 reference model
 
-### 1. CLAUDE.md
+This is the target state for a System 3 vault. Not every vault needs every piece \u2014 adapt to the user's scale and domain. But this is what "fully configured" looks like.
 
-Check for CLAUDE.md at vault root. If missing, create it with:
-- A description of the vault ("This is my Obsidian vault.")
-- A section listing the templates folder path (read from Augment settings or default to Augment/templates)
-- A section noting that skills live in agents/skills/
-- Guidance on vault conventions: wikilinks, frontmatter, markdown files
+### Folder structure
 
-If it exists, read it \u2014 check whether the templates and skills sections are present. Add any missing sections at the end without modifying existing content.
+\`\`\`
+agents/                    # Canonical home for skills and parts
+  skills/                  # Agent skills (each skill = folder with SKILL.md)
+  parts/                   # Part workspaces (state + sessions)
+claude/                    # Claude Code config (CLAUDE.md, settings)
+  skills/ -> ../agents/skills/   # Symlink for CC working directory
+.claude/ -> claude/        # Symlink (CC expects .claude/)
+Daily Notes/               # Daily planning and reflection
+  YYYY Daily Notes/        # Year subfolders
+    YYYY-MM Daily Notes/   # Month subfolders within year
+Inbox/                     # Quick capture and processing
+z.Templates/               # Note templates
+  v2 templates/            # Current template generation
+Augment/                   # Augment plugin workspace
+  templates/               # Prompt templates for Augment
+\`\`\`
 
-### 2. Folder structure
+Optional domain folders (create based on user's needs):
+- Projects/ \u2014 project tracking
+- Meetings/ \u2014 meeting notes
+- Research/ \u2014 reference material and research
 
-Ensure these folders exist (create if missing, skip if present):
-- agents/skills/ \u2014 agent skills
-- Augment/templates/ \u2014 prompt templates (or whatever the configured template folder is)
-- Inbox/ \u2014 quick capture
+### CLAUDE.md
 
-### 3. Frontmatter conventions
+The vault root must have a CLAUDE.md (or claude/CLAUDE.md with .claude/ symlink). This is the AI instruction file. It should contain:
 
-Check the 5 most recently modified .md files. If none have frontmatter, inform the user that frontmatter helps Augment provide better context. Suggest a minimal convention:
+1. **Vault description**: what this vault is for
+2. **Folder map**: key directories and their purpose
+3. **Convention guidance**: wikilinks for internal links, frontmatter on all notes, sentence case for headings
+4. **Skills reference**: skills live at agents/skills/{name}/SKILL.md
+5. **Templates reference**: prompt templates location
+6. **Writing style**: any user-specific writing preferences
 
-    ---
-    type: note
-    tags: []
-    ---
+### Frontmatter conventions
 
-Do not add frontmatter to existing files \u2014 just recommend the convention.
+Every note should have frontmatter. The S3 standard fields:
 
-### 4. Context cradle \u2014 vault scan
+\`\`\`yaml
+---
+note created: YYYY-MM-DD Day        # Creation date with day-of-week
+note creators: []                    # Who created it (user name, [[Gus|model]])
+type: note                           # Note type (note, meeting, project, etc.)
+tags: []                             # Categorization tags
+aliases: []                          # Alternative names for wikilink resolution
+relatives: []                        # Structural links to related notes
+---
+\`\`\`
 
-Scan the vault to understand its shape. This informs the template generation step and the status report.
+Minimal starter convention (for vaults without existing frontmatter):
+\`\`\`yaml
+---
+type: note
+tags: []
+---
+\`\`\`
 
-1. **Folder survey**: list top-level folders (skip .obsidian, .trash). Note any that suggest domains (e.g., "Projects", "Meetings", "Journal", "Research").
-2. **Frontmatter survey**: sample 15\u201320 recent .md files. Collect unique \`type:\` values, common \`tags:\`, any recurring frontmatter keys. Note which patterns are consistent vs. ad-hoc.
-3. **Note type distribution**: count how many files use each \`type:\` value. Report the top 5.
-4. **Linking patterns**: check whether notes use wikilinks, markdown links, or both. Note if backlinks are common.
+### Skills
 
-Print a brief "vault profile" summary: folder structure, dominant note types, frontmatter conventions, linking style.
+Each skill is a folder under agents/skills/ containing a SKILL.md file:
 
-### 5. Template generation (System 3 account required)
+\`\`\`
+agents/skills/{skill-name}/SKILL.md
+\`\`\`
 
-**If the user has an active System 3 login** (check: does the Augment plugin settings file at \`.obsidian/plugins/augment-terminal/data.json\` contain a non-empty \`s3Token\` field?):
+SKILL.md frontmatter:
+\`\`\`yaml
+---
+name: skill-name
+description: What the skill does (one line)
+user_invocable: true                 # Shows in slash command picker
+---
+\`\`\`
 
-Based on the vault profile from step 4, generate 2\u20133 vault-tailored prompt templates. Each template should:
-- Address a recurring pattern in the user's vault (e.g., if many \`type: meeting\` notes exist, generate a meeting-specific template)
-- Use Handlebars variables: \`{{title}}\`, \`{{note_content}}\`, \`{{frontmatter.KEY}}\`, \`{{linked_notes}}\`
-- Include frontmatter with \`name:\`, \`description:\` (append " (generated from your vault)" to description), and optionally \`system_prompt:\`
+Body contains instructions for Claude Code when the skill is invoked.
 
-Write each template to the templates folder (default: Augment/templates/). Use descriptive filenames. Skip if a file with the same name already exists.
+### Symlink strategy
 
-**If no System 3 login**: skip template generation. Instead, report the vault profile from step 4 and suggest 2\u20133 template ideas the user could create manually. Explain what each would do and which variables to use.
+The vault uses symlinks so that Claude Code's expected paths (.claude/) and the vault's canonical paths (agents/, claude/) both work:
 
-### 6. Template inventory
+- \`.claude/\` \u2192 \`claude/\` (CC config)
+- \`claude/skills/\` \u2192 \`../agents/skills/\` (skills accessible from CC working dir)
 
-List all templates in the configured template folder (including any just generated). If fewer than 2 exist, mention that the user can create more with "+ New template" in Settings \u2192 Templates.
+Create these symlinks if missing. On Windows, skip symlinks and document the paths in CLAUDE.md instead.
 
-### 7. Status report
+### Daily notes
 
-At the end, print a summary:
-- What was created
-- What was already configured (skipped)
-- Suggested next steps (e.g., "Try Mod+Enter in any note" or "Run /meeting-summary on a transcript")
+Daily notes use the format: \`YYYY-MM-DD Day.md\` (e.g., \`2026-03-04 Tue.md\`)
+Stored in: \`Daily Notes/YYYY Daily Notes/YYYY-MM Daily Notes/\`
+
+If the user has a different daily note convention, document it in CLAUDE.md rather than changing it.
+
+### Linking conventions
+
+- **Internal links**: wikilinks (\`[[Note name]]\`), not markdown links
+- **Heading style**: sentence case, not Title Case
+- **Log entries in daily notes**: collapsed callouts (\`> [!ai]- Summary\`)
+- **Log entries in other notes**: H3 headings with timestamp
+
+## Execution
+
+### Phase 1: Vault scan
+
+Scan the vault to understand its current state. Collect:
+
+1. **Top-level folders** (skip .obsidian, .trash, .git)
+2. **Frontmatter survey**: sample 15\u201320 recent .md files. Collect type values, common tags, recurring keys, consistency level
+3. **Note count and type distribution**: top 5 types by count
+4. **Linking style**: wikilinks vs markdown links vs mixed
+5. **Existing config**: does CLAUDE.md exist? agents/ folder? symlinks? daily notes pattern?
+
+### Phase 2: Gap assessment
+
+Compare the scan results against the S3 reference model. For each component, classify as:
+- **Present**: matches reference model
+- **Partial**: exists but incomplete
+- **Missing**: not present
+- **Divergent**: exists but follows a different convention (do not change \u2014 document)
+
+Print the gap assessment as a checklist.
+
+### Phase 3: Close gaps
+
+For each missing or partial item, take action:
+
+1. **CLAUDE.md**: create if missing, or append missing sections to existing file. Never modify existing content.
+2. **Folder structure**: create missing folders (agents/skills/, Augment/templates/, Inbox/, etc.)
+3. **Symlinks**: create .claude/ \u2192 claude/ and claude/skills/ \u2192 ../agents/skills/ if missing
+4. **Frontmatter guidance**: if fewer than half of sampled notes have frontmatter, add a "Frontmatter conventions" section to CLAUDE.md with the recommended pattern. Do not modify existing notes.
+5. **Starter skills**: if agents/skills/ is empty, the Augment plugin will scaffold default skills on next reload. Note this in the report.
+
+For divergent items: do not change them. Document the user's convention in CLAUDE.md so the AI respects it.
+
+### Phase 4: Template generation (System 3 account required)
+
+Check \`.obsidian/plugins/augment-terminal/data.json\` for a non-empty \`s3Token\` field.
+
+**If S3 login exists**: generate 2\u20133 prompt templates tailored to the vault profile. Each template:
+- Addresses a pattern found in the scan (e.g., many meeting notes \u2192 meeting template)
+- Uses Handlebars variables: \`{{title}}\`, \`{{note_content}}\`, \`{{frontmatter.KEY}}\`, \`{{linked_notes}}\`
+- Has frontmatter: \`name:\`, \`description:\` (append " (generated)"), optionally \`system_prompt:\`
+- Written to the templates folder. Skip if same-name file exists.
+
+**If no S3 login**: suggest 2\u20133 template ideas the user could create. Explain purpose and variables.
+
+### Phase 5: Status report
+
+Print a summary with four sections:
+1. **Created**: what was added
+2. **Skipped**: what was already configured
+3. **Documented**: divergent conventions recorded in CLAUDE.md
+4. **Next steps**: actionable suggestions (e.g., "Try Mod+Enter in any note", "Run /meeting-summary on a transcript", "Add frontmatter to your most-used notes")
 
 ## Principles
 
-- **Idempotent**: running twice produces the same result. Never duplicate content.
+- **Idempotent**: running twice produces the same result. Never duplicate.
 - **Non-destructive**: never delete or overwrite existing files or content.
-- **Opinionated but transparent**: make recommendations, explain why, let the user override later.
-- **Fast**: this should take under 30 seconds. Do not do unnecessary work.
+- **Respect divergence**: if the user's convention differs from S3, document it \u2014 don't fight it.
+- **Fast**: under 30 seconds. Do not do unnecessary work.
 `,
   ],
 ];
