@@ -15,6 +15,7 @@ export interface AugmentSettings {
   setupCardDismissed: boolean;
   hasGenerated: boolean;
   hasUsedTemplate: boolean;
+  hasSeenWelcome: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   setupCardDismissed: false,
   hasGenerated: false,
   hasUsedTemplate: false,
+  hasSeenWelcome: false,
 };
 
 export interface LinkedNoteSummary {

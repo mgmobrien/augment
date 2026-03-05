@@ -161,6 +161,83 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
   }
 
+  private triggerGenerate(editor: Editor): void {
+    const cursor = editor.getCursor();
+    const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
+    const promptText = aboveCursor.trim() || editor.getValue().trim();
+    const ctx = assembleVaultContext(this.app, editor, this.settings);
+
+    if (this.statusBarEl) {
+      this.statusBarEl.empty();
+      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      this.statusBarEl.createEl("span", { text: " generating" });
+    }
+
+    const isBlock = this.settings.outputFormat !== "plain";
+    let insertPos: number;
+    if (isBlock && cursor.ch > 0) {
+      editor.replaceRange("\n", cursor);
+      insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+    } else {
+      insertPos = editor.posToOffset(cursor);
+    }
+
+    const cmView = (editor as any).cm as EditorView;
+    cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
+
+    void (async () => {
+      try {
+        const resolvedModel = this.resolveModel();
+        const resolvedModelName = this.resolveModelDisplayName();
+        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
+        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+        const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
+        const insertPosLine = editor.offsetToPos(insertPos);
+        if (isBlock) {
+          const withTrail = formatted + "\n";
+          editor.replaceRange(withTrail, insertPosLine);
+          const lines = withTrail.split("\n");
+          editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+        } else {
+          editor.replaceRange(formatted, insertPosLine);
+        }
+        const entry: ContextEntry = {
+          timestamp: Date.now(),
+          noteName: ctx.title,
+          model: resolvedModelName,
+          systemPrompt: buildSystemPrompt(ctx),
+          userMessage: buildUserMessage(ctx, promptText),
+        };
+        this.pushContextHistory(entry);
+        const notice = new Notice("", 5000);
+        notice.noticeEl.empty();
+        notice.noticeEl.createEl("span", { text: "Augment: done" });
+        notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \u00b7 " });
+        const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
+        viewLink.href = "#";
+        viewLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          notice.hide();
+          new ContextInspectorModal(this.app, ctx).open();
+        });
+        if (!this.settings.hasGenerated) {
+          this.settings.hasGenerated = true;
+          await this.saveData(this.settings);
+        }
+      } catch (err) {
+        console.error("[Augment]", err);
+        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+        new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        this.refreshStatusBar();
+      }
+    })();
+  }
+
   private pushContextHistory(entry: ContextEntry): void {
     this.contextHistory.push(entry);
     if (this.contextHistory.length > 5) this.contextHistory.shift();
@@ -240,81 +317,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           });
           return;
         }
-
-        const cursor = editor.getCursor();
-        const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
-        const promptText = aboveCursor.trim() || editor.getValue().trim();
-        const ctx = assembleVaultContext(this.app, editor, this.settings);
-
-        if (this.statusBarEl) {
-          this.statusBarEl.empty();
-          const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-          this.statusBarEl.createEl("span", { text: " generating" });
-        }
-
-        const isBlock = this.settings.outputFormat !== "plain";
-        let insertPos: number;
-        if (isBlock && cursor.ch > 0) {
-          editor.replaceRange("\n", cursor);
-          insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
-        } else {
-          insertPos = editor.posToOffset(cursor);
-        }
-
-        const cmView = (editor as any).cm as EditorView;
-        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
-
-        void (async () => {
-          try {
-            const resolvedModel = this.resolveModel();
-            const resolvedModelName = this.resolveModelDisplayName();
-            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
-            cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-            const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-            const insertPosLine = editor.offsetToPos(insertPos);
-            if (isBlock) {
-              const withTrail = formatted + "\n";
-              editor.replaceRange(withTrail, insertPosLine);
-              const lines = withTrail.split("\n");
-              editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
-            } else {
-              editor.replaceRange(formatted, insertPosLine);
-            }
-            const entry: ContextEntry = {
-              timestamp: Date.now(),
-              noteName: ctx.title,
-              model: resolvedModelName,
-              systemPrompt: buildSystemPrompt(ctx),
-              userMessage: buildUserMessage(ctx, promptText),
-            };
-            this.pushContextHistory(entry);
-            const notice = new Notice("", 5000);
-            notice.noticeEl.empty();
-            notice.noticeEl.createEl("span", { text: "Augment: done" });
-            notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \u00b7 " });
-            const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
-            viewLink.href = "#";
-            viewLink.addEventListener("click", (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              notice.hide();
-              new ContextInspectorModal(this.app, ctx).open();
-            });
-            if (!this.settings.hasGenerated) {
-              this.settings.hasGenerated = true;
-              await this.saveData(this.settings);
-            }
-          } catch (err) {
-            console.error("[Augment]", err);
-            cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-            new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
-          } finally {
-            this.refreshStatusBar();
-          }
-        })();
+        this.triggerGenerate(editor);
       },
     });
 
@@ -493,9 +496,39 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
     this.refreshStatusBar();
 
+    // First-load welcome notice — shown once, only when not yet configured
+    if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
+      this.settings.hasSeenWelcome = true;
+      void this.saveData(this.settings);
+      const notice = new Notice("", 8000);
+      notice.noticeEl.empty();
+      notice.noticeEl.createEl("span", { text: "Augment installed \u2014 add your API key to start generating. " });
+      const setupLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "Set up \u2192" });
+      setupLink.href = "#";
+      setupLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        notice.hide();
+        (this.app as any).setting.open();
+        (this.app as any).setting.openTabById("augment-terminal");
+      });
+    }
+
     // Right-click context menu
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
+        if (!this.settings.apiKey) {
+          menu.addItem((item) => {
+            item
+              .setTitle("Augment: add API key to get started \u2192")
+              .setIcon("wand-2")
+              .onClick(() => {
+                (this.app as any).setting.open();
+                (this.app as any).setting.openTabById("augment-terminal");
+              });
+          });
+          return;
+        }
         menu.addItem((item) => {
           item
             .setTitle("Augment: Generate")
@@ -515,10 +548,19 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon — radio-tower, opens settings
-    this.addRibbonIcon("radio-tower", "Augment", () => {
-      (this.app as any).setting.open();
-      (this.app as any).setting.openTabById("augment-terminal");
+    // Ribbon — generate if configured, otherwise open settings
+    this.addRibbonIcon("radio-tower", "Augment: generate AI text in current note", () => {
+      if (!this.settings.apiKey) {
+        (this.app as any).setting.open();
+        (this.app as any).setting.openTabById("augment-terminal");
+        return;
+      }
+      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!view) {
+        new Notice("Open a note to generate");
+        return;
+      }
+      this.triggerGenerate(view.editor);
     });
 
     // Add ribbon icon

@@ -11447,7 +11447,8 @@ var DEFAULT_SETTINGS = {
   useWsl: false,
   setupCardDismissed: false,
   hasGenerated: false,
-  hasUsedTemplate: false
+  hasUsedTemplate: false,
+  hasSeenWelcome: false
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -13189,6 +13190,78 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
   }
+  triggerGenerate(editor) {
+    const cursor = editor.getCursor();
+    const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
+    const promptText = aboveCursor.trim() || editor.getValue().trim();
+    const ctx = assembleVaultContext(this.app, editor, this.settings);
+    if (this.statusBarEl) {
+      this.statusBarEl.empty();
+      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      this.statusBarEl.createEl("span", { text: " generating" });
+    }
+    const isBlock = this.settings.outputFormat !== "plain";
+    let insertPos;
+    if (isBlock && cursor.ch > 0) {
+      editor.replaceRange("\n", cursor);
+      insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+    } else {
+      insertPos = editor.posToOffset(cursor);
+    }
+    const cmView = editor.cm;
+    cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+    void (async () => {
+      try {
+        const resolvedModel = this.resolveModel();
+        const resolvedModelName = this.resolveModelDisplayName();
+        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
+        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+        const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
+        const insertPosLine = editor.offsetToPos(insertPos);
+        if (isBlock) {
+          const withTrail = formatted + "\n";
+          editor.replaceRange(withTrail, insertPosLine);
+          const lines = withTrail.split("\n");
+          editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+        } else {
+          editor.replaceRange(formatted, insertPosLine);
+        }
+        const entry = {
+          timestamp: Date.now(),
+          noteName: ctx.title,
+          model: resolvedModelName,
+          systemPrompt: buildSystemPrompt(ctx),
+          userMessage: buildUserMessage(ctx, promptText)
+        };
+        this.pushContextHistory(entry);
+        const notice = new import_obsidian7.Notice("", 5e3);
+        notice.noticeEl.empty();
+        notice.noticeEl.createEl("span", { text: "Augment: done" });
+        notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
+        const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
+        viewLink.href = "#";
+        viewLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          notice.hide();
+          new ContextInspectorModal(this.app, ctx).open();
+        });
+        if (!this.settings.hasGenerated) {
+          this.settings.hasGenerated = true;
+          await this.saveData(this.settings);
+        }
+      } catch (err) {
+        console.error("[Augment]", err);
+        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+        new import_obsidian7.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        this.refreshStatusBar();
+      }
+    })();
+  }
   pushContextHistory(entry) {
     this.contextHistory.push(entry);
     if (this.contextHistory.length > 5) this.contextHistory.shift();
@@ -13252,76 +13325,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
           });
           return;
         }
-        const cursor = editor.getCursor();
-        const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
-        const promptText = aboveCursor.trim() || editor.getValue().trim();
-        const ctx = assembleVaultContext(this.app, editor, this.settings);
-        if (this.statusBarEl) {
-          this.statusBarEl.empty();
-          const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-          sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-          this.statusBarEl.createEl("span", { text: " generating" });
-        }
-        const isBlock = this.settings.outputFormat !== "plain";
-        let insertPos;
-        if (isBlock && cursor.ch > 0) {
-          editor.replaceRange("\n", cursor);
-          insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
-        } else {
-          insertPos = editor.posToOffset(cursor);
-        }
-        const cmView = editor.cm;
-        cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
-        void (async () => {
-          try {
-            const resolvedModel = this.resolveModel();
-            const resolvedModelName = this.resolveModelDisplayName();
-            const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
-            cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-            const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-            const insertPosLine = editor.offsetToPos(insertPos);
-            if (isBlock) {
-              const withTrail = formatted + "\n";
-              editor.replaceRange(withTrail, insertPosLine);
-              const lines = withTrail.split("\n");
-              editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
-            } else {
-              editor.replaceRange(formatted, insertPosLine);
-            }
-            const entry = {
-              timestamp: Date.now(),
-              noteName: ctx.title,
-              model: resolvedModelName,
-              systemPrompt: buildSystemPrompt(ctx),
-              userMessage: buildUserMessage(ctx, promptText)
-            };
-            this.pushContextHistory(entry);
-            const notice = new import_obsidian7.Notice("", 5e3);
-            notice.noticeEl.empty();
-            notice.noticeEl.createEl("span", { text: "Augment: done" });
-            notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
-            const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
-            viewLink.href = "#";
-            viewLink.addEventListener("click", (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              notice.hide();
-              new ContextInspectorModal(this.app, ctx).open();
-            });
-            if (!this.settings.hasGenerated) {
-              this.settings.hasGenerated = true;
-              await this.saveData(this.settings);
-            }
-          } catch (err) {
-            console.error("[Augment]", err);
-            cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-            new import_obsidian7.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
-          } finally {
-            this.refreshStatusBar();
-          }
-        })();
+        this.triggerGenerate(editor);
       }
     });
     this.addCommand({
@@ -13488,8 +13492,33 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
       this.app.setting.openTabById("augment-terminal");
     });
     this.refreshStatusBar();
+    if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
+      this.settings.hasSeenWelcome = true;
+      void this.saveData(this.settings);
+      const notice = new import_obsidian7.Notice("", 8e3);
+      notice.noticeEl.empty();
+      notice.noticeEl.createEl("span", { text: "Augment installed \u2014 add your API key to start generating. " });
+      const setupLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "Set up \u2192" });
+      setupLink.href = "#";
+      setupLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        notice.hide();
+        this.app.setting.open();
+        this.app.setting.openTabById("augment-terminal");
+      });
+    }
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
+        if (!this.settings.apiKey) {
+          menu.addItem((item) => {
+            item.setTitle("Augment: add API key to get started \u2192").setIcon("wand-2").onClick(() => {
+              this.app.setting.open();
+              this.app.setting.openTabById("augment-terminal");
+            });
+          });
+          return;
+        }
         menu.addItem((item) => {
           item.setTitle("Augment: Generate").setIcon("wand-2").onClick(() => {
             this.app.commands.executeCommandById("augment-terminal:augment-generate");
@@ -13502,9 +13531,18 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
         });
       })
     );
-    this.addRibbonIcon("radio-tower", "Augment", () => {
-      this.app.setting.open();
-      this.app.setting.openTabById("augment-terminal");
+    this.addRibbonIcon("radio-tower", "Augment: generate AI text in current note", () => {
+      if (!this.settings.apiKey) {
+        this.app.setting.open();
+        this.app.setting.openTabById("augment-terminal");
+        return;
+      }
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian7.MarkdownView);
+      if (!view) {
+        new import_obsidian7.Notice("Open a note to generate");
+        return;
+      }
+      this.triggerGenerate(view.editor);
     });
     this.addRibbonIcon("terminal", "Open terminal", () => {
       this.openTerminal();
