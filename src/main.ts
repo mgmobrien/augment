@@ -920,16 +920,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
 
-    // If clearedLinkHotkey was set on Mac by an older build (before the darwin guard existed),
-    // auto-restore the hotkeys and reset the flag.
-    if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
-      void this.restoreObsidianLinkHotkey();
-    }
-
-    // On Windows/Linux, auto-clear Obsidian's conflicting Ctrl+Enter default on first install,
-    // then fire a Notice so the user knows what changed and can restore if needed.
-    if (!this.settings.clearedLinkHotkey && process.platform !== "darwin") {
-      void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
+    // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults on every load (idempotent).
+    // Cmd+Enter conflicts on all platforms (Mac: open-link-in-new-leaf, checklist toggle;
+    // also Text Generator bindings that persist even when TG is disabled).
+    // Show notice only on first clear.
+    {
+      const isFirst = !this.settings.clearedLinkHotkey;
+      void this.clearObsidianLinkHotkey().then(() => {
+        if (isFirst) this.showHotkeyClaimedNotice();
+      });
     }
 
     // Scaffold defaults on first install (fire-and-forget — doesn't block onload).

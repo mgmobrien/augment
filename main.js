@@ -21701,11 +21701,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       delete raw["s3Email"];
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
-    if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
-      void this.restoreObsidianLinkHotkey();
-    }
-    if (!this.settings.clearedLinkHotkey && process.platform !== "darwin") {
-      void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
+    {
+      const isFirst = !this.settings.clearedLinkHotkey;
+      void this.clearObsidianLinkHotkey().then(() => {
+        if (isFirst) this.showHotkeyClaimedNotice();
+      });
     }
     void this.scaffoldDefaultTemplates();
     void this.scaffoldDefaultSkills();
