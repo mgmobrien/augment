@@ -44,17 +44,13 @@ The wizard shows only the next missing step and advances as each is resolved. On
 
 ## Updating
 
-`main.js` is pre-built in the repo. Getting an update is a git pull plus a file copy — no build step.
+Download the latest zip from the [releases page](https://github.com/mgmobrien/augment/releases):
 
-**Windows** — run the included updater script once per update:
+1. Download `augment-{version}.zip`
+2. Extract `main.js`, `manifest.json`, `styles.css` into your vault at `.obsidian/plugins/augment-terminal/`
+3. In Obsidian: Settings → Community plugins → toggle Augment off and back on
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\update-windows.ps1
-```
-
-On first run it asks for your vault path and saves it to `scripts\update.cfg` (not committed). Subsequent runs use the saved path. After it completes, toggle the plugin off and on in Obsidian to reload it.
-
-**macOS/Linux:**
+**macOS/Linux (if cloned):**
 
 ```bash
 git pull && bash scripts/deploy.sh
