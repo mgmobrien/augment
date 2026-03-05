@@ -18543,17 +18543,12 @@ var import_addon_web_links = __toESM(require_addon_web_links());
 // src/pty-bridge.ts
 var import_child_process2 = require("child_process");
 var import_path8 = require("path");
-function toWslPath(winPath) {
-  return winPath.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, "/");
-}
 var PtyBridge = class {
   constructor(opts) {
     this.process = null;
     this.controlStream = null;
     this.pluginDir = opts.pluginDir;
     this.cwd = opts.cwd;
-    this.useWsl = opts.useWsl;
-    this.pythonPath = opts.pythonPath || "";
     this.shellPath = opts.shellPath || "";
     this.onData = opts.onData;
     this.onExit = opts.onExit;
@@ -18561,32 +18556,20 @@ var PtyBridge = class {
   }
   start() {
     var _a2, _b, _c, _d;
-    const ptyScript = (0, import_path8.join)(this.pluginDir, "scripts", "terminal_pty.py");
-    const python = this.pythonPath || "python3";
-    let cmd;
-    let args;
-    if (this.useWsl && process.platform === "win32") {
-      const wslScript = toWslPath(ptyScript);
-      cmd = "wsl";
-      args = [python, wslScript];
-    } else {
-      cmd = python;
-      args = [ptyScript];
-    }
+    const platform = process.platform;
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
+    const binaryPath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
     const env = {
       ...process.env,
       TERM: "xterm-256color",
-      LANG: process.env.LANG || "en_US.UTF-8"
+      LANG: process.env.LANG || "en_US.UTF-8",
+      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "cmd.exe" : "bash"),
+      AUGMENT_CWD: this.cwd
     };
-    if (this.shellPath) {
-      env.SHELL = this.shellPath;
-    }
-    this.process = (0, import_child_process2.spawn)(cmd, args, {
+    this.process = (0, import_child_process2.spawn)(binaryPath, [], {
       cwd: this.cwd,
       env,
-      // stdio tuple: [stdin, stdout, stderr, fd-3-control-channel]
-      // fd 3 is a writable pipe that carries out-of-band control messages
-      // (resize commands) without polluting the terminal data stream.
       stdio: ["pipe", "pipe", "pipe", "pipe"]
     });
     this.controlStream = this.process.stdio[3];
@@ -19190,10 +19173,6 @@ var TerminalView = class extends import_obsidian5.ItemView {
       );
     }
     this.startPtyBridge();
-    this.terminal.onData((data) => {
-      var _a2;
-      (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
-    });
     this.terminal.onData((data) => {
       var _a2;
       (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);

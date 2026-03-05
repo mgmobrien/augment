@@ -410,11 +410,6 @@ export class TerminalView extends ItemView {
       this.ptyBridge?.write(data);
     });
 
-    // Terminal input → PTY.
-    this.terminal.onData((data) => {
-      this.ptyBridge?.write(data);
-    });
-
     // Handle resize — the ResizeObserver fires once the container has
     // its final dimensions, which also handles the initial fit.
     this.resizeObserver = new ResizeObserver(() => {
