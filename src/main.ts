@@ -341,7 +341,11 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     this.registerEditorExtension([spinnerField, agentWidgetField]);
-    this.registerEditorSuggest(new AgentSuggest(this.app));
+    const agentSuggest = new AgentSuggest(this.app);
+    this.registerEditorSuggest(agentSuggest);
+    this.registerEvent(
+      this.app.metadataCache.on("resolved", () => agentSuggest.reload())
+    );
 
     // AI generation commands
     this.addCommand({
