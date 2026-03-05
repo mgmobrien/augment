@@ -1147,8 +1147,75 @@
   margin-bottom: 8px;
 }
 
-/* CC detection section in Terminal tab */
-.augment-cc-status { margin-bottom: 16px; }
+/* ── Setup wizard card (Terminal tab) ── */
+.augment-setup-card {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.augment-setup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.augment-setup-title {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.augment-setup-step-count {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.augment-setup-body {
+  font-size: var(--font-small);
+}
+
+.augment-setup-step-title {
+  font-weight: var(--font-semibold);
+  margin-bottom: 4px;
+}
+
+.augment-setup-step-desc {
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.augment-setup-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.augment-wsl-command {
+  display: block;
+  background: var(--background-modifier-code);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  margin: 6px 0 4px;
+  user-select: all;
+}
+
+.augment-cc-ready {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-small);
+  padding: 2px 0;
+}
 
 .augment-cc-status-row {
   display: flex;
@@ -1162,17 +1229,10 @@
 .augment-cc-fail { color: var(--color-red); }
 .augment-cc-muted { color: var(--text-muted); font-size: var(--font-smaller); }
 
-.augment-cc-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 .augment-cc-recheck {
   font-size: var(--font-smaller);
   color: var(--text-faint);
-  margin-top: 8px;
+  margin-top: 10px;
 }
 .augment-cc-recheck a {
   color: var(--text-faint);
