@@ -11998,7 +11998,7 @@ __export(main_exports, {
   default: () => AugmentTerminalPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f) {
@@ -21110,6 +21110,48 @@ function refreshTeamSkills(projectRoot) {
   return { created: updated, skipped: [] };
 }
 
+// src/skill-picker.ts
+var import_obsidian8 = require("obsidian");
+var SKILLS_FOLDER = "agents/skills";
+function scanSkillsForType(app, noteType) {
+  var _a2, _b;
+  const folder = app.vault.getAbstractFileByPath(SKILLS_FOLDER);
+  if (!folder || !(folder instanceof import_obsidian8.TFolder)) return [];
+  const results = [];
+  for (const child of folder.children) {
+    if (!(child instanceof import_obsidian8.TFolder)) continue;
+    const skillFile = app.vault.getAbstractFileByPath(`${child.path}/SKILL.md`);
+    if (!skillFile || !(skillFile instanceof import_obsidian8.TFile)) continue;
+    const fm = (_a2 = app.metadataCache.getFileCache(skillFile)) == null ? void 0 : _a2.frontmatter;
+    if (!(fm == null ? void 0 : fm.name) || !(fm == null ? void 0 : fm.note_types)) continue;
+    const noteTypes = Array.isArray(fm.note_types) ? fm.note_types.map(String) : [String(fm.note_types)];
+    if (!noteTypes.includes(noteType)) continue;
+    results.push({
+      name: String(fm.name),
+      description: String((_b = fm.description) != null ? _b : ""),
+      noteTypes
+    });
+  }
+  return results;
+}
+var SkillPickerModal = class extends import_obsidian8.FuzzySuggestModal {
+  constructor(app, skills, onChoose) {
+    super(app);
+    this.skills = skills;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Select a skill to run on this note\u2026");
+  }
+  getItems() {
+    return this.skills;
+  }
+  getItemText(skill) {
+    return skill.description ? `${skill.name} \u2014 ${skill.description}` : skill.name;
+  }
+  onChooseItem(skill) {
+    this.onChoose(skill);
+  }
+};
+
 // src/main.ts
 var import_view = require("@codemirror/view");
 var import_state = require("@codemirror/state");
@@ -21160,6 +21202,7 @@ var SCAFFOLD_SKILLS = [
     `---
 name: meeting-summary
 description: Summarise a meeting transcript or rough notes into structured output
+note_types: [meeting-transcript, transcript]
 ---
 
 # Meeting summary
@@ -21504,7 +21547,7 @@ var agentWidgetField = import_state.StateField.define({
   },
   provide: (f) => import_view.EditorView.decorations.from(f)
 });
-var RenameModal = class extends import_obsidian8.Modal {
+var RenameModal = class extends import_obsidian9.Modal {
   constructor(app, view) {
     super(app);
     this.view = view;
@@ -21513,7 +21556,7 @@ var RenameModal = class extends import_obsidian8.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h3", { text: "Rename terminal" });
-    new import_obsidian8.Setting(contentEl).setName("Name").addText((text) => {
+    new import_obsidian9.Setting(contentEl).setName("Name").addText((text) => {
       text.setValue(this.newName);
       text.onChange((value) => {
         this.newName = value;
@@ -21528,7 +21571,7 @@ var RenameModal = class extends import_obsidian8.Modal {
         text.inputEl.select();
       }, 10);
     });
-    new import_obsidian8.Setting(contentEl).addButton((btn) => {
+    new import_obsidian9.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Rename").setCta().onClick(() => this.submit());
     });
   }
@@ -21543,7 +21586,7 @@ var RenameModal = class extends import_obsidian8.Modal {
     this.contentEl.empty();
   }
 };
-var InitTeamModal = class extends import_obsidian8.Modal {
+var InitTeamModal = class extends import_obsidian9.Modal {
   constructor(app, refreshOnly) {
     super(app);
     this.projectPath = "";
@@ -21558,7 +21601,7 @@ var InitTeamModal = class extends import_obsidian8.Modal {
       text: desc,
       cls: "setting-item-description"
     });
-    new import_obsidian8.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
+    new import_obsidian9.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
       text.setPlaceholder("/Users/you/Development/my-project");
       text.onChange((value) => {
         this.projectPath = value;
@@ -21569,38 +21612,38 @@ var InitTeamModal = class extends import_obsidian8.Modal {
       });
       setTimeout(() => text.inputEl.focus(), 10);
     });
-    new import_obsidian8.Setting(contentEl).addButton((btn) => {
+    new import_obsidian9.Setting(contentEl).addButton((btn) => {
       btn.setButtonText(this.refreshOnly ? "Refresh skills" : "Init team").setCta().onClick(() => this.submit());
     });
   }
   submit() {
     const root = this.projectPath.trim();
     if (!root) {
-      new import_obsidian8.Notice("Project path is required.");
+      new import_obsidian9.Notice("Project path is required.");
       return;
     }
     try {
       const fs3 = require("fs");
       if (!fs3.existsSync(root)) {
-        new import_obsidian8.Notice(`Directory not found: ${root}`);
+        new import_obsidian9.Notice(`Directory not found: ${root}`);
         return;
       }
       let result;
       if (this.refreshOnly) {
         const partsDir = require("path").join(root, ".parts");
         if (!fs3.existsSync(partsDir)) {
-          new import_obsidian8.Notice("No .parts/ directory found. Run Init team first.");
+          new import_obsidian9.Notice("No .parts/ directory found. Run Init team first.");
           return;
         }
         result = refreshTeamSkills(root);
-        new import_obsidian8.Notice(`Refreshed ${result.created.length} skill files.`);
+        new import_obsidian9.Notice(`Refreshed ${result.created.length} skill files.`);
       } else {
         result = scaffoldTeam(root);
         const msg = result.created.length > 0 ? `Created ${result.created.length} files. ${result.skipped.length} skipped (already exist).` : "Everything already exists \u2014 nothing to do.";
-        new import_obsidian8.Notice(msg);
+        new import_obsidian9.Notice(msg);
       }
     } catch (err) {
-      new import_obsidian8.Notice(`Error: ${err.message}`);
+      new import_obsidian9.Notice(`Error: ${err.message}`);
       console.error("init-team error:", err);
     }
     this.close();
@@ -21676,7 +21719,7 @@ Augment can host Claude Code agent sessions in a panel alongside your notes. Eac
 *This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette \u2192 \`Augment: Open welcome\`.*
 `;
 }
-var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
+var AugmentTerminalPlugin = class extends import_obsidian9.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
@@ -21719,7 +21762,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.activeGeneration = null;
     this.refreshStatusBar();
     console.log("[Augment] generation cancelled");
-    new import_obsidian8.Notice("Augment: generation cancelled");
+    new import_obsidian9.Notice("Augment: generation cancelled");
   }
   triggerGenerate(editor) {
     const cursor = editor.getCursor();
@@ -21735,7 +21778,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       this.statusBarEl.createEl("span", { text: " generating" });
     }
     if (this.settings.showGenerationToast) {
-      new import_obsidian8.Notice("Generating\u2026", 3e3);
+      new import_obsidian9.Notice("Generating\u2026", 3e3);
     }
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;
@@ -21776,7 +21819,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         };
         this.pushContextHistory(entry);
         console.log("[Augment] generation done");
-        const notice = new import_obsidian8.Notice("", 5e3);
+        const notice = new import_obsidian9.Notice("", 5e3);
         notice.noticeEl.empty();
         notice.noticeEl.createEl("span", { text: "Augment: done" });
         notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -21801,7 +21844,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
-        new import_obsidian8.Notice(`Augment: ${errMsg}`);
+        new import_obsidian9.Notice(`Augment: ${errMsg}`);
       } finally {
         this.refreshStatusBar();
       }
@@ -21870,7 +21913,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     }
   }
   showHotkeyClaimedNotice() {
-    const notice = new import_obsidian8.Notice("", 0);
+    const notice = new import_obsidian9.Notice("", 0);
     notice.noticeEl.empty();
     notice.noticeEl.createEl("span", { text: "Augment claimed Ctrl+Enter \u2014 " });
     const link = notice.noticeEl.createEl("a", { text: "Restore Obsidian\u2019s default", href: "#" });
@@ -22007,15 +22050,15 @@ ${excerpt}`,
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate");
-          new import_obsidian8.Notice("Open a note to generate");
+          new import_obsidian9.Notice("Open a note to generate");
           return;
         }
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian9.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -22032,16 +22075,16 @@ ${excerpt}`,
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate-from-template");
-          new import_obsidian8.Notice("Open a note to generate");
+          new import_obsidian9.Notice("Open a note to generate");
           return;
         }
         const editor = view.editor;
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian9.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -22052,7 +22095,7 @@ ${excerpt}`,
         }
         if (!this.settings.templateFolder) {
           console.log("[Augment] no template folder set");
-          const notice = new import_obsidian8.Notice("Augment: no template folder set \u2014 click to configure", 0);
+          const notice = new import_obsidian9.Notice("Augment: no template folder set \u2014 click to configure", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -22064,7 +22107,7 @@ ${excerpt}`,
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
           console.log("[Augment] no templates found in", this.settings.templateFolder);
-          new import_obsidian8.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
+          new import_obsidian9.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
         const cursor = editor.getCursor();
@@ -22126,10 +22169,10 @@ ${excerpt}`,
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               if (targetMode === "clipboard") {
                 await navigator.clipboard.writeText(result);
-                new import_obsidian8.Notice("Augment: copied to clipboard", 5e3);
+                new import_obsidian9.Notice("Augment: copied to clipboard", 5e3);
               } else if (targetMode === "file" && targetFilePath) {
                 const destFile = this.app.vault.getAbstractFileByPath(targetFilePath);
-                if (destFile instanceof import_obsidian8.TFile) {
+                if (destFile instanceof import_obsidian9.TFile) {
                   const prev = await this.app.vault.read(destFile);
                   await this.app.vault.modify(destFile, prev + "\n\n" + result);
                 } else {
@@ -22143,7 +22186,7 @@ ${excerpt}`,
                   await this.app.vault.create(targetFilePath, result);
                 }
                 const shortName = (_a3 = targetFilePath.split("/").pop()) != null ? _a3 : targetFilePath;
-                new import_obsidian8.Notice(`Augment: appended to ${shortName}`, 5e3);
+                new import_obsidian9.Notice(`Augment: appended to ${shortName}`, 5e3);
               } else if (targetMode === "frontmatter" && targetField) {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) {
@@ -22151,7 +22194,7 @@ ${excerpt}`,
                     fm[targetField] = result;
                   });
                 }
-                new import_obsidian8.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
+                new import_obsidian9.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
               } else {
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
                 const insertPosLine = editor.offsetToPos(insertPos);
@@ -22164,7 +22207,7 @@ ${excerpt}`,
                   editor.replaceRange(formatted, insertPosLine);
                 }
                 console.log("[Augment] template generation done");
-                const notice = new import_obsidian8.Notice("", 5e3);
+                const notice = new import_obsidian9.Notice("", 5e3);
                 notice.noticeEl.empty();
                 notice.noticeEl.createEl("span", { text: "Augment: done" });
                 notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -22202,7 +22245,7 @@ ${excerpt}`,
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const errMsg = (_c = friendlyApiError(err)) != null ? _c : err instanceof Error ? err.message : String(err);
-              new import_obsidian8.Notice(`Augment: ${errMsg}`);
+              new import_obsidian9.Notice(`Augment: ${errMsg}`);
             } finally {
               this.refreshStatusBar();
             }
@@ -22287,10 +22330,10 @@ ${excerpt}`,
         this.app.setting.openTabById("augment-terminal");
         return;
       }
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
       if (!view) {
         console.log("[Augment] no active note for generate");
-        new import_obsidian8.Notice("Open a note to generate");
+        new import_obsidian9.Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);
@@ -22389,6 +22432,25 @@ ${excerpt}`,
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
     this.app.workspace.onLayoutReady(() => this.refreshAttentionBadge());
+    this.addCommand({
+      id: "run-skill-for-note",
+      name: "Run skill for this note",
+      checkCallback: (checking) => {
+        var _a2, _b;
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile) return false;
+        const noteType = (_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.frontmatter) == null ? void 0 : _b.type;
+        if (!noteType) return false;
+        const matching = scanSkillsForType(this.app, noteType);
+        if (matching.length === 0) return false;
+        if (!checking) {
+          new SkillPickerModal(this.app, matching, (skill) => {
+            void this.launchSkillSession(activeFile, skill.name);
+          }).open();
+        }
+        return true;
+      }
+    });
   }
   async onunload() {
     var _a2;
