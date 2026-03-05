@@ -1,4 +1,5 @@
 import { debounce, ItemView, MarkdownView, WorkspaceLeaf } from "obsidian";
+import { DEFAULT_SYSTEM_PROMPT_BASE } from "./ai-client";
 import AugmentTerminalPlugin from "./main";
 import { assembleVaultContext, VaultContext } from "./vault-context";
 
@@ -58,7 +59,7 @@ export class ContextInspectorView extends ItemView {
     const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
     const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
     const sysText = "(default \u2014 Augment standard prompt)";
-    const sysTokens = this.estimateTokens(sysText);
+    const sysTokens = this.estimateTokens(DEFAULT_SYSTEM_PROMPT_BASE);
     totalTokens += sysTokens;
     sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
     sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });

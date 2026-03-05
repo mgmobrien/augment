@@ -30,7 +30,7 @@ function formatLinkedNotesFull(notes: LinkedNoteSummary[]): string {
     .join("\n\n");
 }
 
-const DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
+export const DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
 
 export function buildSystemPrompt(ctx: VaultContext, systemPromptOverride?: string): string {
   if (systemPromptOverride) return systemPromptOverride.trim();
