@@ -1,8 +1,7 @@
 import { App, MarkdownView, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
-import { AugmentSettings, ContextEntry } from "./vault-context";
-import { buildSystemPrompt, buildUserMessage, modelDisplayName } from "./ai-client";
-import { assembleVaultContext } from "./vault-context";
+import { AugmentSettings, assembleVaultContext } from "./vault-context";
+import { modelDisplayName } from "./ai-client";
 import { ContextInspectorModal } from "./context-inspector";
 
 const BUILTIN_CALLOUT_TYPES = [
@@ -96,36 +95,26 @@ export class AugmentSettingTab extends PluginSettingTab {
     // Onboarding checklist card
     const statusCard = overviewPane.createEl("div", { cls: "augment-onboarding-card" });
 
-    type OnboardingStep = {
-      label: string;
-      done: boolean;
-      optional: boolean;
-      cta: string | null;
-      hotkey: string | null;
-      onCta: (() => void) | null;
-    };
-
     const renderSetupCard = () => {
       statusCard.empty();
       if (this.plugin.settings.setupCardDismissed) return;
 
       const header = statusCard.createEl("div", { cls: "augment-onboarding-header" });
       header.createEl("span", { cls: "augment-onboarding-title", text: "Get started" });
-      const dismissBtn = header.createEl("button", { cls: "augment-onboarding-dismiss", text: "\u00d7" });
+      const dismissBtn = header.createEl("button", { cls: "augment-onboarding-dismiss clickable-icon" });
+      setIcon(dismissBtn, "x");
       dismissBtn.addEventListener("click", async () => {
         this.plugin.settings.setupCardDismissed = true;
         await this.plugin.saveData(this.plugin.settings);
         statusCard.empty();
       });
 
-      const steps: OnboardingStep[] = [
+      const steps = [
         {
           label: "Add your API key",
           done: !!this.plugin.settings.apiKey,
-          optional: false,
-          cta: "Add key",
-          hotkey: null,
-          onCta: () => {
+          hotkey: null as string | null,
+          onClick: () => {
             jumpToTab(generateTab, generatePane);
             setTimeout(() => apiKeyInputEl?.focus(), 50);
           },
@@ -133,36 +122,32 @@ export class AugmentSettingTab extends PluginSettingTab {
         {
           label: "Generate text for the first time",
           done: this.plugin.settings.hasGenerated,
-          optional: false,
-          cta: null,
           hotkey: process.platform === "darwin" ? "\u2318\u21a9" : "Ctrl+\u21a9",
-          onCta: null,
+          onClick: () => {
+            new Notice(process.platform === "darwin" ? "Press \u2318\u21a9 to generate in any note" : "Press Ctrl+Enter to generate in any note");
+          },
         },
         {
           label: "Run a template for the first time",
           done: this.plugin.settings.hasUsedTemplate,
-          optional: true,
-          cta: null,
           hotkey: process.platform === "darwin" ? "\u2318\u21e7\u21a9" : "Ctrl+Shift+\u21a9",
-          onCta: null,
+          onClick: () => {
+            jumpToTab(contextTab, contextPane);
+            setTimeout(() => templateFolderInputEl?.focus(), 50);
+          },
         },
       ];
 
       for (const step of steps) {
         const row = statusCard.createEl("div", {
-          cls: ["augment-onboarding-step", step.done ? "is-done" : "", step.optional ? "is-optional" : ""].join(" ").trim(),
+          cls: "augment-onboarding-step" + (step.done ? " is-done" : ""),
         });
         row.createEl("span", { cls: "augment-onboarding-check", text: step.done ? "\u2713" : "\u00b7" });
-        const labelEl = row.createEl("span", { cls: "augment-onboarding-label" });
-        labelEl.setText(step.label + (step.optional ? " (optional)" : ""));
-        if (!step.done) {
-          if (step.hotkey) {
-            row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
-          } else if (step.cta && step.onCta) {
-            const ctaEl = row.createEl("a", { cls: "augment-onboarding-cta", text: step.cta + " \u2192" });
-            ctaEl.href = "#";
-            ctaEl.addEventListener("click", (e) => { e.preventDefault(); step.onCta!(); });
-          }
+        const labelEl = row.createEl("a", { cls: "augment-onboarding-label", text: step.label });
+        labelEl.href = "#";
+        labelEl.addEventListener("click", (e) => { e.preventDefault(); step.onClick(); });
+        if (step.hotkey) {
+          row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
         }
       }
     };
@@ -171,7 +156,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     overviewTab.addEventListener("click", renderSetupCard);
 
     const previewBtn = overviewPane.createEl("button", {
-      cls: "mod-cta augment-ctx-preview-btn",
+      cls: "augment-ctx-preview-btn",
       text: "Preview context for current note",
     });
     previewBtn.addEventListener("click", () => {
@@ -181,14 +166,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         return;
       }
       const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
-      const entry: ContextEntry = {
-        timestamp: 0,
-        noteName: ctx.title,
-        model: this.plugin.resolveModelDisplayName(),
-        systemPrompt: buildSystemPrompt(ctx),
-        userMessage: "[your prompt would go here]",
-      };
-      new ContextInspectorModal(this.plugin.app, [entry], 0).open();
+      new ContextInspectorModal(this.plugin.app, ctx).open();
     });
 
     overviewPane.createEl("p", {

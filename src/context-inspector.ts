@@ -1,14 +1,12 @@
 import { App, Modal } from "obsidian";
-import { ContextEntry } from "./vault-context";
+import { VaultContext } from "./vault-context";
 
 export class ContextInspectorModal extends Modal {
-  private entries: ContextEntry[];
-  private index: number;
+  private ctx: VaultContext;
 
-  constructor(app: App, entries: ContextEntry[], index: number) {
+  constructor(app: App, ctx: VaultContext) {
     super(app);
-    this.entries = entries;
-    this.index = index;
+    this.ctx = ctx;
     this.modalEl.addClass("augment-context-modal");
   }
 
@@ -21,56 +19,58 @@ export class ContextInspectorModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    const entry = this.entries[this.index];
-    const isPreview = entry.timestamp === 0;
-    const hasMultiple = this.entries.length > 1;
+    // Note title
+    const titleSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
+    titleSection.createEl("div", { cls: "augment-ctx-section-label", text: "NOTE" });
+    titleSection.createEl("div", { cls: "augment-ctx-note-title", text: this.ctx.title });
 
-    // Navigation (history mode only)
-    if (hasMultiple) {
-      const nav = contentEl.createEl("div", { cls: "augment-ctx-nav" });
-
-      const prevBtn = nav.createEl("button", { text: "\u2190 prev" });
-      prevBtn.disabled = this.index === 0;
-      prevBtn.addEventListener("click", () => { this.index--; this.render(); });
-
-      const runLabel = `Run ${this.index + 1} of ${this.entries.length}`;
-      const timeLabel = new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      nav.createEl("span", {
-        cls: "augment-ctx-nav-meta",
-        text: [runLabel, entry.model, timeLabel].join(" \u00b7 "),
-      });
-
-      const nextBtn = nav.createEl("button", { text: "next \u2192" });
-      nextBtn.disabled = this.index === this.entries.length - 1;
-      nextBtn.addEventListener("click", () => { this.index++; this.render(); });
-    } else {
-      const parts = [entry.noteName, entry.model];
-      if (isPreview) parts.push("preview");
-      else parts.push(new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-      contentEl.createEl("div", { cls: "augment-ctx-single-meta", text: parts.join(" \u00b7 ") });
+    // Frontmatter
+    if (this.ctx.frontmatter && Object.keys(this.ctx.frontmatter).length > 0) {
+      const fmSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
+      fmSection.createEl("div", { cls: "augment-ctx-section-label", text: "FRONTMATTER" });
+      for (const [key, val] of Object.entries(this.ctx.frontmatter)) {
+        const row = fmSection.createEl("div", { cls: "augment-ctx-fm-row" });
+        row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
+        const valStr = Array.isArray(val) ? val.join(", ") : String(val ?? "");
+        row.createEl("span", { text: valStr });
+      }
     }
 
-    this.renderSection(contentEl, "System prompt", entry.systemPrompt);
-    this.renderSection(
-      contentEl,
-      isPreview ? "User message (placeholder)" : "User message",
-      entry.userMessage,
-    );
-  }
+    // Selection or context window
+    const ctxSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
+    if (this.ctx.selection) {
+      ctxSection.createEl("div", { cls: "augment-ctx-section-label", text: "SELECTION" });
+      ctxSection.createEl("pre", { cls: "augment-ctx-pre", text: this.ctx.selection });
+    } else {
+      ctxSection.createEl("div", { cls: "augment-ctx-section-label", text: "CONTEXT" });
+      ctxSection.createEl("pre", {
+        cls: "augment-ctx-pre",
+        text: this.ctx.surroundingContext || "(empty — position cursor in a note)",
+      });
+    }
 
-  private renderSection(parent: HTMLElement, label: string, content: string): void {
-    const section = parent.createEl("div", { cls: "augment-ctx-section" });
-
-    const hdr = section.createEl("div", { cls: "augment-ctx-section-hdr" });
-    hdr.createEl("span", { cls: "augment-ctx-section-label", text: label });
-    const copyBtn = hdr.createEl("button", { cls: "augment-ctx-copy", text: "copy" });
-    copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(content);
-      copyBtn.setText("copied");
-      setTimeout(() => copyBtn.setText("copy"), 1500);
-    });
-
-    section.createEl("pre", { cls: "augment-ctx-pre", text: content });
+    // Linked notes
+    if (this.ctx.linkedNotes.length > 0) {
+      const linkedSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
+      linkedSection.createEl("div", {
+        cls: "augment-ctx-section-label",
+        text: `LINKED NOTES (${this.ctx.linkedNotes.length})`,
+      });
+      for (const note of this.ctx.linkedNotes) {
+        const noteEl = linkedSection.createEl("div", { cls: "augment-ctx-linked-note" });
+        noteEl.createEl("div", { cls: "augment-ctx-note-title", text: note.title });
+        if (note.frontmatter && Object.keys(note.frontmatter).length > 0) {
+          for (const [key, val] of Object.entries(note.frontmatter)) {
+            const row = noteEl.createEl("div", { cls: "augment-ctx-fm-row" });
+            row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
+            const valStr = Array.isArray(val) ? val.join(", ") : String(val ?? "");
+            row.createEl("span", { text: valStr });
+          }
+        } else {
+          noteEl.createEl("div", { cls: "augment-ctx-note-empty", text: "(no frontmatter)" });
+        }
+      }
+    }
   }
 
   onClose(): void {

@@ -301,7 +301,7 @@ export default class AugmentTerminalPlugin extends Plugin {
               e.preventDefault();
               e.stopPropagation();
               notice.hide();
-              new ContextInspectorModal(this.app, this.contextHistory, this.contextHistory.length - 1).open();
+              new ContextInspectorModal(this.app, ctx).open();
             });
             if (!this.settings.hasGenerated) {
               this.settings.hasGenerated = true;
@@ -424,7 +424,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 e.preventDefault();
                 e.stopPropagation();
                 notice.hide();
-                new ContextInspectorModal(this.app, this.contextHistory, this.contextHistory.length - 1).open();
+                new ContextInspectorModal(this.app, ctx).open();
               });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
@@ -470,17 +470,15 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.addCommand({
       id: "augment-view-context",
-      name: "View sent context",
+      name: "View current note context",
       callback: () => {
-        if (this.contextHistory.length === 0) {
-          new Notice("Augment: no generations yet this session");
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!activeView) {
+          new Notice("Augment: open a note to view its context");
           return;
         }
-        new ContextInspectorModal(
-          this.app,
-          this.contextHistory,
-          this.contextHistory.length - 1,
-        ).open();
+        const ctx = assembleVaultContext(this.app, activeView.editor, this.settings);
+        new ContextInspectorModal(this.app, ctx).open();
       },
     });
 
