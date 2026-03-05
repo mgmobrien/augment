@@ -29,9 +29,13 @@ function formatLinkedNotesFull(notes: LinkedNoteSummary[]): string {
     .join("\n\n");
 }
 
-export function buildSystemPrompt(ctx: VaultContext): string {
+const DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
+
+export function buildSystemPrompt(ctx: VaultContext, systemPromptOverride?: string): string {
+  if (systemPromptOverride) return systemPromptOverride.trim();
+
   const parts: string[] = [
-    "You are assisting with writing in an Obsidian vault.",
+    DEFAULT_SYSTEM_PROMPT_BASE,
     "",
     `Current note: ${ctx.title}`,
   ];

@@ -1093,6 +1093,36 @@
   text-decoration: underline;
 }
 
+/* ── Settings: template folder link ── */
+.augment-folder-link {
+  margin: 4px 0 16px;
+}
+
+.augment-folder-open {
+  font-size: var(--font-smaller);
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.augment-folder-open:hover {
+  text-decoration: underline;
+}
+
+.augment-template-new-btn {
+  font-size: var(--font-smaller);
+  color: var(--text-accent);
+  margin-top: 8px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.augment-template-new-btn:hover {
+  text-decoration: underline;
+}
+
 /* ── Template preview modal ── */
 .augment-gen-preview-prompt {
   background-color: var(--background-secondary);

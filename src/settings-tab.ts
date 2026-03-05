@@ -1,4 +1,4 @@
-import { App, MarkdownView, Notice, PluginSettingTab, Setting, TFile, setIcon } from "obsidian";
+import { App, MarkdownView, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings, assembleVaultContext } from "./vault-context";
 import { modelDisplayName } from "./ai-client";
@@ -8,9 +8,7 @@ const TEMPLATE_SCAFFOLD = `---
 name:
 description:
 ---
-You are Gus, a thinking partner embedded in this vault.
-
-Your task:
+Your task instruction here.
 
 {{note_content}}
 `;
@@ -63,21 +61,25 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Tab nav ──────────────────────────────────────────────
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
-    const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
-    const generateTab = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
-    const contextTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Context & Templates" });
+    const overviewTab   = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
+    const generateTab   = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
+    const contextTab    = tabNav.createEl("button", { cls: "augment-tab", text: "Context" });
+    const templatesTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
 
     // ── Panes ────────────────────────────────────────────────
-    const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const generatePane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const contextPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    generatePane.style.display = "none";
-    contextPane.style.display  = "none";
+    const overviewPane   = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const generatePane   = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const contextPane    = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const templatesPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    generatePane.style.display  = "none";
+    contextPane.style.display   = "none";
+    templatesPane.style.display = "none";
 
     const tabs = [
-      { btn: overviewTab, pane: overviewPane },
-      { btn: generateTab, pane: generatePane },
-      { btn: contextTab,  pane: contextPane  },
+      { btn: overviewTab,  pane: overviewPane  },
+      { btn: generateTab,  pane: generatePane  },
+      { btn: contextTab,   pane: contextPane   },
+      { btn: templatesTab, pane: templatesPane },
     ];
 
     tabs.forEach(({ btn, pane }) => {
@@ -93,7 +95,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Overview pane ────────────────────────────────────────
 
-    // Input refs — populated below when the Settings are created
+    // Input refs — populated below
     let apiKeyInputEl: HTMLInputElement | undefined;
     let templateFolderInputEl: HTMLInputElement | undefined;
 
@@ -143,7 +145,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           done: this.plugin.settings.hasUsedTemplate,
           hotkey: process.platform === "darwin" ? "\u2318\u21e7\u21a9" : "Ctrl+Shift+\u21a9",
           onClick: () => {
-            jumpToTab(contextTab, contextPane);
+            jumpToTab(templatesTab, templatesPane);
             setTimeout(() => templateFolderInputEl?.focus(), 50);
           },
         },
@@ -187,14 +189,14 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
-    const steps = [
+    const howSteps = [
       "Position your cursor where you want output to appear.",
       "Press Mod+Enter (or right-click → Augment: Generate).",
       "A loading indicator appears while Claude generates.",
       "The result is inserted at your cursor in the chosen format.",
     ];
     const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
-    for (const step of steps) {
+    for (const step of howSteps) {
       ol.createEl("li", { text: step });
     }
 
@@ -209,10 +211,10 @@ export class AugmentSettingTab extends PluginSettingTab {
     linksEl.createEl("div", { cls: "augment-overview-links-title", text: "Quick start" });
     const linkList = linksEl.createEl("ul", { cls: "augment-overview-link-list" });
     const items = [
-      { label: "Set your API key", tab: generateTab, pane: generatePane },
-      { label: "Choose a model", tab: generateTab, pane: generatePane },
-      { label: "Configure output format", tab: generateTab, pane: generatePane },
-      { label: "Manage templates", tab: contextTab, pane: contextPane },
+      { label: "Set your API key",       tab: generateTab,  pane: generatePane  },
+      { label: "Choose a model",         tab: generateTab,  pane: generatePane  },
+      { label: "Configure output format", tab: generateTab,  pane: generatePane  },
+      { label: "Manage templates",       tab: templatesTab, pane: templatesPane },
     ];
     for (const { label, tab, pane } of items) {
       const li = linkList.createEl("li");
@@ -300,15 +302,12 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    // Secondary slot: heading level or callout type, placeholder otherwise.
-    // Wrapped in .dropdown so Obsidian renders the native chevron.
     const secondaryWrapper = formatSetting.controlEl.createEl("div", {
       cls: "dropdown augment-format-secondary",
     });
     secondaryWrapper.style.marginLeft = "8px";
     const secondarySelect = secondaryWrapper.createEl("select") as HTMLSelectElement;
 
-    // Tertiary slot: expanded/collapsed for callout, placeholder otherwise.
     const tertiaryWrapper = formatSetting.controlEl.createEl("div", {
       cls: "dropdown augment-format-tertiary",
     });
@@ -316,7 +315,6 @@ export class AugmentSettingTab extends PluginSettingTab {
     const tertiarySelect = tertiaryWrapper.createEl("select") as HTMLSelectElement;
 
     const updateSecondarySlot = (format: string) => {
-      // secondary
       secondarySelect.empty();
       if (format === "heading") {
         secondaryWrapper.removeClass("is-placeholder");
@@ -338,7 +336,6 @@ export class AugmentSettingTab extends PluginSettingTab {
         secondarySelect.createEl("option", { value: "", text: "\u2014" });
       }
 
-      // tertiary
       tertiarySelect.empty();
       if (format === "callout") {
         tertiaryWrapper.removeClass("is-placeholder");
@@ -382,13 +379,12 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    // WSL terminal setting — only relevant on Windows
     if (process.platform === "win32") {
       new Setting(generatePane)
         .setName("Run terminal via WSL")
         .setDesc(
           "Spawn the terminal PTY bridge through WSL (Windows Subsystem for Linux) instead of native Python. " +
-          "Required on Windows — Python\u2019s pty module is Unix-only. " +
+          "Required on Windows \u2014 Python\u2019s pty module is Unix-only. " +
           "Requires WSL installed with python3 available in the default distro."
         )
         .addToggle((toggle) => {
@@ -406,133 +402,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       cls: "augment-context-intro",
       text: "Augment sends everything in the current note above your cursor, along with the note title, frontmatter, and linked note summaries. If you have text selected, the selection is used instead of the above-cursor context.",
     });
-
-    new Setting(contextPane)
-      .setName("Template folder")
-      .setDesc("Vault path to folder containing .md prompt templates")
-      .addText((text) => {
-        templateFolderInputEl = text.inputEl;
-        text
-          .setPlaceholder("Augment/templates")
-          .setValue(this.plugin.settings.templateFolder)
-          .onChange(async (value) => {
-            this.plugin.settings.templateFolder = value;
-            await this.plugin.saveData(this.plugin.settings);
-            renderTemplateSection();
-          });
-      });
-
-    // ── Templates section ─────────────────────────────────────
-    const templateSectionEl = contextPane.createDiv({ cls: "augment-template-section" });
-
-    const renderTemplateSection = () => {
-      templateSectionEl.empty();
-      const folder = this.plugin.settings.templateFolder;
-
-      const sectionHeader = templateSectionEl.createDiv({
-        cls: "augment-template-section-header",
-      });
-      sectionHeader.createSpan({ cls: "augment-section-label", text: "Templates" });
-      const newBtn = sectionHeader.createEl("button", {
-        cls: "augment-template-new clickable-icon",
-      });
-      setIcon(newBtn, "plus");
-      newBtn.createSpan({ text: " New template" });
-      newBtn.addEventListener("click", async () => {
-        if (!folder) {
-          new Notice("Set a template folder first");
-          return;
-        }
-        const newPath = `${folder}/New template.md`;
-        let newFile: TFile;
-        try {
-          newFile = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
-        } catch {
-          const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
-          if (existing instanceof TFile) {
-            newFile = existing;
-          } else {
-            new Notice("Could not create template");
-            return;
-          }
-        }
-        await this.plugin.app.workspace.getLeaf().openFile(newFile);
-      });
-
-      const listEl = templateSectionEl.createDiv({ cls: "augment-template-list" });
-
-      const folderObj = folder
-        ? this.plugin.app.vault.getFolderByPath(folder)
-        : null;
-      const files = folderObj
-        ? folderObj.children.filter(
-            (f): f is TFile => f instanceof TFile && f.extension === "md"
-          )
-        : [];
-
-      if (files.length === 0) {
-        listEl.createDiv({
-          cls: "augment-template-empty",
-          text: "No templates found. Create one to get started.",
-        });
-      } else {
-        for (const file of files) {
-          const fm =
-            this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
-          const name =
-            typeof fm?.name === "string" ? fm.name : file.basename;
-          const desc =
-            typeof fm?.description === "string" ? fm.description : "";
-
-          const row = listEl.createDiv({ cls: "augment-template-row" });
-          const rowInfo = row.createDiv({ cls: "augment-template-row-info" });
-          rowInfo.createSpan({ cls: "augment-template-name", text: name });
-          if (desc) {
-            rowInfo.createSpan({ cls: "augment-template-desc", text: desc });
-          }
-
-          const openBtn = row.createEl("button", {
-            cls: "augment-template-open clickable-icon",
-            text: "Open \u2197",
-          });
-          openBtn.addEventListener("click", () => {
-            this.plugin.app.workspace.openLinkText(file.basename, "", false);
-          });
-        }
-      }
-
-      // Variable reference.
-      const varRef = templateSectionEl.createDiv({ cls: "augment-variable-ref" });
-      varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
-      const table = varRef.createEl("table", { cls: "augment-var-table" });
-      const tbody = table.createEl("tbody");
-      const varRows = [
-        { name: "{{title}}", desc: "Note filename (without extension)" },
-        { name: "{{note_content}}", desc: "Full text of the current note" },
-        {
-          name: "{{linked_notes_full}}",
-          desc: "Text of notes linked from this one \u2014 can be large",
-        },
-      ];
-      for (const v of varRows) {
-        const tr = tbody.createEl("tr");
-        const td1 = tr.createEl("td", { cls: "augment-var-name" });
-        td1.createEl("code", { text: v.name });
-        tr.createEl("td", { cls: "augment-var-desc", text: v.desc });
-      }
-
-      // Format guide.
-      const formatGuide = templateSectionEl.createDiv({
-        cls: "augment-template-format",
-      });
-      formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
-      formatGuide.createEl("pre", {
-        cls: "augment-format-example",
-        text: "---\nname: Template name\ndescription: Shown in picker\n---\nYou are Gus, a thinking partner embedded in this vault.\n\nYour task: [instructions here]\n\n{{note_content}}",
-      });
-    };
-
-    renderTemplateSection();
 
     new Setting(contextPane)
       .setName("Linked notes in context")
@@ -570,5 +439,152 @@ export class AugmentSettingTab extends PluginSettingTab {
             }
           });
       });
+
+    // ── Templates pane ───────────────────────────────────────
+    templatesPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note.",
+    });
+
+    // Variable reference table.
+    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
+    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+    const varTable = varRef.createEl("table", { cls: "augment-var-table" });
+    const varTbody = varTable.createEl("tbody");
+    const varRows = [
+      { name: "{{title}}",              desc: "Note filename (without extension)" },
+      { name: "{{selection}}",          desc: "Current editor selection" },
+      { name: "{{context}}",            desc: "~50 lines around the cursor" },
+      { name: "{{note_content}}",       desc: "Full note text" },
+      { name: "{{linked_notes}}",       desc: "Linked notes: title + frontmatter" },
+      { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
+      { name: "{{frontmatter.KEY}}",   desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" },
+    ];
+    for (const v of varRows) {
+      const tr = varTbody.createEl("tr");
+      const td1 = tr.createEl("td");
+      td1.createEl("code", { text: v.name });
+      tr.createEl("td", { text: v.desc });
+    }
+
+    // Template folder setting.
+    new Setting(templatesPane)
+      .setName("Template folder")
+      .setDesc("Vault path to folder containing .md prompt templates")
+      .addText((text) => {
+        templateFolderInputEl = text.inputEl;
+        text
+          .setPlaceholder("Augment/templates")
+          .setValue(this.plugin.settings.templateFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.templateFolder = value;
+            await this.plugin.saveData(this.plugin.settings);
+            renderTemplateList();
+          });
+      });
+
+    // "Reveal in file explorer" link.
+    const folderLinkEl = templatesPane.createDiv({ cls: "augment-folder-link" });
+    const openFolderEl = folderLinkEl.createEl("a", {
+      cls: "augment-folder-open",
+      text: "Reveal in file explorer \u2197",
+    });
+    openFolderEl.href = "#";
+    openFolderEl.addEventListener("click", (e) => {
+      e.preventDefault();
+      const folderPath = this.plugin.settings.templateFolder;
+      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+      if (folder) {
+        const fe = (this.plugin.app as any).internalPlugins?.getPluginById("file-explorer")?.instance;
+        fe?.revealInFolder?.(folder);
+      } else {
+        new Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
+      }
+    });
+
+    // Template list container.
+    templatesPane.createDiv({ cls: "augment-template-section-header" })
+      .createDiv({ cls: "augment-section-label", text: "Templates in folder" });
+    const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
+
+    const renderTemplateList = () => {
+      templateListEl.empty();
+
+      const folderPath = this.plugin.settings.templateFolder;
+      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+
+      if (!folder || !(folder instanceof TFolder)) {
+        templateListEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates found. Check the folder path above or create a template.",
+        });
+        return;
+      }
+
+      const files = folder.children
+        .filter((f): f is TFile => f instanceof TFile && f.extension === "md")
+        .sort((a, b) => a.basename.localeCompare(b.basename));
+
+      if (files.length === 0) {
+        templateListEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates in this folder.",
+        });
+        return;
+      }
+
+      for (const file of files) {
+        const meta = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+        const name = meta?.name || file.basename;
+        const desc = meta?.description || "";
+
+        const row = templateListEl.createDiv({ cls: "augment-template-row" });
+        const info = row.createDiv({ cls: "augment-template-row-info" });
+        info.createSpan({ cls: "augment-template-name", text: name });
+        if (desc) {
+          info.createSpan({ cls: "augment-template-desc", text: desc });
+        }
+
+        const openBtn = row.createEl("button", {
+          cls: "augment-template-open clickable-icon",
+          text: "Open \u2197",
+        });
+        openBtn.addEventListener("click", () => {
+          this.plugin.app.workspace.openLinkText(file.basename, "", false);
+        });
+      }
+    };
+
+    renderTemplateList();
+
+    // "+ New template" button.
+    const newTemplateBtn = templatesPane.createEl("button", {
+      cls: "augment-template-new-btn",
+      text: "+ New template",
+    });
+    newTemplateBtn.addEventListener("click", async () => {
+      const folder = this.plugin.settings.templateFolder || "Augment/templates";
+      const newPath = `${folder}/New template.md`;
+      try {
+        const file = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
+        await this.plugin.app.workspace.getLeaf().openFile(file);
+        renderTemplateList();
+      } catch {
+        const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
+        if (existing instanceof TFile) {
+          await this.plugin.app.workspace.getLeaf().openFile(existing);
+        } else {
+          new Notice("Could not create template");
+        }
+      }
+    });
+
+    // Format guide.
+    const formatGuide = templatesPane.createDiv({ cls: "augment-template-format" });
+    formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
+    formatGuide.createEl("pre", {
+      cls: "augment-format-example",
+      text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}",
+    });
   }
 }
