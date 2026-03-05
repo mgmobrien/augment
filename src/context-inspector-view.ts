@@ -55,24 +55,23 @@ export class ContextInspectorView extends ItemView {
     this.contentDiv = this.containerEl.children[1] as HTMLElement;
     this.contentDiv.addClass("augment-ctx-panel");
 
-    // Trigger 1: note switch
+    // Track active editor (no auto-refresh on switch)
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf?.view instanceof MarkdownView) {
           this.lastEditorView = leaf.view;
-          this.refresh();
         }
       })
     );
 
-    // Trigger 2: generation completes
+    // Trigger 1: generation completes
     this.registerEvent(
       (this.app.workspace as any).on("augment:generation-complete", () => {
         this.refresh();
       })
     );
 
-    // Trigger 3: manual refresh button (handled in render)
+    // Trigger 2: manual refresh button (handled in render)
 
     const current = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (current) this.lastEditorView = current;
