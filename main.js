@@ -18979,6 +18979,7 @@ function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "").replace(/\x1b[()][0-9A-B]/g, "");
 }
 var TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(/;
+var TOOL_DETAIL_PATTERN = /\b(Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(([^)\n]{0,120})\)/;
 var TEAM_CREATE_ACTIVITY_PATTERN = /\bTeamCreate\b/i;
 var SEND_MESSAGE_ACTIVITY_PATTERN = /\bSendMessage\b/i;
 var TEAM_NAME_PATTERN = /\bteam(?:Name)?\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i;
@@ -19016,6 +19017,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.autoRenameNeeded = false;
     this.autoNamedThisTurn = false;
     this.errorBannerEl = null;
+    this.currentActivity = null;
     this.pluginDir = pluginDir;
     this.getUseWsl = getUseWsl;
     this.getPythonPath = getPythonPath;
@@ -19052,6 +19054,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   getAgentIdentity() {
     return this.agentIdentity;
+  }
+  getCurrentActivity() {
+    return this.currentActivity;
   }
   getLastTeamEventSummary() {
     var _a2, _b;
@@ -19289,10 +19294,23 @@ var TerminalView = class extends import_obsidian5.ItemView {
     let detected = null;
     if (TOOL_PATTERN.test(clean)) {
       detected = "tool";
+      const m = TOOL_DETAIL_PATTERN.exec(clean);
+      if (m) {
+        const toolName = m[1];
+        const arg = m[2].trim().slice(0, 100);
+        let state;
+        if (toolName === "Bash") state = "bash";
+        else if (toolName === "Read" || toolName === "Glob" || toolName === "Grep") state = "read";
+        else if (toolName === "Write" || toolName === "Edit" || toolName === "NotebookEdit") state = "write";
+        else state = "mcp";
+        this.currentActivity = { state, detail: arg || null };
+      }
     } else if (clean.includes("\u23FA")) {
       detected = "active";
+      this.currentActivity = { state: "thinking", detail: null };
     } else if (/❯\s*$/.test(clean) || /\>\s*$/.test(clean) && clean.includes("claude")) {
-      detected = "idle";
+      detected = "waiting";
+      this.currentActivity = { state: "waiting", detail: null };
     }
     if (detected !== null) {
       this.debouncedSetStatus(detected);
@@ -19778,6 +19796,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.cachedProjectGroups = [];
     // Which other-project groups are expanded (collapsed by default).
     this.expandedProjects = /* @__PURE__ */ new Set();
+    // Hover tooltip for session activity.
+    this.tooltipEl = null;
   }
   getViewType() {
     return VIEW_TYPE_TERMINAL_MANAGER;
@@ -20097,6 +20117,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         }
       }
     }
+    row.addEventListener("mouseenter", (evt) => this.showActivityTooltip(evt, view));
+    row.addEventListener("mouseleave", () => this.hideActivityTooltip());
     row.addEventListener("click", () => this.focusLeaf(leaf));
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
@@ -20109,6 +20131,59 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       );
       menu.showAtMouseEvent(evt);
     });
+  }
+  showActivityTooltip(evt, view) {
+    var _a2, _b, _c, _d;
+    const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
+    const status = typeof view.getStatus === "function" ? view.getStatus() : null;
+    const lastMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
+    let label = "";
+    let detail = "";
+    if ((activity == null ? void 0 : activity.state) === "thinking") {
+      label = "Thinking";
+    } else if ((activity == null ? void 0 : activity.state) === "bash") {
+      label = "Running Bash";
+      detail = (_a2 = activity.detail) != null ? _a2 : "";
+    } else if ((activity == null ? void 0 : activity.state) === "read") {
+      label = "Reading file";
+      detail = (_b = activity.detail) != null ? _b : "";
+    } else if ((activity == null ? void 0 : activity.state) === "write") {
+      label = "Writing file";
+      detail = (_c = activity.detail) != null ? _c : "";
+    } else if ((activity == null ? void 0 : activity.state) === "mcp") {
+      label = "Using tool";
+      detail = (_d = activity.detail) != null ? _d : "";
+    } else if ((activity == null ? void 0 : activity.state) === "waiting" || status === "waiting") {
+      label = "Waiting for input";
+    } else if (status === "idle" || status === "shell") {
+      label = "Idle";
+      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+    } else if (status === "exited") {
+      label = "Exited";
+      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+    } else if (status === "crashed") {
+      label = "Crashed";
+    } else {
+      return;
+    }
+    this.hideActivityTooltip();
+    const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
+    this.tooltipEl = tip;
+    const labelEl = tip.createDiv({ cls: "augment-tm-activity-tip-label", text: label });
+    if (detail) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: detail });
+    const reposition = () => {
+      const x = evt.clientX + 12;
+      const y = evt.clientY + 14;
+      tip.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
+      tip.style.top = `${y}px`;
+    };
+    reposition();
+  }
+  hideActivityTooltip() {
+    if (this.tooltipEl) {
+      this.tooltipEl.remove();
+      this.tooltipEl = null;
+    }
   }
   renderOtherProjectsSection(groups) {
     for (const group of groups) {

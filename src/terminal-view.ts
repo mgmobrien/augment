@@ -9,7 +9,10 @@ import xtermCssText from "@xterm/xterm/css/xterm.css";
 
 export const VIEW_TYPE_TERMINAL = "augment-terminal";
 
-type TerminalStatus = "idle" | "active" | "tool" | "exited" | "shell" | "running" | "crashed";
+type TerminalStatus = "idle" | "active" | "tool" | "waiting" | "exited" | "shell" | "running" | "crashed";
+
+type ActivityState = "thinking" | "bash" | "read" | "write" | "mcp" | "waiting" | "idle" | null;
+type CurrentActivity = { state: ActivityState; detail: string | null } | null;
 type TeamEventType = "teamcreate" | "sendmessage";
 
 type TeamEvent = {
@@ -111,6 +114,7 @@ function stripAnsi(str: string): string {
 
 // Tool invocation patterns in Claude Code output.
 const TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(/;
+const TOOL_DETAIL_PATTERN = /\b(Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(([^)\n]{0,120})\)/;
 const TEAM_CREATE_ACTIVITY_PATTERN = /\bTeamCreate\b/i;
 const SEND_MESSAGE_ACTIVITY_PATTERN = /\bSendMessage\b/i;
 const TEAM_NAME_PATTERN = /\bteam(?:Name)?\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i;
@@ -155,6 +159,7 @@ export class TerminalView extends ItemView {
   private autoRenameNeeded: boolean = false;
   private autoNamedThisTurn: boolean = false;
   private errorBannerEl: HTMLDivElement | null = null;
+  private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
 
   constructor(
@@ -212,6 +217,10 @@ export class TerminalView extends ItemView {
 
   getAgentIdentity(): string | null {
     return this.agentIdentity;
+  }
+
+  getCurrentActivity(): CurrentActivity {
+    return this.currentActivity;
   }
 
   getLastTeamEventSummary(): string | null {
@@ -512,15 +521,28 @@ export class TerminalView extends ItemView {
     // Check for tool invocations first (most specific).
     if (TOOL_PATTERN.test(clean)) {
       detected = "tool";
+      const m = TOOL_DETAIL_PATTERN.exec(clean);
+      if (m) {
+        const toolName = m[1];
+        const arg = m[2].trim().slice(0, 100);
+        let state: ActivityState;
+        if (toolName === "Bash") state = "bash";
+        else if (toolName === "Read" || toolName === "Glob" || toolName === "Grep") state = "read";
+        else if (toolName === "Write" || toolName === "Edit" || toolName === "NotebookEdit") state = "write";
+        else state = "mcp";
+        this.currentActivity = { state, detail: arg || null };
+      }
     }
     // Check for Claude Code thinking/output marker.
     else if (clean.includes("\u23FA")) {
       // ⏺
       detected = "active";
+      this.currentActivity = { state: "thinking", detail: null };
     }
-    // Check for Claude Code idle prompt.
+    // Check for Claude Code waiting-for-input prompt.
     else if (/❯\s*$/.test(clean) || (/\>\s*$/.test(clean) && clean.includes("claude"))) {
-      detected = "idle";
+      detected = "waiting";
+      this.currentActivity = { state: "waiting", detail: null };
     }
 
     if (detected !== null) {

@@ -75,9 +75,15 @@
   animation: augment-pulse 1.5s ease-in-out infinite;
 }
 
-/* Claude Code tool executing — green */
+/* Claude Code tool executing — yellow pulsing (same as active) */
 .workspace-leaf[data-augment-status="tool"] .view-header-title-container .view-header-title::before {
-  background-color: var(--color-green);
+  background-color: var(--color-yellow);
+  animation: augment-pulse 1.5s ease-in-out infinite;
+}
+
+/* CC waiting for user input — orange, static */
+.workspace-leaf[data-augment-status="waiting"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-orange);
 }
 
 /* Skill session running in background — steady green */
@@ -189,7 +195,7 @@
 }
 
 .augment-tm-dot.idle {
-  background-color: var(--color-blue);
+  background-color: var(--text-faint);
 }
 
 .augment-tm-dot.active {
@@ -197,8 +203,15 @@
   animation: augment-pulse 1.5s ease-in-out infinite;
 }
 
+/* tool renders identically to active — both mean "leave it alone" */
 .augment-tm-dot.tool {
-  background-color: var(--color-green);
+  background-color: var(--color-yellow);
+  animation: augment-pulse 1.5s ease-in-out infinite;
+}
+
+/* waiting = CC at its prompt, needs user input */
+.augment-tm-dot.waiting {
+  background-color: var(--color-orange);
 }
 
 .augment-tm-dot.running {
@@ -1489,6 +1502,35 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   color: var(--text-normal);
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Terminal manager activity tooltip ───────────────────────────────────── */
+.augment-tm-activity-tip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 280px;
+  padding: 8px 10px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-size: 0.8em;
+  line-height: 1.5;
+  color: var(--text-normal);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.augment-tm-activity-tip-label {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.augment-tm-activity-tip-detail {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
 }
 
 /* ── Terminal error banner (Fix-it buttons) ──────────────────────────────── */

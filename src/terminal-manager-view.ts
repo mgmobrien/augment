@@ -4,6 +4,9 @@ import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
+type ActivityState = "thinking" | "bash" | "read" | "write" | "mcp" | "waiting" | "idle" | null;
+type CurrentActivity = { state: ActivityState; detail: string | null } | null;
+
 type TerminalViewLike = {
   getStatus?: () => string;
   getName?: () => string;
@@ -12,6 +15,7 @@ type TerminalViewLike = {
   getTeamMembers?: () => string[];
   getLastTeamEventSummary?: () => string | null;
   getAgentIdentity?: () => string | null;
+  getCurrentActivity?: () => CurrentActivity;
   markActivityRead?: () => void;
   getExchangeCount?: () => number;
   getLastActivityMs?: () => number;
@@ -36,6 +40,9 @@ export class TerminalManagerView extends ItemView {
 
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
+
+  // Hover tooltip for session activity.
+  private tooltipEl: HTMLDivElement | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -453,6 +460,8 @@ export class TerminalManagerView extends ItemView {
       }
     }
 
+    row.addEventListener("mouseenter", (evt) => this.showActivityTooltip(evt, view));
+    row.addEventListener("mouseleave", () => this.hideActivityTooltip());
     row.addEventListener("click", () => this.focusLeaf(leaf));
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
@@ -471,6 +480,65 @@ export class TerminalManagerView extends ItemView {
       );
       menu.showAtMouseEvent(evt);
     });
+  }
+
+  private showActivityTooltip(evt: MouseEvent, view: TerminalViewLike): void {
+    const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
+    const status = typeof view.getStatus === "function" ? view.getStatus() : null;
+    const lastMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
+
+    let label = "";
+    let detail = "";
+
+    if (activity?.state === "thinking") {
+      label = "Thinking";
+    } else if (activity?.state === "bash") {
+      label = "Running Bash";
+      detail = activity.detail ?? "";
+    } else if (activity?.state === "read") {
+      label = "Reading file";
+      detail = activity.detail ?? "";
+    } else if (activity?.state === "write") {
+      label = "Writing file";
+      detail = activity.detail ?? "";
+    } else if (activity?.state === "mcp") {
+      label = "Using tool";
+      detail = activity.detail ?? "";
+    } else if (activity?.state === "waiting" || status === "waiting") {
+      label = "Waiting for input";
+    } else if (status === "idle" || status === "shell") {
+      label = "Idle";
+      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+    } else if (status === "exited") {
+      label = "Exited";
+      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+    } else if (status === "crashed") {
+      label = "Crashed";
+    } else {
+      return; // nothing useful to show
+    }
+
+    this.hideActivityTooltip();
+    const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
+    this.tooltipEl = tip;
+
+    const labelEl = tip.createDiv({ cls: "augment-tm-activity-tip-label", text: label });
+    if (detail) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: detail });
+
+    const reposition = () => {
+      const x = evt.clientX + 12;
+      const y = evt.clientY + 14;
+      tip.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
+      tip.style.top = `${y}px`;
+    };
+    reposition();
+  }
+
+  private hideActivityTooltip(): void {
+    if (this.tooltipEl) {
+      this.tooltipEl.remove();
+      this.tooltipEl = null;
+    }
   }
 
   private renderOtherProjectsSection(groups: ProjectGroup[]): void {
