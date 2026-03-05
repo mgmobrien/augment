@@ -22088,6 +22088,7 @@ ${excerpt}`,
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
       callback: () => {
         this.openTerminal();
       }
@@ -22133,6 +22134,7 @@ ${excerpt}`,
     this.addCommand({
       id: "open-terminal-manager",
       name: "Show terminal manager",
+      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "t" }],
       callback: () => {
         this.openTerminalManager();
       }
@@ -22175,7 +22177,15 @@ ${excerpt}`,
     this.registerEvent(
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
-    this.app.workspace.onLayoutReady(() => this.refreshAttentionBadge());
+    this.app.workspace.onLayoutReady(() => {
+      this.refreshAttentionBadge();
+      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR).length === 0) {
+        const leaf = this.app.workspace.getRightLeaf(false);
+        if (leaf) {
+          leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: false });
+        }
+      }
+    });
   }
   async onunload() {
     var _a2;
