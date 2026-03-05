@@ -20137,6 +20137,161 @@ Note: {{title}}
 `
   ]
 ];
+var SCAFFOLD_SKILLS_FOLDER = "agents/skills";
+var SCAFFOLD_SKILLS = [
+  [
+    "meeting-summary",
+    `---
+name: meeting-summary
+description: Summarise a meeting transcript or rough notes into structured output
+---
+
+# Meeting summary
+
+Read the note provided. It contains a meeting transcript, rough meeting notes, or a recording dump.
+
+Produce a structured summary with these sections:
+
+- **Attendees** (if identifiable)
+- **Key points** \u2014 the main topics discussed, 1\u20132 sentences each
+- **Decisions** \u2014 anything that was decided or agreed on
+- **Action items** \u2014 who committed to what, with deadlines if mentioned
+- **Open questions** \u2014 anything raised but not resolved
+
+Write the summary as markdown. Be concise \u2014 the summary should be shorter than the source. Preserve specific names, dates, and numbers exactly as stated.
+
+If the note is not a meeting transcript, say so and skip.
+`
+  ],
+  [
+    "vault-search",
+    `---
+name: vault-search
+description: Search the vault for notes relevant to a question and synthesise an answer
+---
+
+# Vault search
+
+The user will ask a question or give a topic. Your job:
+
+1. Use Grep and Glob to search the vault for relevant notes.
+2. Read the most relevant hits (up to 10 notes).
+3. Synthesise what you found into a clear answer, citing note titles as \`[[wikilinks]]\`.
+
+If you find nothing relevant, say so. Do not fabricate content that isn't in the vault.
+
+Keep the answer concise. Link to source notes so the user can read further.
+`
+  ],
+  [
+    "clean-up",
+    `---
+name: clean-up
+description: Tidy a rough note \u2014 fix formatting, add frontmatter, organise sections
+---
+
+# Clean up
+
+Read the note provided. Clean it up:
+
+- Fix markdown formatting (headings, lists, code blocks)
+- Add or complete frontmatter if missing (at minimum: a descriptive title)
+- Organise content into logical sections with headings
+- Fix obvious typos and grammatical errors
+- Remove redundant whitespace or broken formatting
+
+Preserve the original meaning and voice. Do not add new content or opinions. Do not delete substantive content \u2014 only remove formatting artifacts.
+
+Edit the file directly. Show what you changed.
+`
+  ],
+  [
+    "stack-setup",
+    `---
+name: stack-setup
+description: Set up or update the System 3 recommended vault configuration \u2014 idempotent, re-runnable
+---
+
+# Stack setup
+
+You are running the System 3 stack setup skill. This is an opinionated, idempotent setup that configures the vault for the System 3 ecosystem (Augment + Claude Code + Relay). It can be re-run at any time to add missing pieces without breaking existing configuration.
+
+## What to configure
+
+Run through each section. For each item: check if it already exists, skip if configured, create or update if missing. Always tell the user what you did and what you skipped.
+
+### 1. CLAUDE.md
+
+Check for CLAUDE.md at vault root. If missing, create it with:
+- A description of the vault ("This is my Obsidian vault.")
+- A section listing the templates folder path (read from Augment settings or default to Augment/templates)
+- A section noting that skills live in agents/skills/
+- Guidance on vault conventions: wikilinks, frontmatter, markdown files
+
+If it exists, read it \u2014 check whether the templates and skills sections are present. Add any missing sections at the end without modifying existing content.
+
+### 2. Folder structure
+
+Ensure these folders exist (create if missing, skip if present):
+- agents/skills/ \u2014 agent skills
+- Augment/templates/ \u2014 prompt templates (or whatever the configured template folder is)
+- Inbox/ \u2014 quick capture
+
+### 3. Frontmatter conventions
+
+Check the 5 most recently modified .md files. If none have frontmatter, inform the user that frontmatter helps Augment provide better context. Suggest a minimal convention:
+
+    ---
+    type: note
+    tags: []
+    ---
+
+Do not add frontmatter to existing files \u2014 just recommend the convention.
+
+### 4. Context cradle \u2014 vault scan
+
+Scan the vault to understand its shape. This informs the template generation step and the status report.
+
+1. **Folder survey**: list top-level folders (skip .obsidian, .trash). Note any that suggest domains (e.g., "Projects", "Meetings", "Journal", "Research").
+2. **Frontmatter survey**: sample 15\u201320 recent .md files. Collect unique \`type:\` values, common \`tags:\`, any recurring frontmatter keys. Note which patterns are consistent vs. ad-hoc.
+3. **Note type distribution**: count how many files use each \`type:\` value. Report the top 5.
+4. **Linking patterns**: check whether notes use wikilinks, markdown links, or both. Note if backlinks are common.
+
+Print a brief "vault profile" summary: folder structure, dominant note types, frontmatter conventions, linking style.
+
+### 5. Template generation (System 3 account required)
+
+**If the user has an active System 3 login** (check: does the Augment plugin settings file at \`.obsidian/plugins/augment-terminal/data.json\` contain a non-empty \`s3Token\` field?):
+
+Based on the vault profile from step 4, generate 2\u20133 vault-tailored prompt templates. Each template should:
+- Address a recurring pattern in the user's vault (e.g., if many \`type: meeting\` notes exist, generate a meeting-specific template)
+- Use Handlebars variables: \`{{title}}\`, \`{{note_content}}\`, \`{{frontmatter.KEY}}\`, \`{{linked_notes}}\`
+- Include frontmatter with \`name:\`, \`description:\` (append " (generated from your vault)" to description), and optionally \`system_prompt:\`
+
+Write each template to the templates folder (default: Augment/templates/). Use descriptive filenames. Skip if a file with the same name already exists.
+
+**If no System 3 login**: skip template generation. Instead, report the vault profile from step 4 and suggest 2\u20133 template ideas the user could create manually. Explain what each would do and which variables to use.
+
+### 6. Template inventory
+
+List all templates in the configured template folder (including any just generated). If fewer than 2 exist, mention that the user can create more with "+ New template" in Settings \u2192 Templates.
+
+### 7. Status report
+
+At the end, print a summary:
+- What was created
+- What was already configured (skipped)
+- Suggested next steps (e.g., "Try Mod+Enter in any note" or "Run /meeting-summary on a transcript")
+
+## Principles
+
+- **Idempotent**: running twice produces the same result. Never duplicate content.
+- **Non-destructive**: never delete or overwrite existing files or content.
+- **Opinionated but transparent**: make recommendations, explain why, let the user override later.
+- **Fast**: this should take under 30 seconds. Do not do unnecessary work.
+`
+  ]
+];
 var addSpinnerEffect = import_state.StateEffect.define();
 var removeSpinnerEffect = import_state.StateEffect.define();
 var SpinnerWidget = class extends import_view.WidgetType {
@@ -20576,6 +20731,30 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings.templateFolder = targetFolder;
     await this.saveData(this.settings);
   }
+  async scaffoldDefaultSkills() {
+    if (!this.app.vault.getAbstractFileByPath(SCAFFOLD_SKILLS_FOLDER)) {
+      try {
+        await this.app.vault.createFolder(SCAFFOLD_SKILLS_FOLDER);
+      } catch (e) {
+      }
+    }
+    for (const [folderName, content] of SCAFFOLD_SKILLS) {
+      const skillFolder = `${SCAFFOLD_SKILLS_FOLDER}/${folderName}`;
+      if (!this.app.vault.getAbstractFileByPath(skillFolder)) {
+        try {
+          await this.app.vault.createFolder(skillFolder);
+        } catch (e) {
+        }
+      }
+      const skillPath = `${skillFolder}/SKILL.md`;
+      if (!this.app.vault.getAbstractFileByPath(skillPath)) {
+        try {
+          await this.app.vault.create(skillPath, content);
+        } catch (e) {
+        }
+      }
+    }
+  }
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
@@ -20585,6 +20764,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
     }
     void this.scaffoldDefaultTemplates();
+    void this.scaffoldDefaultSkills();
     void this.loadAvailableModels();
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
@@ -20717,6 +20897,9 @@ ${excerpt}`,
           const templateContent = await this.app.vault.read(templateFile);
           const templateFm = (_a2 = this.app.metadataCache.getFileCache(templateFile)) == null ? void 0 : _a2.frontmatter;
           const systemPromptOverride = typeof (templateFm == null ? void 0 : templateFm.system_prompt) === "string" ? templateFm.system_prompt : void 0;
+          const targetMode = typeof (templateFm == null ? void 0 : templateFm.target) === "string" ? templateFm.target : "cursor";
+          const targetFilePath = typeof (templateFm == null ? void 0 : templateFm.target_file) === "string" ? templateFm.target_file : null;
+          const targetField = typeof (templateFm == null ? void 0 : templateFm.target_field) === "string" ? templateFm.target_field : null;
           if (templateContent.includes("{{note_content}}")) {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile) ctx.content = await this.app.vault.read(activeFile);
@@ -20734,7 +20917,7 @@ ${excerpt}`,
           }
           const rendered = substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
-            var _a3, _b;
+            var _a3, _b, _c;
             if (this.statusBarEl) {
               this.statusBarEl.empty();
               const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
@@ -20743,16 +20926,19 @@ ${excerpt}`,
               sbSpinner.createEl("span", { cls: "augment-sb-dot" });
               this.statusBarEl.createEl("span", { text: " generating" });
             }
+            const isCursorMode = targetMode === "cursor";
             const isBlock = this.settings.outputFormat !== "plain";
-            let insertPos;
-            if (isBlock && cursor.ch > 0) {
-              editor.replaceRange("\n", cursor);
-              insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
-            } else {
-              insertPos = editor.posToOffset(cursor);
-            }
+            let insertPos = 0;
             const cmView = editor.cm;
-            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+            if (isCursorMode) {
+              if (isBlock && cursor.ch > 0) {
+                editor.replaceRange("\n", cursor);
+                insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+              } else {
+                insertPos = editor.posToOffset(cursor);
+              }
+              cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+            }
             const abortController = new AbortController();
             this.activeGeneration = { abortController, cmView, insertPos };
             try {
@@ -20760,16 +20946,59 @@ ${excerpt}`,
               const resolvedModelName = this.resolveModelDisplayName();
               const result = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
-              cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-              const insertPosLine = editor.offsetToPos(insertPos);
-              if (isBlock) {
-                const withTrail = formatted + "\n";
-                editor.replaceRange(withTrail, insertPosLine);
-                const lines = withTrail.split("\n");
-                editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+              if (targetMode === "clipboard") {
+                await navigator.clipboard.writeText(result);
+                new import_obsidian8.Notice("Augment: copied to clipboard", 5e3);
+              } else if (targetMode === "file" && targetFilePath) {
+                const destFile = this.app.vault.getAbstractFileByPath(targetFilePath);
+                if (destFile instanceof import_obsidian8.TFile) {
+                  const prev = await this.app.vault.read(destFile);
+                  await this.app.vault.modify(destFile, prev + "\n\n" + result);
+                } else {
+                  const parentFolder = targetFilePath.includes("/") ? targetFilePath.slice(0, targetFilePath.lastIndexOf("/")) : null;
+                  if (parentFolder && !this.app.vault.getAbstractFileByPath(parentFolder)) {
+                    try {
+                      await this.app.vault.createFolder(parentFolder);
+                    } catch (e) {
+                    }
+                  }
+                  await this.app.vault.create(targetFilePath, result);
+                }
+                const shortName = (_a3 = targetFilePath.split("/").pop()) != null ? _a3 : targetFilePath;
+                new import_obsidian8.Notice(`Augment: appended to ${shortName}`, 5e3);
+              } else if (targetMode === "frontmatter" && targetField) {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile) {
+                  await this.app.fileManager.processFrontMatter(activeFile, (fm) => {
+                    fm[targetField] = result;
+                  });
+                }
+                new import_obsidian8.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
               } else {
-                editor.replaceRange(formatted, insertPosLine);
+                const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
+                const insertPosLine = editor.offsetToPos(insertPos);
+                if (isBlock) {
+                  const withTrail = formatted + "\n";
+                  editor.replaceRange(withTrail, insertPosLine);
+                  const lines = withTrail.split("\n");
+                  editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+                } else {
+                  editor.replaceRange(formatted, insertPosLine);
+                }
+                console.log("[Augment] template generation done");
+                const notice = new import_obsidian8.Notice("", 5e3);
+                notice.noticeEl.empty();
+                notice.noticeEl.createEl("span", { text: "Augment: done" });
+                notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
+                const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
+                viewLink.href = "#";
+                viewLink.addEventListener("click", (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  notice.hide();
+                  this.openContextInspector();
+                });
               }
               const entry = {
                 timestamp: Date.now(),
@@ -20779,19 +21008,6 @@ ${excerpt}`,
                 userMessage: rendered
               };
               this.pushContextHistory(entry);
-              console.log("[Augment] template generation done");
-              const notice = new import_obsidian8.Notice("", 5e3);
-              notice.noticeEl.empty();
-              notice.noticeEl.createEl("span", { text: "Augment: done" });
-              notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
-              const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
-              viewLink.href = "#";
-              viewLink.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                notice.hide();
-                this.openContextInspector();
-              });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
                 await this.saveData(this.settings);
@@ -20801,14 +21017,14 @@ ${excerpt}`,
                 await this.saveData(this.settings);
               }
             } catch (err) {
-              if (((_a3 = this.activeGeneration) == null ? void 0 : _a3.abortController) === abortController) {
+              if (((_b = this.activeGeneration) == null ? void 0 : _b.abortController) === abortController) {
                 this.activeGeneration = null;
               }
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-              cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
+              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+              const errMsg = (_c = friendlyApiError(err)) != null ? _c : err instanceof Error ? err.message : String(err);
               new import_obsidian8.Notice(`Augment: ${errMsg}`);
             } finally {
               this.refreshStatusBar();

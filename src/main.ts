@@ -873,11 +873,15 @@ export default class AugmentTerminalPlugin extends Plugin {
         new TemplatePicker(this.app, files, async (templateFile) => {
           const templateContent = await this.app.vault.read(templateFile);
 
-          // Read system_prompt override from template frontmatter.
+          // Read system_prompt override and output routing from template frontmatter.
           const templateFm = this.app.metadataCache.getFileCache(templateFile)?.frontmatter;
           const systemPromptOverride = typeof templateFm?.system_prompt === "string"
             ? templateFm.system_prompt
             : undefined;
+          // target: "cursor" (default) | "clipboard" | "file" | "frontmatter"
+          const targetMode: string = typeof templateFm?.target === "string" ? templateFm.target : "cursor";
+          const targetFilePath: string | null = typeof templateFm?.target_file === "string" ? templateFm.target_file : null;
+          const targetField: string | null = typeof templateFm?.target_field === "string" ? templateFm.target_field : null;
 
           // Lazy full-content reads — only when the template actually uses the variables.
           if (templateContent.includes("{{note_content}}")) {
@@ -904,17 +908,21 @@ export default class AugmentTerminalPlugin extends Plugin {
               sbSpinner.createEl("span", { cls: "augment-sb-dot" });
               this.statusBarEl.createEl("span", { text: " generating" });
             }
-            const isBlock = this.settings.outputFormat !== "plain";
-            let insertPos: number;
-            if (isBlock && cursor.ch > 0) {
-              editor.replaceRange("\n", cursor);
-              insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
-            } else {
-              insertPos = editor.posToOffset(cursor);
-            }
 
+            const isCursorMode = targetMode === "cursor";
+            const isBlock = this.settings.outputFormat !== "plain";
+            let insertPos = 0;
             const cmView = (editor as any).cm as EditorView;
-            cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
+
+            if (isCursorMode) {
+              if (isBlock && cursor.ch > 0) {
+                editor.replaceRange("\n", cursor);
+                insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+              } else {
+                insertPos = editor.posToOffset(cursor);
+              }
+              cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
+            }
 
             const abortController = new AbortController();
             this.activeGeneration = { abortController, cmView, insertPos };
@@ -924,17 +932,64 @@ export default class AugmentTerminalPlugin extends Plugin {
               const resolvedModelName = this.resolveModelDisplayName();
               const result = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
-              cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-              const insertPosLine = editor.offsetToPos(insertPos);
-              if (isBlock) {
-                const withTrail = formatted + "\n";
-                editor.replaceRange(withTrail, insertPosLine);
-                const lines = withTrail.split("\n");
-                editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+
+              // Route output
+              if (targetMode === "clipboard") {
+                await navigator.clipboard.writeText(result);
+                new Notice("Augment: copied to clipboard", 5000);
+              } else if (targetMode === "file" && targetFilePath) {
+                const destFile = this.app.vault.getAbstractFileByPath(targetFilePath);
+                if (destFile instanceof TFile) {
+                  const prev = await this.app.vault.read(destFile);
+                  await this.app.vault.modify(destFile, prev + "\n\n" + result);
+                } else {
+                  const parentFolder = targetFilePath.includes("/")
+                    ? targetFilePath.slice(0, targetFilePath.lastIndexOf("/"))
+                    : null;
+                  if (parentFolder && !this.app.vault.getAbstractFileByPath(parentFolder)) {
+                    try { await this.app.vault.createFolder(parentFolder); } catch { /* ignore */ }
+                  }
+                  await this.app.vault.create(targetFilePath, result);
+                }
+                const shortName = targetFilePath.split("/").pop() ?? targetFilePath;
+                new Notice(`Augment: appended to ${shortName}`, 5000);
+              } else if (targetMode === "frontmatter" && targetField) {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile) {
+                  await this.app.fileManager.processFrontMatter(activeFile, (fm) => {
+                    fm[targetField!] = result;
+                  });
+                }
+                new Notice(`Augment: wrote to frontmatter.${targetField}`, 5000);
               } else {
-                editor.replaceRange(formatted, insertPosLine);
+                // cursor (default)
+                const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
+                const insertPosLine = editor.offsetToPos(insertPos);
+                if (isBlock) {
+                  const withTrail = formatted + "\n";
+                  editor.replaceRange(withTrail, insertPosLine);
+                  const lines = withTrail.split("\n");
+                  editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+                } else {
+                  editor.replaceRange(formatted, insertPosLine);
+                }
+                console.log("[Augment] template generation done");
+                const notice = new Notice("", 5000);
+                notice.noticeEl.empty();
+                notice.noticeEl.createEl("span", { text: "Augment: done" });
+                notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \u00b7 " });
+                const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
+                viewLink.href = "#";
+                viewLink.addEventListener("click", (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  notice.hide();
+                  this.openContextInspector();
+                });
               }
+
+              // Common post-generation tracking (all targets)
               const entry: ContextEntry = {
                 timestamp: Date.now(),
                 noteName: ctx.title,
@@ -943,19 +998,6 @@ export default class AugmentTerminalPlugin extends Plugin {
                 userMessage: rendered,
               };
               this.pushContextHistory(entry);
-              console.log("[Augment] template generation done");
-              const notice = new Notice("", 5000);
-              notice.noticeEl.empty();
-              notice.noticeEl.createEl("span", { text: "Augment: done" });
-              notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \u00b7 " });
-              const viewLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "view context" });
-              viewLink.href = "#";
-              viewLink.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                notice.hide();
-                this.openContextInspector();
-              });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
                 await this.saveData(this.settings);
@@ -971,7 +1013,7 @@ export default class AugmentTerminalPlugin extends Plugin {
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-              cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
               new Notice(`Augment: ${errMsg}`);
             } finally {
