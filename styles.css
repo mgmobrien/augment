@@ -541,6 +541,9 @@
 }
 
 /* ── Settings tab ── */
+.augment-settings-container {
+  user-select: text;
+}
 .augment-settings-container .setting-item-description {
   color: var(--text-muted);
 }
