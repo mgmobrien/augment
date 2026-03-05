@@ -107,6 +107,128 @@ function stripAnsi(str: string): string {
     .replace(/\x1b[()][0-9A-B]/g, "");
 }
 
+// ── Teammate-message XML filter ──
+// Intercepts <teammate-message> XML blocks in the PTY stream and reformats
+// them as compact ANSI-colored lines instead of raw XML.
+const FLUSH_TIMEOUT_MS = 2000;
+
+class TeammateMessageFilter {
+  private buffer: string = "";
+  private buffering = false;
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private passthrough: (data: string) => void;
+
+  constructor(passthrough: (data: string) => void) {
+    this.passthrough = passthrough;
+  }
+
+  feed(data: string): void {
+    const clean = stripAnsi(data);
+
+    if (this.buffering) {
+      this.buffer += data;
+      if (clean.includes("</teammate-message>")) {
+        this.clearTimer();
+        this.emitFormatted();
+      }
+      return;
+    }
+
+    // Check for open tag in this chunk
+    const openIdx = clean.indexOf("<teammate-message");
+    if (openIdx === -1) {
+      this.passthrough(data);
+      return;
+    }
+
+    // Pass through everything before the tag
+    if (openIdx > 0) {
+      // Find corresponding position in raw data (approximate — match on the clean text offset)
+      const rawBefore = this.findRawOffset(data, clean, openIdx);
+      this.passthrough(data.slice(0, rawBefore));
+      data = data.slice(rawBefore);
+    }
+
+    this.buffering = true;
+    this.buffer = data;
+
+    if (clean.includes("</teammate-message>")) {
+      this.emitFormatted();
+    } else {
+      this.startTimer();
+    }
+  }
+
+  private findRawOffset(raw: string, clean: string, cleanOffset: number): number {
+    // Walk raw string counting non-ANSI characters until we reach cleanOffset
+    let ci = 0;
+    let ri = 0;
+    while (ri < raw.length && ci < cleanOffset) {
+      if (raw[ri] === "\x1b") {
+        // Skip ANSI sequence
+        const m = raw.slice(ri).match(/^\x1b(?:\[[0-9;]*[a-zA-Z]|\][^\x07]*\x07|[()][0-9A-B])/);
+        if (m) { ri += m[0].length; continue; }
+      }
+      ri++;
+      ci++;
+    }
+    return ri;
+  }
+
+  private emitFormatted(): void {
+    const clean = stripAnsi(this.buffer);
+    this.buffering = false;
+    this.buffer = "";
+
+    // Extract attributes and content
+    const idMatch = clean.match(/teammate_id="([^"]+)"/);
+    const summaryMatch = clean.match(/summary="([^"]+)"/);
+    const id = idMatch?.[1] ?? "?";
+    const summary = summaryMatch?.[1] ?? "";
+
+    // Extract body between > and </teammate-message>
+    const bodyMatch = clean.match(/<teammate-message[^>]*>([\s\S]*?)<\/teammate-message>/);
+    const body = bodyMatch?.[1]?.trim() ?? summary;
+
+    // Determine direction: if this terminal's agent identity matches teammate_id, it's incoming
+    const arrow = "\u2190"; // ← incoming (from teammate to this terminal)
+    const label = `${arrow} from ${id}`;
+    const preview = summary || body.split("\n")[0].slice(0, 80);
+
+    // Emit as dim ANSI line: ← from name: summary
+    const formatted = `\r\n\x1b[2m${label}: ${preview}\x1b[0m\r\n`;
+    this.passthrough(formatted);
+  }
+
+  private startTimer(): void {
+    this.clearTimer();
+    this.flushTimer = setTimeout(() => {
+      // Timeout — flush buffer as-is (malformed XML)
+      if (this.buffering) {
+        this.passthrough(this.buffer);
+        this.buffering = false;
+        this.buffer = "";
+      }
+    }, FLUSH_TIMEOUT_MS);
+  }
+
+  private clearTimer(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+
+  destroy(): void {
+    this.clearTimer();
+    if (this.buffering) {
+      this.passthrough(this.buffer);
+      this.buffering = false;
+      this.buffer = "";
+    }
+  }
+}
+
 // Tool invocation patterns in Claude Code output.
 const TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(/;
 const TOOL_DETAIL_PATTERN = /\b(Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(([^)\n]{0,120})\)/;
@@ -154,6 +276,7 @@ export class TerminalView extends ItemView {
   private errorBannerEl: HTMLDivElement | null = null;
   private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
+  private messageFilter: TeammateMessageFilter | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -424,13 +547,17 @@ export class TerminalView extends ItemView {
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
     this.ptyBridge?.kill();
+    this.messageFilter?.destroy();
+    this.messageFilter = new TeammateMessageFilter((filtered) => {
+      this.terminal?.write(filtered);
+      this.appendToScrollback(filtered);
+    });
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: customCwd || vaultPath,
       shellPath: this.getShellPath(),
       onData: (data) => {
-        this.terminal?.write(data);
-        this.appendToScrollback(data);
+        this.messageFilter!.feed(data);
         this.detectStatus(data);
         this.detectOrchestrationActivity(data);
       },
@@ -884,6 +1011,8 @@ export class TerminalView extends ItemView {
     }
 
     this.resizeObserver?.disconnect();
+    this.messageFilter?.destroy();
+    this.messageFilter = null;
     this.ptyBridge?.kill();
     this.terminal?.dispose();
     this.terminal = null;
