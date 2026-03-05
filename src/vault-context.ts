@@ -107,13 +107,15 @@ export function assembleVaultContext(
   let surroundingContext = "";
   if (!selection) {
     const cursor = editor.getCursor();
-    const startLine = 0;
-    const endLine = cursor.line;
-    const lines: string[] = [];
-    for (let i = startLine; i <= endLine; i++) {
-      lines.push(editor.getLine(i));
+    if (cursor.line > 0 || cursor.ch > 0) {
+      const lines: string[] = [];
+      for (let i = 0; i < cursor.line; i++) {
+        lines.push(editor.getLine(i));
+      }
+      const lastLine = editor.getLine(cursor.line).slice(0, cursor.ch);
+      if (lastLine) lines.push(lastLine);
+      surroundingContext = lines.join("\n");
     }
-    surroundingContext = lines.join("\n");
   }
 
   const linkedNotes: LinkedNoteSummary[] = [];
