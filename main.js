@@ -17379,9 +17379,9 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
       subtitleEl.setText("Sent to the Anthropic API when you generate");
     }
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || void 0);
-    const userMsgText = buildUserMessage(ctx, "Continue writing.");
+    const noteContentText = ctx.selection || ctx.surroundingContext || "";
     const sysTokens = estimateTokens(sysPromptText);
-    const noteTokens = estimateTokens(userMsgText);
+    const noteTokens = estimateTokens(noteContentText);
     const linkedData = ctx.linkedNotes.map((note) => {
       let text = `Linked note: ${note.title}`;
       if (note.frontmatter) {
@@ -17463,7 +17463,7 @@ ${key}: ${valStr}`;
     noteHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${noteTokens} tokens` });
     const noteContent = noteSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
     const noteBlock = noteContent.createEl("div", { cls: "augment-ctx-block" });
-    noteBlock.setText(userMsgText);
+    noteBlock.setText(noteContentText);
     noteHdr.addEventListener("click", () => {
       noteSection.toggleClass("is-open", !noteSection.hasClass("is-open"));
     });

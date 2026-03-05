@@ -1,5 +1,5 @@
 import { ItemView, MarkdownView, setIcon, WorkspaceLeaf } from "obsidian";
-import { buildSystemPrompt, buildUserMessage } from "./ai-client";
+import { buildSystemPrompt } from "./ai-client";
 import AugmentTerminalPlugin from "./main";
 import { assembleVaultContext, VaultContext } from "./vault-context";
 
@@ -146,9 +146,9 @@ export class ContextInspectorView extends ItemView {
 
     // Build all text blocks for token counting
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || undefined);
-    const userMsgText = buildUserMessage(ctx, "Continue writing.");
+    const noteContentText = ctx.selection || ctx.surroundingContext || "";
     const sysTokens = estimateTokens(sysPromptText);
-    const noteTokens = estimateTokens(userMsgText);
+    const noteTokens = estimateTokens(noteContentText);
 
     // Per-linked-note token counts and content
     const linkedData = ctx.linkedNotes.map((note) => {
@@ -243,7 +243,7 @@ export class ContextInspectorView extends ItemView {
     noteHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${noteTokens} tokens` });
     const noteContent = noteSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
     const noteBlock = noteContent.createEl("div", { cls: "augment-ctx-block" });
-    noteBlock.setText(userMsgText);
+    noteBlock.setText(noteContentText);
     noteHdr.addEventListener("click", () => {
       noteSection.toggleClass("is-open", !noteSection.hasClass("is-open"));
     });
