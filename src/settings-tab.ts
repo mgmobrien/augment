@@ -415,18 +415,28 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     apiKeySetting.descEl.appendChild(
       createFragment((frag) => {
-        frag.createEl("strong", { text: "Claude Max/Pro subscriptions don\u2019t work here." });
-        frag.appendText(" Anthropic prohibits OAuth tokens in third-party tools (enforcement tightened Feb 2026). You need a console API key (starts with ");
-        frag.createEl("code", { text: "sk-ant-api03-" });
-        frag.appendText(") \u2014 billing is pay-per-token, separate from any subscription. ");
+        frag.appendText("Anthropic API key. ");
         const a = frag.createEl("a", {
-          text: "Get a key at console.anthropic.com",
-          href: "https://console.anthropic.com/settings/api-keys",
+          text: "Get your API key",
+          href: "https://platform.claude.com/settings/keys",
         });
         a.target = "_blank";
         a.rel = "noopener";
       })
     );
+
+    const subNote = overviewPane.createEl("details", { cls: "augment-api-key-note" });
+    subNote.createEl("summary", { text: "\u24d8 Claude Max/Pro subscription note" });
+    const subBody = subNote.createEl("div", { cls: "augment-api-key-note-body" });
+    subBody.appendText("Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with ");
+    subBody.createEl("code", { text: "sk-ant-api03-" });
+    subBody.appendText(" from ");
+    subBody.createEl("a", {
+      text: "console.anthropic.com",
+      href: "https://console.anthropic.com/settings/api-keys",
+      attr: { target: "_blank", rel: "noopener" },
+    });
+    subBody.appendText(". Billing is separate from any subscription.");
 
     // Model selector (on Overview pane)
     const FALLBACK_MODELS = [

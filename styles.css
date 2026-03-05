@@ -1310,3 +1310,23 @@
   font-style: italic;
   padding: 20px 0;
 }
+
+/* ── API key subscription note ── */
+.augment-api-key-note {
+  margin: 4px 0 12px 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+.augment-api-key-note summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.augment-api-key-note summary::-webkit-details-marker { display: none; }
+.augment-api-key-note[open] summary {
+  margin-bottom: 6px;
+}
+.augment-api-key-note-body {
+  padding-left: 4px;
+  line-height: 1.5;
+}
