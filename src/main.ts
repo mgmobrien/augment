@@ -373,21 +373,15 @@ export default class AugmentTerminalPlugin extends Plugin {
       try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
     }
 
-    // Only scaffold if folder is empty — never overwrite existing templates.
-    const folder = this.app.vault.getFolderByPath(targetFolder);
-    const hasTemplates = folder?.children.some(
-      (f) => f.name.endsWith(".md")
-    ) ?? false;
-    if (hasTemplates) {
-      // Folder has files; just ensure templateFolder is pointed at it.
-      if (!this.settings.templateFolder) {
-        this.settings.templateFolder = targetFolder;
-        await this.saveData(this.settings);
-      }
-      return;
+    // Ensure templateFolder setting is saved.
+    if (!this.settings.templateFolder) {
+      this.settings.templateFolder = targetFolder;
+      await this.saveData(this.settings);
     }
 
-    // Create default templates idempotently.
+    // Write each default template if its file doesn't exist yet.
+    // Never overwrite existing files — user edits are preserved.
+    // New defaults added in future versions will be seeded into existing vaults.
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
       const path = `${targetFolder}/${name}.md`;
       if (!this.app.vault.getAbstractFileByPath(path)) {

@@ -19628,7 +19628,6 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.refreshStatusBar();
   }
   async scaffoldDefaultTemplates() {
-    var _a2;
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
     if (!this.app.vault.getFolderByPath(targetFolder)) {
       try {
@@ -19636,16 +19635,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       } catch (e) {
       }
     }
-    const folder = this.app.vault.getFolderByPath(targetFolder);
-    const hasTemplates = (_a2 = folder == null ? void 0 : folder.children.some(
-      (f) => f.name.endsWith(".md")
-    )) != null ? _a2 : false;
-    if (hasTemplates) {
-      if (!this.settings.templateFolder) {
-        this.settings.templateFolder = targetFolder;
-        await this.saveData(this.settings);
-      }
-      return;
+    if (!this.settings.templateFolder) {
+      this.settings.templateFolder = targetFolder;
+      await this.saveData(this.settings);
     }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
       const path3 = `${targetFolder}/${name}.md`;
