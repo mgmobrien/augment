@@ -105,6 +105,7 @@ export class TemplatePreviewModal extends Modal {
             this.close();
             this.onConfirm(this.skipPreview);
           });
+        btn.buttonEl.focus();
       });
   }
 
