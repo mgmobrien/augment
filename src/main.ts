@@ -166,11 +166,35 @@ Check the 5 most recently modified .md files. If none have frontmatter, inform t
 
 Do not add frontmatter to existing files \u2014 just recommend the convention.
 
-### 4. Template check
+### 4. Context cradle \u2014 vault scan
 
-List the templates in the configured template folder. If fewer than 2 exist, mention that the user can create more with "+ New template" in Settings \u2192 Templates, or by adding .md files to the folder directly.
+Scan the vault to understand its shape. This informs the template generation step and the status report.
 
-### 5. Status report
+1. **Folder survey**: list top-level folders (skip .obsidian, .trash). Note any that suggest domains (e.g., "Projects", "Meetings", "Journal", "Research").
+2. **Frontmatter survey**: sample 15\u201320 recent .md files. Collect unique \`type:\` values, common \`tags:\`, any recurring frontmatter keys. Note which patterns are consistent vs. ad-hoc.
+3. **Note type distribution**: count how many files use each \`type:\` value. Report the top 5.
+4. **Linking patterns**: check whether notes use wikilinks, markdown links, or both. Note if backlinks are common.
+
+Print a brief "vault profile" summary: folder structure, dominant note types, frontmatter conventions, linking style.
+
+### 5. Template generation (System 3 account required)
+
+**If the user has an active System 3 login** (check: does the Augment plugin settings file at \`.obsidian/plugins/augment-terminal/data.json\` contain a non-empty \`s3Token\` field?):
+
+Based on the vault profile from step 4, generate 2\u20133 vault-tailored prompt templates. Each template should:
+- Address a recurring pattern in the user's vault (e.g., if many \`type: meeting\` notes exist, generate a meeting-specific template)
+- Use Handlebars variables: \`{{title}}\`, \`{{note_content}}\`, \`{{frontmatter.KEY}}\`, \`{{linked_notes}}\`
+- Include frontmatter with \`name:\`, \`description:\` (append " (generated from your vault)" to description), and optionally \`system_prompt:\`
+
+Write each template to the templates folder (default: Augment/templates/). Use descriptive filenames. Skip if a file with the same name already exists.
+
+**If no System 3 login**: skip template generation. Instead, report the vault profile from step 4 and suggest 2\u20133 template ideas the user could create manually. Explain what each would do and which variables to use.
+
+### 6. Template inventory
+
+List all templates in the configured template folder (including any just generated). If fewer than 2 exist, mention that the user can create more with "+ New template" in Settings \u2192 Templates.
+
+### 7. Status report
 
 At the end, print a summary:
 - What was created
