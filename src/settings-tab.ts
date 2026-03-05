@@ -415,10 +415,13 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     apiKeySetting.descEl.appendChild(
       createFragment((frag) => {
-        frag.appendText("Anthropic API key. ");
+        frag.createEl("strong", { text: "Claude Max/Pro subscriptions don\u2019t work here." });
+        frag.appendText(" Anthropic prohibits OAuth tokens in third-party tools (enforcement tightened Feb 2026). You need a console API key (starts with ");
+        frag.createEl("code", { text: "sk-ant-api03-" });
+        frag.appendText(") \u2014 billing is pay-per-token, separate from any subscription. ");
         const a = frag.createEl("a", {
-          text: "Get your API key",
-          href: "https://platform.claude.com/settings/keys",
+          text: "Get a key at console.anthropic.com",
+          href: "https://console.anthropic.com/settings/api-keys",
         });
         a.target = "_blank";
         a.rel = "noopener";
