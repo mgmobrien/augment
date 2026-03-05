@@ -1,4 +1,4 @@
-import Anthropic, { APIConnectionError, AuthenticationError, BadRequestError, PermissionDeniedError, RateLimitError } from "@anthropic-ai/sdk";
+import Anthropic, { APIConnectionError, APIError, AuthenticationError, BadRequestError, PermissionDeniedError, RateLimitError } from "@anthropic-ai/sdk";
 import Handlebars from "handlebars";
 import { AugmentSettings, LinkedNoteSummary, VaultContext } from "./vault-context";
 
@@ -177,7 +177,7 @@ export function friendlyApiError(err: unknown): string | null {
   if (err instanceof BadRequestError) {
     const msg = String((err.error as any)?.error?.message ?? err.message ?? "");
     if (msg.toLowerCase().includes("credit balance")) {
-      return "No API credits — top up at console.anthropic.com/settings/billing";
+      return "No API credits — top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a moment and try again.";
     }
     return `Bad request: ${msg || err.message}`;
   }
@@ -194,6 +194,21 @@ export function friendlyApiError(err: unknown): string | null {
     return "Connection failed — check your internet connection";
   }
   return null;
+}
+
+// Logs diagnostic information to console for remote debugging.
+// Call from catch blocks when generation fails.
+export function logApiDiagnostics(err: unknown, apiKey: string, model: string): void {
+  const keyPrefix = apiKey ? apiKey.slice(0, 8) + "..." : "(empty)";
+  console.log("[Augment] diagnostic — key prefix:", keyPrefix);
+  console.log("[Augment] diagnostic — model:", model);
+  if (err instanceof APIError) {
+    console.log("[Augment] diagnostic — status:", err.status);
+    console.log("[Augment] diagnostic — request ID:", err.requestID ?? "(none)");
+    console.log("[Augment] diagnostic — response body:", JSON.stringify(err.error, null, 2));
+  } else if (err instanceof Error) {
+    console.log("[Augment] diagnostic — error:", err.message);
+  }
 }
 
 // modelOverride: pass the resolved model ID when settings.model is "auto".

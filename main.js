@@ -17035,7 +17035,7 @@ function friendlyApiError(err) {
   if (err instanceof BadRequestError) {
     const msg = String((_d = (_c = (_b = (_a2 = err.error) == null ? void 0 : _a2.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
     if (msg.toLowerCase().includes("credit balance")) {
-      return "No API credits \u2014 top up at console.anthropic.com/settings/billing";
+      return "No API credits \u2014 top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a moment and try again.";
     }
     return `Bad request: ${msg || err.message}`;
   }
@@ -17052,6 +17052,19 @@ function friendlyApiError(err) {
     return "Connection failed \u2014 check your internet connection";
   }
   return null;
+}
+function logApiDiagnostics(err, apiKey, model) {
+  var _a2;
+  const keyPrefix = apiKey ? apiKey.slice(0, 8) + "..." : "(empty)";
+  console.log("[Augment] diagnostic \u2014 key prefix:", keyPrefix);
+  console.log("[Augment] diagnostic \u2014 model:", model);
+  if (err instanceof APIError) {
+    console.log("[Augment] diagnostic \u2014 status:", err.status);
+    console.log("[Augment] diagnostic \u2014 request ID:", (_a2 = err.requestID) != null ? _a2 : "(none)");
+    console.log("[Augment] diagnostic \u2014 response body:", JSON.stringify(err.error, null, 2));
+  } else if (err instanceof Error) {
+    console.log("[Augment] diagnostic \u2014 error:", err.message);
+  }
 }
 async function generateText(systemPrompt, userMessage, settings, modelOverride, signal) {
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
@@ -20125,6 +20138,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         }
         if (abortController.signal.aborted) return;
         console.error("[Augment] generation failed", err);
+        logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
         new import_obsidian8.Notice(`Augment: ${errMsg}`);
@@ -20375,6 +20389,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
               }
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
+              logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
               new import_obsidian8.Notice(`Augment: ${errMsg}`);
