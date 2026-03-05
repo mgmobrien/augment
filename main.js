@@ -19124,7 +19124,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       (_a2 = this.terminal) == null ? void 0 : _a2.write("\r\n\x1B[2m[Retrying connection\u2026]\x1B[0m\r\n");
       this.startPtyBridge();
     });
-    const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open setup wizard" });
+    const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open Terminal settings" });
     setupBtn.addEventListener("click", () => {
       var _a2, _b, _c, _d;
       (_b = (_a2 = this.app.setting) == null ? void 0 : _a2.open) == null ? void 0 : _b.call(_a2);

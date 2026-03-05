@@ -474,7 +474,7 @@ export class TerminalView extends ItemView {
       this.startPtyBridge();
     });
 
-    const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open setup wizard" });
+    const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open Terminal settings" });
     setupBtn.addEventListener("click", () => {
       (this.app as any).setting?.open?.();
       (this.app as any).setting?.openTabById?.("augment-terminal");
