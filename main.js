@@ -16911,9 +16911,8 @@ function formatLinkedNotesFull(notes) {
 }
 var DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
 function buildSystemPrompt(ctx, systemPromptOverride) {
-  if (systemPromptOverride) return systemPromptOverride.trim();
   const parts = [
-    DEFAULT_SYSTEM_PROMPT_BASE,
+    systemPromptOverride ? systemPromptOverride.trim() : DEFAULT_SYSTEM_PROMPT_BASE,
     "",
     `Current note: ${ctx.title}`
   ];
