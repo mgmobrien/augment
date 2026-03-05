@@ -17335,7 +17335,10 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
   render(ctx, activeView) {
     var _a2, _b;
     const el = this.contentDiv;
-    el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
+    const headerEl = el.createEl("div", { cls: "augment-ctx-panel-header" });
+    const iconEl = headerEl.createEl("span", { cls: "augment-ctx-panel-header-icon" });
+    (0, import_obsidian2.setIcon)(iconEl, "radio-tower");
+    headerEl.createEl("span", { text: "Context inspector" });
     el.createEl("div", {
       cls: "augment-ctx-panel-subtitle",
       text: "What Augment sends when you generate"
@@ -22047,6 +22050,7 @@ ${excerpt}`,
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
+      hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
       callback: () => {
         this.openTerminal();
       }
@@ -22092,7 +22096,7 @@ ${excerpt}`,
     this.addCommand({
       id: "open-terminal-manager",
       name: "Show terminal manager",
-      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "t" }],
+      hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }],
       callback: () => {
         this.openTerminalManager();
       }

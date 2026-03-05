@@ -90,7 +90,10 @@ export class ContextInspectorView extends ItemView {
     const el = this.contentDiv;
 
     // ── Header ──
-    el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
+    const headerEl = el.createEl("div", { cls: "augment-ctx-panel-header" });
+    const iconEl = headerEl.createEl("span", { cls: "augment-ctx-panel-header-icon" });
+    setIcon(iconEl, "radio-tower");
+    headerEl.createEl("span", { text: "Context inspector" });
     el.createEl("div", {
       cls: "augment-ctx-panel-subtitle",
       text: "What Augment sends when you generate",
