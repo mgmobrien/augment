@@ -920,11 +920,18 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
 
-    // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults on every load (idempotent).
-    // Cmd+Enter conflicts on all platforms (Mac: open-link-in-new-leaf, checklist toggle;
-    // also Text Generator bindings that persist even when TG is disabled).
-    // Show notice only on first clear.
+    // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
+    // Two mechanisms: (1) removeDefaultHotkeys on the runtime hotkey manager (immediate),
+    // (2) write [] to hotkeys.json (persists across reloads for non-plugin built-ins).
     {
+      const hm = (this.app as any).hotkeyManager;
+      const RUNTIME_CONFLICTS = [
+        "editor:open-link-in-new-leaf",
+        "editor:cycle-list-checklist",
+      ];
+      for (const id of RUNTIME_CONFLICTS) {
+        hm?.removeDefaultHotkeys?.(id);
+      }
       const isFirst = !this.settings.clearedLinkHotkey;
       void this.clearObsidianLinkHotkey().then(() => {
         if (isFirst) this.showHotkeyClaimedNotice();

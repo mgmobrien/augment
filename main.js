@@ -21693,6 +21693,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     }
   }
   async onload() {
+    var _a2;
     const raw = await this.loadData();
     if (raw && typeof raw === "object") {
       delete raw["useWsl"];
@@ -21702,6 +21703,14 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     {
+      const hm = this.app.hotkeyManager;
+      const RUNTIME_CONFLICTS = [
+        "editor:open-link-in-new-leaf",
+        "editor:cycle-list-checklist"
+      ];
+      for (const id of RUNTIME_CONFLICTS) {
+        (_a2 = hm == null ? void 0 : hm.removeDefaultHotkeys) == null ? void 0 : _a2.call(hm, id);
+      }
       const isFirst = !this.settings.clearedLinkHotkey;
       void this.clearObsidianLinkHotkey().then(() => {
         if (isFirst) this.showHotkeyClaimedNotice();
@@ -21835,9 +21844,9 @@ ${excerpt}`,
         const cursor = editor.getCursor();
         const ctx = assembleVaultContext(this.app, editor, this.settings);
         new TemplatePicker(this.app, files, async (templateFile) => {
-          var _a2;
+          var _a3;
           const templateContent = await this.app.vault.read(templateFile);
-          const templateFm = (_a2 = this.app.metadataCache.getFileCache(templateFile)) == null ? void 0 : _a2.frontmatter;
+          const templateFm = (_a3 = this.app.metadataCache.getFileCache(templateFile)) == null ? void 0 : _a3.frontmatter;
           const systemPromptOverride = typeof (templateFm == null ? void 0 : templateFm.system_prompt) === "string" ? templateFm.system_prompt : void 0;
           const targetMode = typeof (templateFm == null ? void 0 : templateFm.target) === "string" ? templateFm.target : "cursor";
           const targetFilePath = typeof (templateFm == null ? void 0 : templateFm.target_file) === "string" ? templateFm.target_file : null;
@@ -21859,7 +21868,7 @@ ${excerpt}`,
           }
           const rendered = substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
-            var _a3, _b, _c;
+            var _a4, _b, _c;
             if (this.statusBarEl) {
               this.statusBarEl.empty();
               const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
@@ -21907,7 +21916,7 @@ ${excerpt}`,
                   }
                   await this.app.vault.create(targetFilePath, result);
                 }
-                const shortName = (_a3 = targetFilePath.split("/").pop()) != null ? _a3 : targetFilePath;
+                const shortName = (_a4 = targetFilePath.split("/").pop()) != null ? _a4 : targetFilePath;
                 new import_obsidian8.Notice(`Augment: appended to ${shortName}`, 5e3);
               } else if (targetMode === "frontmatter" && targetField) {
                 const activeFile = this.app.workspace.getActiveFile();
