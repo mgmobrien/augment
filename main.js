@@ -17030,6 +17030,29 @@ ${body}`;
       return text;
   }
 }
+function friendlyApiError(err) {
+  var _a2, _b, _c, _d;
+  if (err instanceof BadRequestError) {
+    const msg = String((_d = (_c = (_b = (_a2 = err.error) == null ? void 0 : _a2.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
+    if (msg.toLowerCase().includes("credit balance")) {
+      return "No API credits \u2014 top up at console.anthropic.com/settings/billing";
+    }
+    return `Bad request: ${msg || err.message}`;
+  }
+  if (err instanceof AuthenticationError) {
+    return "Invalid API key \u2014 check Settings \u2192 Generate";
+  }
+  if (err instanceof PermissionDeniedError) {
+    return "API key lacks permission for this request";
+  }
+  if (err instanceof RateLimitError) {
+    return "Rate limited \u2014 wait a moment and try again";
+  }
+  if (err instanceof APIConnectionError) {
+    return "Connection failed \u2014 check your internet connection";
+  }
+  return null;
+}
 async function generateText(systemPrompt, userMessage, settings, modelOverride, signal) {
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create(
@@ -17736,18 +17759,27 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     apiKeySetting.descEl.appendChild(
       createFragment((frag) => {
-        frag.createEl("strong", { text: "Claude Max/Pro subscriptions don\u2019t work here." });
-        frag.appendText(" Anthropic prohibits OAuth tokens in third-party tools (enforcement tightened Feb 2026). You need a console API key (starts with ");
-        frag.createEl("code", { text: "sk-ant-api03-" });
-        frag.appendText(") \u2014 billing is pay-per-token, separate from any subscription. ");
+        frag.appendText("Anthropic API key. ");
         const a = frag.createEl("a", {
-          text: "Get a key at console.anthropic.com",
-          href: "https://console.anthropic.com/settings/api-keys"
+          text: "Get your API key",
+          href: "https://platform.claude.com/settings/keys"
         });
         a.target = "_blank";
         a.rel = "noopener";
       })
     );
+    const subNote = overviewPane.createEl("details", { cls: "augment-api-key-note" });
+    subNote.createEl("summary", { text: "\u24D8 Claude Max/Pro subscription note" });
+    const subBody = subNote.createEl("div", { cls: "augment-api-key-note-body" });
+    subBody.appendText("Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with ");
+    subBody.createEl("code", { text: "sk-ant-api03-" });
+    subBody.appendText(" from ");
+    subBody.createEl("a", {
+      text: "console.anthropic.com",
+      href: "https://console.anthropic.com/settings/api-keys",
+      attr: { target: "_blank", rel: "noopener" }
+    });
+    subBody.appendText(". Billing is separate from any subscription.");
     const FALLBACK_MODELS = [
       { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
       { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
@@ -20016,7 +20048,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     const abortController = new AbortController();
     this.activeGeneration = { abortController, cmView, insertPos };
     void (async () => {
-      var _a2;
+      var _a2, _b;
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
@@ -20065,7 +20097,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         if (abortController.signal.aborted) return;
         console.error("[Augment] generation failed", err);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-        new import_obsidian8.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+        const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
+        new import_obsidian8.Notice(`Augment: ${errMsg}`);
       } finally {
         this.refreshStatusBar();
       }
@@ -20241,7 +20274,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           }
           const rendered = substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
-            var _a3;
+            var _a3, _b;
             if (this.statusBarEl) {
               this.statusBarEl.empty();
               const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
@@ -20314,7 +20347,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              new import_obsidian8.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+              const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
+              new import_obsidian8.Notice(`Augment: ${errMsg}`);
             } finally {
               this.refreshStatusBar();
             }

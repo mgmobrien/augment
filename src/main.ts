@@ -1,5 +1,5 @@
 import { Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile } from "obsidian";
-import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, generateText, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
+import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
@@ -416,7 +416,8 @@ export default class AugmentTerminalPlugin extends Plugin {
         if (abortController.signal.aborted) return; // Cancel — no error notice.
         console.error("[Augment] generation failed", err);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-        new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+        const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
+        new Notice(`Augment: ${errMsg}`);
       } finally {
         this.refreshStatusBar();
       }
@@ -696,7 +697,8 @@ export default class AugmentTerminalPlugin extends Plugin {
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+              const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
+              new Notice(`Augment: ${errMsg}`);
             } finally {
               this.refreshStatusBar();
             }

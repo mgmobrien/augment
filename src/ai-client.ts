@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIConnectionError, AuthenticationError, BadRequestError, PermissionDeniedError, RateLimitError } from "@anthropic-ai/sdk";
 import Handlebars from "handlebars";
 import { AugmentSettings, LinkedNoteSummary, VaultContext } from "./vault-context";
 
@@ -169,6 +169,31 @@ export function applyOutputFormat(text: string, settings: AugmentSettings, resol
     default:
       return text;
   }
+}
+
+// Maps known Anthropic API errors to human-readable messages.
+// Returns null for unrecognised errors so callers can fall back to err.message.
+export function friendlyApiError(err: unknown): string | null {
+  if (err instanceof BadRequestError) {
+    const msg = String((err.error as any)?.error?.message ?? err.message ?? "");
+    if (msg.toLowerCase().includes("credit balance")) {
+      return "No API credits — top up at console.anthropic.com/settings/billing";
+    }
+    return `Bad request: ${msg || err.message}`;
+  }
+  if (err instanceof AuthenticationError) {
+    return "Invalid API key — check Settings \u2192 Generate";
+  }
+  if (err instanceof PermissionDeniedError) {
+    return "API key lacks permission for this request";
+  }
+  if (err instanceof RateLimitError) {
+    return "Rate limited — wait a moment and try again";
+  }
+  if (err instanceof APIConnectionError) {
+    return "Connection failed — check your internet connection";
+  }
+  return null;
 }
 
 // modelOverride: pass the resolved model ID when settings.model is "auto".
