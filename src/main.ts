@@ -8,6 +8,7 @@ import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntr
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
+import { VIEW_TYPE_WELCOME, WelcomeView } from "./welcome-view";
 import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
@@ -435,6 +436,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
     });
+    this.registerView(VIEW_TYPE_WELCOME, (leaf) => new WelcomeView(leaf, this));
 
     // Escape key cancels in-progress generation.
     const escapeKeymap = keymap.of([{
@@ -661,6 +663,22 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "open-welcome",
+      name: "Open welcome",
+      callback: () => {
+        const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_WELCOME);
+        if (existing.length > 0) {
+          this.app.workspace.revealLeaf(existing[0]);
+        } else {
+          this.app.workspace.onLayoutReady(() => {
+            const leaf = this.app.workspace.getLeaf("tab");
+            leaf.setViewState({ type: VIEW_TYPE_WELCOME, active: true });
+          });
+        }
+      },
+    });
+
+    this.addCommand({
       id: "augment-view-context",
       name: "Open context inspector",
       callback: () => {
@@ -679,22 +697,13 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
     this.refreshStatusBar();
 
-    // First-load welcome notice — shown once, only when not yet configured
+    // First-load welcome tab — shown once, only when not yet configured
     if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
       this.settings.hasSeenWelcome = true;
       void this.saveData(this.settings);
-      console.log("[Augment] first-load welcome notice");
-      const notice = new Notice("", 8000);
-      notice.noticeEl.empty();
-      notice.noticeEl.createEl("span", { text: "Augment installed \u2014 add your API key to start generating. " });
-      const setupLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "Set up \u2192" });
-      setupLink.href = "#";
-      setupLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        notice.hide();
-        (this.app as any).setting.open();
-        (this.app as any).setting.openTabById("augment-terminal");
+      this.app.workspace.onLayoutReady(() => {
+        const leaf = this.app.workspace.getLeaf("tab");
+        leaf.setViewState({ type: VIEW_TYPE_WELCOME, active: true });
       });
     }
 
@@ -838,6 +847,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_WELCOME);
     cleanupXtermStyle();
     this.calloutStyleEl?.remove();
     this.calloutStyleEl = null;
