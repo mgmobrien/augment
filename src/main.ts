@@ -1,9 +1,10 @@
-import { MarkdownView, Modal, Notice, Plugin, Setting } from "obsidian";
+import { Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile } from "obsidian";
 import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, generateText, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
+import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorModal } from "./context-inspector";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
-import { assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS } from "./vault-context";
+import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -63,6 +64,47 @@ const spinnerField = StateField.define<DecorationSet>({
       if (e.is(addSpinnerEffect)) {
         decos = decos.update({ add: [Decoration.widget({ widget: new SpinnerWidget(), side: 1 }).range(e.value)] });
       } else if (e.is(removeSpinnerEffect)) {
+        decos = Decoration.none;
+      }
+    }
+    return decos;
+  },
+  provide: f => EditorView.decorations.from(f),
+});
+
+// ── Persistent agent status widget (skill invocation) ──
+const addAgentWidgetEffect = StateEffect.define<{ pos: number; name: string }>();
+const removeAgentWidgetEffect = StateEffect.define<null>();
+
+class AgentWidget extends WidgetType {
+  constructor(private name: string) { super(); }
+  toDOM(): HTMLElement {
+    const wrap = document.createElement("span");
+    wrap.className = "augment-agent-widget";
+    const spinner = document.createElement("span");
+    spinner.className = "augment-spinner";
+    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
+      const dot = document.createElement("span");
+      dot.className = "augment-spinner-dot " + cls;
+      spinner.appendChild(dot);
+    }
+    wrap.appendChild(spinner);
+    wrap.appendChild(document.createTextNode("\u00a0" + this.name));
+    return wrap;
+  }
+  ignoreEvent(): boolean { return true; }
+}
+
+const agentWidgetField = StateField.define<DecorationSet>({
+  create() { return Decoration.none; },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(addAgentWidgetEffect)) {
+        decos = decos.update({
+          add: [Decoration.widget({ widget: new AgentWidget(e.value.name), side: 1 }).range(e.value.pos)],
+        });
+      } else if (e.is(removeAgentWidgetEffect)) {
         decos = Decoration.none;
       }
     }
@@ -298,7 +340,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
-    this.registerEditorExtension(spinnerField);
+    this.registerEditorExtension([spinnerField, agentWidgetField]);
+    this.registerEditorSuggest(new AgentSuggest(this.app));
 
     // AI generation commands
     this.addCommand({
@@ -663,7 +706,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private async openTerminal(
     mode: "tab" | "split-vertical" | "split-horizontal" = "tab",
     options?: { name?: string; active?: boolean; reveal?: boolean }
-  ): Promise<void> {
+  ): Promise<TerminalView> {
     const { workspace } = this.app;
     const desiredName = options?.name?.trim();
     const active = options?.active ?? true;
@@ -694,6 +737,8 @@ export default class AugmentTerminalPlugin extends Plugin {
     if (reveal) {
       workspace.revealLeaf(leaf);
     }
+
+    return leaf.view as TerminalView;
   }
 
   private async openTerminalSidebar(): Promise<void> {
@@ -780,6 +825,37 @@ export default class AugmentTerminalPlugin extends Plugin {
         reveal: false,
       });
     }
+  }
+
+  public insertAgentWidget(editor: Editor, pos: { line: number; ch: number }, name: string): void {
+    const cmView = (editor as any).cm as EditorView;
+    const offset = editor.posToOffset(pos);
+    cmView.dispatch({ effects: addAgentWidgetEffect.of({ pos: offset, name }) });
+  }
+
+  public async launchSkillSession(file: TFile, skillName: string): Promise<void> {
+    const ctx = await assembleNoteContext(this.app, file, this.settings);
+
+    const parts: string[] = [`Note: ${ctx.title}`];
+    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
+      const fmLines = Object.entries(ctx.frontmatter)
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v ?? "")}`)
+        .join("\n");
+      parts.push(`Frontmatter:\n${fmLines}`);
+    }
+    if (ctx.surroundingContext) {
+      parts.push(`Context:\n${ctx.surroundingContext}`);
+    }
+    parts.push(``, `Run /${skillName}`);
+    const prompt = parts.join("\n");
+
+    // Open terminal in background (no focus steal).
+    const terminalView = await this.openTerminal("tab", { active: false, reveal: false });
+
+    // Write initial prompt after CC has time to initialize.
+    setTimeout(() => {
+      terminalView.write(prompt + "\n");
+    }, 1500);
   }
 
   private hasTerminalNamed(name: string): boolean {

@@ -6328,7 +6328,7 @@ __export(main_exports, {
   default: () => AugmentTerminalPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f) {
@@ -11363,9 +11363,82 @@ async function generateText(systemPrompt, userMessage, settings, modelOverride) 
   return block.text;
 }
 
-// src/context-inspector.ts
+// src/agent-suggest.ts
 var import_obsidian = require("obsidian");
-var ContextInspectorModal = class extends import_obsidian.Modal {
+var AgentSuggest = class extends import_obsidian.EditorSuggest {
+  constructor(app) {
+    super(app);
+    this.skills = [];
+    this.loadSkills();
+  }
+  loadSkills() {
+    var _a2, _b;
+    const folder = this.app.vault.getAbstractFileByPath("agents/skills");
+    if (!(folder instanceof import_obsidian.TFolder)) return;
+    const entries = [];
+    for (const child of folder.children) {
+      if (!(child instanceof import_obsidian.TFolder)) continue;
+      const skillFile = this.app.vault.getAbstractFileByPath(`agents/skills/${child.name}/SKILL.md`);
+      if (!(skillFile instanceof import_obsidian.TFile)) continue;
+      const cache = (_a2 = this.app.metadataCache.getFileCache(skillFile)) == null ? void 0 : _a2.frontmatter;
+      if (!cache) continue;
+      if (cache.user_invocable === false) continue;
+      entries.push({
+        name: (_b = cache.name) != null ? _b : child.name,
+        description: typeof cache.description === "string" ? cache.description : "",
+        file: skillFile
+      });
+    }
+    this.skills = entries.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  // Reload skills on demand — call after vault changes if needed.
+  reload() {
+    this.loadSkills();
+  }
+  onTrigger(cursor, editor) {
+    const line = editor.getLine(cursor.line);
+    const before = line.slice(0, cursor.ch);
+    const match = before.match(/\/agent\s+(\S*)$/);
+    if (!match) return null;
+    const queryLen = match[1].length;
+    const prefixLen = "/agent ".length;
+    return {
+      start: { line: cursor.line, ch: before.length - queryLen - prefixLen },
+      end: cursor,
+      query: match[1]
+    };
+  }
+  getSuggestions(ctx) {
+    const q = ctx.query.toLowerCase();
+    if (!q) return this.skills;
+    return this.skills.filter(
+      (s) => s.name.includes(q) || s.description.toLowerCase().includes(q)
+    );
+  }
+  renderSuggestion(skill, el) {
+    el.createEl("div", { cls: "augment-skill-name", text: skill.name });
+    if (skill.description) {
+      el.createEl("div", { cls: "augment-skill-desc", text: skill.description });
+    }
+  }
+  selectSuggestion(skill) {
+    var _a2, _b, _c, _d;
+    const editor = (_a2 = this.context) == null ? void 0 : _a2.editor;
+    const file = (_b = this.context) == null ? void 0 : _b.file;
+    if (!editor || !file) return;
+    const { start, end } = this.context;
+    editor.replaceRange("", start, end);
+    const plugin = (_d = (_c = this.app.plugins) == null ? void 0 : _c.plugins) == null ? void 0 : _d["augment-terminal"];
+    if (plugin) {
+      plugin.insertAgentWidget(editor, start, skill.name);
+      void plugin.launchSkillSession(file, skill.name);
+    }
+  }
+};
+
+// src/context-inspector.ts
+var import_obsidian2 = require("obsidian");
+var ContextInspectorModal = class extends import_obsidian2.Modal {
   constructor(app, ctx) {
     super(app);
     this.ctx = ctx;
@@ -11430,7 +11503,7 @@ var ContextInspectorModal = class extends import_obsidian.Modal {
 };
 
 // src/settings-tab.ts
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
@@ -11489,6 +11562,29 @@ function assembleVaultContext(app, editor, settings) {
   }
   return { title, frontmatter, selection, surroundingContext, linkedNotes };
 }
+async function assembleNoteContext(app, file, settings) {
+  var _a2, _b, _c, _d, _e;
+  const title = file.basename;
+  const rawFrontmatter = (_b = (_a2 = app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter) != null ? _b : null;
+  const frontmatter = stripObsidianMeta(rawFrontmatter);
+  const content = await app.vault.cachedRead(file);
+  const surroundingContext = content.split("\n").slice(0, 200).join("\n");
+  const linkedNotes = [];
+  if (settings.linkedNoteCount > 0) {
+    const links = (_d = (_c = app.metadataCache.getFileCache(file)) == null ? void 0 : _c.links) != null ? _d : [];
+    for (const link of links) {
+      if (linkedNotes.length >= settings.linkedNoteCount) break;
+      const resolved = app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+      if (!resolved) continue;
+      const cache = app.metadataCache.getFileCache(resolved);
+      linkedNotes.push({
+        title: resolved.basename,
+        frontmatter: stripObsidianMeta((_e = cache == null ? void 0 : cache.frontmatter) != null ? _e : null)
+      });
+    }
+  }
+  return { title, frontmatter, selection: "", surroundingContext, linkedNotes };
+}
 
 // src/settings-tab.ts
 var BUILTIN_CALLOUT_TYPES = [
@@ -11524,7 +11620,7 @@ function detectCalloutTypes() {
   }
   return ["ai", ...BUILTIN_CALLOUT_TYPES, ...Array.from(custom).sort()];
 }
-var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
+var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -11535,7 +11631,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
     containerEl.addClass("augment-settings-container");
     const header = containerEl.createEl("div", { cls: "augment-settings-header" });
     const iconEl = header.createEl("div", { cls: "augment-settings-header-icon" });
-    (0, import_obsidian2.setIcon)(iconEl, "radio-tower");
+    (0, import_obsidian3.setIcon)(iconEl, "radio-tower");
     const wordmark = header.createEl("div", { cls: "augment-settings-header-text" });
     wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
     wordmark.createEl("div", {
@@ -11583,7 +11679,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
       const header2 = statusCard.createEl("div", { cls: "augment-onboarding-header" });
       header2.createEl("span", { cls: "augment-onboarding-title", text: "Get started" });
       const dismissBtn = header2.createEl("button", { cls: "augment-onboarding-dismiss clickable-icon" });
-      (0, import_obsidian2.setIcon)(dismissBtn, "x");
+      (0, import_obsidian3.setIcon)(dismissBtn, "x");
       dismissBtn.addEventListener("click", async () => {
         this.plugin.settings.setupCardDismissed = true;
         await this.plugin.saveData(this.plugin.settings);
@@ -11604,7 +11700,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
           done: this.plugin.settings.hasGenerated,
           hotkey: process.platform === "darwin" ? "\u2318\u21A9" : "Ctrl+\u21A9",
           onClick: () => {
-            new import_obsidian2.Notice(process.platform === "darwin" ? "Press \u2318\u21A9 to generate in any note" : "Press Ctrl+Enter to generate in any note");
+            new import_obsidian3.Notice(process.platform === "darwin" ? "Press \u2318\u21A9 to generate in any note" : "Press Ctrl+Enter to generate in any note");
           }
         },
         {
@@ -11640,9 +11736,9 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
       text: "Preview context for current note"
     });
     previewBtn.addEventListener("click", () => {
-      const activeView = this.plugin.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
+      const activeView = this.plugin.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
       if (!activeView) {
-        new import_obsidian2.Notice("Open a note to preview context");
+        new import_obsidian3.Notice("Open a note to preview context");
         return;
       }
       const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
@@ -11695,7 +11791,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
         pane.style.display = "";
       });
     }
-    const apiKeySetting = new import_obsidian2.Setting(generatePane).setName("API key").addText((text) => {
+    const apiKeySetting = new import_obsidian3.Setting(generatePane).setName("API key").addText((text) => {
       apiKeyInputEl = text.inputEl;
       text.inputEl.type = "password";
       text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
@@ -11720,7 +11816,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
       { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
     ];
     const modelList = this.plugin.availableModels.length > 0 ? this.plugin.availableModels : FALLBACK_MODELS;
-    new import_obsidian2.Setting(generatePane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
+    new import_obsidian3.Setting(generatePane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
       drop.addOption("auto", "Auto (best available)");
       for (const m of modelList) {
         drop.addOption(m.id, m.display_name);
@@ -11732,7 +11828,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
       });
     });
     const calloutTypes = detectCalloutTypes();
-    const formatSetting = new import_obsidian2.Setting(generatePane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
+    const formatSetting = new import_obsidian3.Setting(generatePane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
         this.plugin.settings.outputFormat = value;
         await this.plugin.saveData(this.plugin.settings);
@@ -11797,14 +11893,14 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
       this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
       await this.plugin.saveData(this.plugin.settings);
     });
-    new import_obsidian2.Setting(generatePane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
+    new import_obsidian3.Setting(generatePane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showTemplatePreview).onChange(async (value) => {
         this.plugin.settings.showTemplatePreview = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
     if (process.platform === "win32") {
-      new import_obsidian2.Setting(generatePane).setName("Run terminal via WSL").setDesc(
+      new import_obsidian3.Setting(generatePane).setName("Run terminal via WSL").setDesc(
         "Spawn the terminal PTY bridge through WSL (Windows Subsystem for Linux) instead of native Python. Required on Windows \u2014 Python\u2019s pty module is Unix-only. Requires WSL installed with python3 available in the default distro."
       ).addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.useWsl).onChange(async (value) => {
@@ -11817,14 +11913,14 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
       cls: "augment-context-intro",
       text: "Augment sends everything in the current note above your cursor, along with the note title, frontmatter, and linked note summaries. If you have text selected, the selection is used instead of the above-cursor context."
     });
-    new import_obsidian2.Setting(contextPane).setName("Template folder").setDesc("Vault path to folder containing .md prompt templates").addText((text) => {
+    new import_obsidian3.Setting(contextPane).setName("Template folder").setDesc("Vault path to folder containing .md prompt templates").addText((text) => {
       templateFolderInputEl = text.inputEl;
       text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
         this.plugin.settings.templateFolder = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
-    new import_obsidian2.Setting(contextPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
+    new import_obsidian3.Setting(contextPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text.inputEl.max = "10";
@@ -11836,7 +11932,7 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
         }
       });
     });
-    new import_obsidian2.Setting(contextPane).setName("Context limit").setDesc("Maximum characters of context sent per generation (measured in tokens; 1 token \u2248 4 characters). The default of 2000 tokens (~8000 characters) fits most notes. Raise this if you have long notes or many linked notes and want to include more context.").addText((text) => {
+    new import_obsidian3.Setting(contextPane).setName("Context limit").setDesc("Maximum characters of context sent per generation (measured in tokens; 1 token \u2248 4 characters). The default of 2000 tokens (~8000 characters) fits most notes. Raise this if you have long notes or many linked notes and want to include more context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "1";
       text.setPlaceholder("2000").setValue(String(this.plugin.settings.maxContextTokens)).onChange(async (value) => {
@@ -11851,15 +11947,15 @@ var AugmentSettingTab = class extends import_obsidian2.PluginSettingTab {
 };
 
 // src/template-picker.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 function getTemplateFiles(app, folderPath) {
   const folder = app.vault.getFolderByPath(folderPath);
-  if (!(folder instanceof import_obsidian3.TFolder)) return [];
+  if (!(folder instanceof import_obsidian4.TFolder)) return [];
   return folder.children.filter(
-    (f) => f instanceof import_obsidian3.TFile && f.extension === "md"
+    (f) => f instanceof import_obsidian4.TFile && f.extension === "md"
   );
 }
-var TemplatePicker = class extends import_obsidian3.FuzzySuggestModal {
+var TemplatePicker = class extends import_obsidian4.FuzzySuggestModal {
   constructor(app, files, onChoose) {
     super(app);
     this.files = files;
@@ -11884,7 +11980,7 @@ var TemplatePicker = class extends import_obsidian3.FuzzySuggestModal {
     this.onChoose(file);
   }
 };
-var TemplatePreviewModal = class extends import_obsidian3.Modal {
+var TemplatePreviewModal = class extends import_obsidian4.Modal {
   constructor(app, renderedPrompt, ctx, onConfirm) {
     super(app);
     this.skipPreview = false;
@@ -11909,12 +12005,12 @@ var TemplatePreviewModal = class extends import_obsidian3.Modal {
         text: `~${approxTokens.toLocaleString()} tokens (${charCount.toLocaleString()} chars)`
       });
     }
-    new import_obsidian3.Setting(contentEl).setName("Don't show preview").addToggle((toggle) => {
+    new import_obsidian4.Setting(contentEl).setName("Don't show preview").addToggle((toggle) => {
       toggle.setValue(false).onChange((val) => {
         this.skipPreview = val;
       });
     });
-    new import_obsidian3.Setting(contentEl).addButton((btn) => {
+    new import_obsidian4.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Cancel").onClick(() => this.close());
     }).addButton((btn) => {
       btn.setButtonText("Generate").setCta().onClick(() => {
@@ -11929,7 +12025,7 @@ var TemplatePreviewModal = class extends import_obsidian3.Modal {
 };
 
 // src/terminal-view.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var import_xterm = __toESM(require_xterm());
 var import_addon_fit = __toESM(require_addon_fit());
 var import_addon_web_links = __toESM(require_addon_web_links());
@@ -12351,7 +12447,7 @@ var AGENT_ID_GLOBAL_PATTERN = /\bagentId\s*[:=]\s*["']?([a-zA-Z0-9._-]+)@([a-zA-
 var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/ig;
 var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
 var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
-var TerminalView = class extends import_obsidian4.ItemView {
+var TerminalView = class extends import_obsidian5.ItemView {
   constructor(leaf, pluginDir, getUseWsl = () => false) {
     super(leaf);
     this.terminal = null;
@@ -12829,9 +12925,9 @@ var TerminalView = class extends import_obsidian4.ItemView {
 };
 
 // src/terminal-manager-view.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
-var TerminalManagerView = class extends import_obsidian5.ItemView {
+var TerminalManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf) {
     super(leaf);
     this.listEl = null;
@@ -12854,7 +12950,7 @@ var TerminalManagerView = class extends import_obsidian5.ItemView {
     const addBtn = header.createEl("button", {
       cls: "augment-tm-add clickable-icon"
     });
-    (0, import_obsidian5.setIcon)(addBtn, "plus");
+    (0, import_obsidian6.setIcon)(addBtn, "plus");
     addBtn.addEventListener("click", () => {
       this.app.commands.executeCommandById(
         "augment-terminal:open-terminal"
@@ -13023,8 +13119,8 @@ var TerminalManagerView = class extends import_obsidian5.ItemView {
 };
 
 // src/terminal-switcher.ts
-var import_obsidian6 = require("obsidian");
-var TerminalSwitcherModal = class extends import_obsidian6.FuzzySuggestModal {
+var import_obsidian7 = require("obsidian");
+var TerminalSwitcherModal = class extends import_obsidian7.FuzzySuggestModal {
   constructor(app) {
     super(app);
     this.setPlaceholder("Switch to terminal...");
@@ -13120,7 +13216,51 @@ var spinnerField = import_state.StateField.define({
   },
   provide: (f) => import_view.EditorView.decorations.from(f)
 });
-var RenameModal = class extends import_obsidian7.Modal {
+var addAgentWidgetEffect = import_state.StateEffect.define();
+var removeAgentWidgetEffect = import_state.StateEffect.define();
+var AgentWidget = class extends import_view.WidgetType {
+  constructor(name) {
+    super();
+    this.name = name;
+  }
+  toDOM() {
+    const wrap = document.createElement("span");
+    wrap.className = "augment-agent-widget";
+    const spinner = document.createElement("span");
+    spinner.className = "augment-spinner";
+    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
+      const dot = document.createElement("span");
+      dot.className = "augment-spinner-dot " + cls;
+      spinner.appendChild(dot);
+    }
+    wrap.appendChild(spinner);
+    wrap.appendChild(document.createTextNode("\xA0" + this.name));
+    return wrap;
+  }
+  ignoreEvent() {
+    return true;
+  }
+};
+var agentWidgetField = import_state.StateField.define({
+  create() {
+    return import_view.Decoration.none;
+  },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(addAgentWidgetEffect)) {
+        decos = decos.update({
+          add: [import_view.Decoration.widget({ widget: new AgentWidget(e.value.name), side: 1 }).range(e.value.pos)]
+        });
+      } else if (e.is(removeAgentWidgetEffect)) {
+        decos = import_view.Decoration.none;
+      }
+    }
+    return decos;
+  },
+  provide: (f) => import_view.EditorView.decorations.from(f)
+});
+var RenameModal = class extends import_obsidian8.Modal {
   constructor(app, view) {
     super(app);
     this.view = view;
@@ -13129,7 +13269,7 @@ var RenameModal = class extends import_obsidian7.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h3", { text: "Rename terminal" });
-    new import_obsidian7.Setting(contentEl).setName("Name").addText((text) => {
+    new import_obsidian8.Setting(contentEl).setName("Name").addText((text) => {
       text.setValue(this.newName);
       text.onChange((value) => {
         this.newName = value;
@@ -13144,7 +13284,7 @@ var RenameModal = class extends import_obsidian7.Modal {
         text.inputEl.select();
       }, 10);
     });
-    new import_obsidian7.Setting(contentEl).addButton((btn) => {
+    new import_obsidian8.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Rename").setCta().onClick(() => this.submit());
     });
   }
@@ -13159,7 +13299,7 @@ var RenameModal = class extends import_obsidian7.Modal {
     this.contentEl.empty();
   }
 };
-var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
+var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
@@ -13237,7 +13377,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
           userMessage: buildUserMessage(ctx, promptText)
         };
         this.pushContextHistory(entry);
-        const notice = new import_obsidian7.Notice("", 5e3);
+        const notice = new import_obsidian8.Notice("", 5e3);
         notice.noticeEl.empty();
         notice.noticeEl.createEl("span", { text: "Augment: done" });
         notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -13256,7 +13396,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
       } catch (err) {
         console.error("[Augment]", err);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-        new import_obsidian7.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+        new import_obsidian8.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         this.refreshStatusBar();
       }
@@ -13308,15 +13448,16 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
     });
-    this.registerEditorExtension(spinnerField);
+    this.registerEditorExtension([spinnerField, agentWidgetField]);
+    this.registerEditorSuggest(new AgentSuggest(this.app));
     this.addCommand({
       id: "augment-generate",
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       editorCallback: (editor, view) => {
-        if (!(view instanceof import_obsidian7.MarkdownView)) return;
+        if (!(view instanceof import_obsidian8.MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new import_obsidian7.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -13333,9 +13474,9 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
       editorCallback: (editor, view) => {
-        if (!(view instanceof import_obsidian7.MarkdownView)) return;
+        if (!(view instanceof import_obsidian8.MarkdownView)) return;
         if (!this.settings.apiKey) {
-          const notice = new import_obsidian7.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -13345,7 +13486,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
           return;
         }
         if (!this.settings.templateFolder) {
-          const notice = new import_obsidian7.Notice("Augment: no template folder set \u2014 click to configure", 0);
+          const notice = new import_obsidian8.Notice("Augment: no template folder set \u2014 click to configure", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -13356,7 +13497,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
         }
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
-          new import_obsidian7.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
+          new import_obsidian8.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
         const cursor = editor.getCursor();
@@ -13421,7 +13562,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
                 userMessage: rendered
               };
               this.pushContextHistory(entry);
-              const notice = new import_obsidian7.Notice("", 5e3);
+              const notice = new import_obsidian8.Notice("", 5e3);
               notice.noticeEl.empty();
               notice.noticeEl.createEl("span", { text: "Augment: done" });
               notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -13444,7 +13585,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
             } catch (err) {
               console.error("[Augment]", err);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              new import_obsidian7.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
+              new import_obsidian8.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             } finally {
               this.refreshStatusBar();
             }
@@ -13475,9 +13616,9 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
       id: "augment-view-context",
       name: "View current note context",
       callback: () => {
-        const activeView = this.app.workspace.getActiveViewOfType(import_obsidian7.MarkdownView);
+        const activeView = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
         if (!activeView) {
-          new import_obsidian7.Notice("Augment: open a note to view its context");
+          new import_obsidian8.Notice("Augment: open a note to view its context");
           return;
         }
         const ctx = assembleVaultContext(this.app, activeView.editor, this.settings);
@@ -13495,7 +13636,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
     if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
       this.settings.hasSeenWelcome = true;
       void this.saveData(this.settings);
-      const notice = new import_obsidian7.Notice("", 8e3);
+      const notice = new import_obsidian8.Notice("", 8e3);
       notice.noticeEl.empty();
       notice.noticeEl.createEl("span", { text: "Augment installed \u2014 add your API key to start generating. " });
       const setupLink = notice.noticeEl.createEl("a", { cls: "augment-notice-action", text: "Set up \u2192" });
@@ -13537,9 +13678,9 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
         this.app.setting.openTabById("augment-terminal");
         return;
       }
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian7.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
       if (!view) {
-        new import_obsidian7.Notice("Open a note to generate");
+        new import_obsidian8.Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);
@@ -13651,6 +13792,7 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
     if (reveal) {
       workspace.revealLeaf(leaf);
     }
+    return leaf.view;
   }
   async openTerminalSidebar() {
     const { workspace } = this.app;
@@ -13721,6 +13863,30 @@ var AugmentTerminalPlugin = class extends import_obsidian7.Plugin {
         reveal: false
       });
     }
+  }
+  insertAgentWidget(editor, pos, name) {
+    const cmView = editor.cm;
+    const offset = editor.posToOffset(pos);
+    cmView.dispatch({ effects: addAgentWidgetEffect.of({ pos: offset, name }) });
+  }
+  async launchSkillSession(file, skillName) {
+    const ctx = await assembleNoteContext(this.app, file, this.settings);
+    const parts = [`Note: ${ctx.title}`];
+    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
+      const fmLines = Object.entries(ctx.frontmatter).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v != null ? v : "")}`).join("\n");
+      parts.push(`Frontmatter:
+${fmLines}`);
+    }
+    if (ctx.surroundingContext) {
+      parts.push(`Context:
+${ctx.surroundingContext}`);
+    }
+    parts.push(``, `Run /${skillName}`);
+    const prompt = parts.join("\n");
+    const terminalView = await this.openTerminal("tab", { active: false, reveal: false });
+    setTimeout(() => {
+      terminalView.write(prompt + "\n");
+    }, 1500);
   }
   hasTerminalNamed(name) {
     var _a2, _b, _c;

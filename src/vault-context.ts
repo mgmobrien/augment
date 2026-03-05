@@ -1,4 +1,4 @@
-import { App, Editor } from "obsidian";
+import { App, Editor, TFile } from "obsidian";
 
 export interface AugmentSettings {
   apiKey: string;
@@ -108,4 +108,36 @@ export function assembleVaultContext(
   }
 
   return { title, frontmatter, selection, surroundingContext, linkedNotes };
+}
+
+// Editor-free context assembly for skill invocation — reads file content from vault cache.
+export async function assembleNoteContext(
+  app: App,
+  file: TFile,
+  settings: AugmentSettings
+): Promise<VaultContext> {
+  const title = file.basename;
+  const rawFrontmatter = app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+  const frontmatter = stripObsidianMeta(rawFrontmatter);
+
+  const content = await app.vault.cachedRead(file);
+  // Use first 200 lines as surroundingContext — no cursor position available.
+  const surroundingContext = content.split("\n").slice(0, 200).join("\n");
+
+  const linkedNotes: LinkedNoteSummary[] = [];
+  if (settings.linkedNoteCount > 0) {
+    const links = app.metadataCache.getFileCache(file)?.links ?? [];
+    for (const link of links) {
+      if (linkedNotes.length >= settings.linkedNoteCount) break;
+      const resolved = app.metadataCache.getFirstLinkpathDest(link.link, file.path);
+      if (!resolved) continue;
+      const cache = app.metadataCache.getFileCache(resolved);
+      linkedNotes.push({
+        title: resolved.basename,
+        frontmatter: stripObsidianMeta(cache?.frontmatter ?? null),
+      });
+    }
+  }
+
+  return { title, frontmatter, selection: "", surroundingContext, linkedNotes };
 }

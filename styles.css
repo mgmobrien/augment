@@ -779,6 +779,38 @@
   width: 100%;
 }
 
+/* ── Agent inline status widget ── */
+.augment-agent-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  vertical-align: middle;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--background-modifier-hover);
+}
+
+.augment-agent-widget.is-done {
+  opacity: 0.6;
+}
+
+/* ── Skill picker suggestions ── */
+.augment-skill-name {
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.augment-skill-desc {
+  font-size: 0.78em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
 /* ── Context inspector: structured sections ── */
 .augment-ctx-fm-row {
   display: flex;
