@@ -745,7 +745,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     return leaf.view as TerminalView;
   }
 
-  private async openTerminalSidebar(): Promise<void> {
+  private async openTerminalSidebar(): Promise<TerminalView | null> {
     const { workspace } = this.app;
     const leaf = workspace.getRightLeaf(false);
 
@@ -755,7 +755,9 @@ export default class AugmentTerminalPlugin extends Plugin {
         active: true,
       });
       workspace.revealLeaf(leaf);
+      return leaf.view as TerminalView;
     }
+    return null;
   }
 
   private async openTerminalManager(): Promise<void> {
@@ -838,27 +840,21 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public async launchSkillSession(file: TFile, skillName: string): Promise<void> {
-    const ctx = await assembleNoteContext(this.app, file, this.settings);
+    const vaultBase = (this.app.vault.adapter as any).basePath as string;
+    const absolutePath = `${vaultBase}/${file.path}`;
 
-    const parts: string[] = [`Note: ${ctx.title}`];
-    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
-      const fmLines = Object.entries(ctx.frontmatter)
-        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v ?? "")}`)
-        .join("\n");
-      parts.push(`Frontmatter:\n${fmLines}`);
-    }
-    if (ctx.surroundingContext) {
-      parts.push(`Context:\n${ctx.surroundingContext}`);
-    }
-    parts.push(``, `Run /${skillName}`);
-    const prompt = parts.join("\n");
+    // Build a claude shell command: claude "/{skillName} on {absoluteFilePath}"
+    // Escape double quotes in the path to avoid shell breakage.
+    const safePath = absolutePath.replace(/"/g, '\\"');
+    const claudeCmd = `claude "/${skillName} on ${safePath}"\n`;
 
-    // Open terminal in background (no focus steal).
-    const terminalView = await this.openTerminal("tab", { active: false, reveal: false });
+    // Open in right sidebar without stealing focus from the note.
+    const terminalView = await this.openTerminalSidebar();
+    if (!terminalView) return;
 
-    // Write initial prompt after CC has time to initialize.
+    // Shell needs ~1500ms to initialize before we can write to it.
     setTimeout(() => {
-      terminalView.write(prompt + "\n");
+      terminalView.write(claudeCmd);
     }, 1500);
   }
 

@@ -11596,29 +11596,6 @@ function assembleVaultContext(app, editor, settings) {
   }
   return { title, frontmatter, selection, surroundingContext, linkedNotes };
 }
-async function assembleNoteContext(app, file, settings) {
-  var _a2, _b, _c, _d, _e;
-  const title = file.basename;
-  const rawFrontmatter = (_b = (_a2 = app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter) != null ? _b : null;
-  const frontmatter = stripObsidianMeta(rawFrontmatter);
-  const content = await app.vault.cachedRead(file);
-  const surroundingContext = content.split("\n").slice(0, 200).join("\n");
-  const linkedNotes = [];
-  if (settings.linkedNoteCount > 0) {
-    const links = (_d = (_c = app.metadataCache.getFileCache(file)) == null ? void 0 : _c.links) != null ? _d : [];
-    for (const link of links) {
-      if (linkedNotes.length >= settings.linkedNoteCount) break;
-      const resolved = app.metadataCache.getFirstLinkpathDest(link.link, file.path);
-      if (!resolved) continue;
-      const cache = app.metadataCache.getFileCache(resolved);
-      linkedNotes.push({
-        title: resolved.basename,
-        frontmatter: stripObsidianMeta((_e = cache == null ? void 0 : cache.frontmatter) != null ? _e : null)
-      });
-    }
-  }
-  return { title, frontmatter, selection: "", surroundingContext, linkedNotes };
-}
 
 // src/settings-tab.ts
 var BUILTIN_CALLOUT_TYPES = [
@@ -13841,7 +13818,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         active: true
       });
       workspace.revealLeaf(leaf);
+      return leaf.view;
     }
+    return null;
   }
   async openTerminalManager() {
     const { workspace } = this.app;
@@ -13908,22 +13887,15 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     cmView.dispatch({ effects: addAgentWidgetEffect.of({ pos: offset, name }) });
   }
   async launchSkillSession(file, skillName) {
-    const ctx = await assembleNoteContext(this.app, file, this.settings);
-    const parts = [`Note: ${ctx.title}`];
-    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
-      const fmLines = Object.entries(ctx.frontmatter).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v != null ? v : "")}`).join("\n");
-      parts.push(`Frontmatter:
-${fmLines}`);
-    }
-    if (ctx.surroundingContext) {
-      parts.push(`Context:
-${ctx.surroundingContext}`);
-    }
-    parts.push(``, `Run /${skillName}`);
-    const prompt = parts.join("\n");
-    const terminalView = await this.openTerminal("tab", { active: false, reveal: false });
+    const vaultBase = this.app.vault.adapter.basePath;
+    const absolutePath = `${vaultBase}/${file.path}`;
+    const safePath = absolutePath.replace(/"/g, '\\"');
+    const claudeCmd = `claude "/${skillName} on ${safePath}"
+`;
+    const terminalView = await this.openTerminalSidebar();
+    if (!terminalView) return;
     setTimeout(() => {
-      terminalView.write(prompt + "\n");
+      terminalView.write(claudeCmd);
     }, 1500);
   }
   hasTerminalNamed(name) {
