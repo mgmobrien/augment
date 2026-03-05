@@ -1606,6 +1606,8 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
+  user-select: text;
+  cursor: text;
 }
 
 /* ── Linked notes list ── */

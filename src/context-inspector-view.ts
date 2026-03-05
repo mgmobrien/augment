@@ -69,16 +69,17 @@ export class ContextInspectorView extends ItemView {
     this.contentDiv = this.containerEl.children[1] as HTMLElement;
     this.contentDiv.addClass("augment-ctx-panel");
 
-    // Track active editor (no auto-refresh on switch)
+    // Trigger 1: note switch → cursor state
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf?.view instanceof MarkdownView) {
           this.lastEditorView = leaf.view;
+          this.refreshToCursor();
         }
       })
     );
 
-    // Trigger 1: generation completes → post-generation state
+    // Trigger 2: generation completes → post-generation state
     this.registerEvent(
       (this.app.workspace as any).on("augment:generation-complete", () => {
         this.state = "post-generation";
@@ -87,7 +88,7 @@ export class ContextInspectorView extends ItemView {
       })
     );
 
-    // Trigger 2: manual refresh button (handled in render) → cursor state
+    // Trigger 3: manual refresh button (handled in render) → cursor state
 
     const current = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (current) this.lastEditorView = current;
@@ -132,7 +133,7 @@ export class ContextInspectorView extends ItemView {
     const subtitleEl = el.createEl("div", { cls: "augment-ctx-panel-subtitle" });
     if (this.state === "post-generation") {
       subtitleEl.createEl("span", {
-        text: `Sent last generation \u00b7 ${formatTimeAgo(this.generatedAt)}`,
+        text: `Sent to the Anthropic API \u00b7 ${formatTimeAgo(this.generatedAt)}`,
       });
       const backLink = subtitleEl.createEl("span", {
         cls: "augment-ctx-back-to-cursor",
@@ -140,7 +141,7 @@ export class ContextInspectorView extends ItemView {
       });
       backLink.addEventListener("click", () => this.refreshToCursor());
     } else {
-      subtitleEl.setText("What Augment sends when you generate");
+      subtitleEl.setText("Sent to the Anthropic API when you generate");
     }
 
     // Build all text blocks for token counting

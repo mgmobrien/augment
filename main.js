@@ -17320,6 +17320,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian2.MarkdownView) {
           this.lastEditorView = leaf.view;
+          this.refreshToCursor();
         }
       })
     );
@@ -17368,7 +17369,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     const subtitleEl = el.createEl("div", { cls: "augment-ctx-panel-subtitle" });
     if (this.state === "post-generation") {
       subtitleEl.createEl("span", {
-        text: `Sent last generation \xB7 ${formatTimeAgo(this.generatedAt)}`
+        text: `Sent to the Anthropic API \xB7 ${formatTimeAgo(this.generatedAt)}`
       });
       const backLink = subtitleEl.createEl("span", {
         cls: "augment-ctx-back-to-cursor",
@@ -17376,7 +17377,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
       });
       backLink.addEventListener("click", () => this.refreshToCursor());
     } else {
-      subtitleEl.setText("What Augment sends when you generate");
+      subtitleEl.setText("Sent to the Anthropic API when you generate");
     }
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || void 0);
     const userMsgText = buildUserMessage(ctx, "Continue writing.");
