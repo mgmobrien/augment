@@ -1554,14 +1554,13 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   flex-shrink: 0;
 }
 
-.augment-ctx-edit-btn {
-  color: var(--text-muted);
+.augment-ctx-edit-link {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: var(--font-ui-small);
+  color: var(--text-accent);
+  text-decoration: underline;
   cursor: pointer;
-  flex-shrink: 0;
-}
-.augment-ctx-edit-btn svg {
-  width: 12px;
-  height: 12px;
 }
 
 /* ── Collapsible sections (chevron-based) ── */

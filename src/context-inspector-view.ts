@@ -209,27 +209,26 @@ export class ContextInspectorView extends ItemView {
     const sysChevron = sysHdr.createEl("span", { cls: "augment-ctx-chevron" });
     setIcon(sysChevron, "chevron-right");
     sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
-    const sysEditBtn = sysHdr.createEl("span", { cls: "augment-ctx-edit-btn clickable-icon" });
-    setIcon(sysEditBtn, "pencil");
-    sysEditBtn.addEventListener("click", (e) => {
-      e.stopPropagation(); // don't toggle collapsible
+    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+    sysContent.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
+    const editLink = sysContent.createEl("a", {
+      cls: "augment-ctx-edit-link",
+      text: "Edit in settings",
+    });
+    editLink.addEventListener("click", () => {
       const setting = (this.app as any).setting;
       setting.open();
       setting.openTabById("augment-terminal");
-      // Switch to Continuation tab after settings DOM renders
       setTimeout(() => {
         const tab = setting.containerEl?.querySelector?.(".augment-tab:nth-child(2)") as HTMLElement;
         tab?.click();
-        // Focus system prompt textarea
         setTimeout(() => {
           const textarea = setting.containerEl?.querySelector?.("textarea") as HTMLTextAreaElement;
           textarea?.focus();
         }, 50);
       }, 50);
     });
-    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
-    sysContent.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
     sysHdr.addEventListener("click", () => {
       sysSection.toggleClass("is-open", !sysSection.hasClass("is-open"));
     });
