@@ -130,7 +130,7 @@ export class AgentSuggest extends EditorSuggest<SlashSuggestion> {
       const plugin = (this.app as any).plugins?.plugins?.["augment-terminal"];
       if (plugin) {
         plugin.insertAgentWidget(editor, this.context!.start, item.name);
-        void plugin.launchSkillSession(file, item.name);
+        void plugin.launchSkillSession(file, item.name, editor);
       }
     } else if (item.kind === "command") {
       (this.app as any).commands.executeCommandById(item.id);

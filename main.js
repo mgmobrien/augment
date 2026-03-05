@@ -11462,7 +11462,7 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
       const plugin = (_d = (_c = this.app.plugins) == null ? void 0 : _c.plugins) == null ? void 0 : _d["augment-terminal"];
       if (plugin) {
         plugin.insertAgentWidget(editor, this.context.start, item.name);
-        void plugin.launchSkillSession(file, item.name);
+        void plugin.launchSkillSession(file, item.name, editor);
       }
     } else if (item.kind === "command") {
       this.app.commands.executeCommandById(item.id);
@@ -13886,7 +13886,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     const offset = editor.posToOffset(pos);
     cmView.dispatch({ effects: addAgentWidgetEffect.of({ pos: offset, name }) });
   }
-  async launchSkillSession(file, skillName) {
+  async launchSkillSession(file, skillName, editor) {
     const vaultBase = this.app.vault.adapter.basePath;
     const absolutePath = `${vaultBase}/${file.path}`;
     const safePath = absolutePath.replace(/"/g, '\\"');
@@ -13897,6 +13897,18 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     setTimeout(() => {
       terminalView.write(claudeCmd);
     }, 1500);
+    if (editor) {
+      const cmView = editor.cm;
+      const ref = this.app.workspace.on("augment-terminal:changed", () => {
+        if (terminalView.getStatus() === "exited") {
+          this.app.workspace.offref(ref);
+          try {
+            cmView.dispatch({ effects: removeAgentWidgetEffect.of(null) });
+          } catch (e) {
+          }
+        }
+      });
+    }
   }
   hasTerminalNamed(name) {
     var _a2, _b, _c;

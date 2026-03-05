@@ -839,7 +839,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     cmView.dispatch({ effects: addAgentWidgetEffect.of({ pos: offset, name }) });
   }
 
-  public async launchSkillSession(file: TFile, skillName: string): Promise<void> {
+  public async launchSkillSession(file: TFile, skillName: string, editor?: Editor): Promise<void> {
     const vaultBase = (this.app.vault.adapter as any).basePath as string;
     const absolutePath = `${vaultBase}/${file.path}`;
 
@@ -856,6 +856,21 @@ export default class AugmentTerminalPlugin extends Plugin {
     setTimeout(() => {
       terminalView.write(claudeCmd);
     }, 1500);
+
+    // Remove the inline widget silently when the terminal process exits.
+    if (editor) {
+      const cmView = (editor as any).cm as EditorView;
+      const ref = this.app.workspace.on("augment-terminal:changed", () => {
+        if (terminalView.getStatus() === "exited") {
+          this.app.workspace.offref(ref);
+          try {
+            cmView.dispatch({ effects: removeAgentWidgetEffect.of(null) });
+          } catch {
+            // Editor may have been closed before the process exited — ignore.
+          }
+        }
+      });
+    }
   }
 
   private hasTerminalNamed(name: string): boolean {
