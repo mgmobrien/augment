@@ -9,7 +9,6 @@ import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
 import { scaffoldTeam, refreshTeamSkills, ScaffoldResult } from "./team-scaffold";
-import { scanSkillsForType, SkillPickerModal } from "./skill-picker";
 import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
@@ -64,7 +63,6 @@ const SCAFFOLD_SKILLS: [string, string][] = [
     `---
 name: meeting-summary
 description: Summarise a meeting transcript or rough notes into structured output
-note_types: [meeting-transcript, transcript]
 ---
 
 # Meeting summary
@@ -1439,25 +1437,6 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => this.refreshAttentionBadge());
 
-    // Type→skill matching command.
-    this.addCommand({
-      id: "run-skill-for-note",
-      name: "Run skill for this note",
-      checkCallback: (checking) => {
-        const activeFile = this.app.workspace.getActiveFile();
-        if (!activeFile) return false;
-        const noteType = this.app.metadataCache.getFileCache(activeFile)?.frontmatter?.type as string | undefined;
-        if (!noteType) return false;
-        const matching = scanSkillsForType(this.app, noteType);
-        if (matching.length === 0) return false;
-        if (!checking) {
-          new SkillPickerModal(this.app, matching, (skill) => {
-            void this.launchSkillSession(activeFile, skill.name);
-          }).open();
-        }
-        return true;
-      },
-    });
   }
 
   async onunload(): Promise<void> {
