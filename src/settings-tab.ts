@@ -175,7 +175,7 @@ interface DepRow {
 const DEP_ROWS: DepRow[] = [
   { label: "Node.js",        done: d => d.node,            readyText: "ready",     pendingText: "\u2014" },
   { label: "Claude Code",    done: d => d.cc,              readyText: "ready",     pendingText: "\u2014" },
-  { label: "Claude account", done: d => d.authed,          readyText: "connected", pendingText: "\u2014" },
+  { label: "Sign in",        done: d => d.authed,          readyText: "signed in", pendingText: "\u2014" },
   { label: "Vault",          done: d => d.vaultConfigured, readyText: "ready",     pendingText: "\u2014" },
 ];
 

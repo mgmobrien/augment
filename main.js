@@ -17630,7 +17630,7 @@ function getSetupStep(deps) {
 var DEP_ROWS = [
   { label: "Node.js", done: (d) => d.node, readyText: "ready", pendingText: "\u2014" },
   { label: "Claude Code", done: (d) => d.cc, readyText: "ready", pendingText: "\u2014" },
-  { label: "Claude account", done: (d) => d.authed, readyText: "connected", pendingText: "\u2014" },
+  { label: "Sign in", done: (d) => d.authed, readyText: "signed in", pendingText: "\u2014" },
   { label: "Vault", done: (d) => d.vaultConfigured, readyText: "ready", pendingText: "\u2014" }
 ];
 var TEMPLATE_SCAFFOLD = `---
@@ -18730,13 +18730,9 @@ var EVENT_DEDUP_WINDOW_MS = 1200;
 var xtermStyleEl = null;
 function translatePtyError(raw) {
   const l = raw.toLowerCase();
-  if (l.includes("enoent") && l.includes("wsl")) {
-    return "Windows Subsystem for Linux isn't installed yet.";
-  }
   if (l.includes("enoent") || l.includes("no such file") || l.includes("command not found")) {
-    if (l.includes("python")) return "Python 3 not found. Check setup in Settings \u2192 Augment \u2192 Terminal.";
     if (l.includes("claude")) return "Claude Code isn't installed yet.";
-    return "A required program is missing.";
+    return "A required program is missing. Check setup in Settings \u2192 Augment \u2192 Terminal.";
   }
   if (l.includes("eacces") || l.includes("permission denied")) {
     return "Permission error \u2014 try running the install again.";
@@ -18745,7 +18741,6 @@ function translatePtyError(raw) {
 }
 function translateExitCode(code) {
   if (code === 0) return null;
-  if (code === 9009 && process.platform === "win32") return "Python 3 not found. Check setup in Settings \u2192 Augment \u2192 Terminal.";
   if (code === 127) return "Claude Code isn't installed yet.";
   return null;
 }
