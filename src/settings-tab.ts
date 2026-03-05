@@ -382,18 +382,6 @@ export class AugmentSettingTab extends PluginSettingTab {
     renderSetupCard();
     overviewTab.addEventListener("click", renderSetupCard);
 
-    const previewBtn = overviewPane.createEl("button", {
-      cls: "augment-ctx-preview-btn",
-      text: "Open context inspector",
-    });
-    previewBtn.addEventListener("click", () => {
-      const leaf = this.plugin.app.workspace.getRightLeaf(false);
-      if (leaf) {
-        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
-        this.plugin.app.workspace.revealLeaf(leaf);
-      }
-    });
-
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
       text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.",
@@ -623,6 +611,34 @@ export class AugmentSettingTab extends PluginSettingTab {
             }
           });
       });
+
+    new Setting(continuationPane)
+      .setName("System prompt")
+      .setDesc("Override the default system prompt. Leave blank to use Augment's default.")
+      .addTextArea((text) => {
+        text
+          .setPlaceholder("You are assisting with writing in an Obsidian vault.")
+          .setValue(this.plugin.settings.systemPrompt)
+          .onChange(async (value) => {
+            this.plugin.settings.systemPrompt = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+        text.inputEl.rows = 5;
+        text.inputEl.style.width = "100%";
+        text.inputEl.style.fontFamily = "var(--font-monospace)";
+      });
+
+    const inspectorBtn = continuationPane.createEl("button", {
+      cls: "augment-ctx-preview-btn",
+      text: "Open context inspector",
+    });
+    inspectorBtn.addEventListener("click", () => {
+      const leaf = this.plugin.app.workspace.getRightLeaf(false);
+      if (leaf) {
+        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+        this.plugin.app.workspace.revealLeaf(leaf);
+      }
+    });
 
     // ── Templates pane ───────────────────────────────────────
     templatesPane.createEl("p", {

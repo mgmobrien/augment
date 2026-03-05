@@ -370,7 +370,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel, abortController.signal);
+        const result = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || undefined), promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
@@ -387,7 +387,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           timestamp: Date.now(),
           noteName: ctx.title,
           model: resolvedModelName,
-          systemPrompt: buildSystemPrompt(ctx),
+          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || undefined),
           userMessage: buildUserMessage(ctx, promptText),
         };
         this.pushContextHistory(entry);
@@ -665,7 +665,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 timestamp: Date.now(),
                 noteName: ctx.title,
                 model: resolvedModelName,
-                systemPrompt: buildSystemPrompt(ctx),
+                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride),
                 userMessage: rendered,
               };
               this.pushContextHistory(entry);

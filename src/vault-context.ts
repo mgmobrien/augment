@@ -29,6 +29,7 @@ export interface AugmentSettings {
   hasGenerated: boolean;
   hasUsedTemplate: boolean;
   hasSeenWelcome: boolean;
+  systemPrompt: string;
   sessionHistory: SessionRecord[];
 }
 
@@ -51,6 +52,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   hasGenerated: false,
   hasUsedTemplate: false,
   hasSeenWelcome: false,
+  systemPrompt: "",
   sessionHistory: [],
 };
 

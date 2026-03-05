@@ -1277,6 +1277,16 @@
   color: var(--text-faint);
   font-style: italic;
 }
+.augment-ctx-sys-pre {
+  font-size: var(--font-smallest);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.augment-ctx-section details summary {
+  cursor: pointer;
+  list-style: none;
+}
+.augment-ctx-section details summary::-webkit-details-marker { display: none; }
 
 .augment-ctx-content-label {
   font-size: var(--font-smallest);

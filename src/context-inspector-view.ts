@@ -1,5 +1,5 @@
 import { debounce, ItemView, MarkdownView, WorkspaceLeaf } from "obsidian";
-import { DEFAULT_SYSTEM_PROMPT_BASE } from "./ai-client";
+import { buildSystemPrompt } from "./ai-client";
 import AugmentTerminalPlugin from "./main";
 import { assembleVaultContext, VaultContext } from "./vault-context";
 
@@ -8,12 +8,12 @@ export const VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
 export class ContextInspectorView extends ItemView {
   private plugin: AugmentTerminalPlugin;
   private contentDiv!: HTMLElement;
-  private debouncedRefresh: () => void;
+  private lastEditorView: MarkdownView | null = null;
+  private debouncedRefresh!: () => void;
 
   constructor(leaf: WorkspaceLeaf, plugin: AugmentTerminalPlugin) {
     super(leaf);
     this.plugin = plugin;
-    this.debouncedRefresh = debounce(() => this.refresh(), 300, true);
   }
 
   getViewType(): string { return VIEW_TYPE_CONTEXT_INSPECTOR; }
@@ -23,20 +23,41 @@ export class ContextInspectorView extends ItemView {
   async onOpen(): Promise<void> {
     this.contentDiv = this.containerEl.children[1] as HTMLElement;
     this.contentDiv.addClass("augment-ctx-panel");
-    this.registerEvent(this.app.workspace.on("active-leaf-change", this.debouncedRefresh));
-    this.registerEvent(this.app.workspace.on("editor-change", this.debouncedRefresh));
+    this.debouncedRefresh = debounce(() => this.refresh(), 300, true);
+
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (leaf?.view instanceof MarkdownView) {
+          this.lastEditorView = leaf.view;
+          this.debouncedRefresh();
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("editor-change", this.debouncedRefresh)
+    );
+
+    const current = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (current) this.lastEditorView = current;
     this.refresh();
   }
 
   private refresh(): void {
     this.contentDiv.empty();
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!activeView) {
-      this.contentDiv.createEl("div", { cls: "augment-ctx-empty", text: "Open a note to inspect its context." });
+    if (!this.lastEditorView) {
+      this.contentDiv.createEl("div", {
+        cls: "augment-ctx-empty",
+        text: "Open a note to inspect its context.",
+      });
       return;
     }
-    const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
-    this.render(ctx, activeView);
+    const ctx = assembleVaultContext(
+      this.plugin.app,
+      this.lastEditorView.editor,
+      this.plugin.settings
+    );
+    this.render(ctx, this.lastEditorView);
   }
 
   private estimateTokens(text: string): number {
@@ -57,13 +78,15 @@ export class ContextInspectorView extends ItemView {
 
     // ── System prompt section ──
     const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
-    const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
-    const sysText = "(default \u2014 Augment standard prompt)";
-    const sysTokens = this.estimateTokens(DEFAULT_SYSTEM_PROMPT_BASE);
+    const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || undefined);
+    const sysTokens = this.estimateTokens(sysPromptText);
     totalTokens += sysTokens;
-    sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
-    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    sysSection.createEl("div", { cls: "augment-ctx-sys-default", text: sysText });
+
+    const sysDetails = sysSection.createEl("details");
+    const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
+    sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
+    sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    sysDetails.createEl("pre", { cls: "augment-ctx-pre augment-ctx-sys-pre", text: sysPromptText });
 
     // ── This note section ──
     const noteSection = el.createEl("div", { cls: "augment-ctx-section" });
@@ -118,7 +141,7 @@ export class ContextInspectorView extends ItemView {
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
 
       // Count total links in the note for the "N of M" display
-      const activeFile = this.app.workspace.getActiveFile();
+      const activeFile = activeView.file;
       const totalLinks = activeFile
         ? (this.app.metadataCache.getFileCache(activeFile)?.links ?? []).length
         : ctx.linkedNotes.length;
