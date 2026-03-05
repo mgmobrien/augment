@@ -6,17 +6,10 @@ import { modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 
 interface CCDeps {
-  python: boolean;
   node: boolean;
   cc: boolean;
   authed: boolean;
   vaultConfigured: boolean;
-  // Windows-only
-  wsl?: boolean;
-  pythonInWsl?: boolean;
-  nodeInWsl?: boolean;
-  ccInWsl?: boolean;
-  authedInWsl?: boolean;
 }
 
 function execAsync(cmd: string): Promise<{ stdout: string; stderr: string }> {
@@ -50,31 +43,11 @@ async function checkAuth(prefix: string): Promise<boolean> {
 }
 
 async function detectDeps(app: App): Promise<CCDeps> {
-  const platform = process.platform;
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
-
-  if (platform === "win32") {
-    const wsl = await checkBool("wsl --list");
-    if (!wsl) return { python: false, node: false, cc: false, authed: false, vaultConfigured, wsl: false };
-
-    const pythonInWsl = await checkBool("wsl -e python3 --version");
-    const nodeInWsl = await checkBool("wsl -e node --version");
-    const ccInWsl = nodeInWsl ? await checkBool("wsl -e which claude") : false;
-    const authedInWsl = ccInWsl ? await checkAuth("wsl -e ") : false;
-
-    return {
-      python: pythonInWsl, node: nodeInWsl, cc: ccInWsl, authed: authedInWsl, vaultConfigured,
-      wsl, pythonInWsl, nodeInWsl, ccInWsl, authedInWsl,
-    };
-  }
-
-  // Mac / Linux
-  const python = await checkBool("python3 --version");
   const node = await checkBool("node --version");
   const cc = node ? await checkBool("which claude") : false;
   const authed = cc ? await checkAuth("") : false;
-
-  return { python, node, cc, authed, vaultConfigured };
+  return { node, cc, authed, vaultConfigured };
 }
 
 // ── System 3 SSO ─────────────────────────────────────────────────────────────
@@ -144,18 +117,7 @@ interface WizardStep {
   secondaryUrl?: string;
 }
 
-function getMacSteps(deps: CCDeps): WizardStep | null {
-  if (!deps.python) {
-    return {
-      title: "Set up terminal support",
-      desc: "Augment needs a small helper script. A terminal will open and install it automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "xcode-select --install\n",
-      secondaryLabel: "Download from python.org \u2197",
-      secondaryUrl: "https://www.python.org/downloads/",
-    };
-  }
+function getSetupStep(deps: CCDeps): WizardStep | null {
   if (!deps.node) {
     return {
       title: "Install AI tools",
@@ -194,81 +156,12 @@ function getMacSteps(deps: CCDeps): WizardStep | null {
   return null;
 }
 
-function getWindowsSteps(deps: CCDeps): WizardStep | null {
-  if (!deps.wsl) {
-    return {
-      title: "Enable Linux compatibility",
-      desc: "Claude Code runs on Linux. Open PowerShell as Administrator, run this command, then restart Windows when prompted:",
-      action: "copy",
-      actionLabel: "Copy",
-      copyText: "wsl --install",
-    };
-  }
-  if (!deps.pythonInWsl) {
-    return {
-      title: "Set up terminal support",
-      desc: "Augment needs a small helper script. A terminal will open and install it automatically. You may be prompted for your password.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "sudo apt update && sudo apt install -y python3\n",
-    };
-  }
-  if (!deps.nodeInWsl) {
-    return {
-      title: "Install AI tools",
-      desc: "Node.js is needed to run Claude Code. A terminal will open and install it automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "sudo apt update && sudo apt install -y nodejs npm\n",
-    };
-  }
-  if (!deps.ccInWsl) {
-    return {
-      title: "Set up your AI assistant",
-      desc: "A terminal will open and install Claude Code automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "npm install -g @anthropic-ai/claude-code\n",
-    };
-  }
-  if (!deps.authedInWsl) {
-    return {
-      title: "Connect your Claude account",
-      desc: "A terminal will open and your browser will launch for sign-in. Use the same account as claude.ai.",
-      action: "terminal",
-      actionLabel: "Sign in",
-      terminalCmd: "claude auth login\n",
-    };
-  }
-  if (!deps.vaultConfigured) {
-    return {
-      title: "Prepare your notes for AI",
-      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
-      action: "vault",
-      actionLabel: "Set up vault",
-    };
-  }
-  return null;
-}
-
 function getStepIndex(deps: CCDeps): { current: number; total: number } {
-  const platform = process.platform;
-  if (platform === "win32") {
-    const total = 6;
-    if (!deps.wsl) return { current: 1, total };
-    if (!deps.pythonInWsl) return { current: 2, total };
-    if (!deps.nodeInWsl) return { current: 3, total };
-    if (!deps.ccInWsl) return { current: 4, total };
-    if (!deps.authedInWsl) return { current: 5, total };
-    if (!deps.vaultConfigured) return { current: 6, total };
-    return { current: total, total };
-  }
-  const total = 5;
-  if (!deps.python) return { current: 1, total };
-  if (!deps.node) return { current: 2, total };
-  if (!deps.cc) return { current: 3, total };
-  if (!deps.authed) return { current: 4, total };
-  if (!deps.vaultConfigured) return { current: 5, total };
+  const total = 4;
+  if (!deps.node) return { current: 1, total };
+  if (!deps.cc) return { current: 2, total };
+  if (!deps.authed) return { current: 3, total };
+  if (!deps.vaultConfigured) return { current: 4, total };
   return { current: total, total };
 }
 
@@ -279,21 +172,11 @@ interface DepRow {
   pendingText: string;
 }
 
-const MAC_DEP_ROWS: DepRow[] = [
-  { label: "Terminal support", done: d => d.python,          readyText: "ready",      pendingText: "\u2014" },
-  { label: "Node.js",          done: d => d.node,            readyText: "ready",      pendingText: "\u2014" },
-  { label: "Claude Code",      done: d => d.cc,              readyText: "ready",      pendingText: "\u2014" },
-  { label: "Claude account",   done: d => d.authed,          readyText: "connected",  pendingText: "\u2014" },
-  { label: "Vault",            done: d => d.vaultConfigured, readyText: "ready",      pendingText: "\u2014" },
-];
-
-const WINDOWS_DEP_ROWS: DepRow[] = [
-  { label: "Linux environment", done: d => !!d.wsl,           readyText: "ready",     pendingText: "\u2014" },
-  { label: "Terminal support",  done: d => !!d.pythonInWsl,   readyText: "ready",     pendingText: "\u2014" },
-  { label: "Node.js",           done: d => !!d.nodeInWsl,     readyText: "ready",     pendingText: "\u2014" },
-  { label: "Claude Code",       done: d => !!d.ccInWsl,       readyText: "ready",     pendingText: "\u2014" },
-  { label: "Claude account",    done: d => !!d.authedInWsl,   readyText: "connected", pendingText: "\u2014" },
-  { label: "Vault",             done: d => d.vaultConfigured, readyText: "ready",     pendingText: "\u2014" },
+const DEP_ROWS: DepRow[] = [
+  { label: "Node.js",        done: d => d.node,            readyText: "ready",     pendingText: "\u2014" },
+  { label: "Claude Code",    done: d => d.cc,              readyText: "ready",     pendingText: "\u2014" },
+  { label: "Claude account", done: d => d.authed,          readyText: "connected", pendingText: "\u2014" },
+  { label: "Vault",          done: d => d.vaultConfigured, readyText: "ready",     pendingText: "\u2014" },
 ];
 
 const TEMPLATE_SCAFFOLD = `---
@@ -1005,8 +888,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       const deps = await detectDeps(this.app);
       wizardBody.empty();
 
-      const depRows = process.platform === "win32" ? WINDOWS_DEP_ROWS : MAC_DEP_ROWS;
-      const activeStep = process.platform === "win32" ? getWindowsSteps(deps) : getMacSteps(deps);
+      const depRows = DEP_ROWS;
+      const activeStep = getSetupStep(deps);
       const allReady = activeStep === null;
 
       // Header
@@ -1107,19 +990,6 @@ export class AugmentSettingTab extends PluginSettingTab {
     advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
 
     new Setting(advancedDetails)
-      .setName("Python path")
-      .setDesc("Path to python3 binary for the PTY bridge. Leave blank to use system default.")
-      .addText((text) => {
-        text
-          .setPlaceholder("python3")
-          .setValue(this.plugin.settings.pythonPath)
-          .onChange(async (value) => {
-            this.plugin.settings.pythonPath = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
-
-    new Setting(advancedDetails)
       .setName("Shell")
       .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
       .addText((text) => {
@@ -1172,18 +1042,6 @@ export class AugmentSettingTab extends PluginSettingTab {
               });
           });
       }
-    }
-
-    // WSL doc link (Windows only)
-    if (process.platform === "win32") {
-      const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
-      const wslLink = termFooter.createEl("a", {
-        cls: "augment-folder-open",
-        text: "WSL setup guide \u2197",
-        href: "https://github.com/mgmobrien/augment/blob/main/WSL.md",
-      });
-      wslLink.target = "_blank";
-      wslLink.rel = "noopener";
     }
 
     // Filesystem rename notice

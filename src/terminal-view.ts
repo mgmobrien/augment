@@ -54,13 +54,9 @@ let xtermStyleEl: HTMLStyleElement | null = null;
 // Map raw PTY errors and exit codes to user-friendly messages.
 function translatePtyError(raw: string): string {
   const l = raw.toLowerCase();
-  if (l.includes("enoent") && l.includes("wsl")) {
-    return "Windows Subsystem for Linux isn't installed yet.";
-  }
   if (l.includes("enoent") || l.includes("no such file") || l.includes("command not found")) {
-    if (l.includes("python")) return "Python 3 not found. Check setup in Settings → Augment → Terminal.";
     if (l.includes("claude")) return "Claude Code isn't installed yet.";
-    return "A required program is missing.";
+    return "A required program is missing. Check setup in Settings → Augment → Terminal.";
   }
   if (l.includes("eacces") || l.includes("permission denied")) {
     return "Permission error — try running the install again.";
@@ -70,7 +66,6 @@ function translatePtyError(raw: string): string {
 
 function translateExitCode(code: number): string | null {
   if (code === 0) return null;
-  if (code === 9009 && process.platform === "win32") return "Python 3 not found. Check setup in Settings → Augment → Terminal.";
   if (code === 127) return "Claude Code isn't installed yet.";
   return null;
 }
@@ -132,8 +127,6 @@ export class TerminalView extends ItemView {
   private resizeObserver: ResizeObserver | null = null;
   private parseBuffer: string = "";
   private pluginDir: string;
-  private getUseWsl: () => boolean;
-  private getPythonPath: () => string;
   private getShellPath: () => string;
   private getDefaultWorkingDirectory: () => string;
   private terminalName: string;
@@ -165,15 +158,11 @@ export class TerminalView extends ItemView {
   constructor(
     leaf: WorkspaceLeaf,
     pluginDir: string,
-    getUseWsl: () => boolean = () => false,
-    getPythonPath: () => string = () => "",
     getShellPath: () => string = () => "",
     getDefaultWorkingDirectory: () => string = () => ""
   ) {
     super(leaf);
     this.pluginDir = pluginDir;
-    this.getUseWsl = getUseWsl;
-    this.getPythonPath = getPythonPath;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
     this.terminalName = generateTerminalName();
@@ -438,8 +427,6 @@ export class TerminalView extends ItemView {
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: customCwd || vaultPath,
-      useWsl: this.getUseWsl(),
-      pythonPath: this.getPythonPath(),
       shellPath: this.getShellPath(),
       onData: (data) => {
         this.terminal?.write(data);

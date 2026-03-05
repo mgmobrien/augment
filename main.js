@@ -17536,33 +17536,11 @@ async function checkAuth(prefix) {
   }
 }
 async function detectDeps(app) {
-  const platform = process.platform;
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
-  if (platform === "win32") {
-    const wsl = await checkBool("wsl --list");
-    if (!wsl) return { python: false, node: false, cc: false, authed: false, vaultConfigured, wsl: false };
-    const pythonInWsl = await checkBool("wsl -e python3 --version");
-    const nodeInWsl = await checkBool("wsl -e node --version");
-    const ccInWsl = nodeInWsl ? await checkBool("wsl -e which claude") : false;
-    const authedInWsl = ccInWsl ? await checkAuth("wsl -e ") : false;
-    return {
-      python: pythonInWsl,
-      node: nodeInWsl,
-      cc: ccInWsl,
-      authed: authedInWsl,
-      vaultConfigured,
-      wsl,
-      pythonInWsl,
-      nodeInWsl,
-      ccInWsl,
-      authedInWsl
-    };
-  }
-  const python = await checkBool("python3 --version");
   const node = await checkBool("node --version");
   const cc = node ? await checkBool("which claude") : false;
   const authed = cc ? await checkAuth("") : false;
-  return { python, node, cc, authed, vaultConfigured };
+  return { node, cc, authed, vaultConfigured };
 }
 var S3_AUTH_BASE = "https://auth.system3.md";
 var S3_REDIRECT_URL = `${S3_AUTH_BASE}/api/oauth2-redirect`;
@@ -17611,18 +17589,7 @@ async function doSsoLogin(providerName) {
   const authData = await exchangeRes.json();
   return { token: authData.token, email: (_d = (_c = authData.record) == null ? void 0 : _c.email) != null ? _d : "" };
 }
-function getMacSteps(deps) {
-  if (!deps.python) {
-    return {
-      title: "Set up terminal support",
-      desc: "Augment needs a small helper script. A terminal will open and install it automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "xcode-select --install\n",
-      secondaryLabel: "Download from python.org \u2197",
-      secondaryUrl: "https://www.python.org/downloads/"
-    };
-  }
+function getSetupStep(deps) {
   if (!deps.node) {
     return {
       title: "Install AI tools",
@@ -17660,75 +17627,10 @@ function getMacSteps(deps) {
   }
   return null;
 }
-function getWindowsSteps(deps) {
-  if (!deps.wsl) {
-    return {
-      title: "Enable Linux compatibility",
-      desc: "Claude Code runs on Linux. Open PowerShell as Administrator, run this command, then restart Windows when prompted:",
-      action: "copy",
-      actionLabel: "Copy",
-      copyText: "wsl --install"
-    };
-  }
-  if (!deps.pythonInWsl) {
-    return {
-      title: "Set up terminal support",
-      desc: "Augment needs a small helper script. A terminal will open and install it automatically. You may be prompted for your password.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "sudo apt update && sudo apt install -y python3\n"
-    };
-  }
-  if (!deps.nodeInWsl) {
-    return {
-      title: "Install AI tools",
-      desc: "Node.js is needed to run Claude Code. A terminal will open and install it automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "sudo apt update && sudo apt install -y nodejs npm\n"
-    };
-  }
-  if (!deps.ccInWsl) {
-    return {
-      title: "Set up your AI assistant",
-      desc: "A terminal will open and install Claude Code automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "npm install -g @anthropic-ai/claude-code\n"
-    };
-  }
-  if (!deps.authedInWsl) {
-    return {
-      title: "Connect your Claude account",
-      desc: "A terminal will open and your browser will launch for sign-in. Use the same account as claude.ai.",
-      action: "terminal",
-      actionLabel: "Sign in",
-      terminalCmd: "claude auth login\n"
-    };
-  }
-  if (!deps.vaultConfigured) {
-    return {
-      title: "Prepare your notes for AI",
-      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
-      action: "vault",
-      actionLabel: "Set up vault"
-    };
-  }
-  return null;
-}
-var MAC_DEP_ROWS = [
-  { label: "Terminal support", done: (d) => d.python, readyText: "ready", pendingText: "\u2014" },
+var DEP_ROWS = [
   { label: "Node.js", done: (d) => d.node, readyText: "ready", pendingText: "\u2014" },
   { label: "Claude Code", done: (d) => d.cc, readyText: "ready", pendingText: "\u2014" },
   { label: "Claude account", done: (d) => d.authed, readyText: "connected", pendingText: "\u2014" },
-  { label: "Vault", done: (d) => d.vaultConfigured, readyText: "ready", pendingText: "\u2014" }
-];
-var WINDOWS_DEP_ROWS = [
-  { label: "Linux environment", done: (d) => !!d.wsl, readyText: "ready", pendingText: "\u2014" },
-  { label: "Terminal support", done: (d) => !!d.pythonInWsl, readyText: "ready", pendingText: "\u2014" },
-  { label: "Node.js", done: (d) => !!d.nodeInWsl, readyText: "ready", pendingText: "\u2014" },
-  { label: "Claude Code", done: (d) => !!d.ccInWsl, readyText: "ready", pendingText: "\u2014" },
-  { label: "Claude account", done: (d) => !!d.authedInWsl, readyText: "connected", pendingText: "\u2014" },
   { label: "Vault", done: (d) => d.vaultConfigured, readyText: "ready", pendingText: "\u2014" }
 ];
 var TEMPLATE_SCAFFOLD = `---
@@ -18313,8 +18215,8 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
       wizardBody.createDiv({ cls: "augment-cc-detecting", text: "Checking your setup\u2026" });
       const deps = await detectDeps(this.app);
       wizardBody.empty();
-      const depRows = process.platform === "win32" ? WINDOWS_DEP_ROWS : MAC_DEP_ROWS;
-      const activeStep = process.platform === "win32" ? getWindowsSteps(deps) : getMacSteps(deps);
+      const depRows = DEP_ROWS;
+      const activeStep = getSetupStep(deps);
       const allReady = activeStep === null;
       wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
       const list = wizardBody.createEl("div", { cls: "augment-cc-dep-list" });
@@ -18402,12 +18304,6 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
     void renderStatusCard();
     const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
     advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
-    new import_obsidian3.Setting(advancedDetails).setName("Python path").setDesc("Path to python3 binary for the PTY bridge. Leave blank to use system default.").addText((text) => {
-      text.setPlaceholder("python3").setValue(this.plugin.settings.pythonPath).onChange(async (value) => {
-        this.plugin.settings.pythonPath = value;
-        await this.plugin.saveData(this.plugin.settings);
-      });
-    });
     new import_obsidian3.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals. Leave blank to use the system default.").addText((text) => {
       text.setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
         this.plugin.settings.shellPath = value;
@@ -18437,16 +18333,6 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
           });
         });
       }
-    }
-    if (process.platform === "win32") {
-      const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
-      const wslLink = termFooter.createEl("a", {
-        cls: "augment-folder-open",
-        text: "WSL setup guide \u2197",
-        href: "https://github.com/mgmobrien/augment/blob/main/WSL.md"
-      });
-      wslLink.target = "_blank";
-      wslLink.rel = "noopener";
     }
     terminalPane.createEl("p", {
       cls: "augment-terminal-notice",
@@ -18973,7 +18859,7 @@ var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?(
 var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
 var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
 var TerminalView = class extends import_obsidian5.ItemView {
-  constructor(leaf, pluginDir, getUseWsl = () => false, getPythonPath = () => "", getShellPath = () => "", getDefaultWorkingDirectory = () => "") {
+  constructor(leaf, pluginDir, getShellPath = () => "", getDefaultWorkingDirectory = () => "") {
     super(leaf);
     this.terminal = null;
     this.fitAddon = null;
@@ -19002,8 +18888,6 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.errorBannerEl = null;
     this.currentActivity = null;
     this.pluginDir = pluginDir;
-    this.getUseWsl = getUseWsl;
-    this.getPythonPath = getPythonPath;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
     this.terminalName = generateTerminalName();
@@ -19200,8 +19084,6 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: customCwd || vaultPath,
-      useWsl: this.getUseWsl(),
-      pythonPath: this.getPythonPath(),
       shellPath: this.getShellPath(),
       onData: (data) => {
         var _a3;
@@ -21933,8 +21815,6 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       const view = new TerminalView(
         leaf,
         this.getPluginDir(),
-        () => process.platform === "win32" ? true : this.settings.useWsl,
-        () => this.settings.pythonPath,
         () => this.settings.shellPath,
         () => this.settings.defaultWorkingDirectory
       );
