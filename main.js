@@ -17221,6 +17221,7 @@ var ContextInspectorModal = class extends import_obsidian2.Modal {
 
 // src/settings-tab.ts
 var import_obsidian3 = require("obsidian");
+var import_child_process = require("child_process");
 
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
@@ -17285,6 +17286,41 @@ function assembleVaultContext(app, editor, settings) {
 }
 
 // src/settings-tab.ts
+function execAsync(cmd) {
+  return new Promise((resolve, reject) => {
+    (0, import_child_process.exec)(cmd, { timeout: 5e3 }, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
+    });
+  });
+}
+async function detectCC() {
+  try {
+    const which = await execAsync("which claude");
+    if (!which.stdout.trim()) return { found: false };
+    let version;
+    try {
+      const v = await execAsync("claude --version");
+      version = v.stdout.trim();
+    } catch (e) {
+    }
+    let authed = false;
+    try {
+      const status = await execAsync("claude auth status");
+      authed = !status.stdout.toLowerCase().includes("not logged in") && !status.stdout.toLowerCase().includes("not authenticated");
+    } catch (e) {
+      try {
+        const home = process.env.HOME || process.env.USERPROFILE || "";
+        const { existsSync } = require("fs");
+        authed = existsSync(`${home}/.claude/.credentials.json`) || existsSync(`${home}/.claude/credentials.json`);
+      } catch (e2) {
+      }
+    }
+    return { found: true, version, authed };
+  } catch (e) {
+    return { found: false };
+  }
+}
 var TEMPLATE_SCAFFOLD = `---
 name:
 description:
@@ -17751,8 +17787,86 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     terminalPane.createEl("p", {
       cls: "augment-context-intro",
-      text: "Settings for the integrated terminal. Most users won't need to change these."
+      text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
     });
+    const ccSection = terminalPane.createDiv({ cls: "augment-cc-status" });
+    ccSection.createDiv({ cls: "augment-section-label", text: "Claude Code" });
+    const ccBody = ccSection.createDiv();
+    let ccDetected = false;
+    const renderCCStatus = async () => {
+      ccBody.empty();
+      ccBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Checking..." });
+      const status = await detectCC();
+      ccBody.empty();
+      ccDetected = status.found;
+      if (status.found) {
+        const versionRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
+        versionRow.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
+        versionRow.createSpan({ text: `  Claude Code ${status.version || "(unknown version)"}` });
+        if (status.authed) {
+          const authRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
+          authRow.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
+          authRow.createSpan({ text: "  Authenticated" });
+        } else {
+          const authRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
+          authRow.createSpan({ cls: "augment-cc-fail", text: "\u2717" });
+          authRow.createSpan({ text: "  Not authenticated" });
+          ccBody.createEl("p", {
+            cls: "augment-cc-muted",
+            text: "Run claude auth login to connect your Anthropic account."
+          });
+          const actions = ccBody.createDiv({ cls: "augment-cc-actions" });
+          const authBtn = actions.createEl("button", {
+            cls: "mod-cta",
+            text: "Open terminal to authenticate"
+          });
+          authBtn.addEventListener("click", async () => {
+            const view = await this.plugin.openFocusedTerminal();
+            setTimeout(() => view.write("claude auth login\n"), 800);
+          });
+        }
+      } else {
+        const notFound = ccBody.createDiv({ cls: "augment-cc-status-row" });
+        notFound.createSpan({ cls: "augment-cc-fail", text: "\u2717" });
+        notFound.createSpan({ text: "  Claude Code not detected" });
+        ccBody.createEl("p", {
+          cls: "augment-cc-muted",
+          text: "The Terminals feature requires Claude Code."
+        });
+        const actions = ccBody.createDiv({ cls: "augment-cc-actions" });
+        const installBtn = actions.createEl("button", {
+          cls: "mod-cta",
+          text: "Install Claude Code"
+        });
+        installBtn.addEventListener("click", async () => {
+          const view = await this.plugin.openFocusedTerminal();
+          setTimeout(() => view.write("npm install -g @anthropic-ai/claude-code\n"), 800);
+        });
+        const docsLink = actions.createEl("a", {
+          cls: "augment-folder-open",
+          text: "Docs \u2197",
+          href: "https://docs.anthropic.com/en/docs/claude-code/overview"
+        });
+        docsLink.target = "_blank";
+        docsLink.rel = "noopener";
+      }
+      const recheck = ccBody.createDiv({ cls: "augment-cc-recheck" });
+      const recheckLink = recheck.createEl("a", { text: "Re-check \u21BA" });
+      recheckLink.href = "#";
+      recheckLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        void renderCCStatus();
+      });
+    };
+    let ccDetectionRan = false;
+    ccBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Click to check Claude Code status" });
+    terminalTab.addEventListener("click", () => {
+      if (!ccDetectionRan) {
+        ccDetectionRan = true;
+        void renderCCStatus();
+      }
+    });
+    terminalPane.createDiv({ cls: "augment-section-label", text: "Configuration" });
     if (process.platform === "win32") {
       new import_obsidian3.Setting(terminalPane).setName("Run terminal via WSL").setDesc(
         "Spawn the PTY bridge through WSL instead of native Python. Required on Windows. WSL must be installed with python3 available in the default distro."
@@ -17789,6 +17903,10 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     wslLink.target = "_blank";
     wslLink.rel = "noopener";
+    terminalPane.createEl("p", {
+      cls: "augment-terminal-notice",
+      text: "Claude Code reads and writes vault files directly via the filesystem. Do not use CC to rename or move files \u2014 use Obsidian\u2019s built-in rename to preserve wikilinks."
+    });
   }
 };
 
@@ -17877,7 +17995,7 @@ var import_addon_fit = __toESM(require_addon_fit());
 var import_addon_web_links = __toESM(require_addon_web_links());
 
 // src/pty-bridge.ts
-var import_child_process = require("child_process");
+var import_child_process2 = require("child_process");
 var import_path8 = require("path");
 function toWslPath(winPath) {
   return winPath.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, "/");
@@ -17916,7 +18034,7 @@ var PtyBridge = class {
     if (this.shellPath) {
       env.SHELL = this.shellPath;
     }
-    this.process = (0, import_child_process.spawn)(cmd, args, {
+    this.process = (0, import_child_process2.spawn)(cmd, args, {
       cwd: this.cwd,
       env,
       // stdio tuple: [stdin, stdout, stderr, fd-3-control-channel]

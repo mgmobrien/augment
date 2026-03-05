@@ -1,8 +1,58 @@
 import { App, MarkdownView, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
+import { exec } from "child_process";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings, assembleVaultContext } from "./vault-context";
 import { modelDisplayName } from "./ai-client";
 import { ContextInspectorModal } from "./context-inspector";
+
+interface CCStatus {
+  found: boolean;
+  version?: string;
+  authed?: boolean;
+}
+
+function execAsync(cmd: string): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    exec(cmd, { timeout: 5000 }, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
+    });
+  });
+}
+
+async function detectCC(): Promise<CCStatus> {
+  try {
+    const which = await execAsync("which claude");
+    if (!which.stdout.trim()) return { found: false };
+
+    let version: string | undefined;
+    try {
+      const v = await execAsync("claude --version");
+      version = v.stdout.trim();
+    } catch { /* ignore */ }
+
+    // Check auth — try `claude auth status` first, fall back to credential file check.
+    let authed = false;
+    try {
+      const status = await execAsync("claude auth status");
+      // Non-zero exit throws, so reaching here means authed.
+      authed = !status.stdout.toLowerCase().includes("not logged in") &&
+               !status.stdout.toLowerCase().includes("not authenticated");
+    } catch {
+      // Command failed or doesn't exist — check credential files.
+      try {
+        const home = process.env.HOME || process.env.USERPROFILE || "";
+        const { existsSync } = require("fs");
+        authed = existsSync(`${home}/.claude/.credentials.json`) ||
+                 existsSync(`${home}/.claude/credentials.json`);
+      } catch { /* ignore */ }
+    }
+
+    return { found: true, version, authed };
+  } catch {
+    return { found: false };
+  }
+}
 
 const TEMPLATE_SCAFFOLD = `---
 name:
@@ -569,8 +619,103 @@ export class AugmentSettingTab extends PluginSettingTab {
     // ── Terminal pane ────────────────────────────────────────
     terminalPane.createEl("p", {
       cls: "augment-context-intro",
-      text: "Settings for the integrated terminal. Most users won't need to change these.",
+      text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette.",
     });
+
+    // CC detection section
+    const ccSection = terminalPane.createDiv({ cls: "augment-cc-status" });
+    ccSection.createDiv({ cls: "augment-section-label", text: "Claude Code" });
+    const ccBody = ccSection.createDiv();
+
+    let ccDetected = false;
+    const renderCCStatus = async () => {
+      ccBody.empty();
+      ccBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Checking..." });
+
+      const status = await detectCC();
+      ccBody.empty();
+      ccDetected = status.found;
+
+      if (status.found) {
+        const versionRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
+        versionRow.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
+        versionRow.createSpan({ text: `  Claude Code ${status.version || "(unknown version)"}` });
+
+        if (status.authed) {
+          const authRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
+          authRow.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
+          authRow.createSpan({ text: "  Authenticated" });
+        } else {
+          const authRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
+          authRow.createSpan({ cls: "augment-cc-fail", text: "\u2717" });
+          authRow.createSpan({ text: "  Not authenticated" });
+
+          ccBody.createEl("p", {
+            cls: "augment-cc-muted",
+            text: "Run claude auth login to connect your Anthropic account.",
+          });
+
+          const actions = ccBody.createDiv({ cls: "augment-cc-actions" });
+          const authBtn = actions.createEl("button", {
+            cls: "mod-cta",
+            text: "Open terminal to authenticate",
+          });
+          authBtn.addEventListener("click", async () => {
+            const view = await this.plugin.openFocusedTerminal();
+            setTimeout(() => view.write("claude auth login\n"), 800);
+          });
+        }
+      } else {
+        const notFound = ccBody.createDiv({ cls: "augment-cc-status-row" });
+        notFound.createSpan({ cls: "augment-cc-fail", text: "\u2717" });
+        notFound.createSpan({ text: "  Claude Code not detected" });
+
+        ccBody.createEl("p", {
+          cls: "augment-cc-muted",
+          text: "The Terminals feature requires Claude Code.",
+        });
+
+        const actions = ccBody.createDiv({ cls: "augment-cc-actions" });
+        const installBtn = actions.createEl("button", {
+          cls: "mod-cta",
+          text: "Install Claude Code",
+        });
+        installBtn.addEventListener("click", async () => {
+          const view = await this.plugin.openFocusedTerminal();
+          setTimeout(() => view.write("npm install -g @anthropic-ai/claude-code\n"), 800);
+        });
+
+        const docsLink = actions.createEl("a", {
+          cls: "augment-folder-open",
+          text: "Docs \u2197",
+          href: "https://docs.anthropic.com/en/docs/claude-code/overview",
+        });
+        docsLink.target = "_blank";
+        docsLink.rel = "noopener";
+      }
+
+      // Re-check link
+      const recheck = ccBody.createDiv({ cls: "augment-cc-recheck" });
+      const recheckLink = recheck.createEl("a", { text: "Re-check \u21ba" });
+      recheckLink.href = "#";
+      recheckLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        void renderCCStatus();
+      });
+    };
+
+    // Lazy detection — run when Terminal tab is first clicked.
+    let ccDetectionRan = false;
+    ccBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Click to check Claude Code status" });
+    terminalTab.addEventListener("click", () => {
+      if (!ccDetectionRan) {
+        ccDetectionRan = true;
+        void renderCCStatus();
+      }
+    });
+
+    // Configuration section label
+    terminalPane.createDiv({ cls: "augment-section-label", text: "Configuration" });
 
     if (process.platform === "win32") {
       new Setting(terminalPane)
@@ -637,5 +782,13 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
     wslLink.target = "_blank";
     wslLink.rel = "noopener";
+
+    // Filesystem rename notice
+    terminalPane.createEl("p", {
+      cls: "augment-terminal-notice",
+      text: "Claude Code reads and writes vault files directly via the filesystem. Do not use CC to rename or move files \u2014 use Obsidian\u2019s built-in rename to preserve wikilinks.",
+    });
+
+    // <!-- Advanced: Obsidian MCP server setup (v2) -->
   }
 }

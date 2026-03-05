@@ -714,6 +714,15 @@
   margin: 0 0 12px;
 }
 
+.augment-terminal-notice {
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  line-height: 1.6;
+  margin: 16px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--background-modifier-border);
+}
+
 /* ── Context inspector modal ── */
 .augment-context-modal {
   min-width: 520px;
@@ -1137,3 +1146,37 @@
   max-height: 300px;
   margin-bottom: 8px;
 }
+
+/* CC detection section in Terminal tab */
+.augment-cc-status { margin-bottom: 16px; }
+
+.augment-cc-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-size: var(--font-small);
+}
+
+.augment-cc-ok   { color: var(--color-green); }
+.augment-cc-fail { color: var(--color-red); }
+.augment-cc-muted { color: var(--text-muted); font-size: var(--font-smaller); }
+
+.augment-cc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.augment-cc-recheck {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  margin-top: 8px;
+}
+.augment-cc-recheck a {
+  color: var(--text-faint);
+  cursor: pointer;
+  text-decoration: none;
+}
+.augment-cc-recheck a:hover { color: var(--text-muted); }
