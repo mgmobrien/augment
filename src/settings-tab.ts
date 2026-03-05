@@ -274,25 +274,25 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Tab nav ──────────────────────────────────────────────
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
-    const overviewTab  = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
-    const generateTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
-    const templatesTab = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
-    const terminalTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
+    const overviewTab      = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
+    const continuationTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Continuation" });
+    const templatesTab     = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
+    const terminalTab      = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
 
     // ── Panes ────────────────────────────────────────────────
-    const overviewPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const generatePane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const templatesPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const terminalPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    generatePane.style.display  = "none";
+    const overviewPane      = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const continuationPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const templatesPane     = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const terminalPane      = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    continuationPane.style.display  = "none";
     templatesPane.style.display = "none";
     terminalPane.style.display  = "none";
 
     const tabs = [
-      { btn: overviewTab,  pane: overviewPane  },
-      { btn: generateTab,  pane: generatePane  },
-      { btn: templatesTab, pane: templatesPane },
-      { btn: terminalTab,  pane: terminalPane  },
+      { btn: overviewTab,      pane: overviewPane      },
+      { btn: continuationTab,  pane: continuationPane  },
+      { btn: templatesTab,     pane: templatesPane },
+      { btn: terminalTab,      pane: terminalPane  },
     ];
 
     tabs.forEach(({ btn, pane }) => {
@@ -341,7 +341,6 @@ export class AugmentSettingTab extends PluginSettingTab {
           done: !!this.plugin.settings.apiKey,
           hotkey: null as string | null,
           onClick: () => {
-            jumpToTab(generateTab, generatePane);
             setTimeout(() => apiKeyInputEl?.focus(), 50);
           },
         },
@@ -350,7 +349,9 @@ export class AugmentSettingTab extends PluginSettingTab {
           done: this.plugin.settings.hasGenerated,
           hotkey: process.platform === "darwin" ? "\u2318\u21a9" : "Ctrl+\u21a9",
           onClick: () => {
-            new Notice(process.platform === "darwin" ? "Press \u2318\u21a9 to generate in any note" : "Press Ctrl+Enter to generate in any note");
+            const msg = process.platform === "darwin" ? "Press \u2318\u21a9 to generate in any note" : "Press Ctrl+Enter to generate in any note";
+            console.log("[Augment]", msg);
+            new Notice(msg);
           },
         },
         {
@@ -388,6 +389,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     previewBtn.addEventListener("click", () => {
       const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
       if (!activeView) {
+        console.log("[Augment] no active note for context preview");
         new Notice("Open a note to preview context");
         return;
       }
@@ -399,6 +401,59 @@ export class AugmentSettingTab extends PluginSettingTab {
       cls: "augment-overview-intro",
       text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.",
     });
+
+    // API key (on Overview pane)
+    const apiKeySetting = new Setting(overviewPane)
+      .setName("API key")
+      .addText((text) => {
+        apiKeyInputEl = text.inputEl;
+        text.inputEl.type = "password";
+        text
+          .setPlaceholder("sk-ant-...")
+          .setValue(this.plugin.settings.apiKey)
+          .onChange(async (value) => {
+            this.plugin.settings.apiKey = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+    apiKeySetting.descEl.appendChild(
+      createFragment((frag) => {
+        frag.appendText("Anthropic API key. ");
+        const a = frag.createEl("a", {
+          text: "Get your API key",
+          href: "https://platform.claude.com/settings/keys",
+        });
+        a.target = "_blank";
+        a.rel = "noopener";
+      })
+    );
+
+    // Model selector (on Overview pane)
+    const FALLBACK_MODELS = [
+      { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
+    ];
+    const modelList = this.plugin.availableModels.length > 0
+      ? this.plugin.availableModels
+      : FALLBACK_MODELS;
+
+    new Setting(overviewPane)
+      .setName("Model")
+      .setDesc("Claude model to use for generation. Auto selects the best available model.")
+      .addDropdown((drop) => {
+        drop.addOption("auto", "Auto (best available)");
+        for (const m of modelList) {
+          drop.addOption(m.id, m.display_name);
+        }
+        drop
+          .setValue(this.plugin.settings.model)
+          .onChange(async (value) => {
+            this.plugin.settings.model = value;
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.refreshStatusBar();
+          });
+      });
 
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
@@ -424,10 +479,8 @@ export class AugmentSettingTab extends PluginSettingTab {
     linksEl.createEl("div", { cls: "augment-overview-links-title", text: "Quick start" });
     const linkList = linksEl.createEl("ul", { cls: "augment-overview-link-list" });
     const items = [
-      { label: "Set your API key",       tab: generateTab,  pane: generatePane  },
-      { label: "Choose a model",         tab: generateTab,  pane: generatePane  },
-      { label: "Configure output format", tab: generateTab,  pane: generatePane  },
-      { label: "Manage templates",       tab: templatesTab, pane: templatesPane },
+      { label: "Configure output format", tab: continuationTab, pane: continuationPane },
+      { label: "Manage templates",        tab: templatesTab,    pane: templatesPane    },
     ];
     for (const { label, tab, pane } of items) {
       const li = linkList.createEl("li");
@@ -438,61 +491,10 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     }
 
-    // ── Generate pane ────────────────────────────────────────
-    const apiKeySetting = new Setting(generatePane)
-      .setName("API key")
-      .addText((text) => {
-        apiKeyInputEl = text.inputEl;
-        text.inputEl.type = "password";
-        text
-          .setPlaceholder("sk-ant-...")
-          .setValue(this.plugin.settings.apiKey)
-          .onChange(async (value) => {
-            this.plugin.settings.apiKey = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
-    apiKeySetting.descEl.appendChild(
-      createFragment((frag) => {
-        frag.appendText("Anthropic API key. ");
-        const a = frag.createEl("a", {
-          text: "Get your API key",
-          href: "https://platform.claude.com/settings/keys",
-        });
-        a.target = "_blank";
-        a.rel = "noopener";
-      })
-    );
-
-    const FALLBACK_MODELS = [
-      { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
-      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
-      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
-    ];
-    const modelList = this.plugin.availableModels.length > 0
-      ? this.plugin.availableModels
-      : FALLBACK_MODELS;
-
-    new Setting(generatePane)
-      .setName("Model")
-      .setDesc("Claude model to use for generation. Auto selects the best available model.")
-      .addDropdown((drop) => {
-        drop.addOption("auto", "Auto (best available)");
-        for (const m of modelList) {
-          drop.addOption(m.id, m.display_name);
-        }
-        drop
-          .setValue(this.plugin.settings.model)
-          .onChange(async (value) => {
-            this.plugin.settings.model = value;
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.refreshStatusBar();
-          });
-      });
-
+    // ── Continuation pane ────────────────────────────────────
     const calloutTypes = detectCalloutTypes();
 
-    const formatSetting = new Setting(generatePane)
+    const formatSetting = new Setting(continuationPane)
       .setName("Output format")
       .setDesc("How generated text is inserted into the editor.")
       .addDropdown((drop) => {
@@ -575,14 +577,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       await this.plugin.saveData(this.plugin.settings);
     });
 
-    // ── Context section (within Generate pane) ────────────────
-    generatePane.createDiv({ cls: "augment-section-label", text: "Context" });
-    generatePane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "Augment sends note title, frontmatter, above-cursor text, and linked notes.",
-    });
-
-    new Setting(generatePane)
+    new Setting(continuationPane)
       .setName("Linked notes in context")
       .setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.")
       .addText((text) => {
@@ -601,7 +596,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(generatePane)
+    new Setting(continuationPane)
       .setName("Context limit")
       .setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.")
       .addText((text) => {
@@ -677,6 +672,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         const fe = (this.plugin.app as any).internalPlugins?.getPluginById("file-explorer")?.instance;
         fe?.revealInFolder?.(folder);
       } else {
+        console.log(`[Augment] folder not found: "${folderPath}"`);
         new Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
       }
     });
@@ -766,6 +762,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         if (existing instanceof TFile) {
           await this.plugin.app.workspace.getLeaf().openFile(existing);
         } else {
+          console.log("[Augment] could not create template");
           new Notice("Could not create template");
         }
       }

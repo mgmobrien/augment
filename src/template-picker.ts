@@ -1,8 +1,12 @@
-import { App, FuzzySuggestModal, Modal, Setting, TFile, TFolder } from "obsidian";
+import { App, FuzzySuggestModal, Modal, Notice, Setting, TFile, TFolder } from "obsidian";
 import { VaultContext } from "./vault-context";
 
 export function getTemplateFiles(app: App, folderPath: string): TFile[] {
   const folder = app.vault.getAbstractFileByPath(folderPath);
+  // DEBUG — remove after diagnosis
+  const debugMsg = `[Augment debug] path="${folderPath}" type=${folder?.constructor?.name ?? "null"} children=${folder instanceof TFolder ? folder.children.length : "n/a"}`;
+  console.log(debugMsg);
+  new Notice(debugMsg, 8000);
   if (!(folder instanceof TFolder)) return [];
   return folder.children.filter(
     (f): f is TFile => f instanceof TFile && f.extension === "md"

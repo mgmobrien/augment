@@ -264,6 +264,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     gen.cmView.dispatch({ selection: EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
     this.activeGeneration = null;
     this.refreshStatusBar();
+    console.log("[Augment] generation cancelled");
     new Notice("Augment: generation cancelled");
   }
 
@@ -322,6 +323,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           userMessage: buildUserMessage(ctx, promptText),
         };
         this.pushContextHistory(entry);
+        console.log("[Augment] generation done");
         const notice = new Notice("", 5000);
         notice.noticeEl.empty();
         notice.noticeEl.createEl("span", { text: "Augment: done" });
@@ -344,7 +346,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           this.activeGeneration = null;
         }
         if (abortController.signal.aborted) return; // Cancel — no error notice.
-        console.error("[Augment]", err);
+        console.error("[Augment] generation failed", err);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
       } finally {
@@ -462,6 +464,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
+          console.log("[Augment] API key required");
           const notice = new Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
@@ -482,6 +485,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       editorCallback: (editor, view) => {
         if (!(view instanceof MarkdownView)) return;
         if (!this.settings.apiKey) {
+          console.log("[Augment] API key required");
           const notice = new Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
@@ -492,6 +496,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           return;
         }
         if (!this.settings.templateFolder) {
+          console.log("[Augment] no template folder set");
           const notice = new Notice("Augment: no template folder set \u2014 click to configure", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
@@ -503,6 +508,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
+          console.log("[Augment] no templates found in", this.settings.templateFolder);
           new Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
@@ -581,6 +587,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 userMessage: rendered,
               };
               this.pushContextHistory(entry);
+              console.log("[Augment] template generation done");
               const notice = new Notice("", 5000);
               notice.noticeEl.empty();
               notice.noticeEl.createEl("span", { text: "Augment: done" });
@@ -606,7 +613,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 this.activeGeneration = null;
               }
               if (abortController.signal.aborted) return;
-              console.error("[Augment]", err);
+              console.error("[Augment] template generation failed", err);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
             } finally {
@@ -645,6 +652,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       callback: () => {
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!activeView) {
+          console.log("[Augment] no active note for context view");
           new Notice("Augment: open a note to view its context");
           return;
         }
@@ -668,6 +676,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
       this.settings.hasSeenWelcome = true;
       void this.saveData(this.settings);
+      console.log("[Augment] first-load welcome notice");
       const notice = new Notice("", 8000);
       notice.noticeEl.empty();
       notice.noticeEl.createEl("span", { text: "Augment installed \u2014 add your API key to start generating. " });
@@ -725,6 +734,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       }
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
+        console.log("[Augment] no active note for generate");
         new Notice("Open a note to generate");
         return;
       }
