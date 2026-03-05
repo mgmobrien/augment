@@ -1539,3 +1539,59 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   word-break: break-word;
   margin: 0;
 }
+
+/* ── Terminal Manager: team grouping ─────────────────────────────────────── */
+.augment-tm-team-header {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 10px 2px;
+  opacity: 0.7;
+}
+.augment-tm-team-member {
+  border-left: 2px solid var(--interactive-accent);
+  padding-left: 10px;
+  margin-left: 0;
+}
+.augment-tm-team-member.is-sub-agent {
+  padding-left: 18px;
+}
+.augment-tm-team-gap {
+  height: 8px;
+}
+
+/* ── Terminal Manager: other projects section ────────────────────────────── */
+.augment-tm-project-row {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.augment-tm-project-row:hover {
+  background: var(--background-modifier-hover);
+}
+.augment-tm-project-chevron {
+  color: var(--text-muted);
+  font-size: 10px;
+  width: 14px;
+  flex-shrink: 0;
+}
+.augment-tm-project-name {
+  font-size: 13px;
+  color: var(--text-normal);
+  font-weight: 500;
+}
+.augment-tm-project-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.augment-tm-project-sessions {
+  margin-left: 8px;
+  border-left: 1px solid var(--background-modifier-border);
+  padding-left: 4px;
+  margin-top: 2px;
+}

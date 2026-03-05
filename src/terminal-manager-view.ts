@@ -1,6 +1,6 @@
 import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
-import { SessionMeta, SessionStore } from "./session-store";
+import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
@@ -18,6 +18,8 @@ type TerminalViewLike = {
   getAutoNamed?: () => boolean;
 };
 
+type TeamContext = { isTeamMember: boolean; isSubAgent: boolean };
+
 export class TerminalManagerView extends ItemView {
   private listEl: HTMLElement | null = null;
   private sessionStore: SessionStore | null = null;
@@ -27,6 +29,13 @@ export class TerminalManagerView extends ItemView {
   // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
   private lastHistoryLoadTime = 0;
   private cachedSessions: SessionMeta[] = [];
+
+  // Other-projects scan debounce.
+  private lastProjectGroupsLoadTime = 0;
+  private cachedProjectGroups: ProjectGroup[] = [];
+
+  // Which other-project groups are expanded (collapsed by default).
+  private expandedProjects: Set<string> = new Set();
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -103,6 +112,16 @@ export class TerminalManagerView extends ItemView {
     return this.cachedSessions;
   }
 
+  private getOtherProjectGroups(): ProjectGroup[] {
+    const now = Date.now();
+    if (now - this.lastProjectGroupsLoadTime >= 500) {
+      this.lastProjectGroupsLoadTime = now;
+      const all = this.sessionStore?.loadAllProjectGroups(50) ?? [];
+      this.cachedProjectGroups = all.filter((g) => !g.isVault);
+    }
+    return this.cachedProjectGroups;
+  }
+
   private getTerminalLeaves(): WorkspaceLeaf[] {
     const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
     if (byType.length > 0) {
@@ -165,6 +184,78 @@ export class TerminalManagerView extends ItemView {
     return null;
   }
 
+  // Build team groups from open terminal leaves.
+  // Returns Map<teamName, orderedLeaves> where index 0 is the leader.
+  // Only includes groups with ≥2 members (confident detection).
+  private computeTeamGroups(
+    leaves: WorkspaceLeaf[]
+  ): Map<string, WorkspaceLeaf[]> {
+    const byTeam = new Map<string, Set<WorkspaceLeaf>>();
+
+    // Signal 1: shared team name from each leaf's getTeamNames().
+    for (const leaf of leaves) {
+      const view = leaf.view as TerminalViewLike;
+      const teams =
+        typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+      for (const team of teams) {
+        if (!byTeam.has(team)) byTeam.set(team, new Set());
+        byTeam.get(team)!.add(leaf);
+      }
+    }
+
+    // Signal 2: name cross-reference.
+    // If leaf A's teamMembers includes the name of leaf B, they're connected.
+    // This catches worker tabs that don't self-identify their team.
+    for (const leaf of leaves) {
+      const view = leaf.view as TerminalViewLike;
+      const teams =
+        typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+      if (teams.length === 0) continue;
+      const members =
+        typeof view.getTeamMembers === "function"
+          ? view.getTeamMembers().map((m) => m.toLowerCase())
+          : [];
+      if (members.length === 0) continue;
+
+      for (const otherLeaf of leaves) {
+        if (otherLeaf === leaf) continue;
+        const otherName = this.getLeafTerminalName(
+          otherLeaf,
+          otherLeaf.view as TerminalViewLike
+        ).toLowerCase();
+        if (members.includes(otherName)) {
+          for (const team of teams) {
+            if (!byTeam.has(team)) byTeam.set(team, new Set());
+            byTeam.get(team)!.add(leaf);
+            byTeam.get(team)!.add(otherLeaf);
+          }
+        }
+      }
+    }
+
+    // Build result: only groups with ≥2 members, leader (most teamMembers) first.
+    const result = new Map<string, WorkspaceLeaf[]>();
+    for (const [team, leafSet] of byTeam) {
+      if (leafSet.size < 2) continue;
+      const sorted = Array.from(leafSet).sort((a, b) => {
+        const aView = a.view as TerminalViewLike;
+        const bView = b.view as TerminalViewLike;
+        const aCount =
+          typeof aView.getTeamMembers === "function"
+            ? aView.getTeamMembers().length
+            : 0;
+        const bCount =
+          typeof bView.getTeamMembers === "function"
+            ? bView.getTeamMembers().length
+            : 0;
+        return bCount - aCount; // most members = leader
+      });
+      result.set(team, sorted);
+    }
+
+    return result;
+  }
+
   private refresh(): void {
     if (!this.listEl) return;
     this.listEl.empty();
@@ -172,12 +263,14 @@ export class TerminalManagerView extends ItemView {
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const totalOnDisk = this.sessionStore?.countSessions() ?? 0;
+    const otherGroups = this.getOtherProjectGroups();
     const activeLeaf = this.app.workspace.activeLeaf;
 
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
+    const hasOtherProjects = otherGroups.length > 0;
 
-    if (!hasOpen && !hasHistory) {
+    if (!hasOpen && !hasHistory && !hasOtherProjects) {
       this.listEl.createDiv({
         cls: "augment-tm-empty",
         text: "No terminals open",
@@ -185,35 +278,92 @@ export class TerminalManagerView extends ItemView {
       return;
     }
 
-    // ── OPEN section ──────────────────────────────────────────
+    // ── OPEN section with team grouping ───────────────────────
     if (hasOpen) {
       this.listEl.createDiv({
         cls: "augment-tm-section-label",
         text: "OPEN",
       });
-      for (const leaf of leaves) {
-        this.renderOpenRow(leaf, activeLeaf);
-      }
+      const teamGroups = this.computeTeamGroups(leaves);
+      this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
 
-    // ── HISTORY section ───────────────────────────────────────
+    // ── HISTORY section (vault) ────────────────────────────────
     if (hasHistory) {
       this.listEl.createDiv({
         cls: "augment-tm-section-label",
         text: "HISTORY",
       });
-      this.renderHistorySections(sessions, totalOnDisk);
+      this.renderHistorySections(sessions, totalOnDisk, this.listEl);
+    }
+
+    // ── OTHER PROJECTS section ─────────────────────────────────
+    if (hasOtherProjects) {
+      this.listEl.createDiv({
+        cls: "augment-tm-section-label",
+        text: "OTHER PROJECTS",
+      });
+      this.renderOtherProjectsSection(otherGroups);
+    }
+  }
+
+  private renderOpenSectionWithGroups(
+    leaves: WorkspaceLeaf[],
+    teamGroups: Map<string, WorkspaceLeaf[]>,
+    activeLeaf: WorkspaceLeaf | null
+  ): void {
+    // Track which leaves belong to any group. A leaf only appears in its
+    // first detected group to prevent duplication.
+    const assignedLeaves = new Set<WorkspaceLeaf>();
+
+    for (const [teamName, members] of teamGroups) {
+      // Team header.
+      const teamHeader = this.listEl!.createDiv({ cls: "augment-tm-team-header" });
+      teamHeader.createSpan({ text: teamName });
+
+      // Leader (most teamMembers).
+      const leader = members[0];
+      assignedLeaves.add(leader);
+      this.renderOpenRow(leader, activeLeaf, {
+        isTeamMember: true,
+        isSubAgent: false,
+      });
+
+      // Sub-agents.
+      for (const member of members.slice(1)) {
+        assignedLeaves.add(member);
+        this.renderOpenRow(member, activeLeaf, {
+          isTeamMember: true,
+          isSubAgent: true,
+        });
+      }
+
+      // Gap after group.
+      this.listEl!.createDiv({ cls: "augment-tm-team-gap" });
+    }
+
+    // Ungrouped leaves.
+    for (const leaf of leaves) {
+      if (!assignedLeaves.has(leaf)) {
+        this.renderOpenRow(leaf, activeLeaf, {
+          isTeamMember: false,
+          isSubAgent: false,
+        });
+      }
     }
   }
 
   private renderOpenRow(
     leaf: WorkspaceLeaf,
-    activeLeaf: WorkspaceLeaf | null
+    activeLeaf: WorkspaceLeaf | null,
+    teamContext: TeamContext = { isTeamMember: false, isSubAgent: false }
   ): void {
     const view = leaf.view as TerminalViewLike;
     const row = this.listEl!.createDiv({ cls: "augment-tm-item" });
 
     if (leaf === activeLeaf) row.addClass("is-active");
+    if (teamContext.isTeamMember) row.addClass("augment-tm-team-member");
+    if (teamContext.isSubAgent) row.addClass("is-sub-agent");
 
     const line = row.createDiv({ cls: "augment-tm-line" });
 
@@ -319,9 +469,50 @@ export class TerminalManagerView extends ItemView {
     });
   }
 
+  private renderOtherProjectsSection(groups: ProjectGroup[]): void {
+    for (const group of groups) {
+      const isExpanded = this.expandedProjects.has(group.encodedName);
+
+      const projectRow = this.listEl!.createDiv({ cls: "augment-tm-project-row" });
+      const line = projectRow.createDiv({ cls: "augment-tm-line" });
+
+      line.createSpan({
+        cls: "augment-tm-project-chevron",
+        text: isExpanded ? "▾" : "▸",
+      });
+
+      // Display the last meaningful path segment.
+      const segments = group.projectName.split("/").filter(Boolean);
+      const displayName = segments.slice(-1)[0] || group.projectName;
+      line.createSpan({ cls: "augment-tm-project-name", text: displayName });
+      line.createDiv({ cls: "augment-tm-spacer" });
+
+      const metaEl = line.createSpan({ cls: "augment-tm-project-meta" });
+      metaEl.textContent = `${group.totalOnDisk} · ${this.relativeTime(group.lastActivityMs)}`;
+
+      projectRow.addEventListener("click", () => {
+        if (isExpanded) {
+          this.expandedProjects.delete(group.encodedName);
+        } else {
+          this.expandedProjects.add(group.encodedName);
+        }
+        this.lastProjectGroupsLoadTime = 0; // allow fresh load
+        this.refresh();
+      });
+
+      if (isExpanded) {
+        const sessionsEl = this.listEl!.createDiv({
+          cls: "augment-tm-project-sessions",
+        });
+        this.renderHistorySections(group.sessions, group.totalOnDisk, sessionsEl);
+      }
+    }
+  }
+
   private renderHistorySections(
     sessions: SessionMeta[],
-    totalOnDisk: number
+    totalOnDisk: number,
+    container: HTMLElement
   ): void {
     const now = new Date();
     const todayStr = this.dateStr(now);
@@ -366,18 +557,18 @@ export class TerminalManagerView extends ItemView {
 
     for (const groupKey of groupOrder) {
       const groupSessions = groups.get(groupKey)!;
-      this.listEl!.createDiv({
+      container.createDiv({
         cls: "augment-tm-date-group",
         text: groupKey,
       });
       for (const session of groupSessions) {
-        this.renderHistoryRow(session);
+        this.renderHistoryRow(session, container);
       }
     }
 
     // "Load 50 more" if disk has more than currently loaded.
     if (totalOnDisk > this.historyLoadedCount) {
-      const loadMore = this.listEl!.createDiv({
+      const loadMore = container.createDiv({
         cls: "augment-tm-load-more",
         text: "Load 50 more \u2193",
       });
@@ -389,9 +580,9 @@ export class TerminalManagerView extends ItemView {
     }
   }
 
-  private renderHistoryRow(session: SessionMeta): void {
+  private renderHistoryRow(session: SessionMeta, container: HTMLElement): void {
     const isExpanded = this.expandedSessionId === session.id;
-    const row = this.listEl!.createDiv({ cls: "augment-tm-item is-history" });
+    const row = container.createDiv({ cls: "augment-tm-item is-history" });
 
     const line = row.createDiv({ cls: "augment-tm-line" });
 

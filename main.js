@@ -3040,7 +3040,7 @@ var require_util = __commonJS({
       return path3;
     }
     exports.normalize = normalize;
-    function join3(aRoot, aPath) {
+    function join4(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -3072,7 +3072,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports.join = join3;
+    exports.join = join4;
     exports.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -3245,7 +3245,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index + 1);
           }
         }
-        sourceURL = join3(urlGenerate(parsed), sourceURL);
+        sourceURL = join4(urlGenerate(parsed), sourceURL);
       }
       return normalize(sourceURL);
     }
@@ -19611,10 +19611,74 @@ var SessionStore = class {
     }
     return null;
   }
+  // Enumerate all project directories under ~/.claude/projects/.
+  findAllProjectDirs() {
+    var _a2;
+    const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
+    const projectsRoot = path2.join(home, ".claude", "projects");
+    const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const encodedHome = home.replace(/[/ ]/g, "-");
+    try {
+      return fs.readdirSync(projectsRoot).filter((name) => {
+        try {
+          return fs.statSync(path2.join(projectsRoot, name)).isDirectory();
+        } catch (e) {
+          return false;
+        }
+      }).map((encodedName) => {
+        const projectDir = path2.join(projectsRoot, encodedName);
+        const isVault = encodedName === vaultEncoded;
+        let relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
+        const projectName = relative.replace(/-/g, "/") || encodedName;
+        return { encodedName, projectDir, isVault, projectName };
+      });
+    } catch (e) {
+      return [];
+    }
+  }
   // Sort session files by mtime desc, take first `limit`.
   loadSessions(limit) {
     const dir = this.findProjectDir();
     if (!dir) return [];
+    return this.loadSessionsFromDir(dir, limit);
+  }
+  // Load sessions from all CC project directories, grouped by project.
+  // Vault project is flagged with isVault=true.
+  loadAllProjectGroups(limitPerProject = 50) {
+    var _a2, _b;
+    const dirs = this.findAllProjectDirs();
+    const groups = [];
+    for (const { encodedName, projectDir, isVault, projectName } of dirs) {
+      const sessions = this.loadSessionsFromDir(projectDir, limitPerProject);
+      if (sessions.length === 0) continue;
+      const lastActivityMs = (_b = (_a2 = sessions[0]) == null ? void 0 : _a2.mtimeMs) != null ? _b : 0;
+      const totalOnDisk = this.countSessionsInDir(projectDir);
+      groups.push({
+        projectName,
+        projectDir,
+        encodedName,
+        isVault,
+        sessions,
+        totalOnDisk,
+        lastActivityMs
+      });
+    }
+    return groups.sort((a, b) => b.lastActivityMs - a.lastActivityMs);
+  }
+  // Fast count of all session files — no stats or reads.
+  countSessions() {
+    const dir = this.findProjectDir();
+    if (!dir) return 0;
+    return this.countSessionsInDir(dir);
+  }
+  countSessionsInDir(dir) {
+    try {
+      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+    } catch (e) {
+      return 0;
+    }
+  }
+  loadSessionsFromDir(dir, limit) {
     try {
       const now = Date.now();
       const entries = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => {
@@ -19636,16 +19700,6 @@ var SessionStore = class {
       }));
     } catch (e) {
       return [];
-    }
-  }
-  // Fast count of all session files — no stats or reads.
-  countSessions() {
-    const dir = this.findProjectDir();
-    if (!dir) return 0;
-    try {
-      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
-    } catch (e) {
-      return 0;
     }
   }
   // Count user turns in session JSONL.
@@ -19719,6 +19773,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
     this.lastHistoryLoadTime = 0;
     this.cachedSessions = [];
+    // Other-projects scan debounce.
+    this.lastProjectGroupsLoadTime = 0;
+    this.cachedProjectGroups = [];
+    // Which other-project groups are expanded (collapsed by default).
+    this.expandedProjects = /* @__PURE__ */ new Set();
   }
   getViewType() {
     return VIEW_TYPE_TERMINAL_MANAGER;
@@ -19777,6 +19836,16 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     }
     return this.cachedSessions;
   }
+  getOtherProjectGroups() {
+    var _a2, _b;
+    const now = Date.now();
+    if (now - this.lastProjectGroupsLoadTime >= 500) {
+      this.lastProjectGroupsLoadTime = now;
+      const all = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.loadAllProjectGroups(50)) != null ? _b : [];
+      this.cachedProjectGroups = all.filter((g) => !g.isVault);
+    }
+    return this.cachedProjectGroups;
+  }
   getTerminalLeaves() {
     const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
     if (byType.length > 0) {
@@ -19823,6 +19892,54 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     }
     return null;
   }
+  // Build team groups from open terminal leaves.
+  // Returns Map<teamName, orderedLeaves> where index 0 is the leader.
+  // Only includes groups with ≥2 members (confident detection).
+  computeTeamGroups(leaves) {
+    const byTeam = /* @__PURE__ */ new Map();
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const teams = typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+      for (const team of teams) {
+        if (!byTeam.has(team)) byTeam.set(team, /* @__PURE__ */ new Set());
+        byTeam.get(team).add(leaf);
+      }
+    }
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const teams = typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+      if (teams.length === 0) continue;
+      const members = typeof view.getTeamMembers === "function" ? view.getTeamMembers().map((m) => m.toLowerCase()) : [];
+      if (members.length === 0) continue;
+      for (const otherLeaf of leaves) {
+        if (otherLeaf === leaf) continue;
+        const otherName = this.getLeafTerminalName(
+          otherLeaf,
+          otherLeaf.view
+        ).toLowerCase();
+        if (members.includes(otherName)) {
+          for (const team of teams) {
+            if (!byTeam.has(team)) byTeam.set(team, /* @__PURE__ */ new Set());
+            byTeam.get(team).add(leaf);
+            byTeam.get(team).add(otherLeaf);
+          }
+        }
+      }
+    }
+    const result = /* @__PURE__ */ new Map();
+    for (const [team, leafSet] of byTeam) {
+      if (leafSet.size < 2) continue;
+      const sorted = Array.from(leafSet).sort((a, b) => {
+        const aView = a.view;
+        const bView = b.view;
+        const aCount = typeof aView.getTeamMembers === "function" ? aView.getTeamMembers().length : 0;
+        const bCount = typeof bView.getTeamMembers === "function" ? bView.getTeamMembers().length : 0;
+        return bCount - aCount;
+      });
+      result.set(team, sorted);
+    }
+    return result;
+  }
   refresh() {
     var _a2, _b;
     if (!this.listEl) return;
@@ -19830,10 +19947,12 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const totalOnDisk = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.countSessions()) != null ? _b : 0;
+    const otherGroups = this.getOtherProjectGroups();
     const activeLeaf = this.app.workspace.activeLeaf;
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
-    if (!hasOpen && !hasHistory) {
+    const hasOtherProjects = otherGroups.length > 0;
+    if (!hasOpen && !hasHistory && !hasOtherProjects) {
       this.listEl.createDiv({
         cls: "augment-tm-empty",
         text: "No terminals open"
@@ -19845,23 +19964,60 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         cls: "augment-tm-section-label",
         text: "OPEN"
       });
-      for (const leaf of leaves) {
-        this.renderOpenRow(leaf, activeLeaf);
-      }
+      const teamGroups = this.computeTeamGroups(leaves);
+      this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
     if (hasHistory) {
       this.listEl.createDiv({
         cls: "augment-tm-section-label",
         text: "HISTORY"
       });
-      this.renderHistorySections(sessions, totalOnDisk);
+      this.renderHistorySections(sessions, totalOnDisk, this.listEl);
+    }
+    if (hasOtherProjects) {
+      this.listEl.createDiv({
+        cls: "augment-tm-section-label",
+        text: "OTHER PROJECTS"
+      });
+      this.renderOtherProjectsSection(otherGroups);
     }
   }
-  renderOpenRow(leaf, activeLeaf) {
+  renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf) {
+    const assignedLeaves = /* @__PURE__ */ new Set();
+    for (const [teamName, members] of teamGroups) {
+      const teamHeader = this.listEl.createDiv({ cls: "augment-tm-team-header" });
+      teamHeader.createSpan({ text: teamName });
+      const leader = members[0];
+      assignedLeaves.add(leader);
+      this.renderOpenRow(leader, activeLeaf, {
+        isTeamMember: true,
+        isSubAgent: false
+      });
+      for (const member of members.slice(1)) {
+        assignedLeaves.add(member);
+        this.renderOpenRow(member, activeLeaf, {
+          isTeamMember: true,
+          isSubAgent: true
+        });
+      }
+      this.listEl.createDiv({ cls: "augment-tm-team-gap" });
+    }
+    for (const leaf of leaves) {
+      if (!assignedLeaves.has(leaf)) {
+        this.renderOpenRow(leaf, activeLeaf, {
+          isTeamMember: false,
+          isSubAgent: false
+        });
+      }
+    }
+  }
+  renderOpenRow(leaf, activeLeaf, teamContext = { isTeamMember: false, isSubAgent: false }) {
     var _a2;
     const view = leaf.view;
     const row = this.listEl.createDiv({ cls: "augment-tm-item" });
     if (leaf === activeLeaf) row.addClass("is-active");
+    if (teamContext.isTeamMember) row.addClass("augment-tm-team-member");
+    if (teamContext.isSubAgent) row.addClass("is-sub-agent");
     const line = row.createDiv({ cls: "augment-tm-line" });
     const dot = line.createDiv({ cls: "augment-tm-dot" });
     const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
@@ -19950,7 +20106,39 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       menu.showAtMouseEvent(evt);
     });
   }
-  renderHistorySections(sessions, totalOnDisk) {
+  renderOtherProjectsSection(groups) {
+    for (const group of groups) {
+      const isExpanded = this.expandedProjects.has(group.encodedName);
+      const projectRow = this.listEl.createDiv({ cls: "augment-tm-project-row" });
+      const line = projectRow.createDiv({ cls: "augment-tm-line" });
+      line.createSpan({
+        cls: "augment-tm-project-chevron",
+        text: isExpanded ? "\u25BE" : "\u25B8"
+      });
+      const segments = group.projectName.split("/").filter(Boolean);
+      const displayName = segments.slice(-1)[0] || group.projectName;
+      line.createSpan({ cls: "augment-tm-project-name", text: displayName });
+      line.createDiv({ cls: "augment-tm-spacer" });
+      const metaEl = line.createSpan({ cls: "augment-tm-project-meta" });
+      metaEl.textContent = `${group.totalOnDisk} \xB7 ${this.relativeTime(group.lastActivityMs)}`;
+      projectRow.addEventListener("click", () => {
+        if (isExpanded) {
+          this.expandedProjects.delete(group.encodedName);
+        } else {
+          this.expandedProjects.add(group.encodedName);
+        }
+        this.lastProjectGroupsLoadTime = 0;
+        this.refresh();
+      });
+      if (isExpanded) {
+        const sessionsEl = this.listEl.createDiv({
+          cls: "augment-tm-project-sessions"
+        });
+        this.renderHistorySections(group.sessions, group.totalOnDisk, sessionsEl);
+      }
+    }
+  }
+  renderHistorySections(sessions, totalOnDisk, container) {
     const now = /* @__PURE__ */ new Date();
     const todayStr = this.dateStr(now);
     const yesterday = new Date(now);
@@ -19985,16 +20173,16 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     }
     for (const groupKey of groupOrder) {
       const groupSessions = groups.get(groupKey);
-      this.listEl.createDiv({
+      container.createDiv({
         cls: "augment-tm-date-group",
         text: groupKey
       });
       for (const session of groupSessions) {
-        this.renderHistoryRow(session);
+        this.renderHistoryRow(session, container);
       }
     }
     if (totalOnDisk > this.historyLoadedCount) {
-      const loadMore = this.listEl.createDiv({
+      const loadMore = container.createDiv({
         cls: "augment-tm-load-more",
         text: "Load 50 more \u2193"
       });
@@ -20005,9 +20193,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       });
     }
   }
-  renderHistoryRow(session) {
+  renderHistoryRow(session, container) {
     const isExpanded = this.expandedSessionId === session.id;
-    const row = this.listEl.createDiv({ cls: "augment-tm-item is-history" });
+    const row = container.createDiv({ cls: "augment-tm-item is-history" });
     const line = row.createDiv({ cls: "augment-tm-line" });
     const dot = line.createDiv({ cls: "augment-tm-dot" });
     dot.addClass(session.status === "stale" ? "stale" : "exited");
@@ -20146,6 +20334,702 @@ var TerminalSwitcherModal = class extends import_obsidian7.FuzzySuggestModal {
     return view.getName();
   }
 };
+
+// src/team-scaffold.ts
+var fs2 = __toESM(require("fs"));
+var import_path9 = require("path");
+var GENERATED_HEADER = "<!-- Generated by augment init-team. Customize freely.\n     Re-run with refresh-skills to pull latest defaults (overwrites SKILL.md files only). -->\n";
+var ROLES = ["ceo", "cto", "design", "product", "visionary", "values"];
+var PARTS_TEMPLATE = `# [Project name]
+
+## Project identity
+
+[One paragraph: what this project is, who it's for, what stage it's at.]
+
+## Roster
+
+| Part | Directory | Owns | Perspective |
+|------|-----------|------|-------------|
+| CEO | \`ceo/\` | Session management, priority, tradeoffs | "What should we work on?" |
+| Product | \`product/\` | Feature prioritization, user value, scope | "What does the user need?" |
+| Design | \`design/\` | UX patterns, interaction, visual coherence | "How should this feel?" |
+| CTO | \`cto/\` | Architecture, quality, debt, dependencies | "How does this work? What breaks?" |
+| Visionary | \`visionary/\` | Future direction, paradigm shifts, technology bets | "Where is this going?" |
+| Values | \`values/\` | Alignment with values, ethical considerations | "Are we building the right thing?" |
+
+## Boot protocol
+
+CEO boots from \`.parts/skills/project-ceo/SKILL.md\`.
+Domain parts boot when CEO spawns them \u2014 each reads its skill at \`.parts/skills/project-[role]/SKILL.md\` parameterized with project root and project-local config from \`.parts/[role]/config.md\`.
+
+Invoke by saying "[project-name] CEO" or "CEO [project-name]" from a Claude Code session in the project directory.
+
+## Project sources
+
+Parts scan these for orientation:
+
+| Source | What it tells you |
+|--------|------------------|
+| \`git log\` | Recent code changes |
+| \`package.json\` | Dependencies, scripts |
+| \`.parts/*/.state/current.md\` | Each part's last-known state |
+| \`.parts/*/sessions/\` | Session history per part |
+
+## Conventions
+
+### State files
+
+- Location: \`.parts/[name]/.state/current.md\`
+- Format: YAML frontmatter + markdown sections
+- Update: Overwrite on each session (snapshot, not log)
+- Target: \u226480 lines per part
+
+### Session logs
+
+- Location: \`.parts/[name]/sessions/YYYY-MM-DD-HHmm.md\`
+- Contents: What happened, decisions made, state changes
+- Every part writes a session log at every session end.
+
+### Output at orientation
+
+Each domain part writes an h2 section to the CEO's orientation working file.
+
+## Corrections
+
+(None yet. When a part gives bad advice, append the correction here with date and context.)
+`;
+var SKILLS = {
+  ceo: `---
+name: project-ceo
+description: Project CEO. Session manager, priority router, external interface for project teams.
+---
+
+${GENERATED_HEADER}
+# Project CEO
+
+You are the CEO for a development project team. You manage sessions, route priorities, present briefings, and mediate disagreements between parts.
+
+You do not do domain work. Product thinks about features. CTO thinks about architecture. Design thinks about UX. Visionary thinks about the future. Values thinks about alignment. You coordinate them.
+
+## Project resolution
+
+1. The project root is the directory containing \`.parts/\`
+2. Read \`.parts/PARTS.md\` for project identity and roster
+3. If invoked with a project name, verify it matches
+
+## Concerns
+
+- Session flow and current focus
+- Priority decisions and tradeoff calls
+- Inter-part disagreement resolution
+- Orientation freshness
+
+## Boot sequence
+
+1. Get current datetime:
+   \`\`\`bash
+   date "+%Y-%m-%d %a %I:%M%p" | sed 's/  / /'
+   \`\`\`
+
+2. Read project constitution: \`.parts/PARTS.md\`
+
+3. Read your state: \`.parts/ceo/.state/current.md\`
+
+4. Read your last session: most recent file in \`.parts/ceo/sessions/\`
+
+5. Greet the user. Brief \u2014 one line with carryover context.
+
+   If state is empty (cold boot):
+   - "First session with the team. Orientation running now."
+
+6. Check orientation freshness:
+   \`\`\`bash
+   git log --oneline -5 --since="7 days ago"
+   \`\`\`
+   If there's git activity since last session or last session was >24h ago, orientation is stale.
+
+7. **If stale:** Run orientation.
+
+   Create working file at: \`.parts/ceo/sessions/orientation-[YYYY-MM-DD].md\`
+
+   Collect shared context:
+   \`\`\`bash
+   git log --oneline -20
+   git diff --stat HEAD~5..HEAD
+   \`\`\`
+   Also read any files referenced in the "Project sources" section of PARTS.md.
+
+   Read each domain part's config: \`.parts/{role}/config.md\`
+
+   Create team and spawn all domain parts in parallel. Each part receives:
+   - Its skill from \`.parts/skills/project-{role}/SKILL.md\`
+   - Its config from \`.parts/{role}/config.md\`
+   - The shared git context (so they don't re-read it)
+   - Project root path and working file path
+
+8. **If fresh:** Read existing orientation working file. Brief from cached state.
+
+## Receiving orientation reports
+
+When all domain parts have written their h2 sections:
+
+1. Read the working file
+2. Present to the user. Preserve each part's voice.
+3. Add your editorial synthesis: 2\u20133 sentences on what matters most.
+
+## Mid-session routing
+
+- Feature questions \u2192 Product
+- UX/interaction questions \u2192 Design
+- Architecture/technical questions \u2192 CTO
+- "Where is this going?" \u2192 Visionary
+- "Should we?" \u2192 Values
+- Multi-concern \u2192 relevant parts, then present tensions
+
+## Shutdown sequence
+
+1. Send shutdown requests to all running parts. Each must:
+   - Write session log (what happened, what shipped, what's in-progress)
+   - Reflect on mistakes, successes, and learnings
+   - Update state file with learnings
+   - Approve shutdown
+
+2. Write your own session log following the same protocol
+3. Update your state file
+4. Confirm all parts approved, then clean up
+
+## State contract
+
+File: \`.parts/ceo/.state/current.md\`
+Contents: last_session date, active threads (\u22645), recent decisions (\u22645), orientation status.
+Overwrite on update. \u226440 lines.
+
+## Rules
+
+- Never do domain work. Route to parts.
+- Preserve part voices \u2014 don't flatten perspectives.
+- When parts disagree, present the tension. Don't pick sides.
+- Update state at every session end.
+`,
+  cto: `---
+name: project-cto
+description: CTO part. Owns architecture, code quality, technical debt, build system, dependencies.
+---
+
+${GENERATED_HEADER}
+# Project CTO
+
+You are the CTO for a development project. You think about how the system works \u2014 architecture, code quality, technical debt, build system, and dependencies.
+
+You are the technical truth-teller. When something is fragile or poorly structured, you say so.
+
+## Concerns
+
+- Architecture \u2014 how pieces fit together, boundaries, coupling
+- Code quality \u2014 readability, maintainability, structure
+- Technical debt \u2014 shortcuts, fragility, scale risks
+- Build system \u2014 does the build work? Deps up to date? Security issues?
+- Performance \u2014 bottlenecks, optimization opportunities
+
+## Boot sequence
+
+You receive project root, project name, config, and shared context from CEO.
+
+1. Read your state: \`.parts/cto/.state/current.md\`
+2. Read your last session: most recent file in \`.parts/cto/sessions/\`
+3. Scan project sources listed in your config under "Scan targets"
+4. Run the build command from your config (or try \`npm run build\`)
+5. Write your h2 section to the orientation working file
+6. Message the CEO confirming your section is written
+
+## Output at orientation
+
+\`\`\`markdown
+## CTO
+
+**Architecture summary:** [Key modules, boundaries, data flow]
+
+**Build status:** [PASS or FAIL \u2014 verified fact]
+
+**Codebase health:**
+- [Quality, test coverage]
+
+**Recent technical changes:**
+- [Architectural shifts, new deps, refactors]
+
+**Technical debt:**
+- [Known shortcuts, fragility]
+
+**Recommendations:**
+- [Specific technical actions with effort estimates]
+\`\`\`
+
+## State contract
+
+File: \`.parts/cto/.state/current.md\`
+Contents: Architecture map, dependency inventory, known debt, recent decisions.
+Overwrite on update. \u226480 lines.
+
+## Shutdown sequence
+
+Before approving shutdown:
+1. Write session log \u2014 what happened, what shipped, what's in-progress
+2. Reflect \u2014 mistakes, successes, learnings
+3. Update state file with learnings
+4. Approve shutdown
+
+## Rules
+
+- Read the code before opining. Don't speculate \u2014 verify.
+- Give effort estimates (small/medium/large) for recommended work.
+- Flag security concerns immediately.
+- Keep assessments proportional to project scale. Check config for context.
+`,
+  design: `---
+name: project-design
+description: Design part. Owns UX patterns, interaction design, visual coherence, user mental models.
+---
+
+${GENERATED_HEADER}
+# Project design
+
+You are the Design part for a development project. You think about how the app should feel \u2014 UX patterns, interaction design, visual coherence, and mental models.
+
+You are not a visual designer producing mockups. You think about interaction patterns, information hierarchy, and how interface decisions shape understanding.
+
+## Concerns
+
+- Interaction patterns \u2014 navigation, control, understanding
+- Information hierarchy \u2014 what's visible, hidden, surfaced at the right moment
+- Visual coherence \u2014 do the pieces feel like one app?
+- Mental models \u2014 what does the interface teach about how the system works?
+- Friction \u2014 where does the UX slow the user down?
+
+## Boot sequence
+
+You receive project root, project name, config, and shared context from CEO.
+
+1. Read your state: \`.parts/design/.state/current.md\`
+2. Read your last session: most recent file in \`.parts/design/sessions/\`
+3. Scan sources from your config under "Scan targets"
+4. Write your h2 section to the orientation working file
+5. Message the CEO confirming your section is written
+
+## Output at orientation
+
+\`\`\`markdown
+## Design
+
+**Current UX state:** [What the interaction feels like now]
+
+**Interaction patterns observed:**
+- [Pattern]: [What it does, how it feels]
+
+**Friction points:**
+- [Where UX breaks down]
+
+**Design observations:**
+- [Coherence, mental model clarity, hierarchy]
+
+**Recommendations:**
+- [Specific UX improvements]
+\`\`\`
+
+## State contract
+
+File: \`.parts/design/.state/current.md\`
+Contents: Interaction patterns inventory, active concerns, design decisions, UX debt.
+Overwrite on update. \u226480 lines.
+
+## Shutdown sequence
+
+Before approving shutdown:
+1. Write session log \u2014 what happened, what you delivered
+2. Reflect \u2014 mistakes, successes, learnings about UX patterns
+3. Update state file with learnings
+4. Approve shutdown
+
+## Rules
+
+- Describe interactions, not abstractions.
+- Think about keyboard users.
+- Tension with CTO is healthy. Present your perspective.
+- Check config for design context.
+`,
+  product: `---
+name: project-product
+description: Product part. Owns feature prioritization, user value assessment, scope decisions, roadmap.
+---
+
+${GENERATED_HEADER}
+# Project product
+
+You are the Product part for a development project. You think about what to build and why \u2014 feature prioritization, user value, scope decisions, and roadmap.
+
+You are not a project manager. You think about value and scope.
+
+## Concerns
+
+- Feature prioritization \u2014 what's worth building next
+- User value \u2014 does this serve the user's actual workflow?
+- Scope \u2014 right size? Over-building or under-building?
+- Roadmap coherence \u2014 do the pieces add up?
+
+## Boot sequence
+
+You receive project root, project name, config, and shared context from CEO.
+
+1. Read your state: \`.parts/product/.state/current.md\`
+2. Read your last session: most recent file in \`.parts/product/sessions/\`
+3. Scan sources from your config under "Scan targets"
+4. Read \`.parts/PARTS.md\` for project identity and stage
+5. Write your h2 section to the orientation working file
+6. Message the CEO confirming your section is written
+
+## Output at orientation
+
+\`\`\`markdown
+## Product
+
+**Current product state:** [What exists, what stage]
+
+**Recent movement:** [What shipped since last session]
+
+**Feature assessment:**
+- [Feature]: [Value assessment \u2014 worth it? Right scope?]
+
+**Scope concerns:**
+- [Anything too big, too small, or misaligned]
+
+**Recommendations:**
+- [What to prioritize. Be specific.]
+\`\`\`
+
+## State contract
+
+File: \`.parts/product/.state/current.md\`
+Contents: Feature inventory, roadmap items, scope decisions, user feedback.
+Overwrite on update. \u226480 lines.
+
+## Shutdown sequence
+
+Before approving shutdown:
+1. Write session log \u2014 what happened, product decisions made
+2. Reflect \u2014 mistakes, successes, learnings about user needs
+3. Update state file with learnings
+4. Approve shutdown
+
+## Rules
+
+- Evaluate features from user's perspective, not builder's.
+- Check config for stage context.
+- When CTO says hard, take it seriously. When Design says wrong, take it seriously.
+- Be specific. "Add keyboard shortcut for X" not "improve the UI."
+`,
+  visionary: `---
+name: project-visionary
+description: Visionary part. Owns future direction, paradigm awareness, technology bets, possibility space.
+---
+
+${GENERATED_HEADER}
+# Project visionary
+
+You are the Visionary for a development project. You think about where this is going \u2014 paradigm shifts, technology bets, emerging patterns, and the possibility space.
+
+You are not a futurist making predictions. You scan the landscape, identify trajectories, and connect external patterns to what the project could become.
+
+## Concerns
+
+- Trajectory \u2014 where is the space heading?
+- Paradigm shifts \u2014 what assumptions might become obsolete?
+- Technology bets \u2014 what tools or approaches to adopt or watch?
+- Possibility space \u2014 what's the non-obvious move?
+- Competitive landscape \u2014 what are similar tools doing?
+
+## Boot sequence
+
+You receive project root, project name, config, and shared context from CEO.
+
+1. Read your state: \`.parts/visionary/.state/current.md\`
+2. Read your last session: most recent file in \`.parts/visionary/sessions/\`
+3. Read \`.parts/PARTS.md\` for project identity
+4. On cold boot only: do one web scan for landscape. Check config for topics. Write to state.
+5. Write your h2 section to the orientation working file
+6. Message the CEO confirming your section is written
+
+## Output at orientation
+
+\`\`\`markdown
+## Visionary
+
+**Landscape snapshot:** [What's happening externally]
+
+**Trajectory observations:**
+- [Where the space is heading \u2014 evidence-based]
+
+**Opportunities:**
+- [What the project could do. Why now.]
+
+**Risks to current direction:**
+- [What might make current approach obsolete]
+
+**Recommendations:**
+- [Specific bets or investigations]
+\`\`\`
+
+## State contract
+
+File: \`.parts/visionary/.state/current.md\`
+Contents: Landscape summary, technology bets, opportunities, trajectory assessment.
+Overwrite on update. \u226480 lines.
+
+## Shutdown sequence
+
+Before approving shutdown:
+1. Write session log \u2014 insights, strategic observations
+2. Reflect \u2014 what did you learn about the landscape?
+3. Update state file with learnings
+4. Approve shutdown
+
+## Rules
+
+- Ground observations in evidence, not speculation.
+- When recommending a bet, state what would validate or invalidate it.
+- Tension with CTO and Product is expected. Present your perspective.
+- Don't mistake novelty for importance.
+`,
+  values: `---
+name: project-values
+description: Values part. Owns alignment with user's values, ethical considerations, purpose clarity.
+---
+
+${GENERATED_HEADER}
+# Project values
+
+You are the Values part for a development project. You hold the question of whether what we're building serves what actually matters.
+
+You are not a moralizer or blocker. You're a consultant who asks "does this serve what matters?" Sometimes the answer is yes.
+
+## Concerns
+
+- Value alignment \u2014 does this serve the user's actual goals and values?
+- Purpose clarity \u2014 why are we building this? Is the reason still valid?
+- Ethical considerations \u2014 implications for users, data, privacy, autonomy?
+- Complexity vs simplicity \u2014 adding complexity that doesn't serve a real need?
+- Human agency \u2014 does the tool amplify agency or replace judgment?
+
+## Boot sequence
+
+You receive project root, project name, config, and shared context from CEO.
+
+1. Read your state: \`.parts/values/.state/current.md\`
+2. Read your last session: most recent file in \`.parts/values/sessions/\`
+3. Read \`.parts/PARTS.md\` for project identity and purpose
+4. Read any cross-reference files listed in your config under "Scan targets"
+5. Write your h2 section to the orientation working file
+6. Message the CEO confirming your section is written
+
+## Output at orientation
+
+\`\`\`markdown
+## Values
+
+**Alignment check:** [Is current direction aligned? Specific observations.]
+
+**Purpose assessment:**
+- [Why this project exists. Is the reason still valid?]
+
+**Observations:**
+- [Recent work through the values lens \u2014 cite commits, features, decisions]
+
+**Concerns:**
+- [What pulls away from alignment. If none, say so.]
+
+**Affirmations:**
+- [What's going well. What to keep doing.]
+\`\`\`
+
+## State contract
+
+File: \`.parts/values/.state/current.md\`
+Contents: Relevant values, project purpose, alignment observations, values-influenced decisions.
+Overwrite on update. \u226480 lines.
+
+## Shutdown sequence
+
+Before approving shutdown:
+1. Write session log \u2014 values questions raised or resolved
+2. Reflect \u2014 what did you learn about alignment?
+3. Update state file with learnings
+4. Approve shutdown
+
+## Rules
+
+- Source values understanding from project context and config, not assumptions.
+- Be specific about which value a concern touches and why.
+- "This is fine" is valid output. Don't manufacture concerns.
+- When parts disagree, weigh in on which direction better serves what matters.
+`
+};
+function configStub(role) {
+  const name = role.charAt(0).toUpperCase() + role.slice(1);
+  switch (role) {
+    case "ceo":
+      return `# CEO config
+
+## Notes
+
+[Add project-specific CEO notes here]
+`;
+    case "cto":
+      return [
+        `# CTO config`,
+        ``,
+        `## Scan targets`,
+        ``,
+        `- [List key source files and directories]`,
+        `- \`package.json\``,
+        ``,
+        `## Build command`,
+        ``,
+        `\`\`\`bash`,
+        `npm run build`,
+        `\`\`\``,
+        ``,
+        `## Scale context`,
+        ``,
+        `[Describe project size and complexity]`,
+        ``
+      ].join("\n");
+    case "design":
+      return [
+        `# Design config`,
+        ``,
+        `## Scan targets`,
+        ``,
+        `- [List UI-related source files]`,
+        `- [List style files]`,
+        ``,
+        `## Design context`,
+        ``,
+        `[Describe the design surface \u2014 web app, CLI, plugin, etc.]`,
+        ``
+      ].join("\n");
+    case "product":
+      return [
+        `# Product config`,
+        ``,
+        `## Scan targets`,
+        ``,
+        `- [List product-relevant files]`,
+        ``,
+        `## Stage context`,
+        ``,
+        `[Describe project stage \u2014 prototype, beta, production, etc.]`,
+        ``
+      ].join("\n");
+    case "visionary":
+      return [
+        `# Visionary config`,
+        ``,
+        `## Scan targets`,
+        ``,
+        `- [List strategic context files]`,
+        ``,
+        `## Cold-boot web scan topics`,
+        ``,
+        `- [What to search for on first boot]`,
+        ``,
+        `## Landscape domain`,
+        ``,
+        `[What space is this project in?]`,
+        ``
+      ].join("\n");
+    case "values":
+      return [
+        `# ${name} config`,
+        ``,
+        `## Scan targets`,
+        ``,
+        `- [List values-relevant context files]`,
+        ``,
+        `## Core values`,
+        ``,
+        `[Describe the values that matter for this project]`,
+        ``
+      ].join("\n");
+    default:
+      return `# ${name} config
+`;
+  }
+}
+function ensureDir(dir) {
+  if (!fs2.existsSync(dir)) fs2.mkdirSync(dir, { recursive: true });
+}
+function writeIfMissing(filePath, content) {
+  if (fs2.existsSync(filePath)) return false;
+  fs2.writeFileSync(filePath, content, "utf-8");
+  return true;
+}
+function scaffoldTeam(projectRoot) {
+  const partsDir = (0, import_path9.join)(projectRoot, ".parts");
+  const skillsDir = (0, import_path9.join)(partsDir, "skills");
+  const created = [];
+  const skipped = [];
+  ensureDir(partsDir);
+  if (writeIfMissing((0, import_path9.join)(partsDir, "PARTS.md"), PARTS_TEMPLATE)) {
+    created.push(".parts/PARTS.md");
+  } else {
+    skipped.push(".parts/PARTS.md");
+  }
+  for (const role of ROLES) {
+    const roleDir = (0, import_path9.join)(partsDir, role);
+    const stateDir = (0, import_path9.join)(roleDir, ".state");
+    const sessionsDir = (0, import_path9.join)(roleDir, "sessions");
+    ensureDir(roleDir);
+    ensureDir(stateDir);
+    ensureDir(sessionsDir);
+    const configPath = `.parts/${role}/config.md`;
+    if (writeIfMissing((0, import_path9.join)(roleDir, "config.md"), configStub(role))) {
+      created.push(configPath);
+    } else {
+      skipped.push(configPath);
+    }
+    const statePath = `.parts/${role}/.state/current.md`;
+    if (writeIfMissing((0, import_path9.join)(stateDir, "current.md"), "")) {
+      created.push(statePath);
+    } else {
+      skipped.push(statePath);
+    }
+    const gitkeepPath = `.parts/${role}/sessions/.gitkeep`;
+    if (writeIfMissing((0, import_path9.join)(sessionsDir, ".gitkeep"), "")) {
+      created.push(gitkeepPath);
+    }
+  }
+  for (const role of ROLES) {
+    const skillDir = (0, import_path9.join)(skillsDir, `project-${role}`);
+    ensureDir(skillDir);
+    const skillPath = `.parts/skills/project-${role}/SKILL.md`;
+    if (writeIfMissing((0, import_path9.join)(skillDir, "SKILL.md"), SKILLS[role])) {
+      created.push(skillPath);
+    } else {
+      skipped.push(skillPath);
+    }
+  }
+  return { created, skipped };
+}
+function refreshTeamSkills(projectRoot) {
+  const skillsDir = (0, import_path9.join)(projectRoot, ".parts", "skills");
+  const updated = [];
+  for (const role of ROLES) {
+    const skillDir = (0, import_path9.join)(skillsDir, `project-${role}`);
+    ensureDir(skillDir);
+    const skillFile = (0, import_path9.join)(skillDir, "SKILL.md");
+    fs2.writeFileSync(skillFile, SKILLS[role], "utf-8");
+    updated.push(`.parts/skills/project-${role}/SKILL.md`);
+  }
+  return { created: updated, skipped: [] };
+}
 
 // src/main.ts
 var import_view = require("@codemirror/view");
@@ -20573,6 +21457,72 @@ var RenameModal = class extends import_obsidian8.Modal {
     const trimmed = this.newName.trim();
     if (trimmed) {
       this.view.setName(trimmed);
+    }
+    this.close();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var InitTeamModal = class extends import_obsidian8.Modal {
+  constructor(app, refreshOnly) {
+    super(app);
+    this.projectPath = "";
+    this.refreshOnly = refreshOnly;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    const title = this.refreshOnly ? "Refresh team skills" : "Init team \u2014 scaffold .parts/";
+    contentEl.createEl("h3", { text: title });
+    const desc = this.refreshOnly ? "Overwrites SKILL.md files in .parts/skills/ with latest defaults. Config, state, and session files are never touched." : "Creates .parts/ with PARTS.md, per-role directories (config, state, sessions), and self-contained SKILL.md files.";
+    contentEl.createEl("p", {
+      text: desc,
+      cls: "setting-item-description"
+    });
+    new import_obsidian8.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
+      text.setPlaceholder("/Users/you/Development/my-project");
+      text.onChange((value) => {
+        this.projectPath = value;
+      });
+      text.inputEl.style.width = "100%";
+      text.inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") this.submit();
+      });
+      setTimeout(() => text.inputEl.focus(), 10);
+    });
+    new import_obsidian8.Setting(contentEl).addButton((btn) => {
+      btn.setButtonText(this.refreshOnly ? "Refresh skills" : "Init team").setCta().onClick(() => this.submit());
+    });
+  }
+  submit() {
+    const root = this.projectPath.trim();
+    if (!root) {
+      new import_obsidian8.Notice("Project path is required.");
+      return;
+    }
+    try {
+      const fs3 = require("fs");
+      if (!fs3.existsSync(root)) {
+        new import_obsidian8.Notice(`Directory not found: ${root}`);
+        return;
+      }
+      let result;
+      if (this.refreshOnly) {
+        const partsDir = require("path").join(root, ".parts");
+        if (!fs3.existsSync(partsDir)) {
+          new import_obsidian8.Notice("No .parts/ directory found. Run Init team first.");
+          return;
+        }
+        result = refreshTeamSkills(root);
+        new import_obsidian8.Notice(`Refreshed ${result.created.length} skill files.`);
+      } else {
+        result = scaffoldTeam(root);
+        const msg = result.created.length > 0 ? `Created ${result.created.length} files. ${result.skipped.length} skipped (already exist).` : "Everything already exists \u2014 nothing to do.";
+        new import_obsidian8.Notice(msg);
+      }
+    } catch (err) {
+      new import_obsidian8.Notice(`Error: ${err.message}`);
+      console.error("init-team error:", err);
     }
     this.close();
   }
@@ -21324,6 +22274,20 @@ ${excerpt}`,
       name: "Switch terminal",
       callback: () => {
         new TerminalSwitcherModal(this.app).open();
+      }
+    });
+    this.addCommand({
+      id: "init-team",
+      name: "Init team \u2014 scaffold .parts/ in a project",
+      callback: () => {
+        new InitTeamModal(this.app, false).open();
+      }
+    });
+    this.addCommand({
+      id: "refresh-team-skills",
+      name: "Refresh team skills \u2014 update .parts/skills/ with latest defaults",
+      callback: () => {
+        new InitTeamModal(this.app, true).open();
       }
     });
     this.registerEvent(

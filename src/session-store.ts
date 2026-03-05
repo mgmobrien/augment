@@ -10,6 +10,16 @@ export interface SessionMeta {
   msgCount: number;   // number of user turns in the session
 }
 
+export interface ProjectGroup {
+  projectName: string;    // decoded display name (e.g. "Development/relay-plugin")
+  projectDir: string;     // full path to the project's CC session directory
+  encodedName: string;    // raw subdirectory name in ~/.claude/projects/
+  isVault: boolean;
+  sessions: SessionMeta[];
+  totalOnDisk: number;
+  lastActivityMs: number; // mtime of most recent session
+}
+
 export class SessionStore {
   private titleCache = new Map<string, string>();
 
@@ -27,11 +37,95 @@ export class SessionStore {
     return null;
   }
 
+  // Enumerate all project directories under ~/.claude/projects/.
+  findAllProjectDirs(): Array<{
+    encodedName: string;
+    projectDir: string;
+    isVault: boolean;
+    projectName: string;
+  }> {
+    const home = process.env.HOME ?? os.homedir();
+    const projectsRoot = path.join(home, ".claude", "projects");
+    const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const encodedHome = home.replace(/[/ ]/g, "-");
+
+    try {
+      return fs
+        .readdirSync(projectsRoot)
+        .filter((name) => {
+          try {
+            return fs.statSync(path.join(projectsRoot, name)).isDirectory();
+          } catch {
+            return false;
+          }
+        })
+        .map((encodedName) => {
+          const projectDir = path.join(projectsRoot, encodedName);
+          const isVault = encodedName === vaultEncoded;
+
+          // Decode: strip home-dir prefix, convert remaining dashes to slashes.
+          // Lossy (spaces and slashes both encoded as dashes) but readable.
+          let relative = encodedName.startsWith(encodedHome)
+            ? encodedName.slice(encodedHome.length).replace(/^-+/, "")
+            : encodedName.replace(/^-+/, "");
+          const projectName = relative.replace(/-/g, "/") || encodedName;
+
+          return { encodedName, projectDir, isVault, projectName };
+        });
+    } catch {
+      return [];
+    }
+  }
+
   // Sort session files by mtime desc, take first `limit`.
   loadSessions(limit: number): SessionMeta[] {
     const dir = this.findProjectDir();
     if (!dir) return [];
+    return this.loadSessionsFromDir(dir, limit);
+  }
 
+  // Load sessions from all CC project directories, grouped by project.
+  // Vault project is flagged with isVault=true.
+  loadAllProjectGroups(limitPerProject = 50): ProjectGroup[] {
+    const dirs = this.findAllProjectDirs();
+    const groups: ProjectGroup[] = [];
+
+    for (const { encodedName, projectDir, isVault, projectName } of dirs) {
+      const sessions = this.loadSessionsFromDir(projectDir, limitPerProject);
+      if (sessions.length === 0) continue;
+      const lastActivityMs = sessions[0]?.mtimeMs ?? 0;
+      const totalOnDisk = this.countSessionsInDir(projectDir);
+      groups.push({
+        projectName,
+        projectDir,
+        encodedName,
+        isVault,
+        sessions,
+        totalOnDisk,
+        lastActivityMs,
+      });
+    }
+
+    // Most recent project first.
+    return groups.sort((a, b) => b.lastActivityMs - a.lastActivityMs);
+  }
+
+  // Fast count of all session files — no stats or reads.
+  countSessions(): number {
+    const dir = this.findProjectDir();
+    if (!dir) return 0;
+    return this.countSessionsInDir(dir);
+  }
+
+  private countSessionsInDir(dir: string): number {
+    try {
+      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  private loadSessionsFromDir(dir: string, limit: number): SessionMeta[] {
     try {
       const now = Date.now();
       const entries = fs
@@ -59,17 +153,6 @@ export class SessionStore {
       }));
     } catch {
       return [];
-    }
-  }
-
-  // Fast count of all session files — no stats or reads.
-  countSessions(): number {
-    const dir = this.findProjectDir();
-    if (!dir) return 0;
-    try {
-      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
-    } catch {
-      return 0;
     }
   }
 
