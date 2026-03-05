@@ -17263,6 +17263,7 @@ var DEFAULT_SETTINGS = {
   hasUsedTemplate: false,
   hasSeenWelcome: false,
   systemPrompt: "",
+  showGenerationToast: true,
   sessionHistory: []
 };
 function stripObsidianMeta(fm) {
@@ -18069,6 +18070,12 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           this.plugin.settings.maxContextTokens = n;
           await this.plugin.saveData(this.plugin.settings);
         }
+      });
+    });
+    new import_obsidian3.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the hotkey fired.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.showGenerationToast).onChange(async (value) => {
+        this.plugin.settings.showGenerationToast = value;
+        await this.plugin.saveData(this.plugin.settings);
       });
     });
     new import_obsidian3.Setting(continuationPane).setName("System prompt").setDesc("Override the default system prompt. Leave blank to use Augment's default.").addTextArea((text) => {
@@ -20203,6 +20210,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       this.statusBarEl.createEl("span", { text: " generating" });
+    }
+    if (this.settings.showGenerationToast) {
+      new import_obsidian8.Notice("Generating\u2026", 3e3);
     }
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;

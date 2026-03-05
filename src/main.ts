@@ -350,6 +350,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       this.statusBarEl.createEl("span", { text: " generating" });
     }
+    if (this.settings.showGenerationToast) {
+      new Notice("Generating\u2026", 3000);
+    }
 
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos: number;

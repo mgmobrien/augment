@@ -705,6 +705,18 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
 
     new Setting(continuationPane)
+      .setName("Show generation notice")
+      .setDesc("Show a brief notice when generation starts. Helps confirm the hotkey fired.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showGenerationToast)
+          .onChange(async (value) => {
+            this.plugin.settings.showGenerationToast = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
+    new Setting(continuationPane)
       .setName("System prompt")
       .setDesc("Override the default system prompt. Leave blank to use Augment's default.")
       .addTextArea((text) => {
