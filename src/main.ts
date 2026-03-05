@@ -123,6 +123,68 @@ Preserve the original meaning and voice. Do not add new content or opinions. Do 
 Edit the file directly. Show what you changed.
 `,
   ],
+  [
+    "stack-setup",
+    `---
+name: stack-setup
+description: Set up or update the System 3 recommended vault configuration \u2014 idempotent, re-runnable
+---
+
+# Stack setup
+
+You are running the System 3 stack setup skill. This is an opinionated, idempotent setup that configures the vault for the System 3 ecosystem (Augment + Claude Code + Relay). It can be re-run at any time to add missing pieces without breaking existing configuration.
+
+## What to configure
+
+Run through each section. For each item: check if it already exists, skip if configured, create or update if missing. Always tell the user what you did and what you skipped.
+
+### 1. CLAUDE.md
+
+Check for CLAUDE.md at vault root. If missing, create it with:
+- A description of the vault ("This is my Obsidian vault.")
+- A section listing the templates folder path (read from Augment settings or default to Augment/templates)
+- A section noting that skills live in agents/skills/
+- Guidance on vault conventions: wikilinks, frontmatter, markdown files
+
+If it exists, read it \u2014 check whether the templates and skills sections are present. Add any missing sections at the end without modifying existing content.
+
+### 2. Folder structure
+
+Ensure these folders exist (create if missing, skip if present):
+- agents/skills/ \u2014 agent skills
+- Augment/templates/ \u2014 prompt templates (or whatever the configured template folder is)
+- Inbox/ \u2014 quick capture
+
+### 3. Frontmatter conventions
+
+Check the 5 most recently modified .md files. If none have frontmatter, inform the user that frontmatter helps Augment provide better context. Suggest a minimal convention:
+
+    ---
+    type: note
+    tags: []
+    ---
+
+Do not add frontmatter to existing files \u2014 just recommend the convention.
+
+### 4. Template check
+
+List the templates in the configured template folder. If fewer than 2 exist, mention that the user can create more with "+ New template" in Settings \u2192 Templates, or by adding .md files to the folder directly.
+
+### 5. Status report
+
+At the end, print a summary:
+- What was created
+- What was already configured (skipped)
+- Suggested next steps (e.g., "Try Mod+Enter in any note" or "Run /meeting-summary on a transcript")
+
+## Principles
+
+- **Idempotent**: running twice produces the same result. Never duplicate content.
+- **Non-destructive**: never delete or overwrite existing files or content.
+- **Opinionated but transparent**: make recommendations, explain why, let the user override later.
+- **Fast**: this should take under 30 seconds. Do not do unnecessary work.
+`,
+  ],
 ];
 
 // CM6 spinner widget — inserts an HTML triangle animation at cursor without modifying document text
