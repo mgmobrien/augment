@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import Handlebars from "handlebars";
 import { AugmentSettings, LinkedNoteSummary, VaultContext } from "./vault-context";
 
 function formatFrontmatter(fm: Record<string, unknown>): string {
@@ -64,20 +65,30 @@ export function buildUserMessage(ctx: VaultContext, instruction: string): string
   return parts.join("\n").trimEnd();
 }
 
-export function substituteVariables(template: string, ctx: VaultContext): string {
-  let result = template;
-  result = result.replace(/\{\{selection\}\}/g, ctx.selection);
-  result = result.replace(/\{\{title\}\}/g, ctx.title);
-  result = result.replace(/\{\{context\}\}/g, ctx.surroundingContext);
-  result = result.replace(/\{\{note_content\}\}/g, ctx.content ?? ctx.surroundingContext);
-  result = result.replace(/\{\{linked_notes\}\}/g, formatLinkedNotes(ctx.linkedNotes));
-  result = result.replace(/\{\{linked_notes_full\}\}/g, formatLinkedNotesFull(ctx.linkedNotes));
-  result = result.replace(/\{\{frontmatter\.([^}]+)\}\}/g, (_, key) => {
-    const val = ctx.frontmatter?.[key];
-    if (val === undefined || val === null) return "";
-    return Array.isArray(val) ? val.join(", ") : String(val);
-  });
-  return result;
+// Flatten frontmatter values: arrays become comma-separated strings, others become strings.
+function flattenFrontmatter(fm: Record<string, unknown> | null): Record<string, string> {
+  if (!fm) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(fm)) {
+    if (v === undefined || v === null) out[k] = "";
+    else if (Array.isArray(v)) out[k] = v.join(", ");
+    else out[k] = String(v);
+  }
+  return out;
+}
+
+export function substituteVariables(templateStr: string, ctx: VaultContext): string {
+  const context = {
+    selection: ctx.selection,
+    title: ctx.title,
+    context: ctx.surroundingContext,
+    note_content: ctx.content ?? ctx.surroundingContext,
+    linked_notes: formatLinkedNotes(ctx.linkedNotes),
+    linked_notes_full: formatLinkedNotesFull(ctx.linkedNotes),
+    frontmatter: flattenFrontmatter(ctx.frontmatter),
+  };
+  const compiled = Handlebars.compile(templateStr, { noEscape: true });
+  return compiled(context);
 }
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
