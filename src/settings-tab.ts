@@ -121,6 +121,36 @@ export class AugmentSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /** Read the current hotkey binding for a command and format for display. */
+  private formatHotkey(commandId: string): string {
+    const hm = (this.app as any).hotkeyManager;
+    const isMac = process.platform === "darwin";
+    const fallback = (mods: string[], key: string) => {
+      const parts = mods.map((m) => {
+        if (m === "Mod") return isMac ? "Cmd" : "Ctrl";
+        return m;
+      });
+      parts.push(key === "Enter" ? "\u21a9" : key);
+      return parts.join("+");
+    };
+
+    // Try custom hotkeys first, then defaults
+    const custom = hm?.customKeys?.[commandId];
+    if (Array.isArray(custom) && custom.length > 0) {
+      const h = custom[0];
+      return fallback(h.modifiers || [], h.key || "?");
+    }
+    const defaults = hm?.defaultKeys?.[commandId];
+    if (Array.isArray(defaults) && defaults.length > 0) {
+      const h = defaults[0];
+      return fallback(h.modifiers || [], h.key || "?");
+    }
+
+    // Hardcoded fallback if hotkeyManager isn't available
+    if (commandId.includes("template")) return isMac ? "Cmd+Shift+\u21a9" : "Ctrl+Shift+\u21a9";
+    return isMac ? "Cmd+\u21a9" : "Ctrl+\u21a9";
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -540,12 +570,23 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Hotkeys ──
     {
-      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
       continuationPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
+
+      const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
+      const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
+
+      new Setting(continuationPane)
+        .setName(`Generate: ${generateHotkey}`)
+        .setDesc("Run continuation on the current note.");
+
+      new Setting(continuationPane)
+        .setName(`Template: ${templateHotkey}`)
+        .setDesc("Pick and run a template on the current note.");
+
       if (this.plugin.settings.clearedLinkHotkey) {
         new Setting(continuationPane)
-          .setName(`${modKey}+Enter`)
-          .setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`)
+          .setName(`${generateHotkey} conflict resolved`)
+          .setDesc(`Augment has claimed ${generateHotkey}. Obsidian\u2019s default binding is cleared.`)
           .addButton((btn) => {
             btn.setButtonText("Restore Obsidian\u2019s binding")
               .onClick(async () => {
@@ -555,10 +596,10 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       } else {
         new Setting(continuationPane)
-          .setName(`${modKey}+Enter conflict`)
-          .setDesc(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`)
+          .setName(`${generateHotkey} conflict`)
+          .setDesc(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.`)
           .addButton((btn) => {
-            btn.setButtonText(`Claim ${modKey}+Enter`)
+            btn.setButtonText(`Claim ${generateHotkey}`)
               .setCta()
               .onClick(async () => {
                 await this.plugin.clearObsidianLinkHotkey();

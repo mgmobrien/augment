@@ -17642,6 +17642,32 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
   }
+  /** Read the current hotkey binding for a command and format for display. */
+  formatHotkey(commandId) {
+    var _a2, _b;
+    const hm = this.app.hotkeyManager;
+    const isMac = process.platform === "darwin";
+    const fallback = (mods, key) => {
+      const parts = mods.map((m) => {
+        if (m === "Mod") return isMac ? "Cmd" : "Ctrl";
+        return m;
+      });
+      parts.push(key === "Enter" ? "\u21A9" : key);
+      return parts.join("+");
+    };
+    const custom = (_a2 = hm == null ? void 0 : hm.customKeys) == null ? void 0 : _a2[commandId];
+    if (Array.isArray(custom) && custom.length > 0) {
+      const h = custom[0];
+      return fallback(h.modifiers || [], h.key || "?");
+    }
+    const defaults = (_b = hm == null ? void 0 : hm.defaultKeys) == null ? void 0 : _b[commandId];
+    if (Array.isArray(defaults) && defaults.length > 0) {
+      const h = defaults[0];
+      return fallback(h.modifiers || [], h.key || "?");
+    }
+    if (commandId.includes("template")) return isMac ? "Cmd+Shift+\u21A9" : "Ctrl+Shift+\u21A9";
+    return isMac ? "Cmd+\u21A9" : "Ctrl+\u21A9";
+  }
   display() {
     const { containerEl } = this;
     containerEl.empty();
@@ -17973,18 +17999,21 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       }
     });
     {
-      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
       continuationPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
+      const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
+      const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
+      new import_obsidian3.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc("Run continuation on the current note.");
+      new import_obsidian3.Setting(continuationPane).setName(`Template: ${templateHotkey}`).setDesc("Pick and run a template on the current note.");
       if (this.plugin.settings.clearedLinkHotkey) {
-        new import_obsidian3.Setting(continuationPane).setName(`${modKey}+Enter`).setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`).addButton((btn) => {
+        new import_obsidian3.Setting(continuationPane).setName(`${generateHotkey} conflict resolved`).setDesc(`Augment has claimed ${generateHotkey}. Obsidian\u2019s default binding is cleared.`).addButton((btn) => {
           btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
             await this.plugin.restoreObsidianLinkHotkey();
             this.display();
           });
         });
       } else {
-        new import_obsidian3.Setting(continuationPane).setName(`${modKey}+Enter conflict`).setDesc(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`).addButton((btn) => {
-          btn.setButtonText(`Claim ${modKey}+Enter`).setCta().onClick(async () => {
+        new import_obsidian3.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.`).addButton((btn) => {
+          btn.setButtonText(`Claim ${generateHotkey}`).setCta().onClick(async () => {
             await this.plugin.clearObsidianLinkHotkey();
             this.display();
           });
