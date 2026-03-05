@@ -852,6 +852,9 @@ export default class AugmentTerminalPlugin extends Plugin {
     const terminalView = await this.openTerminalSidebar();
     if (!terminalView) return;
 
+    // Mark as skill session immediately — green steady dot in terminal manager.
+    terminalView.markSkillRunning();
+
     // Shell needs ~1500ms to initialize before we can write to it.
     setTimeout(() => {
       terminalView.write(claudeCmd);

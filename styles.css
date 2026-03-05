@@ -80,9 +80,19 @@
   background-color: var(--color-green);
 }
 
+/* Skill session running in background — steady green */
+.workspace-leaf[data-augment-status="running"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-green);
+}
+
 /* Process exited — faint */
 .workspace-leaf[data-augment-status="exited"] .view-header-title-container .view-header-title::before {
   background-color: var(--text-faint);
+}
+
+/* Process crashed (non-zero exit) — red */
+.workspace-leaf[data-augment-status="crashed"] .view-header-title-container .view-header-title::before {
+  background-color: var(--color-red);
 }
 
 @keyframes augment-pulse {
@@ -191,8 +201,16 @@
   background-color: var(--color-green);
 }
 
+.augment-tm-dot.running {
+  background-color: var(--color-green);
+}
+
 .augment-tm-dot.exited {
   background-color: var(--text-faint);
+}
+
+.augment-tm-dot.crashed {
+  background-color: var(--color-red);
 }
 
 .augment-tm-name {
@@ -300,8 +318,16 @@
   background-color: var(--color-green);
 }
 
+.augment-ts-dot.running {
+  background-color: var(--color-green);
+}
+
 .augment-ts-dot.exited {
   background-color: var(--text-faint);
+}
+
+.augment-ts-dot.crashed {
+  background-color: var(--color-red);
 }
 
 .augment-ts-name {

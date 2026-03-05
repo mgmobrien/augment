@@ -12658,7 +12658,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
 [Process exited with code ${code}]\r
 `);
         this.isExited = true;
-        this.setStatus("exited");
+        this.setStatus(code === 0 ? "exited" : "crashed");
         this.app.workspace.trigger("augment-terminal:changed");
       }
     );
@@ -12714,6 +12714,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
     (_a2 = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _a2.setAttribute("data-augment-status", newStatus);
     this.leaf.updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
+  }
+  markSkillRunning() {
+    this.setStatus("running");
   }
   markActivityRead() {
     if (this.unreadActivity === 0) return;
@@ -13894,6 +13897,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
 `;
     const terminalView = await this.openTerminalSidebar();
     if (!terminalView) return;
+    terminalView.markSkillRunning();
     setTimeout(() => {
       terminalView.write(claudeCmd);
     }, 1500);

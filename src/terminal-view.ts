@@ -9,7 +9,7 @@ import xtermCssText from "@xterm/xterm/css/xterm.css";
 
 export const VIEW_TYPE_TERMINAL = "augment-terminal";
 
-type TerminalStatus = "idle" | "active" | "tool" | "exited" | "shell";
+type TerminalStatus = "idle" | "active" | "tool" | "exited" | "shell" | "running" | "crashed";
 type TeamEventType = "teamcreate" | "sendmessage";
 
 type TeamEvent = {
@@ -355,7 +355,7 @@ export class TerminalView extends ItemView {
       (code) => {
         this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
         this.isExited = true;
-        this.setStatus("exited");
+        this.setStatus(code === 0 ? "exited" : "crashed");
         this.app.workspace.trigger("augment-terminal:changed");
       }
     );
@@ -432,6 +432,10 @@ export class TerminalView extends ItemView {
       ?.setAttribute("data-augment-status", newStatus);
     (this.leaf as any).updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
+  }
+
+  markSkillRunning(): void {
+    this.setStatus("running");
   }
 
   markActivityRead(): void {
