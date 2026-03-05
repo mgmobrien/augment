@@ -17,12 +17,10 @@ cp main.js manifest.json styles.css "{vault}/.obsidian/plugins/augment/"
 
 Replace `{vault}` with the absolute path to your Obsidian vault.
 
-**Windows with WSL:** your vault is typically at `/mnt/c/Users/{username}/Documents/Obsidian/{vault-name}/`. Find the exact path in Obsidian: Settings → General → vault path — then prefix with `/mnt/c` and replace backslashes with forward slashes.
-
 After copying:
 
 1. Open Obsidian → Settings → Community plugins → enable "Augment"
-2. Settings → Augment → Generate tab → paste your Anthropic API key (https://platform.claude.com/settings/keys)
+2. Settings → Augment → Overview tab → paste your Anthropic API key (https://platform.claude.com/settings/keys)
 3. Choose a model (Haiku 4.5 is fastest and cheapest)
 
 ## Verify
@@ -35,12 +33,14 @@ After copying:
 
 ## Terminal / Claude Code setup
 
-Open Settings → Augment → Terminal tab. The setup wizard detects your environment and walks through each prerequisite:
+Open Settings → Augment → Terminal tab. The setup wizard walks through four steps — same on every platform:
 
-- **macOS/Linux:** Python 3, Node.js, Claude Code, CC authentication
-- **Windows:** WSL, then Python/Node/CC inside WSL
+1. **Node.js** — [nodejs.org](https://nodejs.org) (LTS)
+2. **Claude Code** — `npm install -g @anthropic-ai/claude-code`
+3. **Sign in** — `claude auth login` (opens browser)
+4. **Configure vault** — sets up CLAUDE.md and the skills folder
 
-The wizard shows only the next missing step and advances as each is resolved. Once everything is green, the terminal manager is ready. See WSL.md for manual Windows setup.
+The wizard detects each step automatically and shows the action button for the current step. Once all four rows show ✓, the terminal manager is ready.
 
 ## Updating
 

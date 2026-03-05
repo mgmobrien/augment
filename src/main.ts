@@ -620,9 +620,9 @@ Right-clicking in any note gives you quick access without shortcuts:
 
 ## 6. Claude Code terminal sessions
 
-Augment can host Claude Code agent sessions in a panel alongside your notes. Each session runs a full CC conversation with access to your vault.
+Augment hosts Claude Code agent sessions in a panel alongside your notes. Each session runs a full CC conversation with access to your vault.
 
-**Set it up:** Settings → Terminal → follow the guided setup wizard (installs Python, Node.js, CC CLI, and configures your vault).
+**Set it up:** Settings → Terminal → follow the guided setup. Four steps, same on every platform: install Node.js, install Claude Code, sign in, configure vault.
 
 ---
 
