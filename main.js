@@ -17227,13 +17227,15 @@ function assembleVaultContext(app, editor, settings) {
   let surroundingContext = "";
   if (!selection) {
     const cursor = editor.getCursor();
-    const startLine = 0;
-    const endLine = cursor.line;
-    const lines = [];
-    for (let i = startLine; i <= endLine; i++) {
-      lines.push(editor.getLine(i));
+    if (cursor.line > 0 || cursor.ch > 0) {
+      const lines = [];
+      for (let i = 0; i < cursor.line; i++) {
+        lines.push(editor.getLine(i));
+      }
+      const lastLine = editor.getLine(cursor.line).slice(0, cursor.ch);
+      if (lastLine) lines.push(lastLine);
+      surroundingContext = lines.join("\n");
     }
-    surroundingContext = lines.join("\n");
   }
   const linkedNotes = [];
   if (activeFile && settings.linkedNoteCount > 0) {
@@ -17427,10 +17429,14 @@ ${key}: ${valStr}`;
     const sysChevron = sysHdr.createEl("span", { cls: "augment-ctx-chevron" });
     (0, import_obsidian2.setIcon)(sysChevron, "chevron-right");
     sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
-    const sysEditBtn = sysHdr.createEl("span", { cls: "augment-ctx-edit-btn clickable-icon" });
-    (0, import_obsidian2.setIcon)(sysEditBtn, "pencil");
-    sysEditBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
+    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+    sysContent.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
+    const editLink = sysContent.createEl("a", {
+      cls: "augment-ctx-edit-link",
+      text: "Edit in settings"
+    });
+    editLink.addEventListener("click", () => {
       const setting = this.app.setting;
       setting.open();
       setting.openTabById("augment-terminal");
@@ -17445,9 +17451,6 @@ ${key}: ${valStr}`;
         }, 50);
       }, 50);
     });
-    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
-    sysContent.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
     sysHdr.addEventListener("click", () => {
       sysSection.toggleClass("is-open", !sysSection.hasClass("is-open"));
     });
