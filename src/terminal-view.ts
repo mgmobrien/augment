@@ -564,7 +564,7 @@ export class TerminalView extends ItemView {
 
   private setStatus(newStatus: TerminalStatus): void {
     const wasActive = this.status === "active" || this.status === "tool";
-    const nowIdle = newStatus === "shell" || newStatus === "idle";
+    const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";
     if (wasActive && nowIdle) {
       this.exchangeCount++;
       this.lastActivityMs = Date.now();

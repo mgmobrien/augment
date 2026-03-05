@@ -1647,3 +1647,9 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   padding-left: 4px;
   margin-top: 2px;
 }
+
+/* ── Attention queue status bar badge ────────────────────────────────────── */
+.status-bar-item:has(.augment-waiting-badge) {
+  color: var(--color-orange);
+  font-weight: 600;
+}

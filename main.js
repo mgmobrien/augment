@@ -19330,7 +19330,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
   setStatus(newStatus) {
     var _a2;
     const wasActive = this.status === "active" || this.status === "tool";
-    const nowIdle = newStatus === "shell" || newStatus === "idle";
+    const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";
     if (wasActive && nowIdle) {
       this.exchangeCount++;
       this.lastActivityMs = Date.now();
@@ -21685,6 +21685,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
+    this.waitingBadgeEl = null;
+    this.waitingCursor = 0;
     this.activeGeneration = null;
   }
   // Returns the actual model ID to use, resolving "auto" to the best available.
@@ -22374,6 +22376,19 @@ ${excerpt}`,
         void this.handleTeamCreateSpawn(event);
       })
     );
+    this.waitingBadgeEl = this.addStatusBarItem();
+    this.waitingBadgeEl.style.cursor = "pointer";
+    this.waitingBadgeEl.style.display = "none";
+    this.waitingBadgeEl.addEventListener("click", () => this.jumpToNextWaiting());
+    this.addCommand({
+      id: "jump-to-next-waiting-session",
+      name: "Jump to next waiting session",
+      callback: () => this.jumpToNextWaiting()
+    });
+    this.registerEvent(
+      this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
+    );
+    this.app.workspace.onLayoutReady(() => this.refreshAttentionBadge());
   }
   async onunload() {
     var _a2;
@@ -22384,6 +22399,44 @@ ${excerpt}`,
     cleanupXtermStyle();
     (_a2 = this.calloutStyleEl) == null ? void 0 : _a2.remove();
     this.calloutStyleEl = null;
+  }
+  getWaitingLeaves() {
+    const leaves = [];
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      var _a2, _b;
+      if (((_b = (_a2 = leaf.view) == null ? void 0 : _a2.getViewType) == null ? void 0 : _b.call(_a2)) === VIEW_TYPE_TERMINAL) {
+        const view = leaf.view;
+        if (typeof view.getStatus === "function" && view.getStatus() === "waiting") {
+          leaves.push(leaf);
+        }
+      }
+    });
+    leaves.sort((a, b) => {
+      const aMs = typeof a.view.getLastActivityMs === "function" ? a.view.getLastActivityMs() : 0;
+      const bMs = typeof b.view.getLastActivityMs === "function" ? b.view.getLastActivityMs() : 0;
+      return aMs - bMs;
+    });
+    return leaves;
+  }
+  refreshAttentionBadge() {
+    if (!this.waitingBadgeEl) return;
+    const waiting = this.getWaitingLeaves();
+    if (waiting.length === 0) {
+      this.waitingBadgeEl.style.display = "none";
+      this.waitingCursor = 0;
+    } else {
+      this.waitingBadgeEl.style.display = "";
+      this.waitingBadgeEl.setText(`\u26A1 ${waiting.length}`);
+      this.waitingBadgeEl.setAttribute("aria-label", `${waiting.length} session${waiting.length !== 1 ? "s" : ""} waiting for input`);
+    }
+  }
+  jumpToNextWaiting() {
+    const waiting = this.getWaitingLeaves();
+    if (waiting.length === 0) return;
+    this.waitingCursor = this.waitingCursor % waiting.length;
+    const target = waiting[this.waitingCursor];
+    this.waitingCursor = (this.waitingCursor + 1) % waiting.length;
+    this.app.workspace.setActiveLeaf(target, { focus: true });
   }
   getPluginDir() {
     return this.app.vault.adapter.basePath + "/.obsidian/plugins/augment-terminal";
