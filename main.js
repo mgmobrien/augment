@@ -18004,15 +18004,29 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
       new import_obsidian3.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc("Run continuation on the current note.");
       new import_obsidian3.Setting(continuationPane).setName(`Template: ${templateHotkey}`).setDesc("Pick and run a template on the current note.");
+      const openHotkeysPage = () => {
+        this.app.setting.open();
+        this.app.setting.openTabById("hotkeys");
+      };
       if (this.plugin.settings.clearedLinkHotkey) {
-        new import_obsidian3.Setting(continuationPane).setName(`${generateHotkey} conflict resolved`).setDesc(`Augment has claimed ${generateHotkey}. Obsidian\u2019s default binding is cleared.`).addButton((btn) => {
-          btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
+        const desc = document.createDocumentFragment();
+        desc.appendText("Displaced: Open link in new tab.  ");
+        const link = desc.createEl("a", { text: "Open hotkeys settings \u2197" });
+        link.style.cursor = "pointer";
+        link.addEventListener("click", () => openHotkeysPage());
+        new import_obsidian3.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc(desc).addButton((btn) => {
+          btn.setButtonText("Restore original").onClick(async () => {
             await this.plugin.restoreObsidianLinkHotkey();
             this.display();
           });
         });
       } else {
-        new import_obsidian3.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.`).addButton((btn) => {
+        const desc2 = document.createDocumentFragment();
+        desc2.appendText(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
+        const link2 = desc2.createEl("a", { text: "Open hotkeys settings \u2197" });
+        link2.style.cursor = "pointer";
+        link2.addEventListener("click", () => openHotkeysPage());
+        new import_obsidian3.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(desc2).addButton((btn) => {
           btn.setButtonText(`Claim ${generateHotkey}`).setCta().onClick(async () => {
             await this.plugin.clearObsidianLinkHotkey();
             this.display();

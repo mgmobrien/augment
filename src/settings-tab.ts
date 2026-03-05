@@ -583,21 +583,38 @@ export class AugmentSettingTab extends PluginSettingTab {
         .setName(`Template: ${templateHotkey}`)
         .setDesc("Pick and run a template on the current note.");
 
+      const openHotkeysPage = () => {
+        (this.app as any).setting.open();
+        (this.app as any).setting.openTabById("hotkeys");
+      };
+
       if (this.plugin.settings.clearedLinkHotkey) {
+        const desc = document.createDocumentFragment();
+        desc.appendText("Displaced: Open link in new tab.  ");
+        const link = desc.createEl("a", { text: "Open hotkeys settings \u2197" });
+        link.style.cursor = "pointer";
+        link.addEventListener("click", () => openHotkeysPage());
+
         new Setting(continuationPane)
-          .setName(`${generateHotkey} conflict resolved`)
-          .setDesc(`Augment has claimed ${generateHotkey}. Obsidian\u2019s default binding is cleared.`)
+          .setName(`Generate: ${generateHotkey}`)
+          .setDesc(desc)
           .addButton((btn) => {
-            btn.setButtonText("Restore Obsidian\u2019s binding")
+            btn.setButtonText("Restore original")
               .onClick(async () => {
                 await this.plugin.restoreObsidianLinkHotkey();
                 this.display();
               });
           });
       } else {
+        const desc2 = document.createDocumentFragment();
+        desc2.appendText(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
+        const link2 = desc2.createEl("a", { text: "Open hotkeys settings \u2197" });
+        link2.style.cursor = "pointer";
+        link2.addEventListener("click", () => openHotkeysPage());
+
         new Setting(continuationPane)
           .setName(`${generateHotkey} conflict`)
-          .setDesc(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.`)
+          .setDesc(desc2)
           .addButton((btn) => {
             btn.setButtonText(`Claim ${generateHotkey}`)
               .setCta()
