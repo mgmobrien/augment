@@ -10,6 +10,7 @@ interface CCDeps {
   node: boolean;
   cc: boolean;
   authed: boolean;
+  vaultConfigured: boolean;
   // Windows-only
   wsl?: boolean;
   pythonInWsl?: boolean;
@@ -48,12 +49,13 @@ async function checkAuth(prefix: string): Promise<boolean> {
   } catch { return false; }
 }
 
-async function detectDeps(): Promise<CCDeps> {
+async function detectDeps(app: App): Promise<CCDeps> {
   const platform = process.platform;
+  const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
 
   if (platform === "win32") {
     const wsl = await checkBool("wsl --list");
-    if (!wsl) return { python: false, node: false, cc: false, authed: false, wsl: false };
+    if (!wsl) return { python: false, node: false, cc: false, authed: false, vaultConfigured, wsl: false };
 
     const pythonInWsl = await checkBool("wsl -e python3 --version");
     const nodeInWsl = await checkBool("wsl -e node --version");
@@ -61,7 +63,7 @@ async function detectDeps(): Promise<CCDeps> {
     const authedInWsl = ccInWsl ? await checkAuth("wsl -e ") : false;
 
     return {
-      python: pythonInWsl, node: nodeInWsl, cc: ccInWsl, authed: authedInWsl,
+      python: pythonInWsl, node: nodeInWsl, cc: ccInWsl, authed: authedInWsl, vaultConfigured,
       wsl, pythonInWsl, nodeInWsl, ccInWsl, authedInWsl,
     };
   }
@@ -72,13 +74,13 @@ async function detectDeps(): Promise<CCDeps> {
   const cc = node ? await checkBool("which claude") : false;
   const authed = cc ? await checkAuth("") : false;
 
-  return { python, node, cc, authed };
+  return { python, node, cc, authed, vaultConfigured };
 }
 
 interface WizardStep {
   title: string;
   desc: string;
-  action: "link" | "terminal" | "copy";
+  action: "link" | "terminal" | "copy" | "vault";
   actionLabel: string;
   actionUrl?: string;
   terminalCmd?: string;
@@ -124,6 +126,14 @@ function getMacSteps(deps: CCDeps): WizardStep | null {
       action: "terminal",
       actionLabel: "Sign in to Claude",
       terminalCmd: "claude auth login\n",
+    };
+  }
+  if (!deps.vaultConfigured) {
+    return {
+      title: "Set up your vault",
+      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
+      action: "vault",
+      actionLabel: "Set up vault",
     };
   }
   return null;
@@ -175,25 +185,35 @@ function getWindowsSteps(deps: CCDeps): WizardStep | null {
       terminalCmd: "claude auth login\n",
     };
   }
+  if (!deps.vaultConfigured) {
+    return {
+      title: "Set up your vault",
+      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
+      action: "vault",
+      actionLabel: "Set up vault",
+    };
+  }
   return null;
 }
 
 function getStepIndex(deps: CCDeps): { current: number; total: number } {
   const platform = process.platform;
   if (platform === "win32") {
-    const total = 5;
+    const total = 6;
     if (!deps.wsl) return { current: 1, total };
     if (!deps.pythonInWsl) return { current: 2, total };
     if (!deps.nodeInWsl) return { current: 3, total };
     if (!deps.ccInWsl) return { current: 4, total };
     if (!deps.authedInWsl) return { current: 5, total };
+    if (!deps.vaultConfigured) return { current: 6, total };
     return { current: total, total };
   }
-  const total = 4;
+  const total = 5;
   if (!deps.python) return { current: 1, total };
   if (!deps.node) return { current: 2, total };
   if (!deps.cc) return { current: 3, total };
   if (!deps.authed) return { current: 4, total };
+  if (!deps.vaultConfigured) return { current: 5, total };
   return { current: total, total };
 }
 
@@ -769,11 +789,27 @@ export class AugmentSettingTab extends PluginSettingTab {
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
     const wizardBody = wizardSection.createDiv();
 
+    const setupVault = async () => {
+      // Create CLAUDE.md at vault root if absent
+      const claudeMdPath = "CLAUDE.md";
+      if (!this.app.vault.getAbstractFileByPath(claudeMdPath)) {
+        const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
+        const content = `# Vault\n\nThis is my Obsidian vault.\n\n## Agent skills\n\nSkills live in \`agents/skills/\`. Run them with \`/[skill name]\` in any note (requires Augment).\n\n## Templates\n\nPrompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.\n`;
+        await this.app.vault.create(claudeMdPath, content);
+      }
+
+      // Create agents/skills/ folder if absent
+      const skillsPath = "agents/skills";
+      if (!this.app.vault.getAbstractFileByPath(skillsPath)) {
+        await this.app.vault.createFolder(skillsPath);
+      }
+    };
+
     const renderWizard = async () => {
       wizardBody.empty();
       wizardBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Checking dependencies..." });
 
-      const deps = await detectDeps();
+      const deps = await detectDeps(this.app);
       wizardBody.empty();
 
       const step = process.platform === "win32" ? getWindowsSteps(deps) : getMacSteps(deps);
@@ -782,7 +818,13 @@ export class AugmentSettingTab extends PluginSettingTab {
         // All dependencies satisfied
         const ready = wizardBody.createDiv({ cls: "augment-cc-ready" });
         ready.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
-        ready.createSpan({ text: " Claude Code is ready" });
+        ready.createSpan({ text: " All set. Claude Code is ready and your vault is configured." });
+        const recheckLink = ready.createEl("a", { cls: "augment-cc-recheck", text: "Re-check \u21ba" });
+        recheckLink.href = "#";
+        recheckLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          void renderWizard();
+        });
         return;
       }
 
@@ -813,13 +855,20 @@ export class AugmentSettingTab extends PluginSettingTab {
           setTimeout(() => view.write(step.terminalCmd!), 800);
         });
       } else if (step.action === "copy") {
-        // Show the command in a code block, then a copy button
         body.createEl("code", { cls: "augment-wsl-command", text: step.copyText! });
         const copyBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
         copyBtn.addEventListener("click", () => {
           navigator.clipboard.writeText(step.copyText!);
           copyBtn.textContent = "Copied!";
           setTimeout(() => { copyBtn.textContent = step.actionLabel; }, 1500);
+        });
+      } else if (step.action === "vault") {
+        const vaultBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
+        vaultBtn.addEventListener("click", async () => {
+          vaultBtn.textContent = "Setting up...";
+          vaultBtn.disabled = true;
+          await setupVault();
+          void renderWizard();
         });
       }
 
@@ -834,16 +883,18 @@ export class AugmentSettingTab extends PluginSettingTab {
         secLink.rel = "noopener";
       }
 
-      // "Done — Check ↺" link with 2s delay
-      const recheck = body.createDiv({ cls: "augment-cc-recheck" });
-      const recheckLink = recheck.createEl("a", { text: "Done \u2014 Check \u21ba" });
-      recheckLink.href = "#";
-      recheckLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        recheckLink.textContent = "Checking...";
-        recheckLink.style.pointerEvents = "none";
-        setTimeout(() => { void renderWizard(); }, 2000);
-      });
+      // "Done — Check ↺" link with 2s delay (not needed for vault action — it auto-advances)
+      if (step.action !== "vault") {
+        const recheck = body.createDiv({ cls: "augment-cc-recheck" });
+        const recheckLink = recheck.createEl("a", { text: "Done \u2014 Check \u21ba" });
+        recheckLink.href = "#";
+        recheckLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          recheckLink.textContent = "Checking...";
+          recheckLink.style.pointerEvents = "none";
+          setTimeout(() => { void renderWizard(); }, 2000);
+        });
+      }
     };
 
     // Lazy detection — run when Terminal tab is first clicked.
