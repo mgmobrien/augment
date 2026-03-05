@@ -1396,10 +1396,25 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 .augment-ctx-panel-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
   font-weight: var(--font-semibold);
   font-size: var(--font-ui-medium);
   margin-bottom: 2px;
+}
+
+.augment-ctx-panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.augment-ctx-refresh {
+  color: var(--icon-color);
+  cursor: pointer;
+}
+.augment-ctx-refresh svg {
+  width: 16px;
+  height: 16px;
 }
 
 .augment-ctx-panel-header-icon {
@@ -1500,6 +1515,7 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   font-family: var(--font-monospace);
   font-size: var(--font-smallest);
   background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
   padding: 8px 10px;
   white-space: pre-wrap;

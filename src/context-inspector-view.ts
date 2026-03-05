@@ -1,4 +1,4 @@
-import { debounce, ItemView, MarkdownView, setIcon, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownView, setIcon, WorkspaceLeaf } from "obsidian";
 import { buildSystemPrompt, buildUserMessage } from "./ai-client";
 import AugmentTerminalPlugin from "./main";
 import { assembleVaultContext, VaultContext } from "./vault-context";
@@ -35,7 +35,6 @@ export class ContextInspectorView extends ItemView {
   private plugin: AugmentTerminalPlugin;
   private contentDiv!: HTMLElement;
   private lastEditorView: MarkdownView | null = null;
-  private debouncedRefresh!: () => void;
 
   constructor(leaf: WorkspaceLeaf, plugin: AugmentTerminalPlugin) {
     super(leaf);
@@ -49,20 +48,25 @@ export class ContextInspectorView extends ItemView {
   async onOpen(): Promise<void> {
     this.contentDiv = this.containerEl.children[1] as HTMLElement;
     this.contentDiv.addClass("augment-ctx-panel");
-    this.debouncedRefresh = debounce(() => this.refresh(), 300, true);
 
+    // Trigger 1: note switch
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf?.view instanceof MarkdownView) {
           this.lastEditorView = leaf.view;
-          this.debouncedRefresh();
+          this.refresh();
         }
       })
     );
 
+    // Trigger 2: generation completes
     this.registerEvent(
-      this.app.workspace.on("editor-change", this.debouncedRefresh)
+      (this.app.workspace as any).on("augment:generation-complete", () => {
+        this.refresh();
+      })
     );
+
+    // Trigger 3: manual refresh button (handled in render)
 
     const current = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (current) this.lastEditorView = current;
@@ -91,9 +95,13 @@ export class ContextInspectorView extends ItemView {
 
     // ── Header ──
     const headerEl = el.createEl("div", { cls: "augment-ctx-panel-header" });
-    const iconEl = headerEl.createEl("span", { cls: "augment-ctx-panel-header-icon" });
+    const headerLeft = headerEl.createEl("span", { cls: "augment-ctx-panel-header-left" });
+    const iconEl = headerLeft.createEl("span", { cls: "augment-ctx-panel-header-icon" });
     setIcon(iconEl, "radio-tower");
-    headerEl.createEl("span", { text: "Context inspector" });
+    headerLeft.createEl("span", { text: "Context inspector" });
+    const refreshBtn = headerEl.createEl("span", { cls: "augment-ctx-refresh clickable-icon" });
+    setIcon(refreshBtn, "refresh-cw");
+    refreshBtn.addEventListener("click", () => this.refresh());
     el.createEl("div", {
       cls: "augment-ctx-panel-subtitle",
       text: "What Augment sends when you generate",

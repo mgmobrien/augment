@@ -775,6 +775,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private pushContextHistory(entry: ContextEntry): void {
     this.contextHistory.push(entry);
     if (this.contextHistory.length > 5) this.contextHistory.shift();
+    this.app.workspace.trigger("augment:generation-complete");
   }
 
   private async loadAvailableModels(): Promise<void> {
