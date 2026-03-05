@@ -293,7 +293,7 @@ Print a summary with four sections:
 1. **Created**: what was added
 2. **Skipped**: what was already configured
 3. **Documented**: divergent conventions recorded in CLAUDE.md
-4. **Next steps**: actionable suggestions (e.g., "Try Mod+Enter in any note", "Run /meeting-summary on a transcript", "Add frontmatter to your most-used notes")
+4. **Next steps**: actionable suggestions (e.g., "Try Cmd/Ctrl+Enter in any note", "Run /meeting-summary on a transcript", "Add frontmatter to your most-used notes")
 
 ## Principles
 

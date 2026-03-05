@@ -471,7 +471,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
-      text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.",
+      text: `Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.`,
     });
 
     // ── System 3 account ────────────────────────────────────────────────────
@@ -613,7 +613,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
     const howSteps = [
       "Position your cursor where you want output to appear.",
-      "Press Mod+Enter (or right-click → Augment: Generate).",
+      `Press ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter (or right-click → Augment: Generate).`,
       "A loading indicator appears while Claude generates.",
       "The result is inserted at your cursor in the chosen format.",
     ];

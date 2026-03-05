@@ -93,7 +93,7 @@ export class ContextInspectorView extends ItemView {
     el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
     el.createEl("div", {
       cls: "augment-ctx-panel-subtitle",
-      text: "What Augment sends to the AI when you press Mod+Enter",
+      text: `What Augment sends to the AI when you press ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter`,
     });
 
     let totalTokens = 0;

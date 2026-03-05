@@ -4,7 +4,7 @@
 
 Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code.
 
-Press Mod+Enter in any note to generate inline — Augment uses your note's title, frontmatter, linked notes, and everything above your cursor as context. The terminal manager runs Claude Code sessions inside Obsidian alongside your notes.
+Press Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux) in any note to generate inline — Augment uses your note's title, frontmatter, linked notes, and everything above your cursor as context. The terminal manager runs Claude Code sessions inside Obsidian alongside your notes.
 
 ## Install
 
@@ -29,7 +29,7 @@ After copying:
 
 1. Open any note
 2. Position cursor at end of a sentence
-3. Press Mod+Enter (Cmd+Enter on Mac, Ctrl+Enter on Windows/Linux)
+3. Press Cmd+Enter on Mac, or Ctrl+Enter on Windows/Linux
 4. A spinner appears at the cursor while generating; output is inserted inline when complete
 5. Status bar shows "Augment: [model name]" when configured
 

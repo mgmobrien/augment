@@ -17389,7 +17389,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
     el.createEl("div", {
       cls: "augment-ctx-panel-subtitle",
-      text: "What Augment sends to the AI when you press Mod+Enter"
+      text: `What Augment sends to the AI when you press ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter`
     });
     let totalTokens = 0;
     const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
@@ -17898,7 +17898,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     overviewTab.addEventListener("click", renderSetupCard);
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
-      text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes."
+      text: `Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.`
     });
     overviewPane.createEl("h3", { cls: "augment-settings-section-heading", text: "System 3 account" });
     const apiKeyWrapper = overviewPane.createDiv();
@@ -18005,7 +18005,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
     const howSteps = [
       "Position your cursor where you want output to appear.",
-      "Press Mod+Enter (or right-click \u2192 Augment: Generate).",
+      `Press ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter (or right-click \u2192 Augment: Generate).`,
       "A loading indicator appears while Claude generates.",
       "The result is inserted at your cursor in the chosen format."
     ];
@@ -21390,7 +21390,7 @@ Print a summary with four sections:
 1. **Created**: what was added
 2. **Skipped**: what was already configured
 3. **Documented**: divergent conventions recorded in CLAUDE.md
-4. **Next steps**: actionable suggestions (e.g., "Try Mod+Enter in any note", "Run /meeting-summary on a transcript", "Add frontmatter to your most-used notes")
+4. **Next steps**: actionable suggestions (e.g., "Try Cmd/Ctrl+Enter in any note", "Run /meeting-summary on a transcript", "Add frontmatter to your most-used notes")
 
 ## Principles
 
