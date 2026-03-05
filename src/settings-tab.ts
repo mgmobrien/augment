@@ -217,6 +217,30 @@ function getStepIndex(deps: CCDeps): { current: number; total: number } {
   return { current: total, total };
 }
 
+interface DepRow {
+  label: string;
+  done: (deps: CCDeps) => boolean;
+  readyText: string;
+  pendingText: string;
+}
+
+const MAC_DEP_ROWS: DepRow[] = [
+  { label: "Python 3",    done: d => d.python,          readyText: "ready",      pendingText: "\u2014" },
+  { label: "Node.js",     done: d => d.node,            readyText: "ready",      pendingText: "\u2014" },
+  { label: "Claude Code", done: d => d.cc,              readyText: "ready",      pendingText: "\u2014" },
+  { label: "Sign in",     done: d => d.authed,          readyText: "signed in",  pendingText: "\u2014" },
+  { label: "Vault",       done: d => d.vaultConfigured, readyText: "configured", pendingText: "\u2014" },
+];
+
+const WINDOWS_DEP_ROWS: DepRow[] = [
+  { label: "WSL",         done: d => !!d.wsl,           readyText: "ready",      pendingText: "\u2014" },
+  { label: "Python 3",    done: d => !!d.pythonInWsl,   readyText: "ready",      pendingText: "\u2014" },
+  { label: "Node.js",     done: d => !!d.nodeInWsl,     readyText: "ready",      pendingText: "\u2014" },
+  { label: "Claude Code", done: d => !!d.ccInWsl,       readyText: "ready",      pendingText: "\u2014" },
+  { label: "Sign in",     done: d => !!d.authedInWsl,   readyText: "signed in",  pendingText: "\u2014" },
+  { label: "Vault",       done: d => d.vaultConfigured, readyText: "configured", pendingText: "\u2014" },
+];
+
 const TEMPLATE_SCAFFOLD = `---
 name:
 description:
@@ -932,109 +956,109 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     };
 
-    const renderWizard = async () => {
+    const renderStatusCard = async () => {
       wizardBody.empty();
-      wizardBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Checking dependencies..." });
+      wizardBody.createDiv({ cls: "augment-cc-detecting", text: "Checking your setup\u2026" });
 
       const deps = await detectDeps(this.app);
       wizardBody.empty();
 
-      const step = process.platform === "win32" ? getWindowsSteps(deps) : getMacSteps(deps);
-
-      if (!step) {
-        // All dependencies satisfied
-        const ready = wizardBody.createDiv({ cls: "augment-cc-ready" });
-        ready.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
-        ready.createSpan({ text: " All set. Claude Code is ready and your vault is configured." });
-        const recheckLink = ready.createEl("a", { cls: "augment-cc-recheck", text: "Re-check \u21ba" });
-        recheckLink.href = "#";
-        recheckLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          void renderWizard();
-        });
-        return;
-      }
-
-      const { current, total } = getStepIndex(deps);
+      const depRows = process.platform === "win32" ? WINDOWS_DEP_ROWS : MAC_DEP_ROWS;
+      const activeStep = process.platform === "win32" ? getWindowsSteps(deps) : getMacSteps(deps);
+      const allReady = activeStep === null;
 
       // Header
-      const hdr = wizardBody.createDiv({ cls: "augment-setup-header" });
-      hdr.createSpan({ cls: "augment-setup-title", text: "Set up Claude Code" });
-      hdr.createSpan({ cls: "augment-setup-step-count", text: `Step ${current} of ${total}` });
+      wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
 
-      // Body
-      const body = wizardBody.createDiv({ cls: "augment-setup-body" });
-      body.createEl("div", { cls: "augment-setup-step-title", text: step.title });
-      body.createEl("p", { cls: "augment-setup-step-desc", text: step.desc });
+      // Dep rows
+      const list = wizardBody.createEl("div", { cls: "augment-cc-dep-list" });
+      let activeFound = false;
 
-      // Actions
-      const actions = body.createDiv({ cls: "augment-setup-actions" });
+      for (const row of depRows) {
+        const isDone = row.done(deps);
+        const isActive = !isDone && !activeFound;
+        if (isActive) activeFound = true;
+        const isPending = !isDone && !isActive;
 
-      if (step.action === "link") {
-        const linkBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
-        linkBtn.addEventListener("click", () => {
-          window.open(step.actionUrl!, "_blank");
+        const rowEl = list.createEl("div", {
+          cls: "augment-cc-dep-row" + (isDone ? " is-done" : isActive ? " is-active" : " is-pending"),
         });
-      } else if (step.action === "terminal") {
-        const termBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
-        termBtn.addEventListener("click", async () => {
-          const view = await this.plugin.openFocusedTerminal();
-          setTimeout(() => view.write(step.terminalCmd!), 800);
+
+        rowEl.createEl("span", {
+          cls: "augment-cc-dep-icon",
+          text: isDone ? "\u2713" : isActive ? "\u203a" : "\u25cb",
         });
-      } else if (step.action === "copy") {
-        body.createEl("code", { cls: "augment-wsl-command", text: step.copyText! });
-        const copyBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
-        copyBtn.addEventListener("click", () => {
-          navigator.clipboard.writeText(step.copyText!);
-          copyBtn.textContent = "Copied!";
-          setTimeout(() => { copyBtn.textContent = step.actionLabel; }, 1500);
-        });
-      } else if (step.action === "vault") {
-        const vaultBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
-        vaultBtn.addEventListener("click", async () => {
-          vaultBtn.textContent = "Setting up...";
-          vaultBtn.disabled = true;
-          await setupVault();
-          void renderWizard();
-        });
+        rowEl.createEl("span", { cls: "augment-cc-dep-label", text: row.label });
+
+        if (isDone) {
+          rowEl.createEl("span", { cls: "augment-cc-dep-status", text: row.readyText });
+        } else if (isActive && activeStep) {
+          const actionEl = rowEl.createEl("span", { cls: "augment-cc-dep-action" });
+
+          if (activeStep.action === "link") {
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", () => window.open(activeStep.actionUrl!, "_blank"));
+            if (activeStep.secondaryLabel && activeStep.secondaryUrl) {
+              const sec = actionEl.createEl("a", { cls: "augment-cc-dep-secondary", text: activeStep.secondaryLabel });
+              sec.href = activeStep.secondaryUrl;
+              sec.target = "_blank";
+              sec.rel = "noopener";
+            }
+          } else if (activeStep.action === "terminal") {
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", async () => {
+              const view = await this.plugin.openFocusedTerminal();
+              setTimeout(() => view.write(activeStep.terminalCmd!), 800);
+            });
+          } else if (activeStep.action === "copy") {
+            actionEl.createEl("code", { cls: "augment-cc-dep-copy-text", text: activeStep.copyText! });
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", () => {
+              navigator.clipboard.writeText(activeStep.copyText!);
+              btn.textContent = "Copied!";
+              setTimeout(() => { btn.textContent = activeStep.actionLabel; }, 1500);
+            });
+          } else if (activeStep.action === "vault") {
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", async () => {
+              btn.textContent = "Setting up\u2026";
+              btn.disabled = true;
+              await setupVault();
+              void renderStatusCard();
+            });
+          }
+        } else if (isPending) {
+          rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
+        }
       }
 
-      // Secondary link (e.g., python.org download)
-      if (step.secondaryLabel && step.secondaryUrl) {
-        const secLink = actions.createEl("a", {
-          cls: "augment-folder-open",
-          text: step.secondaryLabel,
-        });
-        secLink.href = step.secondaryUrl;
-        secLink.target = "_blank";
-        secLink.rel = "noopener";
-      }
-
-      // "Done — check ↺" link with 2s delay (not needed for vault action — it auto-advances)
-      if (step.action !== "vault") {
-        const recheck = body.createDiv({ cls: "augment-cc-recheck" });
-        const recheckLink = recheck.createEl("a", { text: "Done \u2014 check \u21ba" });
-        recheckLink.href = "#";
-        recheckLink.addEventListener("click", (e) => {
+      // Footer
+      const footer = wizardBody.createEl("div", { cls: "augment-cc-status-footer" });
+      if (allReady) {
+        footer.createEl("span", { cls: "augment-cc-all-ready", text: "Claude Code sessions are ready." });
+      } else if (activeStep && activeStep.action !== "vault") {
+        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 check \u21ba" });
+        doneLink.href = "#";
+        doneLink.addEventListener("click", (e) => {
           e.preventDefault();
-          recheckLink.textContent = "Checking...";
-          recheckLink.style.pointerEvents = "none";
-          setTimeout(() => { void renderWizard(); }, 2000);
+          doneLink.textContent = "Checking\u2026";
+          doneLink.style.pointerEvents = "none";
+          setTimeout(() => void renderStatusCard(), 2000);
         });
       }
+      const recheck = footer.createEl("a", { cls: "augment-cc-recheck-always", text: "Re-check \u21ba" });
+      recheck.href = "#";
+      recheck.addEventListener("click", (e) => { e.preventDefault(); void renderStatusCard(); });
     };
 
-    // Lazy detection — run when Terminal tab is first clicked.
-    // Auto-run on display — dependency checks are fast and the wizard is the primary
-    // reason users visit this tab. On Windows especially, users may arrive here after
-    // a 9009 exit and need to see their status immediately.
-    void renderWizard();
+    void renderStatusCard();
 
-    // Configuration section label
-    terminalPane.createDiv({ cls: "augment-section-label", text: "Configuration" });
+    // ── Advanced (collapsed by default) ─────────────────────
+    const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
+    advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
 
     if (process.platform === "win32") {
-      new Setting(terminalPane)
+      new Setting(advancedDetails)
         .setName("Run terminal via WSL")
         .setDesc(
           "Spawn the PTY bridge through WSL instead of native Python. Required on Windows. " +
@@ -1050,7 +1074,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         });
     }
 
-    new Setting(terminalPane)
+    new Setting(advancedDetails)
       .setName("Python path")
       .setDesc("Path to python3 binary for the PTY bridge. Leave blank to use system default.")
       .addText((text) => {
@@ -1063,7 +1087,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(terminalPane)
+    new Setting(advancedDetails)
       .setName("Shell")
       .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
       .addText((text) => {
@@ -1076,7 +1100,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(terminalPane)
+    new Setting(advancedDetails)
       .setName("Default working directory")
       .setDesc("Starting directory for new terminals. Leave blank to use the vault root.")
       .addText((text) => {

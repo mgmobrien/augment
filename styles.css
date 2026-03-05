@@ -1251,6 +1251,75 @@
 }
 .augment-cc-recheck a:hover { color: var(--text-muted); }
 
+/* ── Terminal status card (dep rows) ── */
+.augment-cc-detecting {
+  color: var(--text-muted);
+  font-size: var(--font-small);
+}
+.augment-cc-status-title {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.augment-cc-dep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.augment-cc-dep-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+}
+.augment-cc-dep-icon {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.augment-cc-dep-row.is-done .augment-cc-dep-icon { color: var(--color-green); }
+.augment-cc-dep-row.is-active .augment-cc-dep-icon { color: var(--text-normal); }
+.augment-cc-dep-row.is-pending { opacity: 0.45; }
+.augment-cc-dep-label {
+  width: 110px;
+  flex-shrink: 0;
+}
+.augment-cc-dep-status { color: var(--text-muted); }
+.augment-cc-dep-status.is-pending { color: var(--text-faint); }
+.augment-cc-dep-action { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.augment-cc-dep-btn { font-size: 0.85em; padding: 2px 10px; }
+.augment-cc-dep-secondary { font-size: 0.8em; color: var(--text-muted); }
+.augment-cc-dep-copy-text { font-size: 0.85em; }
+.augment-cc-status-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+  font-size: 0.85em;
+}
+.augment-cc-all-ready { color: var(--color-green); }
+.augment-cc-recheck-always {
+  color: var(--text-faint);
+  text-decoration: none;
+  cursor: pointer;
+}
+.augment-cc-recheck-always:hover { color: var(--text-muted); }
+
+/* ── Advanced (collapsed config) ── */
+.augment-advanced-details {
+  margin-top: 20px;
+}
+.augment-advanced-summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  user-select: none;
+  list-style: none;
+}
+.augment-advanced-summary::-webkit-details-marker { display: none; }
+.augment-advanced-summary::before { content: "\25b8\00a0"; }
+details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
+
 /* ── Context inspector sidebar panel ── */
 .augment-ctx-panel {
   padding: 12px 14px;
