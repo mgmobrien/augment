@@ -1589,6 +1589,13 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   transform: rotate(90deg);
 }
 
+.augment-ctx-collapsible:not(.is-open) {
+  padding-bottom: 0;
+}
+.augment-ctx-collapsible:not(.is-open) .augment-ctx-section-hdr {
+  margin-bottom: 0;
+}
+
 .augment-ctx-collapsible-content {
   display: none;
 }
