@@ -17404,12 +17404,12 @@ ${key}: ${valStr}`;
     const outCost = outputCost(estOutputTokens, modelId);
     const totalCost = inCost + outCost;
     const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
+    const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
+    (0, import_obsidian2.setIcon)(barChevron, "chevron-right");
     tokenBar.createEl("span", {
       cls: "augment-ctx-token-bar-summary",
       text: `${totalTokens.toLocaleString()} tokens \xB7 ~${formatCost(totalCost)}`
     });
-    const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
-    (0, import_obsidian2.setIcon)(barChevron, "chevron-right");
     tokenBar.addEventListener("click", () => {
       tokenBar.toggleClass("is-open", !tokenBar.hasClass("is-open"));
     });
@@ -17469,16 +17469,22 @@ ${key}: ${valStr}`;
       noteSection.toggleClass("is-open", !noteSection.hasClass("is-open"));
     });
     if (linkedData.length > 0) {
-      const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section" });
+      const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible is-open" });
       const activeFile = activeView.file;
       const totalLinks = activeFile ? ((_c = (_b = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _b.links) != null ? _c : []).length : linkedData.length;
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+      const linkedChevron = linkedHdr.createEl("span", { cls: "augment-ctx-chevron" });
+      (0, import_obsidian2.setIcon)(linkedChevron, "chevron-right");
       linkedHdr.createEl("span", {
         cls: "augment-ctx-section-label",
         text: `Linked notes (${linkedData.length} of ${totalLinks})`
       });
       linkedHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${linkedTokens} tokens` });
-      const list = linkedSection.createEl("div", { cls: "augment-ctx-linked-list" });
+      linkedHdr.addEventListener("click", () => {
+        linkedSection.toggleClass("is-open", !linkedSection.hasClass("is-open"));
+      });
+      const linkedContent = linkedSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+      const list = linkedContent.createEl("div", { cls: "augment-ctx-linked-list" });
       for (const { note, text, tokens } of linkedData) {
         const row = list.createEl("div", { cls: "augment-ctx-linked-row" });
         const header = row.createEl("div", { cls: "augment-ctx-linked-row-header" });

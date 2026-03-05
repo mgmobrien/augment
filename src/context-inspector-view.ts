@@ -174,12 +174,12 @@ export class ContextInspectorView extends ItemView {
     const totalCost = inCost + outCost;
 
     const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
+    const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
+    setIcon(barChevron, "chevron-right");
     tokenBar.createEl("span", {
       cls: "augment-ctx-token-bar-summary",
       text: `${totalTokens.toLocaleString()} tokens \u00b7 ~${formatCost(totalCost)}`,
     });
-    const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
-    setIcon(barChevron, "chevron-right");
     tokenBar.addEventListener("click", () => {
       tokenBar.toggleClass("is-open", !tokenBar.hasClass("is-open"));
     });
@@ -250,20 +250,26 @@ export class ContextInspectorView extends ItemView {
 
     // ── Linked notes section (omitted if zero) ──
     if (linkedData.length > 0) {
-      const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section" });
+      const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible is-open" });
       const activeFile = activeView.file;
       const totalLinks = activeFile
         ? (this.app.metadataCache.getFileCache(activeFile)?.links ?? []).length
         : linkedData.length;
 
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+      const linkedChevron = linkedHdr.createEl("span", { cls: "augment-ctx-chevron" });
+      setIcon(linkedChevron, "chevron-right");
       linkedHdr.createEl("span", {
         cls: "augment-ctx-section-label",
         text: `Linked notes (${linkedData.length} of ${totalLinks})`,
       });
       linkedHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${linkedTokens} tokens` });
+      linkedHdr.addEventListener("click", () => {
+        linkedSection.toggleClass("is-open", !linkedSection.hasClass("is-open"));
+      });
 
-      const list = linkedSection.createEl("div", { cls: "augment-ctx-linked-list" });
+      const linkedContent = linkedSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+      const list = linkedContent.createEl("div", { cls: "augment-ctx-linked-list" });
       for (const { note, text, tokens } of linkedData) {
         const row = list.createEl("div", { cls: "augment-ctx-linked-row" });
 
