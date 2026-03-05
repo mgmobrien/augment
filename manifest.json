@@ -1,7 +1,7 @@
 {
   "id": "augment-terminal",
   "name": "Augment",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "minAppVersion": "0.15.0",
   "description": "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code.",
   "author": "System 3",

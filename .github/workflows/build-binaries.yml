@@ -1,0 +1,32 @@
+name: Build Go PTY binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cmd/augment-pty/go.mod
+
+      - name: Build binaries
+        working-directory: cmd/augment-pty
+        run: |
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o ../../scripts/augment-pty-darwin-arm64 .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o ../../scripts/augment-pty-linux-x64 .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -o ../../scripts/augment-pty-linux-arm64 .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ../../scripts/augment-pty-win32-x64.exe .
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: augment-pty-binaries
+          path: scripts/augment-pty-*
+          retention-days: 30

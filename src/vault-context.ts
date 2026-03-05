@@ -23,8 +23,6 @@ export interface AugmentSettings {
   headingLevel: number;
   calloutType: string;
   calloutExpanded: boolean;
-  useWsl: boolean;
-  pythonPath: string;
   shellPath: string;
   defaultWorkingDirectory: string;
   setupCardDismissed: boolean;
@@ -52,8 +50,6 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   headingLevel: 2,
   calloutType: "ai",
   calloutExpanded: true,
-  useWsl: false,
-  pythonPath: "",
   shellPath: "",
   defaultWorkingDirectory: "",
   setupCardDismissed: false,

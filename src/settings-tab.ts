@@ -45,7 +45,7 @@ async function checkAuth(prefix: string): Promise<boolean> {
 async function detectDeps(app: App): Promise<CCDeps> {
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
   const node = await checkBool("node --version");
-  const cc = node ? await checkBool("which claude") : false;
+  const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude") : false;
   const authed = cc ? await checkAuth("") : false;
   return { node, cc, authed, vaultConfigured };
 }

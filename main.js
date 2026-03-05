@@ -17254,8 +17254,6 @@ var DEFAULT_SETTINGS = {
   headingLevel: 2,
   calloutType: "ai",
   calloutExpanded: true,
-  useWsl: false,
-  pythonPath: "",
   shellPath: "",
   defaultWorkingDirectory: "",
   setupCardDismissed: false,
@@ -17538,7 +17536,7 @@ async function checkAuth(prefix) {
 async function detectDeps(app) {
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
   const node = await checkBool("node --version");
-  const cc = node ? await checkBool("which claude") : false;
+  const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude") : false;
   const authed = cc ? await checkAuth("") : false;
   return { node, cc, authed, vaultConfigured };
 }
@@ -21789,7 +21787,12 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     }
   }
   async onload() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const raw = await this.loadData();
+    if (raw && typeof raw === "object") {
+      delete raw["useWsl"];
+      delete raw["pythonPath"];
+    }
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
       void this.restoreObsidianLinkHotkey();
     }
@@ -21818,14 +21821,14 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       };
       view.onAutoRenameRequest = async (excerpt) => {
         try {
-          const raw = await generateText(
+          const raw2 = await generateText(
             "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2\u20134 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
             `Session excerpt:
 ${excerpt}`,
             this.settings,
             "claude-haiku-4-5-20251001"
           );
-          const cleaned = raw.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
+          const cleaned = raw2.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
           return cleaned || null;
         } catch (e) {
           return null;

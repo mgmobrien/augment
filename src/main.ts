@@ -899,7 +899,13 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const raw = await this.loadData() as Record<string, unknown> | null;
+    // Schema migration: strip keys removed in v0.0.4 (useWsl, pythonPath).
+    if (raw && typeof raw === "object") {
+      delete raw["useWsl"];
+      delete raw["pythonPath"];
+    }
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
 
     // If clearedLinkHotkey was set on Mac by an older build (before the darwin guard existed),
     // auto-restore the hotkeys and reset the flag.
