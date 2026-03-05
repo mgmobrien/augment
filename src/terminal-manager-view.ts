@@ -57,7 +57,7 @@ export class TerminalManagerView extends ItemView {
   }
 
   getIcon(): string {
-    return "layout-list";
+    return "monitor-dot";
   }
 
   async onOpen(): Promise<void> {
