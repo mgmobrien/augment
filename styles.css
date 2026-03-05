@@ -1386,8 +1386,11 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 
 /* ── Context inspector sidebar panel ── */
 .augment-ctx-panel {
-  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   font-size: var(--font-small);
+  padding: 12px 14px 0;
 }
 
 .augment-ctx-panel-header {
@@ -1399,63 +1402,127 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 .augment-ctx-panel-subtitle {
   font-size: var(--font-smaller);
   color: var(--text-muted);
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
-.augment-ctx-panel .augment-ctx-section {
+.augment-ctx-token-bar {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.augment-ctx-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.augment-ctx-section {
   border-top: 1px solid var(--background-modifier-border);
   padding: 10px 0;
 }
 
-.augment-ctx-panel .augment-ctx-section:first-of-type {
+.augment-ctx-section:first-child {
   border-top: none;
+}
+
+.augment-ctx-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.augment-ctx-section-label {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-small);
+  flex: 1;
 }
 
 .augment-ctx-token-count {
   font-size: var(--font-smaller);
   color: var(--text-faint);
+  flex-shrink: 0;
 }
 
-.augment-ctx-sys-default {
-  font-size: var(--font-smaller);
-  color: var(--text-faint);
-  font-style: italic;
-}
-.augment-ctx-sys-pre {
-  font-size: var(--font-smallest);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
 .augment-ctx-section details summary {
   cursor: pointer;
   list-style: none;
 }
 .augment-ctx-section details summary::-webkit-details-marker { display: none; }
 
-.augment-ctx-content-label {
+.augment-ctx-block {
+  font-family: var(--font-monospace);
   font-size: var(--font-smallest);
-  font-weight: var(--font-semibold);
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 6px 0 4px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  padding: 8px 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
 }
 
-.augment-ctx-linked-hint {
+/* ── Linked notes list ── */
+.augment-ctx-linked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.augment-ctx-linked-row-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 0;
+  border-radius: var(--radius-s);
+}
+.augment-ctx-linked-row-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.augment-ctx-linked-chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  transition: transform 100ms ease;
+}
+.augment-ctx-linked-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.augment-ctx-linked-row.is-open .augment-ctx-linked-chevron {
+  transform: rotate(90deg);
+}
+
+.augment-ctx-linked-row-title {
+  flex: 1;
+  font-size: var(--font-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.augment-ctx-linked-row-token-count {
   font-size: var(--font-smaller);
   color: var(--text-faint);
-  font-style: italic;
-  margin-bottom: 6px;
+  flex-shrink: 0;
 }
 
-.augment-ctx-linked-fm {
-  font-size: var(--font-smaller);
-  color: var(--text-muted);
-  padding-left: 12px;
+.augment-ctx-linked-row-content {
+  display: none;
+  padding: 4px 0 4px 18px;
 }
 
-.augment-ctx-total {
-  font-weight: var(--font-semibold);
+.augment-ctx-linked-row.is-open .augment-ctx-linked-row-content {
+  display: block;
 }
 
 .augment-ctx-empty {
@@ -1463,11 +1530,6 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   font-size: var(--font-small);
   font-style: italic;
   padding: 20px 0;
-}
-.augment-ctx-cost {
-  font-size: var(--font-small);
-  color: var(--text-muted);
-  margin-top: 4px;
 }
 
 /* ── Hotkey override notice ── */

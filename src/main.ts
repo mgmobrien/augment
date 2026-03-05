@@ -1360,7 +1360,6 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
       callback: () => {
         this.openTerminal();
       },

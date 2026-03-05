@@ -17279,6 +17279,9 @@ function formatCost(dollars) {
   if (dollars < 0.1) return `$${dollars.toFixed(3)}`;
   return `$${dollars.toFixed(2)}`;
 }
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
 var ContextInspectorView = class extends import_obsidian2.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -17329,122 +17332,78 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     );
     this.render(ctx, this.lastEditorView);
   }
-  estimateTokens(text) {
-    return Math.ceil(text.length / 4);
-  }
   render(ctx, activeView) {
     var _a2, _b;
     const el = this.contentDiv;
     el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
     el.createEl("div", {
       cls: "augment-ctx-panel-subtitle",
-      text: `What Augment sends to the AI when you press ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter`
+      text: "What Augment sends when you generate"
     });
-    let totalTokens = 0;
-    const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || void 0);
-    const sysTokens = this.estimateTokens(sysPromptText);
-    totalTokens += sysTokens;
-    const sysDetails = sysSection.createEl("details", { attr: { open: "" } });
+    const userMsgText = buildUserMessage(ctx, "Continue writing.");
+    const sysTokens = estimateTokens(sysPromptText);
+    const noteTokens = estimateTokens(userMsgText);
+    const linkedData = ctx.linkedNotes.map((note) => {
+      let text = `Linked note: ${note.title}`;
+      if (note.frontmatter) {
+        for (const [key, val] of Object.entries(note.frontmatter)) {
+          const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
+          text += `
+${key}: ${valStr}`;
+        }
+      }
+      return { note, text, tokens: estimateTokens(text) };
+    });
+    const linkedTokens = linkedData.reduce((sum, d) => sum + d.tokens, 0);
+    const totalTokens = sysTokens + noteTokens + linkedTokens;
+    const modelId = this.plugin.resolveModel();
+    const cost = estimateCost(totalTokens, modelId);
+    el.createEl("div", {
+      cls: "augment-ctx-token-bar",
+      text: `~${totalTokens.toLocaleString()} tokens \xB7 ~${formatCost(cost)} per generation`
+    });
+    const scroll = el.createEl("div", { cls: "augment-ctx-scroll" });
+    const sysSection = scroll.createEl("div", { cls: "augment-ctx-section" });
+    const sysDetails = sysSection.createEl("details");
     const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
     sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
     sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    sysDetails.createEl("pre", { cls: "augment-ctx-pre augment-ctx-sys-pre", text: sysPromptText });
-    const noteSection = el.createEl("div", { cls: "augment-ctx-section" });
+    sysDetails.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
+    const noteSection = scroll.createEl("div", { cls: "augment-ctx-section" });
     const noteHdr = noteSection.createEl("div", { cls: "augment-ctx-section-hdr" });
-    let noteContent = `Note: ${ctx.title}
-`;
-    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
-      for (const [key, val] of Object.entries(ctx.frontmatter)) {
-        const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
-        noteContent += `${key}: ${valStr}
-`;
-      }
-    }
-    if (ctx.selection) {
-      noteContent += `
-${ctx.selection}`;
-    } else if (ctx.surroundingContext) {
-      noteContent += `
-${ctx.surroundingContext}`;
-    }
-    const noteTokens = this.estimateTokens(noteContent);
-    totalTokens += noteTokens;
     noteHdr.createEl("span", {
       cls: "augment-ctx-section-label",
       text: `This note \u2014 \u201C${ctx.title}\u201D`
     });
     noteHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${noteTokens} tokens` });
-    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
-      for (const [key, val] of Object.entries(ctx.frontmatter)) {
-        const row = noteSection.createEl("div", { cls: "augment-ctx-fm-row" });
-        row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
-        const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
-        row.createEl("span", { text: valStr });
-      }
-    }
-    if (ctx.selection) {
-      noteSection.createEl("div", { cls: "augment-ctx-content-label", text: "Selected text" });
-      noteSection.createEl("pre", { cls: "augment-ctx-pre", text: ctx.selection });
-    } else {
-      noteSection.createEl("pre", {
-        cls: "augment-ctx-pre",
-        text: ctx.surroundingContext || "(empty \u2014 position cursor in a note)"
-      });
-    }
-    if (ctx.linkedNotes.length > 0) {
-      const linkedSection = el.createEl("div", { cls: "augment-ctx-section" });
-      const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    const noteBlock = noteSection.createEl("div", { cls: "augment-ctx-block" });
+    noteBlock.setText(userMsgText);
+    if (linkedData.length > 0) {
+      const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section" });
       const activeFile = activeView.file;
-      const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : ctx.linkedNotes.length;
-      let linkedContent = "";
-      for (const note of ctx.linkedNotes) {
-        linkedContent += `${note.title}
-`;
-        if (note.frontmatter) {
-          for (const [, val] of Object.entries(note.frontmatter)) {
-            linkedContent += `${String(val)}
-`;
-          }
-        }
-      }
-      const linkedTokens = this.estimateTokens(linkedContent);
-      totalTokens += linkedTokens;
+      const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : linkedData.length;
+      const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
       linkedHdr.createEl("span", {
         cls: "augment-ctx-section-label",
-        text: `Linked notes (${ctx.linkedNotes.length} of ${totalLinks} linked)`
+        text: `Linked notes (${linkedData.length} of ${totalLinks})`
       });
       linkedHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${linkedTokens} tokens` });
-      linkedSection.createEl("div", {
-        cls: "augment-ctx-linked-hint",
-        text: "Augment sends each linked note\u2019s frontmatter, not its body."
-      });
-      for (const note of ctx.linkedNotes) {
-        const noteEl = linkedSection.createEl("div", { cls: "augment-ctx-linked-note" });
-        noteEl.createEl("div", { cls: "augment-ctx-note-title", text: `\u25B8 ${note.title}` });
-        if (note.frontmatter && Object.keys(note.frontmatter).length > 0) {
-          for (const [key, val] of Object.entries(note.frontmatter)) {
-            const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
-            noteEl.createEl("div", {
-              cls: "augment-ctx-linked-fm",
-              text: `  ${key}: ${valStr}`
-            });
-          }
-        } else {
-          noteEl.createEl("div", { cls: "augment-ctx-note-empty", text: "  (no frontmatter)" });
-        }
+      const list = linkedSection.createEl("div", { cls: "augment-ctx-linked-list" });
+      for (const { note, text, tokens } of linkedData) {
+        const row = list.createEl("div", { cls: "augment-ctx-linked-row" });
+        const header = row.createEl("div", { cls: "augment-ctx-linked-row-header" });
+        const chevron = header.createEl("span", { cls: "augment-ctx-linked-chevron" });
+        (0, import_obsidian2.setIcon)(chevron, "chevron-right");
+        header.createEl("span", { cls: "augment-ctx-linked-row-title", text: note.title });
+        header.createEl("span", { cls: "augment-ctx-linked-row-token-count", text: `~${tokens}` });
+        const content = row.createEl("div", { cls: "augment-ctx-linked-row-content" });
+        content.createEl("div", { cls: "augment-ctx-block", text });
+        header.addEventListener("click", () => {
+          row.toggleClass("is-open", !row.hasClass("is-open"));
+        });
       }
     }
-    const totalSection = el.createEl("div", { cls: "augment-ctx-section augment-ctx-total" });
-    const totalHdr = totalSection.createEl("div", { cls: "augment-ctx-section-hdr" });
-    totalHdr.createEl("span", { cls: "augment-ctx-section-label", text: "Total" });
-    totalHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${totalTokens} tokens` });
-    const modelId = this.plugin.resolveModel();
-    const cost = estimateCost(totalTokens, modelId);
-    totalSection.createEl("div", {
-      cls: "augment-ctx-cost",
-      text: `~${formatCost(cost)} per generation (assumes ${1024}-token output)`
-    });
   }
   async onClose() {
     this.contentDiv.empty();
@@ -22088,7 +22047,6 @@ ${excerpt}`,
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
       callback: () => {
         this.openTerminal();
       }
