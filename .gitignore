@@ -1,7 +1,6 @@
 node_modules
 .DS_Store
-electron/renderer.js
-electron/renderer.js.map
+electron/
 dist-electron/
 
 # AI team working files — ephemeral, regenerated each session
