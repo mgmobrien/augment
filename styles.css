@@ -1429,9 +1429,10 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   flex-shrink: 0;
 }
 
-.augment-ctx-scroll {
+.augment-ctx-panel-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding-bottom: 12px;
 }
 
@@ -1463,20 +1464,44 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   flex-shrink: 0;
 }
 
-.augment-ctx-section details summary {
+/* ── Collapsible sections (chevron-based) ── */
+.augment-ctx-collapsible .augment-ctx-section-hdr {
   cursor: pointer;
-  list-style: none;
+  border-radius: var(--radius-s);
 }
-.augment-ctx-section details summary::-webkit-details-marker { display: none; }
+.augment-ctx-collapsible .augment-ctx-section-hdr:hover {
+  background: var(--background-modifier-hover);
+}
+
+.augment-ctx-chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  transition: transform 100ms ease;
+}
+.augment-ctx-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.augment-ctx-collapsible.is-open .augment-ctx-chevron {
+  transform: rotate(90deg);
+}
+
+.augment-ctx-collapsible-content {
+  display: none;
+}
+.augment-ctx-collapsible.is-open .augment-ctx-collapsible-content {
+  display: block;
+}
 
 .augment-ctx-block {
   font-family: var(--font-monospace);
   font-size: var(--font-smallest);
-  background: var(--background-secondary);
+  background: var(--background-modifier-form-field);
   border-radius: var(--radius-s);
   padding: 8px 10px;
-  max-height: 280px;
-  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;

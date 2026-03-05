@@ -128,15 +128,20 @@ export class ContextInspectorView extends ItemView {
     });
 
     // ── Scrollable content ──
-    const scroll = el.createEl("div", { cls: "augment-ctx-scroll" });
+    const scroll = el.createEl("div", { cls: "augment-ctx-panel-body" });
 
     // ── System prompt section ──
-    const sysSection = scroll.createEl("div", { cls: "augment-ctx-section" });
-    const sysDetails = sysSection.createEl("details");
-    const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
-    sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
-    sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    sysDetails.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
+    const sysSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible" });
+    const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    const sysChevron = sysHdr.createEl("span", { cls: "augment-ctx-chevron" });
+    setIcon(sysChevron, "chevron-right");
+    sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
+    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+    sysContent.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
+    sysHdr.addEventListener("click", () => {
+      sysSection.toggleClass("is-open", !sysSection.hasClass("is-open"));
+    });
 
     // ── Current note section ──
     const noteSection = scroll.createEl("div", { cls: "augment-ctx-section" });
