@@ -12,3 +12,6 @@ spinner-test.html
 
 # Windows updater — saved vault path (user-local, not committed)
 scripts/update.cfg
+
+# Per-developer vault path for deploy.sh (set once: echo "/path/to/vault" > .vault-path)
+.vault-path

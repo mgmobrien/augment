@@ -3,7 +3,20 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
-VAULT_PLUGIN_DIR="$HOME/Obsidian Main Vault/ObsidianVault/.obsidian/plugins/augment-terminal"
+
+# Resolve vault path — checked in order:
+#   1. VAULT_PATH env var
+#   2. .vault-path file at repo root (gitignored, set once per developer)
+#   3. Hardcoded default (Matt's local vault)
+if [ -n "${VAULT_PATH:-}" ]; then
+  VAULT_BASE="$VAULT_PATH"
+elif [ -f "$PLUGIN_DIR/.vault-path" ]; then
+  VAULT_BASE="$(cat "$PLUGIN_DIR/.vault-path" | tr -d '[:space:]')"
+else
+  VAULT_BASE="$HOME/Obsidian Main Vault/ObsidianVault"
+fi
+
+VAULT_PLUGIN_DIR="$VAULT_BASE/.obsidian/plugins/augment-terminal"
 
 # Check build exists
 if [ ! -f "$PLUGIN_DIR/main.js" ]; then
