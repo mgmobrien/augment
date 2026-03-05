@@ -412,7 +412,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
 
     // ── System 3 account ────────────────────────────────────────────────────
-    overviewPane.createEl("h3", { cls: "augment-settings-header", text: "System 3 account" });
+    overviewPane.createEl("h3", { cls: "augment-settings-section-heading", text: "System 3 account" });
 
     // apiKeyWrapper declared here so renderS3Account can toggle its visibility.
     const apiKeyWrapper = overviewPane.createDiv();
@@ -676,6 +676,8 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     updateSecondarySlot(this.plugin.settings.outputFormat);
 
+    continuationPane.createDiv({ cls: "augment-pane-section", text: "Context" });
+
     secondarySelect.addEventListener("change", async () => {
       const format = this.plugin.settings.outputFormat;
       if (format === "heading") {
@@ -774,27 +776,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note.",
     });
 
-    // Variable reference table.
-    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
-    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
-    const varTable = varRef.createEl("table", { cls: "augment-var-table" });
-    const varTbody = varTable.createEl("tbody");
-    const varRows = [
-      { name: "{{title}}",              desc: "Note filename (without extension)" },
-      { name: "{{selection}}",          desc: "Current editor selection" },
-      { name: "{{context}}",            desc: "~50 lines around the cursor" },
-      { name: "{{note_content}}",       desc: "Full note text" },
-      { name: "{{linked_notes}}",       desc: "Linked notes: title + frontmatter" },
-      { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
-      { name: "{{frontmatter.KEY}}",   desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" },
-    ];
-    for (const v of varRows) {
-      const tr = varTbody.createEl("tr");
-      const td1 = tr.createEl("td");
-      td1.createEl("code", { text: v.name });
-      tr.createEl("td", { text: v.desc });
-    }
-
     // Template folder setting.
     new Setting(templatesPane)
       .setName("Template folder")
@@ -845,8 +826,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
 
     // Template list container.
-    templatesPane.createDiv({ cls: "augment-template-section-header" })
-      .createDiv({ cls: "augment-section-label", text: "Templates in folder" });
+    templatesPane.createDiv({ cls: "augment-pane-section", text: "Your templates" });
     const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
 
     const renderTemplateList = () => {
@@ -922,7 +902,29 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     });
 
-    // Format guide.
+    // Reference section — variables table + format guide.
+    templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
+
+    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
+    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+    const varTable = varRef.createEl("table", { cls: "augment-var-table" });
+    const varTbody = varTable.createEl("tbody");
+    const varRows = [
+      { name: "{{title}}",              desc: "Note filename (without extension)" },
+      { name: "{{selection}}",          desc: "Current editor selection" },
+      { name: "{{context}}",            desc: "~50 lines around the cursor" },
+      { name: "{{note_content}}",       desc: "Full note text" },
+      { name: "{{linked_notes}}",       desc: "Linked notes: title + frontmatter" },
+      { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
+      { name: "{{frontmatter.KEY}}",   desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" },
+    ];
+    for (const v of varRows) {
+      const tr = varTbody.createEl("tr");
+      const td1 = tr.createEl("td");
+      td1.createEl("code", { text: v.name });
+      tr.createEl("td", { text: v.desc });
+    }
+
     const formatGuide = templatesPane.createDiv({ cls: "augment-template-format" });
     formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
     formatGuide.createEl("pre", {
@@ -1115,7 +1117,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Hotkeys (Windows/Linux only — Ctrl+Enter conflict doesn't exist on Mac) ──
     if (process.platform !== "darwin") {
-      terminalPane.createDiv({ cls: "augment-section-label", text: "Hotkeys" });
+      terminalPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
       if (this.plugin.settings.clearedLinkHotkey) {
         new Setting(terminalPane)
           .setName("Ctrl+Enter")
