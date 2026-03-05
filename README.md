@@ -6,21 +6,9 @@ Augment is designed for high-speed, in-editor continuation while also providing 
 
 Press Mod+Enter in any note to generate inline — Augment uses your note's title, frontmatter, linked notes, and everything above your cursor as context. The terminal manager runs Claude Code sessions inside Obsidian alongside your notes.
 
-## Prerequisites
+## Install
 
-- Node.js 18+
-- npm 8+
-- Python 3.8+ (terminal manager only — not required for AI generation)
-- macOS or Linux (Windows: see WSL.md)
-
-## Build and install
-
-```bash
-npm install
-npm run build
-```
-
-Then copy the three plugin files into your Obsidian vault:
+`main.js` is committed to the repo — no build required.
 
 ```bash
 mkdir -p "{vault}/.obsidian/plugins/augment/"
@@ -31,7 +19,14 @@ Replace `{vault}` with the absolute path to your Obsidian vault.
 
 **Windows with WSL:** your vault is typically at `/mnt/c/Users/{username}/Documents/Obsidian/{vault-name}/`. Find the exact path in Obsidian: Settings → General → vault path — then prefix with `/mnt/c` and replace backslashes with forward slashes.
 
-`main.js` is committed to the repo — if you don't want to build from source, skip `npm run build` and copy the files directly.
+### Build from source
+
+```bash
+npm install
+npm run build
+```
+
+Then copy as above.
 
 > `npm run obsidian:install` exists but is hardcoded to the maintainer's vault path. Use the manual copy above instead.
 
@@ -50,10 +45,14 @@ Replace `{vault}` with the absolute path to your Obsidian vault.
 4. A spinner appears at the cursor while generating; output is inserted inline when complete
 5. Status bar shows "Augment: [model name]" when configured
 
-## Windows / WSL
+## Terminal / Claude Code setup
 
-The terminal manager requires WSL on Windows. See WSL.md.
-AI generation (Mod+Enter) works on Windows without WSL.
+Open Settings → Augment → Terminal tab. The setup wizard detects your environment and walks through each prerequisite:
+
+- **macOS/Linux:** Python 3, Node.js, Claude Code, CC authentication
+- **Windows:** WSL, then Python/Node/CC inside WSL
+
+The wizard shows only the next missing step and advances as each is resolved. Once everything is green, the terminal manager is ready. See WSL.md for manual Windows setup.
 
 ## Architecture
 
