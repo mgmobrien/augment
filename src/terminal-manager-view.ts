@@ -381,6 +381,10 @@ export class TerminalManagerView extends ItemView {
     const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
     const nameEl = line.createSpan({ cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""), text: name });
     if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
+    const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
+    if (identity && identity.toLowerCase() !== name.toLowerCase()) {
+      line.createSpan({ cls: "augment-tm-role", text: identity });
+    }
     line.createDiv({ cls: "augment-tm-spacer" });
 
     const unread =

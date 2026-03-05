@@ -1561,6 +1561,16 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 .augment-tm-team-gap {
   height: 8px;
 }
+.augment-tm-role {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  margin-left: 5px;
+  opacity: 0.75;
+}
+.augment-tm-role::before {
+  content: "·";
+  margin-right: 4px;
+}
 
 /* ── Terminal Manager: other projects section ────────────────────────────── */
 .augment-tm-project-row {
