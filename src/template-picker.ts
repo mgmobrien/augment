@@ -2,7 +2,7 @@ import { App, FuzzySuggestModal, Modal, Setting, TFile, TFolder } from "obsidian
 import { VaultContext } from "./vault-context";
 
 export function getTemplateFiles(app: App, folderPath: string): TFile[] {
-  const folder = app.vault.getFolderByPath(folderPath);
+  const folder = app.vault.getAbstractFileByPath(folderPath);
   if (!(folder instanceof TFolder)) return [];
   return folder.children.filter(
     (f): f is TFile => f instanceof TFile && f.extension === "md"

@@ -369,7 +369,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
 
     // Create folder if absent.
-    if (!this.app.vault.getFolderByPath(targetFolder)) {
+    if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
       try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
     }
 

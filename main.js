@@ -18097,7 +18097,7 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
 // src/template-picker.ts
 var import_obsidian4 = require("obsidian");
 function getTemplateFiles(app, folderPath) {
-  const folder = app.vault.getFolderByPath(folderPath);
+  const folder = app.vault.getAbstractFileByPath(folderPath);
   if (!(folder instanceof import_obsidian4.TFolder)) return [];
   return folder.children.filter(
     (f) => f instanceof import_obsidian4.TFile && f.extension === "md"
@@ -19931,7 +19931,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async scaffoldDefaultTemplates() {
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
-    if (!this.app.vault.getFolderByPath(targetFolder)) {
+    if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
       try {
         await this.app.vault.createFolder(targetFolder);
       } catch (e) {
