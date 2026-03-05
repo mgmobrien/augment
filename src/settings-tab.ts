@@ -406,25 +406,36 @@ export class AugmentSettingTab extends PluginSettingTab {
         frag.appendText("Anthropic API key. ");
         const a = frag.createEl("a", {
           text: "Get your API key",
-          href: "https://platform.claude.com/settings/keys",
+          href: "https://console.anthropic.com/settings/api-keys",
         });
         a.target = "_blank";
         a.rel = "noopener";
+        frag.appendText("\u00a0");
+
+        const infoIcon = frag.createEl("span", {
+          cls: "augment-api-key-info",
+          text: "\u24d8",
+        });
+
+        let tip: HTMLElement | null = null;
+
+        infoIcon.addEventListener("mouseenter", () => {
+          tip = document.createElement("div");
+          tip.className = "augment-api-key-tip";
+          tip.textContent =
+            "Claude Max/Pro subscriptions don\u2019t work here \u2014 Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with sk-ant-api03-. Billing is separate from any subscription.";
+          document.body.appendChild(tip);
+          const rect = infoIcon.getBoundingClientRect();
+          tip.style.top = `${rect.bottom + 6}px`;
+          tip.style.left = `${rect.left}px`;
+        });
+
+        infoIcon.addEventListener("mouseleave", () => {
+          tip?.remove();
+          tip = null;
+        });
       })
     );
-
-    const subNote = overviewPane.createEl("details", { cls: "augment-api-key-note" });
-    subNote.createEl("summary", { text: "\u24d8 Claude Max/Pro subscription note" });
-    const subBody = subNote.createEl("div", { cls: "augment-api-key-note-body" });
-    subBody.appendText("Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with ");
-    subBody.createEl("code", { text: "sk-ant-api03-" });
-    subBody.appendText(" from ");
-    subBody.createEl("a", {
-      text: "console.anthropic.com",
-      href: "https://console.anthropic.com/settings/api-keys",
-      attr: { target: "_blank", rel: "noopener" },
-    });
-    subBody.appendText(". Billing is separate from any subscription.");
 
     // Model selector (on Overview pane)
     const FALLBACK_MODELS = [

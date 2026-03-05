@@ -1321,22 +1321,24 @@
   padding: 20px 0;
 }
 
-/* ── API key subscription note ── */
-.augment-api-key-note {
-  margin: 4px 0 12px 0;
-  font-size: 0.85em;
+/* ── API key info tooltip ── */
+.augment-api-key-info {
+  cursor: default;
   color: var(--text-muted);
-}
-.augment-api-key-note summary {
-  cursor: pointer;
-  list-style: none;
+  font-size: 0.85em;
   user-select: none;
 }
-.augment-api-key-note summary::-webkit-details-marker { display: none; }
-.augment-api-key-note[open] summary {
-  margin-bottom: 6px;
-}
-.augment-api-key-note-body {
-  padding-left: 4px;
+.augment-api-key-tip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 280px;
+  padding: 8px 10px;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-size: 0.8em;
   line-height: 1.5;
+  color: var(--text-normal);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
