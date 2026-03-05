@@ -22336,7 +22336,7 @@ ${excerpt}`,
       }
       this.triggerGenerate(view.editor);
     });
-    this.addRibbonIcon("square-terminal", "Open terminal", () => {
+    this.addRibbonIcon("terminal", "Open terminal", () => {
       this.openTerminal();
     });
     this.addCommand({
