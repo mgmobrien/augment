@@ -464,8 +464,13 @@ export default class AugmentTerminalPlugin extends Plugin {
       id: "augment-generate",
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
-      editorCallback: (editor, view) => {
-        if (!(view instanceof MarkdownView)) return;
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for generate");
+          new Notice("Open a note to generate");
+          return;
+        }
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
           const notice = new Notice("Augment: API key required \u2014 click to open settings", 0);
@@ -477,7 +482,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           });
           return;
         }
-        this.triggerGenerate(editor);
+        this.triggerGenerate(view.editor);
       },
     });
 
@@ -485,8 +490,14 @@ export default class AugmentTerminalPlugin extends Plugin {
       id: "augment-generate-from-template",
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
-      editorCallback: (editor, view) => {
-        if (!(view instanceof MarkdownView)) return;
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for generate-from-template");
+          new Notice("Open a note to generate");
+          return;
+        }
+        const editor = view.editor;
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
           const notice = new Notice("Augment: API key required \u2014 click to open settings", 0);

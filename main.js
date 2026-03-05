@@ -20096,8 +20096,13 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       id: "augment-generate",
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
-      editorCallback: (editor, view) => {
-        if (!(view instanceof import_obsidian8.MarkdownView)) return;
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for generate");
+          new import_obsidian8.Notice("Open a note to generate");
+          return;
+        }
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
           const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
@@ -20109,15 +20114,21 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           });
           return;
         }
-        this.triggerGenerate(editor);
+        this.triggerGenerate(view.editor);
       }
     });
     this.addCommand({
       id: "augment-generate-from-template",
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
-      editorCallback: (editor, view) => {
-        if (!(view instanceof import_obsidian8.MarkdownView)) return;
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for generate-from-template");
+          new import_obsidian8.Notice("Open a note to generate");
+          return;
+        }
+        const editor = view.editor;
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
           const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
