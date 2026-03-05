@@ -563,7 +563,6 @@
   gap: 12px;
   padding: 16px 0 12px;
   margin-bottom: 4px;
-  border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .augment-settings-header-icon {
