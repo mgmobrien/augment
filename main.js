@@ -17312,9 +17312,13 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     this.contentDiv.addClass("augment-ctx-panel");
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
+        var _a2, _b, _c;
         if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian2.MarkdownView) {
+          const prev = (_b = (_a2 = this.lastEditorView) == null ? void 0 : _a2.file) == null ? void 0 : _b.path;
           this.lastEditorView = leaf.view;
-          this.refreshToCursor();
+          if (((_c = leaf.view.file) == null ? void 0 : _c.path) !== prev) {
+            this.refreshToCursor();
+          }
         }
       })
     );

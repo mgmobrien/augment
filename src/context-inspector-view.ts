@@ -69,12 +69,15 @@ export class ContextInspectorView extends ItemView {
     this.contentDiv = this.containerEl.children[1] as HTMLElement;
     this.contentDiv.addClass("augment-ctx-panel");
 
-    // Trigger 1: note switch → cursor state
+    // Trigger 1: note switch → cursor state (only if file changed)
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf?.view instanceof MarkdownView) {
+          const prev = this.lastEditorView?.file?.path;
           this.lastEditorView = leaf.view;
-          this.refreshToCursor();
+          if (leaf.view.file?.path !== prev) {
+            this.refreshToCursor();
+          }
         }
       })
     );
