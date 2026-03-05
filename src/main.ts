@@ -1473,8 +1473,15 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       this.refreshAttentionBadge();
-      // Auto-open Context Inspector in right sidebar on first install.
+      // Auto-open Terminal Manager in left sidebar after reload.
       // Obsidian persists sidebar state, so check if one already exists.
+      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER).length === 0) {
+        const leaf = this.app.workspace.getLeftLeaf(false);
+        if (leaf) {
+          leaf.setViewState({ type: VIEW_TYPE_TERMINAL_MANAGER, active: false });
+        }
+      }
+      // Auto-open Context Inspector in right sidebar on first install.
       if (this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR).length === 0) {
         const leaf = this.app.workspace.getRightLeaf(false);
         if (leaf) {

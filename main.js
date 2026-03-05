@@ -22433,6 +22433,12 @@ ${excerpt}`,
     );
     this.app.workspace.onLayoutReady(() => {
       this.refreshAttentionBadge();
+      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER).length === 0) {
+        const leaf = this.app.workspace.getLeftLeaf(false);
+        if (leaf) {
+          leaf.setViewState({ type: VIEW_TYPE_TERMINAL_MANAGER, active: false });
+        }
+      }
       if (this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR).length === 0) {
         const leaf = this.app.workspace.getRightLeaf(false);
         if (leaf) {
