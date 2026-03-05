@@ -17288,38 +17288,187 @@ function assembleVaultContext(app, editor, settings) {
 // src/settings-tab.ts
 function execAsync(cmd) {
   return new Promise((resolve, reject) => {
-    (0, import_child_process.exec)(cmd, { timeout: 5e3 }, (err, stdout, stderr) => {
+    (0, import_child_process.exec)(cmd, { timeout: 1e4 }, (err, stdout, stderr) => {
       if (err) reject(err);
       else resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
     });
   });
 }
-async function detectCC() {
+async function checkBool(cmd) {
   try {
-    const which = await execAsync("which claude");
-    if (!which.stdout.trim()) return { found: false };
-    let version;
-    try {
-      const v = await execAsync("claude --version");
-      version = v.stdout.trim();
-    } catch (e) {
-    }
-    let authed = false;
-    try {
-      const status = await execAsync("claude auth status");
-      authed = !status.stdout.toLowerCase().includes("not logged in") && !status.stdout.toLowerCase().includes("not authenticated");
-    } catch (e) {
-      try {
-        const home = process.env.HOME || process.env.USERPROFILE || "";
-        const { existsSync } = require("fs");
-        authed = existsSync(`${home}/.claude/.credentials.json`) || existsSync(`${home}/.claude/credentials.json`);
-      } catch (e2) {
-      }
-    }
-    return { found: true, version, authed };
+    const r = await execAsync(cmd);
+    return r.stdout.trim().length > 0;
   } catch (e) {
-    return { found: false };
+    return false;
   }
+}
+async function checkAuth(prefix) {
+  try {
+    const r = await execAsync(`${prefix}claude auth status`);
+    try {
+      const parsed = JSON.parse(r.stdout.trim());
+      if (typeof parsed.loggedIn === "boolean") return parsed.loggedIn;
+    } catch (e) {
+    }
+    const lower = r.stdout.toLowerCase();
+    return !lower.includes("not logged in") && !lower.includes("not authenticated");
+  } catch (e) {
+    return false;
+  }
+}
+async function detectDeps(app) {
+  const platform = process.platform;
+  const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
+  if (platform === "win32") {
+    const wsl = await checkBool("wsl --list");
+    if (!wsl) return { python: false, node: false, cc: false, authed: false, vaultConfigured, wsl: false };
+    const pythonInWsl = await checkBool("wsl -e python3 --version");
+    const nodeInWsl = await checkBool("wsl -e node --version");
+    const ccInWsl = nodeInWsl ? await checkBool("wsl -e which claude") : false;
+    const authedInWsl = ccInWsl ? await checkAuth("wsl -e ") : false;
+    return {
+      python: pythonInWsl,
+      node: nodeInWsl,
+      cc: ccInWsl,
+      authed: authedInWsl,
+      vaultConfigured,
+      wsl,
+      pythonInWsl,
+      nodeInWsl,
+      ccInWsl,
+      authedInWsl
+    };
+  }
+  const python = await checkBool("python3 --version");
+  const node = await checkBool("node --version");
+  const cc = node ? await checkBool("which claude") : false;
+  const authed = cc ? await checkAuth("") : false;
+  return { python, node, cc, authed, vaultConfigured };
+}
+function getMacSteps(deps) {
+  if (!deps.python) {
+    return {
+      title: "Install Python 3",
+      desc: "Python 3 is required for Augment's terminal connection.",
+      action: "terminal",
+      actionLabel: "Install developer tools",
+      terminalCmd: "xcode-select --install\n",
+      secondaryLabel: "Download Python from python.org \u2197",
+      secondaryUrl: "https://www.python.org/downloads/"
+    };
+  }
+  if (!deps.node) {
+    return {
+      title: "Install Node.js",
+      desc: "Node.js is required to install Claude Code. Download and run the installer from nodejs.org.",
+      action: "link",
+      actionLabel: "Open nodejs.org \u2197",
+      actionUrl: "https://nodejs.org"
+    };
+  }
+  if (!deps.cc) {
+    return {
+      title: "Install Claude Code",
+      desc: "A terminal will open and install Claude Code automatically.",
+      action: "terminal",
+      actionLabel: "Install Claude Code",
+      terminalCmd: "npm install -g @anthropic-ai/claude-code\n"
+    };
+  }
+  if (!deps.authed) {
+    return {
+      title: "Sign in to Claude",
+      desc: "A terminal will open and your browser will open for sign-in. Use the same account as claude.ai.",
+      action: "terminal",
+      actionLabel: "Sign in to Claude",
+      terminalCmd: "claude auth login\n"
+    };
+  }
+  if (!deps.vaultConfigured) {
+    return {
+      title: "Set up your vault",
+      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
+      action: "vault",
+      actionLabel: "Set up vault"
+    };
+  }
+  return null;
+}
+function getWindowsSteps(deps) {
+  if (!deps.wsl) {
+    return {
+      title: "Install WSL",
+      desc: "Claude Code runs through Windows Subsystem for Linux (WSL). Open PowerShell as Administrator, run this command, and restart when prompted:",
+      action: "copy",
+      actionLabel: "Copy",
+      copyText: "wsl --install"
+    };
+  }
+  if (!deps.pythonInWsl) {
+    return {
+      title: "Install Python",
+      desc: "Python 3 is required for Augment's terminal connection. A terminal will open and install Python inside WSL. You may be prompted for your WSL password.",
+      action: "terminal",
+      actionLabel: "Install Python",
+      terminalCmd: "sudo apt update && sudo apt install -y python3\n"
+    };
+  }
+  if (!deps.nodeInWsl) {
+    return {
+      title: "Install Node.js",
+      desc: "Node.js is required to install Claude Code. A terminal will open and install Node.js inside WSL.",
+      action: "terminal",
+      actionLabel: "Install Node.js",
+      terminalCmd: "sudo apt update && sudo apt install -y nodejs npm\n"
+    };
+  }
+  if (!deps.ccInWsl) {
+    return {
+      title: "Install Claude Code",
+      desc: "A terminal will open and install Claude Code inside WSL.",
+      action: "terminal",
+      actionLabel: "Install Claude Code",
+      terminalCmd: "npm install -g @anthropic-ai/claude-code\n"
+    };
+  }
+  if (!deps.authedInWsl) {
+    return {
+      title: "Sign in to Claude",
+      desc: "A terminal will open and your browser will open for sign-in. Use the same account as claude.ai.",
+      action: "terminal",
+      actionLabel: "Sign in to Claude",
+      terminalCmd: "claude auth login\n"
+    };
+  }
+  if (!deps.vaultConfigured) {
+    return {
+      title: "Set up your vault",
+      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
+      action: "vault",
+      actionLabel: "Set up vault"
+    };
+  }
+  return null;
+}
+function getStepIndex(deps) {
+  const platform = process.platform;
+  if (platform === "win32") {
+    const total2 = 6;
+    if (!deps.wsl) return { current: 1, total: total2 };
+    if (!deps.pythonInWsl) return { current: 2, total: total2 };
+    if (!deps.nodeInWsl) return { current: 3, total: total2 };
+    if (!deps.ccInWsl) return { current: 4, total: total2 };
+    if (!deps.authedInWsl) return { current: 5, total: total2 };
+    if (!deps.vaultConfigured) return { current: 6, total: total2 };
+    return { current: total2, total: total2 };
+  }
+  const total = 5;
+  if (!deps.python) return { current: 1, total };
+  if (!deps.node) return { current: 2, total };
+  if (!deps.cc) return { current: 3, total };
+  if (!deps.authed) return { current: 4, total };
+  if (!deps.vaultConfigured) return { current: 5, total };
+  return { current: total, total };
 }
 var TEMPLATE_SCAFFOLD = `---
 name:
@@ -17507,7 +17656,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       ol.createEl("li", { text: step });
     }
     const mockEl = overviewPane.createEl("div", { cls: "augment-overview-mock" });
-    mockEl.createEl("div", { cls: "augment-overview-mock-label", text: "Example output (Callout format)" });
+    mockEl.createEl("div", { cls: "augment-overview-mock-label", text: "Example output (callout format)" });
     mockEl.createEl("pre", {
       cls: "augment-overview-mock-code",
       text: `> [!ai]+ Claude Haiku 4.5
@@ -17789,81 +17938,116 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-context-intro",
       text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
     });
-    const ccSection = terminalPane.createDiv({ cls: "augment-cc-status" });
-    ccSection.createDiv({ cls: "augment-section-label", text: "Claude Code" });
-    const ccBody = ccSection.createDiv();
-    let ccDetected = false;
-    const renderCCStatus = async () => {
-      ccBody.empty();
-      ccBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Checking..." });
-      const status = await detectCC();
-      ccBody.empty();
-      ccDetected = status.found;
-      if (status.found) {
-        const versionRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
-        versionRow.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
-        versionRow.createSpan({ text: `  Claude Code ${status.version || "(unknown version)"}` });
-        if (status.authed) {
-          const authRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
-          authRow.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
-          authRow.createSpan({ text: "  Authenticated" });
-        } else {
-          const authRow = ccBody.createDiv({ cls: "augment-cc-status-row" });
-          authRow.createSpan({ cls: "augment-cc-fail", text: "\u2717" });
-          authRow.createSpan({ text: "  Not authenticated" });
-          ccBody.createEl("p", {
-            cls: "augment-cc-muted",
-            text: "Run claude auth login to connect your Anthropic account."
-          });
-          const actions = ccBody.createDiv({ cls: "augment-cc-actions" });
-          const authBtn = actions.createEl("button", {
-            cls: "mod-cta",
-            text: "Open terminal to authenticate"
-          });
-          authBtn.addEventListener("click", async () => {
-            const view = await this.plugin.openFocusedTerminal();
-            setTimeout(() => view.write("claude auth login\n"), 800);
-          });
-        }
-      } else {
-        const notFound = ccBody.createDiv({ cls: "augment-cc-status-row" });
-        notFound.createSpan({ cls: "augment-cc-fail", text: "\u2717" });
-        notFound.createSpan({ text: "  Claude Code not detected" });
-        ccBody.createEl("p", {
-          cls: "augment-cc-muted",
-          text: "The Terminals feature requires Claude Code."
-        });
-        const actions = ccBody.createDiv({ cls: "augment-cc-actions" });
-        const installBtn = actions.createEl("button", {
-          cls: "mod-cta",
-          text: "Install Claude Code"
-        });
-        installBtn.addEventListener("click", async () => {
-          const view = await this.plugin.openFocusedTerminal();
-          setTimeout(() => view.write("npm install -g @anthropic-ai/claude-code\n"), 800);
-        });
-        const docsLink = actions.createEl("a", {
-          cls: "augment-folder-open",
-          text: "Docs \u2197",
-          href: "https://docs.anthropic.com/en/docs/claude-code/overview"
-        });
-        docsLink.target = "_blank";
-        docsLink.rel = "noopener";
+    const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
+    const wizardBody = wizardSection.createDiv();
+    const setupVault = async () => {
+      const claudeMdPath = "CLAUDE.md";
+      if (!this.app.vault.getAbstractFileByPath(claudeMdPath)) {
+        const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
+        const content = `# Vault
+
+This is my Obsidian vault.
+
+## Agent skills
+
+Skills live in \`agents/skills/\`. Run them with \`/[skill name]\` in any note (requires Augment).
+
+## Templates
+
+Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
+`;
+        await this.app.vault.create(claudeMdPath, content);
       }
-      const recheck = ccBody.createDiv({ cls: "augment-cc-recheck" });
-      const recheckLink = recheck.createEl("a", { text: "Re-check \u21BA" });
-      recheckLink.href = "#";
-      recheckLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        void renderCCStatus();
-      });
+      const skillsPath = "agents/skills";
+      if (!this.app.vault.getAbstractFileByPath(skillsPath)) {
+        await this.app.vault.createFolder(skillsPath);
+      }
     };
-    let ccDetectionRan = false;
-    ccBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Click to check Claude Code status" });
+    const renderWizard = async () => {
+      wizardBody.empty();
+      wizardBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Checking dependencies..." });
+      const deps = await detectDeps(this.app);
+      wizardBody.empty();
+      const step = process.platform === "win32" ? getWindowsSteps(deps) : getMacSteps(deps);
+      if (!step) {
+        const ready = wizardBody.createDiv({ cls: "augment-cc-ready" });
+        ready.createSpan({ cls: "augment-cc-ok", text: "\u2713" });
+        ready.createSpan({ text: " All set. Claude Code is ready and your vault is configured." });
+        const recheckLink = ready.createEl("a", { cls: "augment-cc-recheck", text: "Re-check \u21BA" });
+        recheckLink.href = "#";
+        recheckLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          void renderWizard();
+        });
+        return;
+      }
+      const { current, total } = getStepIndex(deps);
+      const hdr = wizardBody.createDiv({ cls: "augment-setup-header" });
+      hdr.createSpan({ cls: "augment-setup-title", text: "Set up Claude Code" });
+      hdr.createSpan({ cls: "augment-setup-step-count", text: `Step ${current} of ${total}` });
+      const body = wizardBody.createDiv({ cls: "augment-setup-body" });
+      body.createEl("div", { cls: "augment-setup-step-title", text: step.title });
+      body.createEl("p", { cls: "augment-setup-step-desc", text: step.desc });
+      const actions = body.createDiv({ cls: "augment-setup-actions" });
+      if (step.action === "link") {
+        const linkBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
+        linkBtn.addEventListener("click", () => {
+          window.open(step.actionUrl, "_blank");
+        });
+      } else if (step.action === "terminal") {
+        const termBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
+        termBtn.addEventListener("click", async () => {
+          const view = await this.plugin.openFocusedTerminal();
+          setTimeout(() => view.write(step.terminalCmd), 800);
+        });
+      } else if (step.action === "copy") {
+        body.createEl("code", { cls: "augment-wsl-command", text: step.copyText });
+        const copyBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(step.copyText);
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => {
+            copyBtn.textContent = step.actionLabel;
+          }, 1500);
+        });
+      } else if (step.action === "vault") {
+        const vaultBtn = actions.createEl("button", { cls: "mod-cta", text: step.actionLabel });
+        vaultBtn.addEventListener("click", async () => {
+          vaultBtn.textContent = "Setting up...";
+          vaultBtn.disabled = true;
+          await setupVault();
+          void renderWizard();
+        });
+      }
+      if (step.secondaryLabel && step.secondaryUrl) {
+        const secLink = actions.createEl("a", {
+          cls: "augment-folder-open",
+          text: step.secondaryLabel
+        });
+        secLink.href = step.secondaryUrl;
+        secLink.target = "_blank";
+        secLink.rel = "noopener";
+      }
+      if (step.action !== "vault") {
+        const recheck = body.createDiv({ cls: "augment-cc-recheck" });
+        const recheckLink = recheck.createEl("a", { text: "Done \u2014 check \u21BA" });
+        recheckLink.href = "#";
+        recheckLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          recheckLink.textContent = "Checking...";
+          recheckLink.style.pointerEvents = "none";
+          setTimeout(() => {
+            void renderWizard();
+          }, 2e3);
+        });
+      }
+    };
+    let wizardRan = false;
+    wizardBody.createDiv({ cls: "augment-cc-status-row augment-cc-muted", text: "Click to check setup status" });
     terminalTab.addEventListener("click", () => {
-      if (!ccDetectionRan) {
-        ccDetectionRan = true;
-        void renderCCStatus();
+      if (!wizardRan) {
+        wizardRan = true;
+        void renderWizard();
       }
     });
     terminalPane.createDiv({ cls: "augment-section-label", text: "Configuration" });

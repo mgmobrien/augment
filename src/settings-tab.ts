@@ -414,7 +414,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     const mockEl = overviewPane.createEl("div", { cls: "augment-overview-mock" });
-    mockEl.createEl("div", { cls: "augment-overview-mock-label", text: "Example output (Callout format)" });
+    mockEl.createEl("div", { cls: "augment-overview-mock-label", text: "Example output (callout format)" });
     mockEl.createEl("pre", {
       cls: "augment-overview-mock-code",
       text: `> [!ai]+ Claude Haiku 4.5\n>\n> Your generated text appears here,\n> inline in the document.`,
