@@ -17972,6 +17972,25 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         this.plugin.app.workspace.revealLeaf(leaf);
       }
     });
+    {
+      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
+      continuationPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
+      if (this.plugin.settings.clearedLinkHotkey) {
+        new import_obsidian3.Setting(continuationPane).setName(`${modKey}+Enter`).setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`).addButton((btn) => {
+          btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
+            await this.plugin.restoreObsidianLinkHotkey();
+            this.display();
+          });
+        });
+      } else {
+        new import_obsidian3.Setting(continuationPane).setName(`${modKey}+Enter conflict`).setDesc(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`).addButton((btn) => {
+          btn.setButtonText(`Claim ${modKey}+Enter`).setCta().onClick(async () => {
+            await this.plugin.clearObsidianLinkHotkey();
+            this.display();
+          });
+        });
+      }
+    }
     templatesPane.createEl("p", {
       cls: "augment-context-intro",
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
@@ -18233,25 +18252,6 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
         await this.plugin.saveData(this.plugin.settings);
       });
     });
-    {
-      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
-      terminalPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
-      if (this.plugin.settings.clearedLinkHotkey) {
-        new import_obsidian3.Setting(terminalPane).setName(`${modKey}+Enter`).setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`).addButton((btn) => {
-          btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
-            await this.plugin.restoreObsidianLinkHotkey();
-            this.display();
-          });
-        });
-      } else {
-        new import_obsidian3.Setting(terminalPane).setName(`${modKey}+Enter conflict`).setDesc(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`).addButton((btn) => {
-          btn.setButtonText(`Claim ${modKey}+Enter`).setCta().onClick(async () => {
-            await this.plugin.clearObsidianLinkHotkey();
-            this.display();
-          });
-        });
-      }
-    }
     terminalPane.createEl("p", {
       cls: "augment-terminal-notice",
       text: "Claude Code reads and writes vault files directly via the filesystem. Do not use CC to rename or move files \u2014 use Obsidian\u2019s built-in rename to preserve wikilinks."

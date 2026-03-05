@@ -538,6 +538,36 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     });
 
+    // ── Hotkeys ──
+    {
+      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
+      continuationPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
+      if (this.plugin.settings.clearedLinkHotkey) {
+        new Setting(continuationPane)
+          .setName(`${modKey}+Enter`)
+          .setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`)
+          .addButton((btn) => {
+            btn.setButtonText("Restore Obsidian\u2019s binding")
+              .onClick(async () => {
+                await this.plugin.restoreObsidianLinkHotkey();
+                this.display();
+              });
+          });
+      } else {
+        new Setting(continuationPane)
+          .setName(`${modKey}+Enter conflict`)
+          .setDesc(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`)
+          .addButton((btn) => {
+            btn.setButtonText(`Claim ${modKey}+Enter`)
+              .setCta()
+              .onClick(async () => {
+                await this.plugin.clearObsidianLinkHotkey();
+                this.display();
+              });
+          });
+      }
+    }
+
     // ── Templates pane ───────────────────────────────────────
     templatesPane.createEl("p", {
       cls: "augment-context-intro",
@@ -859,36 +889,6 @@ export class AugmentSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
           });
       });
-
-    // ── Hotkeys ──
-    {
-      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
-      terminalPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
-      if (this.plugin.settings.clearedLinkHotkey) {
-        new Setting(terminalPane)
-          .setName(`${modKey}+Enter`)
-          .setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`)
-          .addButton((btn) => {
-            btn.setButtonText("Restore Obsidian\u2019s binding")
-              .onClick(async () => {
-                await this.plugin.restoreObsidianLinkHotkey();
-                this.display();
-              });
-          });
-      } else {
-        new Setting(terminalPane)
-          .setName(`${modKey}+Enter conflict`)
-          .setDesc(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`)
-          .addButton((btn) => {
-            btn.setButtonText(`Claim ${modKey}+Enter`)
-              .setCta()
-              .onClick(async () => {
-                await this.plugin.clearObsidianLinkHotkey();
-                this.display();
-              });
-          });
-      }
-    }
 
     // Filesystem rename notice
     terminalPane.createEl("p", {
