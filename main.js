@@ -17032,6 +17032,12 @@ ${body}`;
 }
 function friendlyApiError(err) {
   var _a2, _b, _c, _d;
+  if (err instanceof ProxyError) {
+    if (err.status === 401) return "Session expired \u2014 log in again in Settings \u2192 Overview";
+    if (err.status === 402 || err.status === 403) return "No active Relay subscription \u2014 subscribe at relay.md";
+    if (err.status === 429) return "Daily limit reached \u2014 resets at midnight UTC";
+    return `Proxy error: ${err.message}`;
+  }
   if (err instanceof BadRequestError) {
     const msg = String((_d = (_c = (_b = (_a2 = err.error) == null ? void 0 : _a2.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
     if (msg.toLowerCase().includes("credit balance")) {
@@ -17066,11 +17072,53 @@ function logApiDiagnostics(err, apiKey, model) {
     console.log("[Augment] diagnostic \u2014 error:", err.message);
   }
 }
+var S3_PROXY_URL = "https://api.system3.md/api/augment/complete";
+var ProxyError = class extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+    this.name = "ProxyError";
+  }
+};
+async function generateViaProxy(systemPrompt, userMessage, token, model, signal) {
+  var _a2, _b;
+  const res = await fetch(S3_PROXY_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+      max_tokens: 1024
+    }),
+    signal
+  });
+  if (!res.ok) {
+    let msg;
+    try {
+      msg = (_a2 = (await res.json()).message) != null ? _a2 : res.statusText;
+    } catch (e) {
+      msg = res.statusText;
+    }
+    throw new ProxyError(res.status, msg);
+  }
+  const data = await res.json();
+  const block = (_b = data.content) == null ? void 0 : _b[0];
+  if (!block || block.type !== "text") throw new Error("Unexpected response from proxy");
+  return block.text;
+}
 async function generateText(systemPrompt, userMessage, settings, modelOverride, signal) {
+  const model = modelOverride != null ? modelOverride : settings.model;
+  if (settings.s3Token) {
+    return generateViaProxy(systemPrompt, userMessage, settings.s3Token, model, signal);
+  }
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create(
     {
-      model: modelOverride != null ? modelOverride : settings.model,
+      model,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }]
@@ -17195,6 +17243,8 @@ var import_obsidian2 = require("obsidian");
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
   apiKey: "",
+  s3Token: "",
+  s3Email: "",
   model: "auto",
   templateFolder: "",
   linkedNoteCount: 3,
@@ -17771,7 +17821,77 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-overview-intro",
       text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes."
     });
-    const apiKeySetting = new import_obsidian3.Setting(overviewPane).setName("API key").addText((text) => {
+    overviewPane.createEl("h3", { cls: "augment-settings-header", text: "System 3 account" });
+    const apiKeyWrapper = overviewPane.createDiv();
+    const s3AccountSetting = new import_obsidian3.Setting(overviewPane);
+    const renderS3Account = () => {
+      s3AccountSetting.clear();
+      apiKeyWrapper.style.display = this.plugin.settings.s3Token ? "none" : "";
+      if (this.plugin.settings.s3Token) {
+        s3AccountSetting.setName(this.plugin.settings.s3Email || "Logged in").setDesc("Generating via System 3 proxy \u2014 no API key needed.").addButton((btn) => {
+          btn.setButtonText("Log out").onClick(async () => {
+            this.plugin.settings.s3Token = "";
+            this.plugin.settings.s3Email = "";
+            await this.plugin.saveData(this.plugin.settings);
+            renderS3Account();
+          });
+        });
+      } else {
+        let emailVal = "";
+        let passVal = "";
+        s3AccountSetting.setName("Log in with Relay account").setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.").addText((text) => {
+          text.setPlaceholder("Email").inputEl.style.marginRight = "4px";
+          text.inputEl.type = "email";
+          text.onChange((v) => {
+            emailVal = v;
+          });
+        }).addText((text) => {
+          text.setPlaceholder("Password").inputEl.style.marginRight = "4px";
+          text.inputEl.type = "password";
+          text.onChange((v) => {
+            passVal = v;
+          });
+        }).addButton((btn) => {
+          btn.setButtonText("Log in").setCta().onClick(async () => {
+            var _a2, _b, _c;
+            if (!emailVal || !passVal) {
+              new import_obsidian3.Notice("Enter your email and password.");
+              return;
+            }
+            btn.setButtonText("\u2026").setDisabled(true);
+            try {
+              const res = await fetch(
+                "https://auth.system3.md/api/collections/users/auth-with-password",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ identity: emailVal, password: passVal })
+                }
+              );
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                new import_obsidian3.Notice(`Login failed: ${(_a2 = err.message) != null ? _a2 : res.statusText}`);
+                console.log("[Augment] S3 login failed", res.status, err);
+                btn.setButtonText("Log in").setDisabled(false);
+                return;
+              }
+              const data = await res.json();
+              this.plugin.settings.s3Token = data.token;
+              this.plugin.settings.s3Email = (_c = (_b = data.record) == null ? void 0 : _b.email) != null ? _c : emailVal;
+              await this.plugin.saveData(this.plugin.settings);
+              renderS3Account();
+            } catch (e) {
+              new import_obsidian3.Notice("Login failed \u2014 check your connection.");
+              console.log("[Augment] S3 login error", e);
+              btn.setButtonText("Log in").setDisabled(false);
+            }
+          });
+        });
+      }
+    };
+    overviewPane.insertBefore(s3AccountSetting.settingEl, apiKeyWrapper);
+    renderS3Account();
+    const apiKeySetting = new import_obsidian3.Setting(apiKeyWrapper).setName("API key").addText((text) => {
       apiKeyInputEl = text.inputEl;
       text.inputEl.type = "password";
       text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
@@ -17784,24 +17904,31 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         frag.appendText("Anthropic API key. ");
         const a = frag.createEl("a", {
           text: "Get your API key",
-          href: "https://platform.claude.com/settings/keys"
+          href: "https://console.anthropic.com/settings/api-keys"
         });
         a.target = "_blank";
         a.rel = "noopener";
+        frag.appendText("\xA0");
+        const infoIcon = frag.createEl("span", {
+          cls: "augment-api-key-info",
+          text: "\u24D8"
+        });
+        let tip = null;
+        infoIcon.addEventListener("mouseenter", () => {
+          tip = document.createElement("div");
+          tip.className = "augment-api-key-tip";
+          tip.textContent = "Claude Max/Pro subscriptions don\u2019t work here \u2014 Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with sk-ant-api03-. Billing is separate from any subscription.";
+          document.body.appendChild(tip);
+          const rect = infoIcon.getBoundingClientRect();
+          tip.style.top = `${rect.bottom + 6}px`;
+          tip.style.left = `${rect.left}px`;
+        });
+        infoIcon.addEventListener("mouseleave", () => {
+          tip == null ? void 0 : tip.remove();
+          tip = null;
+        });
       })
     );
-    const subNote = overviewPane.createEl("details", { cls: "augment-api-key-note" });
-    subNote.createEl("summary", { text: "\u24D8 Claude Max/Pro subscription note" });
-    const subBody = subNote.createEl("div", { cls: "augment-api-key-note-body" });
-    subBody.appendText("Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with ");
-    subBody.createEl("code", { text: "sk-ant-api03-" });
-    subBody.appendText(" from ");
-    subBody.createEl("a", {
-      text: "console.anthropic.com",
-      href: "https://console.anthropic.com/settings/api-keys",
-      attr: { target: "_blank", rel: "noopener" }
-    });
-    subBody.appendText(". Billing is separate from any subscription.");
     const FALLBACK_MODELS = [
       { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
       { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },

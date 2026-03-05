@@ -387,8 +387,89 @@ export class AugmentSettingTab extends PluginSettingTab {
       text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.",
     });
 
+    // ── System 3 account ────────────────────────────────────────────────────
+    overviewPane.createEl("h3", { cls: "augment-settings-header", text: "System 3 account" });
+
+    // apiKeyWrapper declared here so renderS3Account can toggle its visibility.
+    const apiKeyWrapper = overviewPane.createDiv();
+
+    const s3AccountSetting = new Setting(overviewPane);
+    const renderS3Account = () => {
+      s3AccountSetting.clear();
+      apiKeyWrapper.style.display = this.plugin.settings.s3Token ? "none" : "";
+      if (this.plugin.settings.s3Token) {
+        s3AccountSetting
+          .setName(this.plugin.settings.s3Email || "Logged in")
+          .setDesc("Generating via System 3 proxy \u2014 no API key needed.")
+          .addButton((btn) => {
+            btn.setButtonText("Log out").onClick(async () => {
+              this.plugin.settings.s3Token = "";
+              this.plugin.settings.s3Email = "";
+              await this.plugin.saveData(this.plugin.settings);
+              renderS3Account();
+            });
+          });
+      } else {
+        let emailVal = "";
+        let passVal = "";
+        s3AccountSetting
+          .setName("Log in with Relay account")
+          .setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.")
+          .addText((text) => {
+            text.setPlaceholder("Email").inputEl.style.marginRight = "4px";
+            text.inputEl.type = "email";
+            text.onChange((v) => { emailVal = v; });
+          })
+          .addText((text) => {
+            text.setPlaceholder("Password").inputEl.style.marginRight = "4px";
+            text.inputEl.type = "password";
+            text.onChange((v) => { passVal = v; });
+          })
+          .addButton((btn) => {
+            btn.setButtonText("Log in").setCta().onClick(async () => {
+              if (!emailVal || !passVal) {
+                new Notice("Enter your email and password.");
+                return;
+              }
+              btn.setButtonText("\u2026").setDisabled(true);
+              try {
+                const res = await fetch(
+                  "https://auth.system3.md/api/collections/users/auth-with-password",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ identity: emailVal, password: passVal }),
+                  }
+                );
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  new Notice(`Login failed: ${err.message ?? res.statusText}`);
+                  console.log("[Augment] S3 login failed", res.status, err);
+                  btn.setButtonText("Log in").setDisabled(false);
+                  return;
+                }
+                const data = await res.json();
+                this.plugin.settings.s3Token = data.token;
+                this.plugin.settings.s3Email = data.record?.email ?? emailVal;
+                await this.plugin.saveData(this.plugin.settings);
+                renderS3Account();
+              } catch (e) {
+                new Notice("Login failed \u2014 check your connection.");
+                console.log("[Augment] S3 login error", e);
+                btn.setButtonText("Log in").setDisabled(false);
+              }
+            });
+          });
+      }
+    };
+
+    // Render S3 section before API key wrapper is populated (visibility set in renderS3Account).
+    // apiKeyWrapper is already in the DOM above it — settings-tab builds top-down.
+    overviewPane.insertBefore(s3AccountSetting.settingEl, apiKeyWrapper);
+    renderS3Account();
+
     // API key (on Overview pane)
-    const apiKeySetting = new Setting(overviewPane)
+    const apiKeySetting = new Setting(apiKeyWrapper)
       .setName("API key")
       .addText((text) => {
         apiKeyInputEl = text.inputEl;
