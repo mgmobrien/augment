@@ -897,6 +897,130 @@
   text-decoration: underline;
 }
 
+/* ── Settings: template section ── */
+.augment-template-section {
+  margin: 16px 0 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 12px;
+}
+
+.augment-template-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.augment-section-label {
+  font-size: var(--font-smallest);
+  font-weight: var(--font-semibold);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.augment-template-new {
+  font-size: var(--font-smaller);
+  color: var(--text-accent);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.augment-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.augment-template-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.augment-template-row-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.augment-template-name {
+  font-size: var(--font-small);
+}
+
+.augment-template-desc {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.augment-template-open {
+  font-size: var(--font-smaller);
+  color: var(--text-accent);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.augment-template-empty {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  padding: 4px 0;
+}
+
+.augment-variable-ref {
+  margin-top: 16px;
+}
+
+.augment-var-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+}
+
+.augment-var-table td {
+  padding: 3px 0;
+  vertical-align: top;
+}
+
+.augment-var-name {
+  width: 40%;
+  font-size: var(--font-smaller);
+}
+
+.augment-var-name code {
+  font-family: var(--font-monospace);
+  background: var(--background-modifier-code);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.augment-var-desc {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.augment-template-format {
+  margin-top: 16px;
+}
+
+.augment-format-example {
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  background: var(--background-modifier-code);
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 6px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
 /* ── Terminal manager: section labels and history ── */
 .augment-tm-section-label {
   font-size: var(--font-smallest);

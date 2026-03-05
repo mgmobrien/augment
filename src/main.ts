@@ -15,23 +15,29 @@ import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 const SCAFFOLD_FOLDER = "Augment/templates";
 const SCAFFOLD_TEMPLATES: [string, string][] = [
   [
-    "Summarize whole note",
+    "Summarize note",
     `---
-description: Reads the entire note — use for summaries, head blocks, and full-note responses
+name: Summarize note
+description: Generate a concise summary of this note
 ---
+You are Gus, a thinking partner embedded in this vault.
+
+Summarize the following note. Identify the core claim, key ideas, and any open questions. Be concise.
+
+Note: {{title}}
+
 {{note_content}}
 `,
   ],
   [
-    "Generate with linked notes",
+    "Synthesize from linked notes",
     `---
-description: Includes full content of wikilinked notes — use for synthesis across connected notes
+name: Synthesize from linked notes
+description: Draw connections across notes linked from this one
 ---
-{{note_content}}
+You are Gus, a thinking partner embedded in this vault.
 
----
-
-Linked notes:
+The following notes are linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
 
 {{linked_notes_full}}
 `,
@@ -348,24 +354,37 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   private async scaffoldDefaultTemplates(): Promise<void> {
-    // Only scaffold when templateFolder has never been configured.
-    if (this.settings.templateFolder) return;
+    const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
 
     // Create folder if absent.
-    if (!this.app.vault.getFolderByPath(SCAFFOLD_FOLDER)) {
-      try { await this.app.vault.createFolder(SCAFFOLD_FOLDER); } catch { /* already exists */ }
+    if (!this.app.vault.getFolderByPath(targetFolder)) {
+      try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
     }
 
-    // Create each template file idempotently — never overwrite.
+    // Only scaffold if folder is empty — never overwrite existing templates.
+    const folder = this.app.vault.getFolderByPath(targetFolder);
+    const hasTemplates = folder?.children.some(
+      (f) => f.name.endsWith(".md")
+    ) ?? false;
+    if (hasTemplates) {
+      // Folder has files; just ensure templateFolder is pointed at it.
+      if (!this.settings.templateFolder) {
+        this.settings.templateFolder = targetFolder;
+        await this.saveData(this.settings);
+      }
+      return;
+    }
+
+    // Create default templates idempotently.
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path = `${SCAFFOLD_FOLDER}/${name}.md`;
+      const path = `${targetFolder}/${name}.md`;
       if (!this.app.vault.getAbstractFileByPath(path)) {
         try { await this.app.vault.create(path, content); } catch { /* already exists */ }
       }
     }
 
     // Set templateFolder so the picker finds the scaffolded files.
-    this.settings.templateFolder = SCAFFOLD_FOLDER;
+    this.settings.templateFolder = targetFolder;
     await this.saveData(this.settings);
   }
 

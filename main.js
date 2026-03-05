@@ -11602,6 +11602,16 @@ function assembleVaultContext(app, editor, settings) {
 }
 
 // src/settings-tab.ts
+var TEMPLATE_SCAFFOLD = `---
+name:
+description:
+---
+You are Gus, a thinking partner embedded in this vault.
+
+Your task:
+
+{{note_content}}
+`;
 var BUILTIN_CALLOUT_TYPES = [
   "note",
   "abstract",
@@ -11656,7 +11666,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
     const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
     const generateTab = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
-    const contextTab = tabNav.createEl("button", { cls: "augment-tab", text: "Context" });
+    const contextTab = tabNav.createEl("button", { cls: "augment-tab", text: "Context & Templates" });
     const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const generatePane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const contextPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
@@ -11791,7 +11801,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       { label: "Set your API key", tab: generateTab, pane: generatePane },
       { label: "Choose a model", tab: generateTab, pane: generatePane },
       { label: "Configure output format", tab: generateTab, pane: generatePane },
-      { label: "Set template folder", tab: contextTab, pane: contextPane }
+      { label: "Manage templates", tab: contextTab, pane: contextPane }
     ];
     for (const { label, tab, pane } of items) {
       const li = linkList.createEl("li");
@@ -11933,8 +11943,101 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
         this.plugin.settings.templateFolder = value;
         await this.plugin.saveData(this.plugin.settings);
+        renderTemplateSection();
       });
     });
+    const templateSectionEl = contextPane.createDiv({ cls: "augment-template-section" });
+    const renderTemplateSection = () => {
+      var _a2;
+      templateSectionEl.empty();
+      const folder = this.plugin.settings.templateFolder;
+      const sectionHeader = templateSectionEl.createDiv({
+        cls: "augment-template-section-header"
+      });
+      sectionHeader.createSpan({ cls: "augment-section-label", text: "Templates" });
+      const newBtn = sectionHeader.createEl("button", {
+        cls: "augment-template-new clickable-icon"
+      });
+      (0, import_obsidian3.setIcon)(newBtn, "plus");
+      newBtn.createSpan({ text: " New template" });
+      newBtn.addEventListener("click", async () => {
+        if (!folder) {
+          new import_obsidian3.Notice("Set a template folder first");
+          return;
+        }
+        const newPath = `${folder}/New template.md`;
+        let newFile;
+        try {
+          newFile = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
+        } catch (e) {
+          const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
+          if (existing instanceof import_obsidian3.TFile) {
+            newFile = existing;
+          } else {
+            new import_obsidian3.Notice("Could not create template");
+            return;
+          }
+        }
+        await this.plugin.app.workspace.getLeaf().openFile(newFile);
+      });
+      const listEl = templateSectionEl.createDiv({ cls: "augment-template-list" });
+      const folderObj = folder ? this.plugin.app.vault.getFolderByPath(folder) : null;
+      const files = folderObj ? folderObj.children.filter(
+        (f) => f instanceof import_obsidian3.TFile && f.extension === "md"
+      ) : [];
+      if (files.length === 0) {
+        listEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates found. Create one to get started."
+        });
+      } else {
+        for (const file of files) {
+          const fm = (_a2 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter;
+          const name = typeof (fm == null ? void 0 : fm.name) === "string" ? fm.name : file.basename;
+          const desc = typeof (fm == null ? void 0 : fm.description) === "string" ? fm.description : "";
+          const row = listEl.createDiv({ cls: "augment-template-row" });
+          const rowInfo = row.createDiv({ cls: "augment-template-row-info" });
+          rowInfo.createSpan({ cls: "augment-template-name", text: name });
+          if (desc) {
+            rowInfo.createSpan({ cls: "augment-template-desc", text: desc });
+          }
+          const openBtn = row.createEl("button", {
+            cls: "augment-template-open clickable-icon",
+            text: "Open \u2197"
+          });
+          openBtn.addEventListener("click", () => {
+            this.plugin.app.workspace.openLinkText(file.basename, "", false);
+          });
+        }
+      }
+      const varRef = templateSectionEl.createDiv({ cls: "augment-variable-ref" });
+      varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+      const table = varRef.createEl("table", { cls: "augment-var-table" });
+      const tbody = table.createEl("tbody");
+      const varRows = [
+        { name: "{{title}}", desc: "Note filename (without extension)" },
+        { name: "{{note_content}}", desc: "Full text of the current note" },
+        {
+          name: "{{linked_notes_full}}",
+          desc: "Text of notes linked from this one \u2014 can be large"
+        }
+      ];
+      for (const v of varRows) {
+        const tr = tbody.createEl("tr");
+        const td1 = tr.createEl("td", { cls: "augment-var-name" });
+        td1.createEl("code", { text: v.name });
+        tr.createEl("td", { cls: "augment-var-desc", text: v.desc });
+      }
+      const formatGuide = templateSectionEl.createDiv({
+        cls: "augment-template-format"
+      });
+      formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
+      formatGuide.createEl("pre", {
+        cls: "augment-format-example",
+        text: "---\nname: Template name\ndescription: Shown in picker\n---\nYou are Gus, a thinking partner embedded in this vault.\n\nYour task: [instructions here]\n\n{{note_content}}"
+      });
+    };
+    renderTemplateSection();
     new import_obsidian3.Setting(contextPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
@@ -13473,23 +13576,29 @@ var import_state = require("@codemirror/state");
 var SCAFFOLD_FOLDER = "Augment/templates";
 var SCAFFOLD_TEMPLATES = [
   [
-    "Summarize whole note",
+    "Summarize note",
     `---
-description: Reads the entire note \u2014 use for summaries, head blocks, and full-note responses
+name: Summarize note
+description: Generate a concise summary of this note
 ---
+You are Gus, a thinking partner embedded in this vault.
+
+Summarize the following note. Identify the core claim, key ideas, and any open questions. Be concise.
+
+Note: {{title}}
+
 {{note_content}}
 `
   ],
   [
-    "Generate with linked notes",
+    "Synthesize from linked notes",
     `---
-description: Includes full content of wikilinked notes \u2014 use for synthesis across connected notes
+name: Synthesize from linked notes
+description: Draw connections across notes linked from this one
 ---
-{{note_content}}
+You are Gus, a thinking partner embedded in this vault.
 
----
-
-Linked notes:
+The following notes are linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
 
 {{linked_notes_full}}
 `
@@ -13767,15 +13876,27 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.refreshStatusBar();
   }
   async scaffoldDefaultTemplates() {
-    if (this.settings.templateFolder) return;
-    if (!this.app.vault.getFolderByPath(SCAFFOLD_FOLDER)) {
+    var _a2;
+    const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
+    if (!this.app.vault.getFolderByPath(targetFolder)) {
       try {
-        await this.app.vault.createFolder(SCAFFOLD_FOLDER);
+        await this.app.vault.createFolder(targetFolder);
       } catch (e) {
       }
     }
+    const folder = this.app.vault.getFolderByPath(targetFolder);
+    const hasTemplates = (_a2 = folder == null ? void 0 : folder.children.some(
+      (f) => f.name.endsWith(".md")
+    )) != null ? _a2 : false;
+    if (hasTemplates) {
+      if (!this.settings.templateFolder) {
+        this.settings.templateFolder = targetFolder;
+        await this.saveData(this.settings);
+      }
+      return;
+    }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path3 = `${SCAFFOLD_FOLDER}/${name}.md`;
+      const path3 = `${targetFolder}/${name}.md`;
       if (!this.app.vault.getAbstractFileByPath(path3)) {
         try {
           await this.app.vault.create(path3, content);
@@ -13783,7 +13904,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         }
       }
     }
-    this.settings.templateFolder = SCAFFOLD_FOLDER;
+    this.settings.templateFolder = targetFolder;
     await this.saveData(this.settings);
   }
   async onload() {
