@@ -17372,7 +17372,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
       });
       const backLink = subtitleEl.createEl("span", {
         cls: "augment-ctx-back-to-cursor",
-        text: "back to cursor \u2191"
+        text: "Show current context"
       });
       backLink.addEventListener("click", () => this.refreshToCursor());
     } else {
