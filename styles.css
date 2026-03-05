@@ -897,83 +897,75 @@
   text-decoration: underline;
 }
 
-/* ── Terminal manager: history sections ── */
-.augment-tm-section-header {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  padding: 8px 10px 3px;
+/* ── Terminal manager: section labels and history ── */
+.augment-tm-section-label {
+  font-size: var(--font-smallest);
+  font-weight: var(--font-semibold);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 8px 8px 4px;
   user-select: none;
 }
 
-.augment-tm-item.is-closed {
-  opacity: 0.6;
+.augment-tm-date-group {
+  font-size: var(--font-smallest);
+  color: var(--text-muted);
+  padding: 6px 8px 2px;
+  user-select: none;
 }
 
-.augment-tm-item.is-closed:hover {
+.augment-tm-item.is-history {
+  opacity: 0.8;
+}
+
+.augment-tm-item.is-history:hover {
   opacity: 1;
 }
 
+.augment-tm-dot.stale {
+  background: var(--color-yellow);
+}
+
 .augment-tm-timestamp {
-  font-size: 11px;
+  font-size: var(--font-smaller);
   color: var(--text-muted);
+  margin-left: auto;
   white-space: nowrap;
-  margin-right: 2px;
 }
 
 .augment-tm-expand {
-  width: 18px;
-  height: 18px;
-  min-width: 18px;
-  padding: 0;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
+  padding: 6px 8px 8px 24px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.augment-tm-expand-label {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
 }
 
 .augment-tm-expand-actions {
   display: flex;
   gap: 6px;
-  padding: 4px 10px 6px 28px;
 }
 
-.augment-tm-action {
-  font-size: 12px;
+.augment-tm-resume {
+  font-size: var(--font-smaller);
   padding: 2px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
-  color: var(--text-normal);
-  cursor: pointer;
 }
 
-.augment-tm-action:hover {
-  background: var(--background-modifier-hover);
-}
-
-.augment-tm-action.is-danger {
-  color: var(--text-error);
-}
-
-.augment-tm-action.is-danger:hover {
-  background: rgba(var(--color-red-rgb), 0.1);
-}
-
-.augment-tm-show-older {
-  font-size: 12px;
+.augment-tm-load-more {
+  font-size: var(--font-smaller);
   color: var(--text-accent);
-  padding: 6px 10px;
+  padding: 6px 8px;
   cursor: pointer;
+  text-align: center;
   user-select: none;
 }
 
-.augment-tm-show-older:hover {
-  color: var(--text-accent-hover, var(--text-accent));
+.augment-tm-load-more:hover {
   text-decoration: underline;
 }
 

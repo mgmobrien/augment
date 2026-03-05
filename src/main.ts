@@ -8,7 +8,7 @@ import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntr
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
-import { Decoration, DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
 // Default template files written to vault on first install
@@ -902,6 +902,10 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   public async openTerminalNamed(name: string): Promise<void> {
     await this.openTerminal("tab", { name });
+  }
+
+  public async openFocusedTerminal(): Promise<TerminalView> {
+    return this.openTerminal("tab", { active: true });
   }
 
   public deleteSessionRecord(id: string): void {
