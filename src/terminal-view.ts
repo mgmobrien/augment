@@ -308,6 +308,11 @@ export class TerminalView extends ItemView {
   private messageFilter: TeammateMessageFilter | null = null;
   private ptyStartedAtMs: number = 0;
   private startupRetryCount: number = 0;
+  private promptTurnCount: number = 0;
+  private lastPromptText: string = "";
+  private lastPromptAtMs: number = 0;
+  private autoRenameInFlight: boolean = false;
+  private lastAutoRenameAttemptAtMs: number = 0;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -683,6 +688,7 @@ export class TerminalView extends ItemView {
       onData: (data) => {
         this.messageFilter!.feed(data);
         this.detectStatus(data);
+        this.detectUserPromptTurns(data);
         this.detectOrchestrationActivity(data);
       },
       onError: (err) => {
@@ -837,12 +843,56 @@ export class TerminalView extends ItemView {
 
   private async triggerAutoRename(): Promise<void> {
     if (!this.onAutoRenameRequest || this.userRenamed) return;
+    const now = Date.now();
+    if (this.autoRenameInFlight) return;
+    if (now - this.lastAutoRenameAttemptAtMs < 1200) return;
+    this.autoRenameInFlight = true;
+    this.lastAutoRenameAttemptAtMs = now;
     const excerpt = stripAnsi(this.scrollbackBuffer).slice(-2000);
-    const name = await this.onAutoRenameRequest(excerpt);
-    if (name) {
-      this.applyAutoName(name);
-    } else {
-      this.autoRenameNeeded = true;
+    try {
+      const name = await this.onAutoRenameRequest(excerpt);
+      if (name) {
+        this.applyAutoName(name);
+      } else {
+        this.autoRenameNeeded = true;
+      }
+    } finally {
+      this.autoRenameInFlight = false;
+    }
+  }
+
+  // Secondary rename trigger: count explicit user submitted turns from Claude's
+  // prompt lines (`❯ user text`). This covers cases where status transitions are
+  // too noisy to reliably increment exchangeCount.
+  private detectUserPromptTurns(rawData: string): void {
+    if (this.userRenamed || this.isExited) return;
+
+    const clean = stripAnsi(rawData);
+    if (!clean) return;
+
+    const lines = clean.split(/\r?\n/);
+    for (const line of lines) {
+      const m = line.match(/^\s*❯\s+(.+?)\s*$/);
+      if (!m?.[1]) continue;
+      const text = m[1].trim();
+      if (!text) continue;
+
+      const now = Date.now();
+      if (text === this.lastPromptText && now - this.lastPromptAtMs < 3000) {
+        continue;
+      }
+
+      this.lastPromptText = text;
+      this.lastPromptAtMs = now;
+      this.promptTurnCount++;
+
+      const shouldTry =
+        this.promptTurnCount === 3 ||
+        ((this.promptTurnCount === 4 || this.promptTurnCount === 5) && this.autoRenameNeeded);
+
+      if (shouldTry) {
+        void this.triggerAutoRename();
+      }
     }
   }
 

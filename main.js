@@ -19044,6 +19044,11 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.messageFilter = null;
     this.ptyStartedAtMs = 0;
     this.startupRetryCount = 0;
+    this.promptTurnCount = 0;
+    this.lastPromptText = "";
+    this.lastPromptAtMs = 0;
+    this.autoRenameInFlight = false;
+    this.lastAutoRenameAttemptAtMs = 0;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -19331,6 +19336,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       onData: (data) => {
         this.messageFilter.feed(data);
         this.detectStatus(data);
+        this.detectUserPromptTurns(data);
         this.detectOrchestrationActivity(data);
       },
       onError: (err) => {
@@ -19470,12 +19476,47 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   async triggerAutoRename() {
     if (!this.onAutoRenameRequest || this.userRenamed) return;
+    const now = Date.now();
+    if (this.autoRenameInFlight) return;
+    if (now - this.lastAutoRenameAttemptAtMs < 1200) return;
+    this.autoRenameInFlight = true;
+    this.lastAutoRenameAttemptAtMs = now;
     const excerpt = stripAnsi(this.scrollbackBuffer).slice(-2e3);
-    const name = await this.onAutoRenameRequest(excerpt);
-    if (name) {
-      this.applyAutoName(name);
-    } else {
-      this.autoRenameNeeded = true;
+    try {
+      const name = await this.onAutoRenameRequest(excerpt);
+      if (name) {
+        this.applyAutoName(name);
+      } else {
+        this.autoRenameNeeded = true;
+      }
+    } finally {
+      this.autoRenameInFlight = false;
+    }
+  }
+  // Secondary rename trigger: count explicit user submitted turns from Claude's
+  // prompt lines (`❯ user text`). This covers cases where status transitions are
+  // too noisy to reliably increment exchangeCount.
+  detectUserPromptTurns(rawData) {
+    if (this.userRenamed || this.isExited) return;
+    const clean = stripAnsi(rawData);
+    if (!clean) return;
+    const lines = clean.split(/\r?\n/);
+    for (const line of lines) {
+      const m = line.match(/^\s*❯\s+(.+?)\s*$/);
+      if (!(m == null ? void 0 : m[1])) continue;
+      const text = m[1].trim();
+      if (!text) continue;
+      const now = Date.now();
+      if (text === this.lastPromptText && now - this.lastPromptAtMs < 3e3) {
+        continue;
+      }
+      this.lastPromptText = text;
+      this.lastPromptAtMs = now;
+      this.promptTurnCount++;
+      const shouldTry = this.promptTurnCount === 3 || (this.promptTurnCount === 4 || this.promptTurnCount === 5) && this.autoRenameNeeded;
+      if (shouldTry) {
+        void this.triggerAutoRename();
+      }
     }
   }
   setSkillName(name) {
@@ -21940,8 +21981,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-05T19:15:02.354Z";
-    this.gitSha = "3e40c29";
+    this.buildId = "2026-03-05T19:50:17.534Z";
+    this.gitSha = "04fc2ad";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
