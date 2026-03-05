@@ -1555,12 +1555,13 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 }
 
 .augment-ctx-edit-link {
-  display: inline-block;
+  display: block;
   margin-top: 4px;
   font-size: var(--font-ui-small);
   color: var(--text-accent);
   text-decoration: underline;
   cursor: pointer;
+  text-align: right;
 }
 
 /* ── Collapsible sections (chevron-based) ── */
