@@ -1435,6 +1435,14 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   margin-bottom: 10px;
 }
 
+.augment-ctx-back-to-cursor {
+  margin-left: 8px;
+  color: var(--text-accent);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  text-decoration: underline;
+}
+
 .augment-ctx-token-bar {
   display: flex;
   align-items: center;

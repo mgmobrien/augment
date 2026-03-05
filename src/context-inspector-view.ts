@@ -37,10 +37,24 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+type InspectorState = "cursor" | "post-generation";
+
+function formatTimeAgo(ms: number): string {
+  const sec = Math.round((Date.now() - ms) / 1000);
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  return `${hr}h ago`;
+}
+
 export class ContextInspectorView extends ItemView {
   private plugin: AugmentTerminalPlugin;
   private contentDiv!: HTMLElement;
   private lastEditorView: MarkdownView | null = null;
+  private state: InspectorState = "cursor";
+  private generatedAt: number = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: AugmentTerminalPlugin) {
     super(leaf);
@@ -64,17 +78,24 @@ export class ContextInspectorView extends ItemView {
       })
     );
 
-    // Trigger 1: generation completes
+    // Trigger 1: generation completes → post-generation state
     this.registerEvent(
       (this.app.workspace as any).on("augment:generation-complete", () => {
+        this.state = "post-generation";
+        this.generatedAt = Date.now();
         this.refresh();
       })
     );
 
-    // Trigger 2: manual refresh button (handled in render)
+    // Trigger 2: manual refresh button (handled in render) → cursor state
 
     const current = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (current) this.lastEditorView = current;
+    this.refresh();
+  }
+
+  private refreshToCursor(): void {
+    this.state = "cursor";
     this.refresh();
   }
 
@@ -106,11 +127,21 @@ export class ContextInspectorView extends ItemView {
     headerLeft.createEl("span", { text: "Context inspector" });
     const refreshBtn = headerEl.createEl("span", { cls: "augment-ctx-refresh clickable-icon" });
     setIcon(refreshBtn, "refresh-cw");
-    refreshBtn.addEventListener("click", () => this.refresh());
-    el.createEl("div", {
-      cls: "augment-ctx-panel-subtitle",
-      text: "What Augment sends when you generate",
-    });
+    refreshBtn.addEventListener("click", () => this.refreshToCursor());
+
+    const subtitleEl = el.createEl("div", { cls: "augment-ctx-panel-subtitle" });
+    if (this.state === "post-generation") {
+      subtitleEl.createEl("span", {
+        text: `Sent last generation \u00b7 ${formatTimeAgo(this.generatedAt)}`,
+      });
+      const backLink = subtitleEl.createEl("span", {
+        cls: "augment-ctx-back-to-cursor",
+        text: "back to cursor \u2191",
+      });
+      backLink.addEventListener("click", () => this.refreshToCursor());
+    } else {
+      subtitleEl.setText("What Augment sends when you generate");
+    }
 
     // Build all text blocks for token counting
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || undefined);

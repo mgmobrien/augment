@@ -107,8 +107,8 @@ export function assembleVaultContext(
   let surroundingContext = "";
   if (!selection) {
     const cursor = editor.getCursor();
-    const startLine = Math.max(0, cursor.line - 25);
-    const endLine = Math.min(editor.lastLine(), cursor.line + 25);
+    const startLine = 0;
+    const endLine = cursor.line;
     const lines: string[] = [];
     for (let i = startLine; i <= endLine; i++) {
       lines.push(editor.getLine(i));
