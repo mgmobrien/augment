@@ -796,6 +796,17 @@
   opacity: 0.6;
 }
 
+/* ── Slash picker section headers ── */
+.augment-slash-section-header {
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 6px 8px 2px;
+  pointer-events: none;
+}
+
 /* ── Skill picker suggestions ── */
 .augment-skill-name {
   font-size: 0.9em;

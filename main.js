@@ -11365,6 +11365,7 @@ async function generateText(systemPrompt, userMessage, settings, modelOverride) 
 
 // src/agent-suggest.ts
 var import_obsidian = require("obsidian");
+var SKILL_SCAN_ROOTS = ["agents", ".agents", ".claude", ".augment"];
 var AgentSuggest = class extends import_obsidian.EditorSuggest {
   constructor(app) {
     super(app);
@@ -11372,66 +11373,99 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
     this.loadSkills();
   }
   loadSkills() {
-    var _a2, _b;
-    const folder = this.app.vault.getAbstractFileByPath("agents/skills");
-    if (!(folder instanceof import_obsidian.TFolder)) return;
+    var _a2;
+    const seen = /* @__PURE__ */ new Set();
     const entries = [];
-    for (const child of folder.children) {
-      if (!(child instanceof import_obsidian.TFolder)) continue;
-      const skillFile = this.app.vault.getAbstractFileByPath(`agents/skills/${child.name}/SKILL.md`);
-      if (!(skillFile instanceof import_obsidian.TFile)) continue;
-      const cache = (_a2 = this.app.metadataCache.getFileCache(skillFile)) == null ? void 0 : _a2.frontmatter;
-      if (!cache) continue;
-      if (cache.user_invocable === false) continue;
-      entries.push({
-        name: (_b = cache.name) != null ? _b : child.name,
-        description: typeof cache.description === "string" ? cache.description : "",
-        file: skillFile
-      });
+    for (const root of SKILL_SCAN_ROOTS) {
+      const subfolder = this.app.vault.getAbstractFileByPath(`${root}/skills`);
+      const scanFolder = subfolder instanceof import_obsidian.TFolder ? subfolder : this.app.vault.getAbstractFileByPath(root);
+      if (!(scanFolder instanceof import_obsidian.TFolder)) continue;
+      for (const child of scanFolder.children) {
+        if (!(child instanceof import_obsidian.TFolder)) continue;
+        const skillFile = this.app.vault.getAbstractFileByPath(`${scanFolder.path}/${child.name}/SKILL.md`);
+        if (!(skillFile instanceof import_obsidian.TFile)) continue;
+        const fm = (_a2 = this.app.metadataCache.getFileCache(skillFile)) == null ? void 0 : _a2.frontmatter;
+        if (!fm) continue;
+        if (fm.user_invocable === false) continue;
+        const name = typeof fm.name === "string" ? fm.name : child.name;
+        if (seen.has(name)) continue;
+        seen.add(name);
+        entries.push({
+          name,
+          description: typeof fm.description === "string" ? fm.description : "",
+          file: skillFile
+        });
+      }
     }
     this.skills = entries.sort((a, b) => a.name.localeCompare(b.name));
   }
-  // Reload skills on demand — call after vault changes if needed.
   reload() {
     this.loadSkills();
   }
   onTrigger(cursor, editor) {
     const line = editor.getLine(cursor.line);
     const before = line.slice(0, cursor.ch);
-    const match = before.match(/\/agent\s+(\S*)$/);
+    const match = before.match(/(^|[\s])\/(\S*)$/);
     if (!match) return null;
-    const queryLen = match[1].length;
-    const prefixLen = "/agent ".length;
+    const slashPos = before.lastIndexOf("/");
     return {
-      start: { line: cursor.line, ch: before.length - queryLen - prefixLen },
+      start: { line: cursor.line, ch: slashPos },
       end: cursor,
-      query: match[1]
+      query: match[2]
     };
   }
   getSuggestions(ctx) {
     const q = ctx.query.toLowerCase();
-    if (!q) return this.skills;
-    return this.skills.filter(
-      (s) => s.name.includes(q) || s.description.toLowerCase().includes(q)
+    const matchedSkills = q ? this.skills.filter((s) => s.name.includes(q) || s.description.toLowerCase().includes(q)) : this.skills;
+    const allCommands = Object.values(
+      this.app.commands.commands
     );
+    const matchedCommands = allCommands.filter((c) => c.name.toLowerCase().includes(q));
+    const result = [];
+    if (matchedSkills.length > 0) {
+      result.push({ kind: "header", label: "Skills" });
+      for (const s of matchedSkills) {
+        result.push({ kind: "skill", name: s.name, description: s.description, file: s.file });
+      }
+    }
+    if (matchedCommands.length > 0) {
+      result.push({ kind: "header", label: "Commands" });
+      for (const c of matchedCommands) {
+        result.push({ kind: "command", id: c.id, name: c.name });
+      }
+    }
+    return result;
   }
-  renderSuggestion(skill, el) {
-    el.createEl("div", { cls: "augment-skill-name", text: skill.name });
-    if (skill.description) {
-      el.createEl("div", { cls: "augment-skill-desc", text: skill.description });
+  renderSuggestion(item, el) {
+    if (item.kind === "header") {
+      el.createEl("div", { cls: "augment-slash-section-header", text: item.label });
+      return;
+    }
+    if (item.kind === "skill") {
+      el.createEl("div", { cls: "augment-skill-name", text: item.name });
+      if (item.description) {
+        el.createEl("div", { cls: "augment-skill-desc", text: item.description });
+      }
+    } else {
+      el.createEl("div", { text: item.name });
     }
   }
-  selectSuggestion(skill) {
+  selectSuggestion(item) {
     var _a2, _b, _c, _d;
+    if (item.kind === "header") return;
     const editor = (_a2 = this.context) == null ? void 0 : _a2.editor;
     const file = (_b = this.context) == null ? void 0 : _b.file;
-    if (!editor || !file) return;
-    const { start, end } = this.context;
-    editor.replaceRange("", start, end);
-    const plugin = (_d = (_c = this.app.plugins) == null ? void 0 : _c.plugins) == null ? void 0 : _d["augment-terminal"];
-    if (plugin) {
-      plugin.insertAgentWidget(editor, start, skill.name);
-      void plugin.launchSkillSession(file, skill.name);
+    if (!editor) return;
+    editor.replaceRange("", this.context.start, this.context.end);
+    if (item.kind === "skill") {
+      if (!file) return;
+      const plugin = (_d = (_c = this.app.plugins) == null ? void 0 : _c.plugins) == null ? void 0 : _d["augment-terminal"];
+      if (plugin) {
+        plugin.insertAgentWidget(editor, this.context.start, item.name);
+        void plugin.launchSkillSession(file, item.name);
+      }
+    } else if (item.kind === "command") {
+      this.app.commands.executeCommandById(item.id);
     }
   }
 };
