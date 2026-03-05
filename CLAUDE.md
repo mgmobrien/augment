@@ -19,45 +19,45 @@ To boot the project team from the vault, Matt says "Augment CEO" or "CEO augment
 
 ## Installing Augment for a new user
 
-### Option A: build from source
+`main.js` is pre-built and committed. **Do not run `npm install` or `npm run build`** — the plugin is ready to copy as-is.
 
-```bash
-npm install
-npm run build
-```
-
-### Option B: use pre-built files
-
-`main.js` is committed to the repo. If you don't want to build, skip straight to the copy step below.
-
-### Copy plugin files into Obsidian
-
-Create the plugin directory and copy the three required files:
+Step 1 — copy the plugin files into the Obsidian vault:
 
 ```bash
 mkdir -p "{vault}/.obsidian/plugins/augment/"
 cp main.js manifest.json styles.css "{vault}/.obsidian/plugins/augment/"
 ```
 
-Replace `{vault}` with the absolute path to your Obsidian vault.
+Replace `{vault}` with the absolute path to the Obsidian vault.
 
-**Finding your vault path on WSL/Windows:** Obsidian vaults on Windows are typically at `/mnt/c/Users/{username}/Documents/Obsidian/{vault-name}` when accessed from WSL — but check your actual Obsidian vault location (Obsidian → Settings → About → Vault path).
+**Finding the vault path on Windows/WSL:** the vault is typically at `/mnt/c/Users/{username}/Documents/Obsidian/{vault-name}` when accessed from WSL. Confirm the exact path in Obsidian → Settings → About → vault path, then prefix with `/mnt/c` and replace backslashes with forward slashes.
 
-### Enable the plugin in Obsidian
+Step 2 — enable the plugin in Obsidian:
 
 1. Open Obsidian → Settings → Community plugins
 2. Disable safe mode if prompted
 3. Find "Augment" in the list and enable it
 
-### Required setup
+Step 3 — configure:
 
-1. Settings → Augment → Generate tab → paste your Anthropic API key
+1. Settings → Augment → Generate tab → paste the Anthropic API key
    - Get one at: https://platform.claude.com/settings/keys
 2. Choose a model (Haiku 4.5 is fastest and cheapest)
 
-### WSL terminal feature (Windows only)
+## Modifying source
+
+Only needed if changing the TypeScript source:
+
+```bash
+npm install
+npm run build
+```
+
+Then copy as above.
+
+## WSL terminal feature (Windows only)
 
 To run Claude Code sessions inside Obsidian on Windows:
 
-1. Settings → Augment → Generate tab → enable "Run terminal via WSL"
-2. See `WSL.md` for Python prerequisites and setup details
+1. Settings → Augment → Terminal tab → the setup wizard walks through prerequisites
+2. See `WSL.md` for manual setup details

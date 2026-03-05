@@ -8,7 +8,7 @@ Press Mod+Enter in any note to generate inline — Augment uses your note's titl
 
 ## Install
 
-`main.js` is committed to the repo — no build required.
+`main.js` is pre-built and committed. **Do not run `npm install` or `npm run build`** — the plugin is ready to copy as-is.
 
 ```bash
 mkdir -p "{vault}/.obsidian/plugins/augment/"
@@ -19,22 +19,10 @@ Replace `{vault}` with the absolute path to your Obsidian vault.
 
 **Windows with WSL:** your vault is typically at `/mnt/c/Users/{username}/Documents/Obsidian/{vault-name}/`. Find the exact path in Obsidian: Settings → General → vault path — then prefix with `/mnt/c` and replace backslashes with forward slashes.
 
-### Build from source
+After copying:
 
-```bash
-npm install
-npm run build
-```
-
-Then copy as above.
-
-> `npm run obsidian:install` exists but is hardcoded to the maintainer's vault path. Use the manual copy above instead.
-
-## Configure
-
-1. Open Obsidian → Settings → Augment
-2. Generate tab → API key → paste your Anthropic API key
-   Get one at: https://platform.claude.com/settings/keys
+1. Open Obsidian → Settings → Community plugins → enable "Augment"
+2. Settings → Augment → Generate tab → paste your Anthropic API key (https://platform.claude.com/settings/keys)
 3. Choose a model (Haiku 4.5 is fastest and cheapest)
 
 ## Verify
@@ -53,6 +41,17 @@ Open Settings → Augment → Terminal tab. The setup wizard detects your enviro
 - **Windows:** WSL, then Python/Node/CC inside WSL
 
 The wizard shows only the next missing step and advances as each is resolved. Once everything is green, the terminal manager is ready. See WSL.md for manual Windows setup.
+
+## Modifying source
+
+Only needed if you are changing the TypeScript source:
+
+```bash
+npm install
+npm run build
+```
+
+Then copy as above.
 
 ## Architecture
 
