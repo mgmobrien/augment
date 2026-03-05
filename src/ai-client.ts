@@ -161,15 +161,19 @@ export async function generateText(
   systemPrompt: string,
   userMessage: string,
   settings: AugmentSettings,
-  modelOverride?: string
+  modelOverride?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
-  const message = await client.messages.create({
-    model: modelOverride ?? settings.model,
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-  });
+  const message = await client.messages.create(
+    {
+      model: modelOverride ?? settings.model,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+    },
+    { signal }
+  );
   const block = message.content[0];
   if (block.type !== "text") throw new Error("Unexpected response type from Anthropic API");
   return block.text;

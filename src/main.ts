@@ -56,6 +56,10 @@ class SpinnerWidget extends WidgetType {
   ignoreEvent(): boolean { return true; }
 }
 
+// Effect dispatched when backspace/escape cancels a generation.
+// The plugin listens for this to abort the in-flight fetch.
+const cancelGenerationEffect = StateEffect.define<null>();
+
 const spinnerField = StateField.define<DecorationSet>({
   create() { return Decoration.none; },
   update(decos, tr) {
@@ -65,6 +69,31 @@ const spinnerField = StateField.define<DecorationSet>({
         decos = decos.update({ add: [Decoration.widget({ widget: new SpinnerWidget(), side: -1 }).range(e.value)] });
       } else if (e.is(removeSpinnerEffect)) {
         decos = Decoration.none;
+      }
+    }
+    // Detect document deletions near the spinner position — treat as cancel.
+    if (decos !== Decoration.none && tr.docChanged) {
+      let spinnerPos = -1;
+      const cursor = decos.iter();
+      if (cursor.value) spinnerPos = cursor.from;
+      if (spinnerPos >= 0) {
+        let deleted = false;
+        tr.changes.iterChangedRanges((fromA, toA) => {
+          // A deletion that touches the spinner position or the character before it.
+          if (toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
+        });
+        if (deleted) {
+          // Schedule cancel effect on the next microtask to avoid dispatching during update.
+          const view = (tr as any).view ?? (tr.state.field as any)?._view;
+          // We'll use a safer approach — store a flag and let the plugin pick it up.
+          Promise.resolve().then(() => {
+            try {
+              // Find the EditorView from the transaction — CM6 doesn't expose it directly
+              // on the transaction, so we look for the active generation's cmView.
+              (globalThis as any).__augmentCancelGeneration?.();
+            } catch { /* ignore */ }
+          });
+        }
       }
     }
     return decos;
@@ -180,6 +209,11 @@ export default class AugmentTerminalPlugin extends Plugin {
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
+  private activeGeneration: {
+    abortController: AbortController;
+    cmView: EditorView;
+    insertPos: number;
+  } | null = null;
 
   // Returns the actual model ID to use, resolving "auto" to the best available.
   public resolveModel(): string {
@@ -201,6 +235,18 @@ export default class AugmentTerminalPlugin extends Plugin {
     } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+
+  private cancelGeneration(): void {
+    const gen = this.activeGeneration;
+    if (!gen) return;
+    gen.abortController.abort();
+    gen.cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+    // Restore cursor to the generation start position.
+    gen.cmView.dispatch({ selection: EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
+    this.activeGeneration = null;
+    this.refreshStatusBar();
+    new Notice("Augment: generation cancelled");
   }
 
   private triggerGenerate(editor: Editor): void {
@@ -230,11 +276,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     const cmView = (editor as any).cm as EditorView;
     cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
 
+    const abortController = new AbortController();
+    this.activeGeneration = { abortController, cmView, insertPos };
+
     void (async () => {
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
+        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel, abortController.signal);
+        this.activeGeneration = null;
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
         const insertPosLine = editor.offsetToPos(insertPos);
@@ -271,6 +321,11 @@ export default class AugmentTerminalPlugin extends Plugin {
           await this.saveData(this.settings);
         }
       } catch (err) {
+        if (this.activeGeneration?.abortController === abortController) {
+          // Aborted by cancel — already handled, just clean up.
+          this.activeGeneration = null;
+        }
+        if (abortController.signal.aborted) return; // Cancel — no error notice.
         console.error("[Augment]", err);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
@@ -344,7 +399,23 @@ export default class AugmentTerminalPlugin extends Plugin {
       return new TerminalManagerView(leaf);
     });
 
-    this.registerEditorExtension([spinnerField, agentWidgetField]);
+    // Escape key cancels in-progress generation.
+    const escapeKeymap = keymap.of([{
+      key: "Escape",
+      run: () => {
+        if (this.activeGeneration) {
+          this.cancelGeneration();
+          return true;
+        }
+        return false;
+      },
+    }]);
+
+    this.registerEditorExtension([spinnerField, agentWidgetField, escapeKeymap]);
+
+    // Global cancel callback for the spinnerField's backspace detection.
+    (globalThis as any).__augmentCancelGeneration = () => this.cancelGeneration();
+
     const agentSuggest = new AgentSuggest(this.app);
     this.registerEditorSuggest(agentSuggest);
     this.registerEvent(
@@ -445,10 +516,14 @@ export default class AugmentTerminalPlugin extends Plugin {
             const cmView = (editor as any).cm as EditorView;
             cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
 
+            const abortController = new AbortController();
+            this.activeGeneration = { abortController, cmView, insertPos };
+
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel);
+              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel, abortController.signal);
+              this.activeGeneration = null;
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
               const insertPosLine = editor.offsetToPos(insertPos);
@@ -489,6 +564,10 @@ export default class AugmentTerminalPlugin extends Plugin {
                 await this.saveData(this.settings);
               }
             } catch (err) {
+              if (this.activeGeneration?.abortController === abortController) {
+                this.activeGeneration = null;
+              }
+              if (abortController.signal.aborted) return;
               console.error("[Augment]", err);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               new Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
@@ -700,6 +779,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    delete (globalThis as any).__augmentCancelGeneration;
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
     cleanupXtermStyle();
