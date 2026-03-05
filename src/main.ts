@@ -785,7 +785,12 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async clearObsidianLinkHotkey(): Promise<void> {
-    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
+    const CONFLICT_IDS = [
+      "editor:cycle-list-checklist",
+      "editor:open-link-in-new-leaf",
+      "obsidian-textgenerator-plugin:generate-text",
+      "obsidian-textgenerator-plugin:insert-generated-text-From-template",
+    ];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys: Record<string, unknown> = {};
@@ -810,7 +815,12 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async restoreObsidianLinkHotkey(): Promise<void> {
-    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
+    const CONFLICT_IDS = [
+      "editor:cycle-list-checklist",
+      "editor:open-link-in-new-leaf",
+      "obsidian-textgenerator-plugin:generate-text",
+      "obsidian-textgenerator-plugin:insert-generated-text-From-template",
+    ];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys: Record<string, unknown> = {};

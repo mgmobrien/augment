@@ -21564,7 +21564,12 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async clearObsidianLinkHotkey() {
     var _a2, _b;
-    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
+    const CONFLICT_IDS = [
+      "editor:cycle-list-checklist",
+      "editor:open-link-in-new-leaf",
+      "obsidian-textgenerator-plugin:generate-text",
+      "obsidian-textgenerator-plugin:insert-generated-text-From-template"
+    ];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys = {};
@@ -21589,7 +21594,12 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async restoreObsidianLinkHotkey() {
     var _a2, _b, _c;
-    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
+    const CONFLICT_IDS = [
+      "editor:cycle-list-checklist",
+      "editor:open-link-in-new-leaf",
+      "obsidian-textgenerator-plugin:generate-text",
+      "obsidian-textgenerator-plugin:insert-generated-text-From-template"
+    ];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys = {};
