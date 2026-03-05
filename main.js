@@ -17266,6 +17266,7 @@ var DEFAULT_SETTINGS = {
   showGenerationToast: true,
   clearedLinkHotkey: false,
   clearedHotkeyOriginals: {},
+  terminalSetupDone: false,
   sessionHistory: []
 };
 function stripObsidianMeta(fm) {
@@ -17563,6 +17564,53 @@ async function detectDeps(app) {
   const authed = cc ? await checkAuth("") : false;
   return { python, node, cc, authed, vaultConfigured };
 }
+var S3_AUTH_BASE = "https://auth.system3.md";
+var S3_REDIRECT_URL = `${S3_AUTH_BASE}/api/oauth2-redirect`;
+async function doSsoLogin(providerName) {
+  var _a2, _b, _c, _d;
+  const methodsRes = await fetch(`${S3_AUTH_BASE}/api/collections/users/auth-methods`);
+  if (!methodsRes.ok) throw new Error("Could not reach auth server");
+  const methodsData = await methodsRes.json();
+  const provider = (_a2 = methodsData.authProviders) == null ? void 0 : _a2.find((p) => p.name === providerName);
+  if (!provider) throw new Error(`Provider "${providerName}" not available`);
+  const fullAuthUrl = provider.authUrl + S3_REDIRECT_URL;
+  try {
+    const { shell } = window.require("electron");
+    shell.openExternal(fullAuthUrl);
+  } catch (e) {
+    window.open(fullAuthUrl, "_blank");
+  }
+  const stateKey = provider.state.slice(0, 15);
+  let code = null;
+  for (let i = 0; i < 60 && !code; i++) {
+    await new Promise((r) => setTimeout(r, 1e3));
+    try {
+      const codeRes = await fetch(`${S3_AUTH_BASE}/api/collections/code_exchange/records/${stateKey}`);
+      if (codeRes.ok) {
+        const codeData = await codeRes.json();
+        if (codeData.code) code = codeData.code;
+      }
+    } catch (e) {
+    }
+  }
+  if (!code) throw new Error("Login timed out \u2014 please try again");
+  const exchangeRes = await fetch(`${S3_AUTH_BASE}/api/collections/users/auth-with-oauth2-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: providerName,
+      code,
+      codeVerifier: provider.codeVerifier,
+      redirectUrl: S3_REDIRECT_URL
+    })
+  });
+  if (!exchangeRes.ok) {
+    const err = await exchangeRes.json().catch(() => ({}));
+    throw new Error((_b = err.message) != null ? _b : "Code exchange failed");
+  }
+  const authData = await exchangeRes.json();
+  return { token: authData.token, email: (_d = (_c = authData.record) == null ? void 0 : _c.email) != null ? _d : "" };
+}
 function getMacSteps(deps) {
   if (!deps.python) {
     return {
@@ -17820,6 +17868,14 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
             jumpToTab(templatesTab, templatesPane);
             setTimeout(() => templateFolderInputEl == null ? void 0 : templateFolderInputEl.focus(), 50);
           }
+        },
+        {
+          label: "Set up terminal",
+          done: this.plugin.settings.terminalSetupDone,
+          hotkey: null,
+          onClick: () => {
+            jumpToTab(terminalTab, terminalPane);
+          }
         }
       ];
       for (const step of steps) {
@@ -17844,7 +17900,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-overview-intro",
       text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes."
     });
-    overviewPane.createEl("h3", { cls: "augment-settings-header", text: "System 3 account" });
+    overviewPane.createEl("h3", { cls: "augment-settings-section-heading", text: "System 3 account" });
     const apiKeyWrapper = overviewPane.createDiv();
     const s3AccountSetting = new import_obsidian3.Setting(overviewPane);
     const renderS3Account = () => {
@@ -17860,56 +17916,32 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           });
         });
       } else {
-        let emailVal = "";
-        let passVal = "";
-        s3AccountSetting.setName("Log in with Relay account").setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.").addText((text) => {
-          text.setPlaceholder("Email").inputEl.style.marginRight = "4px";
-          text.inputEl.type = "email";
-          text.onChange((v) => {
-            emailVal = v;
-          });
-        }).addText((text) => {
-          text.setPlaceholder("Password").inputEl.style.marginRight = "4px";
-          text.inputEl.type = "password";
-          text.onChange((v) => {
-            passVal = v;
-          });
-        }).addButton((btn) => {
-          btn.setButtonText("Log in").setCta().onClick(async () => {
-            var _a2, _b, _c;
-            if (!emailVal || !passVal) {
-              new import_obsidian3.Notice("Enter your email and password.");
-              return;
-            }
-            btn.setButtonText("\u2026").setDisabled(true);
+        s3AccountSetting.setName("Log in with Relay account").setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.");
+        const ssoRow = s3AccountSetting.settingEl.createDiv({ cls: "augment-sso-btn-row" });
+        for (const { name, label } of [
+          { name: "google", label: "Google" },
+          { name: "github", label: "GitHub" },
+          { name: "discord", label: "Discord" },
+          { name: "microsoft", label: "Microsoft" }
+        ]) {
+          const btn = ssoRow.createEl("button", { cls: "augment-sso-btn", text: `Continue with ${label}` });
+          btn.addEventListener("click", async () => {
+            ssoRow.querySelectorAll("button").forEach((b) => {
+              b.disabled = true;
+            });
+            btn.textContent = "Waiting for browser\u2026";
             try {
-              const res = await fetch(
-                "https://auth.system3.md/api/collections/users/auth-with-password",
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ identity: emailVal, password: passVal })
-                }
-              );
-              if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                new import_obsidian3.Notice(`Login failed: ${(_a2 = err.message) != null ? _a2 : res.statusText}`);
-                console.log("[Augment] S3 login failed", res.status, err);
-                btn.setButtonText("Log in").setDisabled(false);
-                return;
-              }
-              const data = await res.json();
-              this.plugin.settings.s3Token = data.token;
-              this.plugin.settings.s3Email = (_c = (_b = data.record) == null ? void 0 : _b.email) != null ? _c : emailVal;
+              const { token, email } = await doSsoLogin(name);
+              this.plugin.settings.s3Token = token;
+              this.plugin.settings.s3Email = email;
               await this.plugin.saveData(this.plugin.settings);
               renderS3Account();
             } catch (e) {
-              new import_obsidian3.Notice("Login failed \u2014 check your connection.");
-              console.log("[Augment] S3 login error", e);
-              btn.setButtonText("Log in").setDisabled(false);
+              new import_obsidian3.Notice(`Login failed: ${e.message}`);
+              renderS3Account();
             }
           });
-        });
+        }
       }
     };
     overviewPane.insertBefore(s3AccountSetting.settingEl, apiKeyWrapper);
@@ -18058,6 +18090,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       }
     };
     updateSecondarySlot(this.plugin.settings.outputFormat);
+    continuationPane.createDiv({ cls: "augment-pane-section", text: "Context" });
     secondarySelect.addEventListener("change", async () => {
       const format = this.plugin.settings.outputFormat;
       if (format === "heading") {
@@ -18124,25 +18157,6 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-context-intro",
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
     });
-    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
-    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
-    const varTable = varRef.createEl("table", { cls: "augment-var-table" });
-    const varTbody = varTable.createEl("tbody");
-    const varRows = [
-      { name: "{{title}}", desc: "Note filename (without extension)" },
-      { name: "{{selection}}", desc: "Current editor selection" },
-      { name: "{{context}}", desc: "~50 lines around the cursor" },
-      { name: "{{note_content}}", desc: "Full note text" },
-      { name: "{{linked_notes}}", desc: "Linked notes: title + frontmatter" },
-      { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
-      { name: "{{frontmatter.KEY}}", desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" }
-    ];
-    for (const v of varRows) {
-      const tr = varTbody.createEl("tr");
-      const td1 = tr.createEl("td");
-      td1.createEl("code", { text: v.name });
-      tr.createEl("td", { text: v.desc });
-    }
     new import_obsidian3.Setting(templatesPane).setName("Template folder").setDesc("Vault path to folder containing .md prompt templates").addText((text) => {
       templateFolderInputEl = text.inputEl;
       text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
@@ -18176,7 +18190,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         await this.plugin.saveData(this.plugin.settings);
       });
     });
-    templatesPane.createDiv({ cls: "augment-template-section-header" }).createDiv({ cls: "augment-section-label", text: "Templates in folder" });
+    templatesPane.createDiv({ cls: "augment-pane-section", text: "Your templates" });
     const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
     const renderTemplateList = () => {
       var _a2;
@@ -18239,6 +18253,26 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         }
       }
     });
+    templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
+    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
+    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+    const varTable = varRef.createEl("table", { cls: "augment-var-table" });
+    const varTbody = varTable.createEl("tbody");
+    const varRows = [
+      { name: "{{title}}", desc: "Note filename (without extension)" },
+      { name: "{{selection}}", desc: "Current editor selection" },
+      { name: "{{context}}", desc: "~50 lines around the cursor" },
+      { name: "{{note_content}}", desc: "Full note text" },
+      { name: "{{linked_notes}}", desc: "Linked notes: title + frontmatter" },
+      { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
+      { name: "{{frontmatter.KEY}}", desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" }
+    ];
+    for (const v of varRows) {
+      const tr = varTbody.createEl("tr");
+      const td1 = tr.createEl("td");
+      td1.createEl("code", { text: v.name });
+      tr.createEl("td", { text: v.desc });
+    }
     const formatGuide = templatesPane.createDiv({ cls: "augment-template-format" });
     formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
     formatGuide.createEl("pre", {
@@ -18340,6 +18374,11 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
           rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
         }
       }
+      if (allReady && !this.plugin.settings.terminalSetupDone) {
+        this.plugin.settings.terminalSetupDone = true;
+        void this.plugin.saveData(this.plugin.settings);
+        renderSetupCard();
+      }
       const footer = wizardBody.createEl("div", { cls: "augment-cc-status-footer" });
       if (allReady) {
         footer.createEl("span", { cls: "augment-cc-all-ready", text: "Claude Code sessions are ready." });
@@ -18392,7 +18431,7 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
       });
     });
     if (process.platform !== "darwin") {
-      terminalPane.createDiv({ cls: "augment-section-label", text: "Hotkeys" });
+      terminalPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
       if (this.plugin.settings.clearedLinkHotkey) {
         new import_obsidian3.Setting(terminalPane).setName("Ctrl+Enter").setDesc("Augment has claimed Ctrl+Enter. Obsidian\u2019s \u201CToggle checkbox status\u201D default is cleared.").addButton((btn) => {
           btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
@@ -20447,6 +20486,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
+      void this.restoreObsidianLinkHotkey();
+    }
     if (!this.settings.clearedLinkHotkey && process.platform !== "darwin") {
       void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
     }

@@ -77,6 +77,61 @@ async function detectDeps(app: App): Promise<CCDeps> {
   return { python, node, cc, authed, vaultConfigured };
 }
 
+// ── System 3 SSO ─────────────────────────────────────────────────────────────
+
+const S3_AUTH_BASE = "https://auth.system3.md";
+const S3_REDIRECT_URL = `${S3_AUTH_BASE}/api/oauth2-redirect`;
+
+async function doSsoLogin(providerName: string): Promise<{ token: string; email: string }> {
+  const methodsRes = await fetch(`${S3_AUTH_BASE}/api/collections/users/auth-methods`);
+  if (!methodsRes.ok) throw new Error("Could not reach auth server");
+  const methodsData = await methodsRes.json();
+  const provider = methodsData.authProviders?.find((p: any) => p.name === providerName);
+  if (!provider) throw new Error(`Provider "${providerName}" not available`);
+
+  // Open system browser to OAuth URL.
+  const fullAuthUrl = provider.authUrl + S3_REDIRECT_URL;
+  try {
+    const { shell } = (window as any).require("electron");
+    shell.openExternal(fullAuthUrl);
+  } catch {
+    window.open(fullAuthUrl, "_blank");
+  }
+
+  // Poll code_exchange until the callback lands (up to 60 s).
+  const stateKey = (provider.state as string).slice(0, 15);
+  let code: string | null = null;
+  for (let i = 0; i < 60 && !code; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const codeRes = await fetch(`${S3_AUTH_BASE}/api/collections/code_exchange/records/${stateKey}`);
+      if (codeRes.ok) {
+        const codeData = await codeRes.json();
+        if (codeData.code) code = codeData.code as string;
+      }
+    } catch { /* keep polling */ }
+  }
+  if (!code) throw new Error("Login timed out — please try again");
+
+  // Exchange code for token.
+  const exchangeRes = await fetch(`${S3_AUTH_BASE}/api/collections/users/auth-with-oauth2-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: providerName,
+      code,
+      codeVerifier: provider.codeVerifier,
+      redirectUrl: S3_REDIRECT_URL,
+    }),
+  });
+  if (!exchangeRes.ok) {
+    const err = await exchangeRes.json().catch(() => ({}));
+    throw new Error((err as any).message ?? "Code exchange failed");
+  }
+  const authData = await exchangeRes.json();
+  return { token: authData.token, email: authData.record?.email ?? "" };
+}
+
 interface WizardStep {
   title: string;
   desc: string;
@@ -387,6 +442,14 @@ export class AugmentSettingTab extends PluginSettingTab {
             setTimeout(() => templateFolderInputEl?.focus(), 50);
           },
         },
+        {
+          label: "Set up terminal",
+          done: this.plugin.settings.terminalSetupDone,
+          hotkey: null,
+          onClick: () => {
+            jumpToTab(terminalTab, terminalPane);
+          },
+        },
       ];
 
       for (const step of steps) {
@@ -434,56 +497,33 @@ export class AugmentSettingTab extends PluginSettingTab {
             });
           });
       } else {
-        let emailVal = "";
-        let passVal = "";
         s3AccountSetting
           .setName("Log in with Relay account")
-          .setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.")
-          .addText((text) => {
-            text.setPlaceholder("Email").inputEl.style.marginRight = "4px";
-            text.inputEl.type = "email";
-            text.onChange((v) => { emailVal = v; });
-          })
-          .addText((text) => {
-            text.setPlaceholder("Password").inputEl.style.marginRight = "4px";
-            text.inputEl.type = "password";
-            text.onChange((v) => { passVal = v; });
-          })
-          .addButton((btn) => {
-            btn.setButtonText("Log in").setCta().onClick(async () => {
-              if (!emailVal || !passVal) {
-                new Notice("Enter your email and password.");
-                return;
-              }
-              btn.setButtonText("\u2026").setDisabled(true);
-              try {
-                const res = await fetch(
-                  "https://auth.system3.md/api/collections/users/auth-with-password",
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ identity: emailVal, password: passVal }),
-                  }
-                );
-                if (!res.ok) {
-                  const err = await res.json().catch(() => ({}));
-                  new Notice(`Login failed: ${err.message ?? res.statusText}`);
-                  console.log("[Augment] S3 login failed", res.status, err);
-                  btn.setButtonText("Log in").setDisabled(false);
-                  return;
-                }
-                const data = await res.json();
-                this.plugin.settings.s3Token = data.token;
-                this.plugin.settings.s3Email = data.record?.email ?? emailVal;
-                await this.plugin.saveData(this.plugin.settings);
-                renderS3Account();
-              } catch (e) {
-                new Notice("Login failed \u2014 check your connection.");
-                console.log("[Augment] S3 login error", e);
-                btn.setButtonText("Log in").setDisabled(false);
-              }
-            });
+          .setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.");
+
+        const ssoRow = s3AccountSetting.settingEl.createDiv({ cls: "augment-sso-btn-row" });
+        for (const { name, label } of [
+          { name: "google",    label: "Google" },
+          { name: "github",    label: "GitHub" },
+          { name: "discord",   label: "Discord" },
+          { name: "microsoft", label: "Microsoft" },
+        ]) {
+          const btn = ssoRow.createEl("button", { cls: "augment-sso-btn", text: `Continue with ${label}` });
+          btn.addEventListener("click", async () => {
+            ssoRow.querySelectorAll<HTMLButtonElement>("button").forEach(b => { b.disabled = true; });
+            btn.textContent = "Waiting for browser\u2026";
+            try {
+              const { token, email } = await doSsoLogin(name);
+              this.plugin.settings.s3Token = token;
+              this.plugin.settings.s3Email = email;
+              await this.plugin.saveData(this.plugin.settings);
+              renderS3Account();
+            } catch (e) {
+              new Notice(`Login failed: ${(e as Error).message}`);
+              renderS3Account();
+            }
           });
+        }
       }
     };
 
@@ -1032,6 +1072,13 @@ export class AugmentSettingTab extends PluginSettingTab {
         } else if (isPending) {
           rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
         }
+      }
+
+      // Mark terminal setup done when all deps pass.
+      if (allReady && !this.plugin.settings.terminalSetupDone) {
+        this.plugin.settings.terminalSetupDone = true;
+        void this.plugin.saveData(this.plugin.settings);
+        renderSetupCard();
       }
 
       // Footer

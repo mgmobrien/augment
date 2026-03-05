@@ -539,6 +539,12 @@ export default class AugmentTerminalPlugin extends Plugin {
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
+    // If clearedLinkHotkey was set on Mac by an older build (before the darwin guard existed),
+    // auto-restore the hotkeys and reset the flag.
+    if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
+      void this.restoreObsidianLinkHotkey();
+    }
+
     // On Windows/Linux, auto-clear Obsidian's conflicting Ctrl+Enter default on first install,
     // then fire a Notice so the user knows what changed and can restore if needed.
     if (!this.settings.clearedLinkHotkey && process.platform !== "darwin") {

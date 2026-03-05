@@ -540,6 +540,37 @@
   padding-left: 18px;
 }
 
+/* ── SSO login buttons ── */
+.augment-sso-btn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.augment-sso-btn {
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  color: var(--text-normal);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.augment-sso-btn:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+}
+
+.augment-sso-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ── Settings tab ── */
 .augment-settings-container {
   user-select: text;
