@@ -125,6 +125,12 @@ export class TerminalView extends ItemView {
   private agentIdentity: string | null = null;
   private lastEventSignature: string = "";
   private lastEventAt: number = 0;
+  private exchangeCount: number = 0;
+  private lastActivityMs: number = Date.now();
+  private userRenamed: boolean = false;
+  private autoRenameNeeded: boolean = false;
+  private autoNamedThisTurn: boolean = false;
+  public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -207,6 +213,7 @@ export class TerminalView extends ItemView {
     if (!trimmed) return;
 
     this.terminalName = trimmed;
+    this.userRenamed = true;
     this.refreshLeafName();
     this.persistNameToLeafState();
     this.app.workspace.trigger("augment-terminal:changed");
@@ -463,12 +470,41 @@ export class TerminalView extends ItemView {
   }
 
   private setStatus(newStatus: TerminalStatus): void {
+    const wasActive = this.status === "active" || this.status === "tool";
+    const nowIdle = newStatus === "shell" || newStatus === "idle";
+    if (wasActive && nowIdle) {
+      this.exchangeCount++;
+      this.lastActivityMs = Date.now();
+      // Trigger auto-rename after exchange 3; retry on 4 and 5 if prior attempt failed.
+      const shouldTry = (this.exchangeCount === 3) ||
+        ((this.exchangeCount === 4 || this.exchangeCount === 5) && this.autoRenameNeeded);
+      if (shouldTry && !this.userRenamed) {
+        void this.triggerAutoRename();
+      }
+    }
     this.status = newStatus;
     this.contentEl
       .closest(".workspace-leaf")
       ?.setAttribute("data-augment-status", newStatus);
     (this.leaf as any).updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
+  }
+
+  private async triggerAutoRename(): Promise<void> {
+    if (!this.onAutoRenameRequest || this.userRenamed) return;
+    const excerpt = stripAnsi(this.scrollbackBuffer).slice(-2000);
+    const name = await this.onAutoRenameRequest(excerpt);
+    if (name) {
+      this.autoRenameNeeded = false;
+      this.terminalName = name;
+      this.refreshLeafName();
+      this.persistNameToLeafState();
+      this.autoNamedThisTurn = true;
+      this.app.workspace.trigger("augment-terminal:changed");
+      setTimeout(() => { this.autoNamedThisTurn = false; }, 1500);
+    } else {
+      this.autoRenameNeeded = true;
+    }
   }
 
   setSkillName(name: string): void {
@@ -492,6 +528,10 @@ export class TerminalView extends ItemView {
     this.unreadActivity = 0;
     this.app.workspace.trigger("augment-terminal:changed");
   }
+
+  getExchangeCount(): number { return this.exchangeCount; }
+  getLastActivityMs(): number { return this.lastActivityMs; }
+  getAutoNamed(): boolean { return this.autoNamedThisTurn; }
 
   private detectOrchestrationActivity(rawData: string): void {
     if (this.isExited) return;

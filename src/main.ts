@@ -579,6 +579,20 @@ export default class AugmentTerminalPlugin extends Plugin {
       view.onSessionExit = (name, status, startedAt, skillName) => {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };
+      view.onAutoRenameRequest = async (excerpt: string) => {
+        try {
+          const raw = await generateText(
+            "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2–4 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
+            `Session excerpt:\n${excerpt}`,
+            this.settings,
+            "claude-haiku-4-5-20251001"
+          );
+          const cleaned = raw.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
+          return cleaned || null;
+        } catch {
+          return null;
+        }
+      };
       return view;
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {

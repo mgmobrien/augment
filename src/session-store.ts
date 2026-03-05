@@ -7,6 +7,7 @@ export interface SessionMeta {
   title: string;      // first user message, ~60 chars
   status: "stale" | "complete";
   mtimeMs: number;
+  msgCount: number;   // number of user turns in the session
 }
 
 export class SessionStore {
@@ -54,6 +55,7 @@ export class SessionStore {
         title: this.readTitle(e.fullPath),
         status: now - e.mtimeMs < 30_000 ? "stale" : "complete",
         mtimeMs: e.mtimeMs,
+        msgCount: this.readMsgCount(e.fullPath),
       }));
     } catch {
       return [];
@@ -66,6 +68,24 @@ export class SessionStore {
     if (!dir) return 0;
     try {
       return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  // Count user turns in session JSONL.
+  private readMsgCount(sessionPath: string): number {
+    try {
+      const content = fs.readFileSync(sessionPath, "utf-8");
+      let count = 0;
+      for (const line of content.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const obj = JSON.parse(line);
+          if (obj.type === "user") count++;
+        } catch {}
+      }
+      return count;
     } catch {
       return 0;
     }

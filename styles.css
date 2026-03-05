@@ -226,6 +226,15 @@
   flex: 1;
 }
 
+@keyframes augment-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.augment-tm-name.is-just-named {
+  animation: augment-fade-in 300ms ease-in forwards;
+}
+
 .augment-tm-unread {
   min-width: 18px;
   height: 18px;

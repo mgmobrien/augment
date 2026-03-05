@@ -13,6 +13,9 @@ type TerminalViewLike = {
   getLastTeamEventSummary?: () => string | null;
   getAgentIdentity?: () => string | null;
   markActivityRead?: () => void;
+  getExchangeCount?: () => number;
+  getLastActivityMs?: () => number;
+  getAutoNamed?: () => boolean;
 };
 
 export class TerminalManagerView extends ItemView {
@@ -81,6 +84,9 @@ export class TerminalManagerView extends ItemView {
         this.refresh()
       )
     );
+
+    // Refresh timestamps every 30s so relative times stay current.
+    this.registerInterval(window.setInterval(() => this.refreshTimestamps(), 30_000));
   }
 
   private getPlugin(): any {
@@ -215,9 +221,16 @@ export class TerminalManagerView extends ItemView {
     const status =
       typeof view.getStatus === "function" ? view.getStatus() : "shell";
     dot.addClass(status);
+    const dotLabel: Record<string, string> = {
+      active: "Generating", tool: "Using tool", idle: "Idle", shell: "Open in Obsidian",
+      running: "Running", crashed: "Crashed", exited: "Exited",
+    };
+    dot.setAttribute("title", dotLabel[status] ?? status);
 
     const name = this.getLeafTerminalName(leaf, view);
-    line.createSpan({ cls: "augment-tm-name", text: name });
+    const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
+    const nameEl = line.createSpan({ cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""), text: name });
+    if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
     line.createDiv({ cls: "augment-tm-spacer" });
 
     const unread =
@@ -231,11 +244,29 @@ export class TerminalManagerView extends ItemView {
       });
     }
 
-    const summary =
-      typeof view.getLastTeamEventSummary === "function"
-        ? view.getLastTeamEventSummary()
-        : null;
-    if (summary) row.createDiv({ cls: "augment-tm-summary", text: summary });
+    const exchangeCount = typeof view.getExchangeCount === "function" ? view.getExchangeCount() : 0;
+    const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
+    const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
+
+    if (exchangeCount > 0 || summary) {
+      const secEl = row.createDiv({ cls: "augment-tm-summary" });
+      if (exchangeCount > 0) {
+        const parts: string[] = [`${exchangeCount} msg${exchangeCount !== 1 ? "s" : ""}`];
+        if (lastActivityMs > 0) {
+          const rtEl = document.createElement("span");
+          rtEl.className = "augment-tm-reltime";
+          rtEl.dataset.ms = String(lastActivityMs);
+          rtEl.textContent = this.relativeTime(lastActivityMs);
+          secEl.textContent = parts[0] + " · ";
+          secEl.appendChild(rtEl);
+        } else {
+          secEl.textContent = parts[0];
+        }
+        if (summary) secEl.textContent += " — " + summary;
+      } else if (summary) {
+        secEl.textContent = summary;
+      }
+    }
 
     const teams =
       typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
@@ -333,38 +364,14 @@ export class TerminalManagerView extends ItemView {
       groups.get(groupKey)!.push(session);
     }
 
-    const GROUP_COLLAPSE_THRESHOLD = 10;
-    const GROUP_PREVIEW_COUNT = 5;
-
     for (const groupKey of groupOrder) {
       const groupSessions = groups.get(groupKey)!;
       this.listEl!.createDiv({
         cls: "augment-tm-date-group",
         text: groupKey,
       });
-
-      const showAll = groupSessions.length <= GROUP_COLLAPSE_THRESHOLD;
-      const visible = showAll
-        ? groupSessions
-        : groupSessions.slice(0, GROUP_PREVIEW_COUNT);
-
-      for (const session of visible) {
+      for (const session of groupSessions) {
         this.renderHistoryRow(session);
-      }
-
-      if (!showAll) {
-        const remaining = groupSessions.length - GROUP_PREVIEW_COUNT;
-        const showMore = this.listEl!.createDiv({
-          cls: "augment-tm-load-more",
-          text: `Show ${remaining} more`,
-        });
-        showMore.addEventListener("click", () => {
-          // Expand the group — show all then re-render remaining
-          for (const session of groupSessions.slice(GROUP_PREVIEW_COUNT)) {
-            this.renderHistoryRow(session);
-          }
-          showMore.remove();
-        });
       }
     }
 
@@ -390,13 +397,18 @@ export class TerminalManagerView extends ItemView {
 
     const dot = line.createDiv({ cls: "augment-tm-dot" });
     dot.addClass(session.status === "stale" ? "stale" : "exited");
+    dot.setAttribute("title", session.status === "stale" ? "Active recently — may still be running" : "Session ended");
 
     line.createSpan({ cls: "augment-tm-name", text: session.title });
     line.createDiv({ cls: "augment-tm-spacer" });
-    line.createSpan({
-      cls: "augment-tm-timestamp",
-      text: this.relativeTime(session.mtimeMs),
-    });
+    const tsEl = line.createSpan({ cls: "augment-tm-timestamp" });
+    tsEl.dataset.mtime = String(session.mtimeMs);
+    tsEl.textContent = this.relativeTime(session.mtimeMs);
+
+    if (session.msgCount > 0) {
+      const secEl = row.createDiv({ cls: "augment-tm-summary" });
+      secEl.textContent = `${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`;
+    }
 
     if (isExpanded) {
       const expand = row.createDiv({ cls: "augment-tm-expand" });
@@ -449,6 +461,16 @@ export class TerminalManagerView extends ItemView {
           })
       );
       menu.showAtMouseEvent(evt);
+    });
+  }
+
+  private refreshTimestamps(): void {
+    if (!this.listEl) return;
+    this.listEl.querySelectorAll<HTMLElement>(".augment-tm-timestamp[data-mtime]").forEach(el => {
+      el.textContent = this.relativeTime(Number(el.dataset.mtime));
+    });
+    this.listEl.querySelectorAll<HTMLElement>(".augment-tm-reltime[data-ms]").forEach(el => {
+      el.textContent = this.relativeTime(Number(el.dataset.ms));
     });
   }
 
