@@ -30,14 +30,14 @@ function formatLinkedNotesFull(notes: LinkedNoteSummary[]): string {
     .join("\n\n");
 }
 
-export const DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
+export function buildSystemPrompt(_ctx: VaultContext, systemPromptOverride?: string): string {
+  return systemPromptOverride?.trim() || "";
+}
 
-export function buildSystemPrompt(ctx: VaultContext, systemPromptOverride?: string): string {
-  const parts: string[] = [
-    systemPromptOverride ? systemPromptOverride.trim() : DEFAULT_SYSTEM_PROMPT_BASE,
-    "",
-    `Current note: ${ctx.title}`,
-  ];
+export function buildUserMessage(ctx: VaultContext, instruction: string): string {
+  const parts: string[] = [instruction];
+
+  parts.push("", `Current note: ${ctx.title}`);
 
   if (ctx.frontmatter) {
     parts.push("", "Frontmatter:", formatFrontmatter(ctx.frontmatter));
@@ -47,12 +47,6 @@ export function buildSystemPrompt(ctx: VaultContext, systemPromptOverride?: stri
   if (linkedBlock) {
     parts.push("", linkedBlock);
   }
-
-  return parts.join("\n").trimEnd();
-}
-
-export function buildUserMessage(ctx: VaultContext, instruction: string): string {
-  const parts: string[] = [instruction];
 
   if (ctx.selection) {
     parts.push("", "Selected text:", ctx.selection);

@@ -16909,13 +16909,12 @@ function formatLinkedNotesFull(notes) {
     return parts.join("\n");
   }).join("\n\n");
 }
-var DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
-function buildSystemPrompt(ctx, systemPromptOverride) {
-  const parts = [
-    systemPromptOverride ? systemPromptOverride.trim() : DEFAULT_SYSTEM_PROMPT_BASE,
-    "",
-    `Current note: ${ctx.title}`
-  ];
+function buildSystemPrompt(_ctx, systemPromptOverride) {
+  return (systemPromptOverride == null ? void 0 : systemPromptOverride.trim()) || "";
+}
+function buildUserMessage(ctx, instruction) {
+  const parts = [instruction];
+  parts.push("", `Current note: ${ctx.title}`);
   if (ctx.frontmatter) {
     parts.push("", "Frontmatter:", formatFrontmatter(ctx.frontmatter));
   }
@@ -16923,10 +16922,6 @@ function buildSystemPrompt(ctx, systemPromptOverride) {
   if (linkedBlock) {
     parts.push("", linkedBlock);
   }
-  return parts.join("\n").trimEnd();
-}
-function buildUserMessage(ctx, instruction) {
-  const parts = [instruction];
   if (ctx.selection) {
     parts.push("", "Selected text:", ctx.selection);
   } else if (ctx.surroundingContext) {
