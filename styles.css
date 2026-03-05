@@ -531,6 +531,14 @@
   font-family: var(--font-monospace);
   border: 1px solid var(--background-modifier-border);
 }
+.augment-onboarding-step-desc {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 0.82em;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding-left: 18px;
+}
 
 /* ── Settings tab ── */
 .augment-settings-container .setting-item-description {

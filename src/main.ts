@@ -440,7 +440,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.refreshStatusBar();
   }
 
-  private async clearObsidianLinkHotkey(): Promise<void> {
+  async clearObsidianLinkHotkey(): Promise<void> {
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys: Record<string, unknown> = {};
@@ -508,11 +508,6 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-
-    // Clear Obsidian's Ctrl+Enter binding on first install so Augment can use it.
-    if (!this.settings.clearedLinkHotkey) {
-      void this.clearObsidianLinkHotkey();
-    }
 
     // Scaffold default templates on first install (fire-and-forget — doesn't block onload).
     void this.scaffoldDefaultTemplates();

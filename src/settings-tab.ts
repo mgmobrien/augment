@@ -335,15 +335,32 @@ export class AugmentSettingTab extends PluginSettingTab {
         statusCard.empty();
       });
 
-      const steps = [
+      const steps: { label: string; desc?: string; done: boolean; hotkey: string | null; onClick: () => void }[] = [
         {
           label: "Add your API key",
           done: !!this.plugin.settings.apiKey,
-          hotkey: null as string | null,
+          hotkey: null,
           onClick: () => {
             setTimeout(() => apiKeyInputEl?.focus(), 50);
           },
         },
+      ];
+
+      // On Windows/Linux, Ctrl+Enter is Obsidian's "Toggle checkbox status" default — prompt
+      // the user to claim it for Augment before they try to generate for the first time.
+      if (process.platform !== "darwin") {
+        steps.push({
+          label: "Claim Ctrl+Enter",
+          desc: "Obsidian\u2019s \u201cToggle checkbox status\u201d uses Ctrl+Enter by default, blocking Augment. Click to clear that conflict.",
+          done: this.plugin.settings.clearedLinkHotkey,
+          hotkey: null,
+          onClick: () => {
+            void this.plugin.clearObsidianLinkHotkey().then(() => renderSetupCard());
+          },
+        });
+      }
+
+      steps.push(
         {
           label: "Generate text for the first time",
           done: this.plugin.settings.hasGenerated,
@@ -363,7 +380,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             setTimeout(() => templateFolderInputEl?.focus(), 50);
           },
         },
-      ];
+      );
 
       for (const step of steps) {
         const row = statusCard.createEl("div", {
@@ -375,6 +392,9 @@ export class AugmentSettingTab extends PluginSettingTab {
         labelEl.addEventListener("click", (e) => { e.preventDefault(); step.onClick(); });
         if (step.hotkey) {
           row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
+        }
+        if (step.desc && !step.done) {
+          row.createEl("div", { cls: "augment-onboarding-step-desc", text: step.desc });
         }
       }
     };
@@ -544,24 +564,6 @@ export class AugmentSettingTab extends PluginSettingTab {
             this.plugin.refreshStatusBar();
           });
       });
-
-    if (this.plugin.settings.clearedLinkHotkey) {
-      const restoreEl = overviewPane.createEl("div", { cls: "augment-hotkey-notice" });
-      restoreEl.createEl("span", {
-        text: "Ctrl+Enter was Obsidian\u2019s \u201cOpen link under cursor\u201d default. Augment removed that binding so Ctrl+Enter is free to use.",
-      });
-      restoreEl.appendText(" ");
-      const restoreBtn = restoreEl.createEl("a", {
-        cls: "augment-hotkey-restore",
-        text: "Restore Obsidian\u2019s binding",
-        href: "#",
-      });
-      restoreBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        await this.plugin.restoreObsidianLinkHotkey();
-        this.display();
-      });
-    }
 
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
@@ -1106,6 +1108,35 @@ export class AugmentSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
           });
       });
+
+    // ── Hotkeys (Windows/Linux only — Ctrl+Enter conflict doesn't exist on Mac) ──
+    if (process.platform !== "darwin") {
+      terminalPane.createDiv({ cls: "augment-section-label", text: "Hotkeys" });
+      if (this.plugin.settings.clearedLinkHotkey) {
+        new Setting(terminalPane)
+          .setName("Ctrl+Enter")
+          .setDesc("Augment has claimed Ctrl+Enter. Obsidian\u2019s \u201cToggle checkbox status\u201d default is cleared.")
+          .addButton((btn) => {
+            btn.setButtonText("Restore Obsidian\u2019s binding")
+              .onClick(async () => {
+                await this.plugin.restoreObsidianLinkHotkey();
+                this.display();
+              });
+          });
+      } else {
+        new Setting(terminalPane)
+          .setName("Ctrl+Enter conflict")
+          .setDesc("Obsidian\u2019s \u201cToggle checkbox status\u201d uses Ctrl+Enter by default, which may block Augment on Windows.")
+          .addButton((btn) => {
+            btn.setButtonText("Claim Ctrl+Enter")
+              .setCta()
+              .onClick(async () => {
+                await this.plugin.clearObsidianLinkHotkey();
+                this.display();
+              });
+          });
+      }
+    }
 
     // WSL doc link
     const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });

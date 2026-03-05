@@ -17805,7 +17805,20 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           onClick: () => {
             setTimeout(() => apiKeyInputEl == null ? void 0 : apiKeyInputEl.focus(), 50);
           }
-        },
+        }
+      ];
+      if (process.platform !== "darwin") {
+        steps.push({
+          label: "Claim Ctrl+Enter",
+          desc: "Obsidian\u2019s \u201CToggle checkbox status\u201D uses Ctrl+Enter by default, blocking Augment. Click to clear that conflict.",
+          done: this.plugin.settings.clearedLinkHotkey,
+          hotkey: null,
+          onClick: () => {
+            void this.plugin.clearObsidianLinkHotkey().then(() => renderSetupCard());
+          }
+        });
+      }
+      steps.push(
         {
           label: "Generate text for the first time",
           done: this.plugin.settings.hasGenerated,
@@ -17825,7 +17838,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
             setTimeout(() => templateFolderInputEl == null ? void 0 : templateFolderInputEl.focus(), 50);
           }
         }
-      ];
+      );
       for (const step of steps) {
         const row = statusCard.createEl("div", {
           cls: "augment-onboarding-step" + (step.done ? " is-done" : "")
@@ -17839,6 +17852,9 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         });
         if (step.hotkey) {
           row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
+        }
+        if (step.desc && !step.done) {
+          row.createEl("div", { cls: "augment-onboarding-step-desc", text: step.desc });
         }
       }
     };
@@ -17973,23 +17989,6 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         this.plugin.refreshStatusBar();
       });
     });
-    if (this.plugin.settings.clearedLinkHotkey) {
-      const restoreEl = overviewPane.createEl("div", { cls: "augment-hotkey-notice" });
-      restoreEl.createEl("span", {
-        text: "Ctrl+Enter was Obsidian\u2019s \u201COpen link under cursor\u201D default. Augment removed that binding so Ctrl+Enter is free to use."
-      });
-      restoreEl.appendText(" ");
-      const restoreBtn = restoreEl.createEl("a", {
-        cls: "augment-hotkey-restore",
-        text: "Restore Obsidian\u2019s binding",
-        href: "#"
-      });
-      restoreBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        await this.plugin.restoreObsidianLinkHotkey();
-        this.display();
-      });
-    }
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
     const howSteps = [
@@ -18404,6 +18403,24 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
         await this.plugin.saveData(this.plugin.settings);
       });
     });
+    if (process.platform !== "darwin") {
+      terminalPane.createDiv({ cls: "augment-section-label", text: "Hotkeys" });
+      if (this.plugin.settings.clearedLinkHotkey) {
+        new import_obsidian3.Setting(terminalPane).setName("Ctrl+Enter").setDesc("Augment has claimed Ctrl+Enter. Obsidian\u2019s \u201CToggle checkbox status\u201D default is cleared.").addButton((btn) => {
+          btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
+            await this.plugin.restoreObsidianLinkHotkey();
+            this.display();
+          });
+        });
+      } else {
+        new import_obsidian3.Setting(terminalPane).setName("Ctrl+Enter conflict").setDesc("Obsidian\u2019s \u201CToggle checkbox status\u201D uses Ctrl+Enter by default, which may block Augment on Windows.").addButton((btn) => {
+          btn.setButtonText("Claim Ctrl+Enter").setCta().onClick(async () => {
+            await this.plugin.clearObsidianLinkHotkey();
+            this.display();
+          });
+        });
+      }
+    }
     const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
     const wslLink = termFooter.createEl("a", {
       cls: "augment-folder-open",
@@ -20410,9 +20427,6 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    if (!this.settings.clearedLinkHotkey) {
-      void this.clearObsidianLinkHotkey();
-    }
     void this.scaffoldDefaultTemplates();
     void this.loadAvailableModels();
     this.calloutStyleEl = document.head.createEl("style");
