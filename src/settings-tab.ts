@@ -139,15 +139,12 @@ export class AugmentSettingTab extends PluginSettingTab {
           onCta: null,
         },
         {
-          label: "Set up templates",
-          done: !!this.plugin.settings.templateFolder,
+          label: "Run a template for the first time",
+          done: this.plugin.settings.hasUsedTemplate,
           optional: true,
-          cta: "Set folder",
-          hotkey: null,
-          onCta: () => {
-            jumpToTab(contextTab, contextPane);
-            setTimeout(() => templateFolderInputEl?.focus(), 50);
-          },
+          cta: null,
+          hotkey: process.platform === "darwin" ? "\u2318\u21e7\u21a9" : "Ctrl+Shift+\u21a9",
+          onCta: null,
         },
       ];
 

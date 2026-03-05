@@ -10,6 +10,33 @@ import { TerminalSwitcherModal } from "./terminal-switcher";
 import { Decoration, DecorationSet, EditorView, WidgetType } from "@codemirror/view";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
+// Default template files written to vault on first install
+const SCAFFOLD_FOLDER = "Augment/templates";
+const SCAFFOLD_TEMPLATES: [string, string][] = [
+  [
+    "Summarize whole note",
+    `---
+description: Reads the entire note — use for summaries, head blocks, and full-note responses
+---
+{{note_content}}
+`,
+  ],
+  [
+    "Generate with linked notes",
+    `---
+description: Includes full content of wikilinked notes — use for synthesis across connected notes
+---
+{{note_content}}
+
+---
+
+Linked notes:
+
+{{linked_notes_full}}
+`,
+  ],
+];
+
 // CM6 spinner widget — inserts an HTML triangle animation at cursor without modifying document text
 const addSpinnerEffect = StateEffect.define<number>();
 const removeSpinnerEffect = StateEffect.define<null>();
@@ -146,8 +173,33 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.refreshStatusBar();
   }
 
+  private async scaffoldDefaultTemplates(): Promise<void> {
+    // Only scaffold when templateFolder has never been configured.
+    if (this.settings.templateFolder) return;
+
+    // Create folder if absent.
+    if (!this.app.vault.getFolderByPath(SCAFFOLD_FOLDER)) {
+      try { await this.app.vault.createFolder(SCAFFOLD_FOLDER); } catch { /* already exists */ }
+    }
+
+    // Create each template file idempotently — never overwrite.
+    for (const [name, content] of SCAFFOLD_TEMPLATES) {
+      const path = `${SCAFFOLD_FOLDER}/${name}.md`;
+      if (!this.app.vault.getAbstractFileByPath(path)) {
+        try { await this.app.vault.create(path, content); } catch { /* already exists */ }
+      }
+    }
+
+    // Set templateFolder so the picker finds the scaffolded files.
+    this.settings.templateFolder = SCAFFOLD_FOLDER;
+    await this.saveData(this.settings);
+  }
+
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    // Scaffold default templates on first install (fire-and-forget — doesn't block onload).
+    void this.scaffoldDefaultTemplates();
 
     // Fetch available models in the background — populates the model dropdown
     // and resolves "auto" to the best available model name in the status bar.
@@ -301,6 +353,21 @@ export default class AugmentTerminalPlugin extends Plugin {
         const ctx = assembleVaultContext(this.app, editor, this.settings);
         new TemplatePicker(this.app, files, async (templateFile) => {
           const templateContent = await this.app.vault.read(templateFile);
+
+          // Lazy full-content reads — only when the template actually uses the variables.
+          if (templateContent.includes("{{note_content}}")) {
+            const activeFile = this.app.workspace.getActiveFile();
+            if (activeFile) ctx.content = await this.app.vault.read(activeFile);
+          }
+          if (templateContent.includes("{{linked_notes_full}}")) {
+            for (const note of ctx.linkedNotes) {
+              const file = this.app.vault.getFiles().find((f) => f.basename === note.title);
+              if (file) {
+                try { note.content = await this.app.vault.read(file); } catch { /* skip */ }
+              }
+            }
+          }
+
           const rendered = substituteVariables(templateContent, ctx);
 
           const runGenerate = async () => {
@@ -361,6 +428,10 @@ export default class AugmentTerminalPlugin extends Plugin {
               });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
+                await this.saveData(this.settings);
+              }
+              if (!this.settings.hasUsedTemplate) {
+                this.settings.hasUsedTemplate = true;
                 await this.saveData(this.settings);
               }
             } catch (err) {

@@ -14,6 +14,7 @@ export interface AugmentSettings {
   useWsl: boolean;
   setupCardDismissed: boolean;
   hasGenerated: boolean;
+  hasUsedTemplate: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -30,7 +31,14 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   useWsl: false,
   setupCardDismissed: false,
   hasGenerated: false,
+  hasUsedTemplate: false,
 };
+
+export interface LinkedNoteSummary {
+  title: string;
+  frontmatter: Record<string, unknown> | null;
+  content?: string;
+}
 
 export interface ContextEntry {
   timestamp: number;      // Date.now(); 0 = preview (no generation happened)
@@ -40,17 +48,13 @@ export interface ContextEntry {
   userMessage: string;    // buildUserMessage(ctx, instruction) or rendered template
 }
 
-export interface LinkedNoteSummary {
-  title: string;
-  frontmatter: Record<string, unknown> | null;
-}
-
 export interface VaultContext {
   title: string;
   frontmatter: Record<string, unknown> | null;
   selection: string;
   surroundingContext: string;
   linkedNotes: LinkedNoteSummary[];
+  content?: string;
 }
 
 // Strip Obsidian's internal `position` key from frontmatter cache objects.

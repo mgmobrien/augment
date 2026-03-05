@@ -28,6 +28,14 @@ export class TemplatePicker extends FuzzySuggestModal<TFile> {
     return file.basename;
   }
 
+  renderSuggestion(file: TFile, el: HTMLElement): void {
+    el.createEl("div", { text: file.basename });
+    const desc = this.app.metadataCache.getFileCache(file)?.frontmatter?.["description"];
+    if (desc && typeof desc === "string") {
+      el.createEl("div", { cls: "augment-tpl-desc", text: desc });
+    }
+  }
+
   onChooseItem(file: TFile): void {
     this.onChoose(file);
   }
@@ -64,6 +72,18 @@ export class TemplatePreviewModal extends Modal {
         ? `Will include: ${this.ctx.title} + ${linkedCount} linked note${linkedCount > 1 ? "s" : ""}`
         : `Will include: ${this.ctx.title}`;
     contentEl.createEl("p", { text: summaryText, cls: "augment-gen-context-hint" });
+
+    const charCount = this.renderedPrompt.length;
+    const approxTokens = Math.round(charCount / 4);
+    const isLarge = this.renderedPrompt.includes("{{note_content}}") ||
+      this.renderedPrompt.includes("{{linked_notes_full}}") ||
+      charCount > 4000;
+    if (isLarge || charCount > 2000) {
+      contentEl.createEl("p", {
+        cls: "augment-gen-token-estimate" + (approxTokens > 4000 ? " is-large" : ""),
+        text: `~${approxTokens.toLocaleString()} tokens (${charCount.toLocaleString()} chars)`,
+      });
+    }
 
     new Setting(contentEl)
       .setName("Don't show preview")

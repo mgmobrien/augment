@@ -17,6 +17,18 @@ function formatLinkedNotes(notes: LinkedNoteSummary[]): string {
     .join("\n\n");
 }
 
+function formatLinkedNotesFull(notes: LinkedNoteSummary[]): string {
+  if (notes.length === 0) return "";
+  return notes
+    .map((note) => {
+      const parts = [`--- ${note.title} ---`];
+      if (note.frontmatter) parts.push(formatFrontmatter(note.frontmatter));
+      if (note.content) parts.push("", note.content);
+      return parts.join("\n");
+    })
+    .join("\n\n");
+}
+
 export function buildSystemPrompt(ctx: VaultContext): string {
   const parts: string[] = [
     "You are assisting with writing in an Obsidian vault.",
@@ -53,7 +65,9 @@ export function substituteVariables(template: string, ctx: VaultContext): string
   result = result.replace(/\{\{selection\}\}/g, ctx.selection);
   result = result.replace(/\{\{title\}\}/g, ctx.title);
   result = result.replace(/\{\{context\}\}/g, ctx.surroundingContext);
+  result = result.replace(/\{\{note_content\}\}/g, ctx.content ?? ctx.surroundingContext);
   result = result.replace(/\{\{linked_notes\}\}/g, formatLinkedNotes(ctx.linkedNotes));
+  result = result.replace(/\{\{linked_notes_full\}\}/g, formatLinkedNotesFull(ctx.linkedNotes));
   result = result.replace(/\{\{frontmatter\.([^}]+)\}\}/g, (_, key) => {
     const val = ctx.frontmatter?.[key];
     if (val === undefined || val === null) return "";

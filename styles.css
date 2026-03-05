@@ -401,6 +401,24 @@
   pointer-events: none;
 }
 
+/* ── Template picker subtitle ── */
+.augment-tpl-desc {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Template preview token estimate ── */
+.augment-gen-token-estimate {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+.augment-gen-token-estimate.is-large {
+  color: var(--color-orange);
+}
+
 /* ── Generate modal ── */
 .augment-gen-modal .augment-gen-context-hint {
   color: var(--text-muted);
