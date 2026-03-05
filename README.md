@@ -42,6 +42,24 @@ Open Settings → Augment → Terminal tab. The setup wizard detects your enviro
 
 The wizard shows only the next missing step and advances as each is resolved. Once everything is green, the terminal manager is ready. See WSL.md for manual Windows setup.
 
+## Updating
+
+`main.js` is pre-built in the repo. Getting an update is a git pull plus a file copy — no build step.
+
+**Windows** — run the included updater script once per update:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\update-windows.ps1
+```
+
+On first run it asks for your vault path and saves it to `scripts\update.cfg` (not committed). Subsequent runs use the saved path. After it completes, toggle the plugin off and on in Obsidian to reload it.
+
+**macOS/Linux:**
+
+```bash
+git pull && bash scripts/deploy.sh
+```
+
 ## Modifying source
 
 Only needed if you are changing the TypeScript source:

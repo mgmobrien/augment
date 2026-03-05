@@ -9,3 +9,6 @@ dist-electron/
 # Build artifacts and dev test files
 build/
 spinner-test.html
+
+# Windows updater — saved vault path (user-local, not committed)
+scripts/update.cfg
