@@ -18172,18 +18172,19 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
         await this.plugin.saveData(this.plugin.settings);
       });
     });
-    if (process.platform !== "darwin") {
+    {
+      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
       terminalPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
       if (this.plugin.settings.clearedLinkHotkey) {
-        new import_obsidian3.Setting(terminalPane).setName("Ctrl+Enter").setDesc("Augment has claimed Ctrl+Enter. Obsidian\u2019s \u201CToggle checkbox status\u201D default is cleared.").addButton((btn) => {
+        new import_obsidian3.Setting(terminalPane).setName(`${modKey}+Enter`).setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`).addButton((btn) => {
           btn.setButtonText("Restore Obsidian\u2019s binding").onClick(async () => {
             await this.plugin.restoreObsidianLinkHotkey();
             this.display();
           });
         });
       } else {
-        new import_obsidian3.Setting(terminalPane).setName("Ctrl+Enter conflict").setDesc("Obsidian\u2019s \u201CToggle checkbox status\u201D uses Ctrl+Enter by default, which may block Augment on Windows.").addButton((btn) => {
-          btn.setButtonText("Claim Ctrl+Enter").setCta().onClick(async () => {
+        new import_obsidian3.Setting(terminalPane).setName(`${modKey}+Enter conflict`).setDesc(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`).addButton((btn) => {
+          btn.setButtonText(`Claim ${modKey}+Enter`).setCta().onClick(async () => {
             await this.plugin.clearObsidianLinkHotkey();
             this.display();
           });
@@ -18265,14 +18266,19 @@ var TemplatePreviewModal = class extends import_obsidian4.Modal {
         this.skipPreview = val;
       });
     });
+    const submit = () => {
+      this.close();
+      this.onConfirm(this.skipPreview);
+    };
     new import_obsidian4.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Cancel").onClick(() => this.close());
     }).addButton((btn) => {
-      btn.setButtonText("Generate").setCta().onClick(() => {
-        this.close();
-        this.onConfirm(this.skipPreview);
-      });
+      btn.setButtonText("Generate").setCta().onClick(submit);
       btn.buttonEl.focus();
+    });
+    this.scope.register([], "Enter", (e) => {
+      e.preventDefault();
+      submit();
     });
   }
   onClose() {
@@ -21604,6 +21610,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       "obsidian-textgenerator-plugin:generate-text",
       "obsidian-textgenerator-plugin:insert-generated-text-From-template"
     ];
+    const BUILTIN_DEFAULTS = {
+      "editor:open-link-in-new-leaf": [{ modifiers: ["Mod"], key: "Enter" }]
+    };
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys = {};
@@ -21621,7 +21630,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         }
       }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
-      (_c = (_b = this.app.hotkeyManager) == null ? void 0 : _b.load) == null ? void 0 : _c.call(_b);
+      const hm = this.app.hotkeyManager;
+      for (const [id, bindings] of Object.entries(BUILTIN_DEFAULTS)) {
+        (_b = hm == null ? void 0 : hm.addDefaultHotkeys) == null ? void 0 : _b.call(hm, id, bindings);
+      }
+      await ((_c = hm == null ? void 0 : hm.load) == null ? void 0 : _c.call(hm));
       this.settings.clearedLinkHotkey = false;
       this.settings.clearedHotkeyOriginals = {};
       await this.saveData(this.settings);

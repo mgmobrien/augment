@@ -903,13 +903,14 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    // ── Hotkeys (Windows/Linux only — Ctrl+Enter conflict doesn't exist on Mac) ──
-    if (process.platform !== "darwin") {
+    // ── Hotkeys ──
+    {
+      const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
       terminalPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
       if (this.plugin.settings.clearedLinkHotkey) {
         new Setting(terminalPane)
-          .setName("Ctrl+Enter")
-          .setDesc("Augment has claimed Ctrl+Enter. Obsidian\u2019s \u201cToggle checkbox status\u201d default is cleared.")
+          .setName(`${modKey}+Enter`)
+          .setDesc(`Augment has claimed ${modKey}+Enter. Obsidian\u2019s default binding is cleared.`)
           .addButton((btn) => {
             btn.setButtonText("Restore Obsidian\u2019s binding")
               .onClick(async () => {
@@ -919,10 +920,10 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       } else {
         new Setting(terminalPane)
-          .setName("Ctrl+Enter conflict")
-          .setDesc("Obsidian\u2019s \u201cToggle checkbox status\u201d uses Ctrl+Enter by default, which may block Augment on Windows.")
+          .setName(`${modKey}+Enter conflict`)
+          .setDesc(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${modKey}+Enter by default, which blocks Augment\u2019s generate command.`)
           .addButton((btn) => {
-            btn.setButtonText("Claim Ctrl+Enter")
+            btn.setButtonText(`Claim ${modKey}+Enter`)
               .setCta()
               .onClick(async () => {
                 await this.plugin.clearObsidianLinkHotkey();

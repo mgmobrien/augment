@@ -93,20 +93,24 @@ export class TemplatePreviewModal extends Modal {
         });
       });
 
+    const submit = () => {
+      this.close();
+      this.onConfirm(this.skipPreview);
+    };
+
     new Setting(contentEl)
       .addButton((btn) => {
         btn.setButtonText("Cancel").onClick(() => this.close());
       })
       .addButton((btn) => {
-        btn
-          .setButtonText("Generate")
-          .setCta()
-          .onClick(() => {
-            this.close();
-            this.onConfirm(this.skipPreview);
-          });
+        btn.setButtonText("Generate").setCta().onClick(submit);
         btn.buttonEl.focus();
       });
+
+    this.scope.register([], "Enter", (e) => {
+      e.preventDefault();
+      submit();
+    });
   }
 
   onClose(): void {

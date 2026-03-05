@@ -821,6 +821,11 @@ export default class AugmentTerminalPlugin extends Plugin {
       "obsidian-textgenerator-plugin:generate-text",
       "obsidian-textgenerator-plugin:insert-generated-text-From-template",
     ];
+    // Built-in default hotkeys for commands where we called removeDefaultHotkeys().
+    // Must re-add these at runtime so Obsidian's binding works immediately.
+    const BUILTIN_DEFAULTS: Record<string, Array<{ modifiers: string[]; key: string }>> = {
+      "editor:open-link-in-new-leaf": [{ modifiers: ["Mod"], key: "Enter" }],
+    };
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys: Record<string, unknown> = {};
@@ -837,7 +842,12 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
       }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
-      (this.app as any).hotkeyManager?.load?.();
+      // Restore runtime defaults that were removed via removeDefaultHotkeys().
+      const hm = (this.app as any).hotkeyManager;
+      for (const [id, bindings] of Object.entries(BUILTIN_DEFAULTS)) {
+        hm?.addDefaultHotkeys?.(id, bindings);
+      }
+      await hm?.load?.();
       this.settings.clearedLinkHotkey = false;
       this.settings.clearedHotkeyOriginals = {};
       await this.saveData(this.settings);
