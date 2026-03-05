@@ -477,6 +477,21 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
   }
 
+  private showHotkeyClaimedNotice(): void {
+    const notice = new Notice("", 0);
+    notice.noticeEl.empty();
+    notice.noticeEl.createEl("span", { text: "Augment claimed Ctrl+Enter \u2014 " });
+    const link = notice.noticeEl.createEl("a", { text: "Restore Obsidian\u2019s default", href: "#" });
+    link.style.color = "var(--text-accent)";
+    link.style.cursor = "pointer";
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      notice.hide();
+      (this.app as any).setting?.open?.();
+      (this.app as any).setting?.openTabById?.("augment-terminal");
+    });
+  }
+
   private async scaffoldDefaultTemplates(): Promise<void> {
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
 
@@ -508,6 +523,12 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    // On Windows/Linux, auto-clear Obsidian's conflicting Ctrl+Enter default on first install,
+    // then fire a Notice so the user knows what changed and can restore if needed.
+    if (!this.settings.clearedLinkHotkey && process.platform !== "darwin") {
+      void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
+    }
 
     // Scaffold default templates on first install (fire-and-forget — doesn't block onload).
     void this.scaffoldDefaultTemplates();

@@ -17805,20 +17805,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           onClick: () => {
             setTimeout(() => apiKeyInputEl == null ? void 0 : apiKeyInputEl.focus(), 50);
           }
-        }
-      ];
-      if (process.platform !== "darwin") {
-        steps.push({
-          label: "Claim Ctrl+Enter",
-          desc: "Obsidian\u2019s \u201CToggle checkbox status\u201D uses Ctrl+Enter by default, blocking Augment. Click to clear that conflict.",
-          done: this.plugin.settings.clearedLinkHotkey,
-          hotkey: null,
-          onClick: () => {
-            void this.plugin.clearObsidianLinkHotkey().then(() => renderSetupCard());
-          }
-        });
-      }
-      steps.push(
+        },
         {
           label: "Generate text for the first time",
           done: this.plugin.settings.hasGenerated,
@@ -17838,7 +17825,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
             setTimeout(() => templateFolderInputEl == null ? void 0 : templateFolderInputEl.focus(), 50);
           }
         }
-      );
+      ];
       for (const step of steps) {
         const row = statusCard.createEl("div", {
           cls: "augment-onboarding-step" + (step.done ? " is-done" : "")
@@ -17852,9 +17839,6 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         });
         if (step.hotkey) {
           row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
-        }
-        if (step.desc && !step.done) {
-          row.createEl("div", { cls: "augment-onboarding-step-desc", text: step.desc });
         }
       }
     };
@@ -20401,6 +20385,21 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       console.warn("[Augment] could not restore link hotkey:", e);
     }
   }
+  showHotkeyClaimedNotice() {
+    const notice = new import_obsidian8.Notice("", 0);
+    notice.noticeEl.empty();
+    notice.noticeEl.createEl("span", { text: "Augment claimed Ctrl+Enter \u2014 " });
+    const link = notice.noticeEl.createEl("a", { text: "Restore Obsidian\u2019s default", href: "#" });
+    link.style.color = "var(--text-accent)";
+    link.style.cursor = "pointer";
+    link.addEventListener("click", (e) => {
+      var _a2, _b, _c, _d;
+      e.preventDefault();
+      notice.hide();
+      (_b = (_a2 = this.app.setting) == null ? void 0 : _a2.open) == null ? void 0 : _b.call(_a2);
+      (_d = (_c = this.app.setting) == null ? void 0 : _c.openTabById) == null ? void 0 : _d.call(_c, "augment-terminal");
+    });
+  }
   async scaffoldDefaultTemplates() {
     const targetFolder = this.settings.templateFolder || SCAFFOLD_FOLDER;
     if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
@@ -20427,6 +20426,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (!this.settings.clearedLinkHotkey && process.platform !== "darwin") {
+      void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
+    }
     void this.scaffoldDefaultTemplates();
     void this.loadAvailableModels();
     this.calloutStyleEl = document.head.createEl("style");

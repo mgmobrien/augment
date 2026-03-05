@@ -335,32 +335,15 @@ export class AugmentSettingTab extends PluginSettingTab {
         statusCard.empty();
       });
 
-      const steps: { label: string; desc?: string; done: boolean; hotkey: string | null; onClick: () => void }[] = [
+      const steps = [
         {
           label: "Add your API key",
           done: !!this.plugin.settings.apiKey,
-          hotkey: null,
+          hotkey: null as string | null,
           onClick: () => {
             setTimeout(() => apiKeyInputEl?.focus(), 50);
           },
         },
-      ];
-
-      // On Windows/Linux, Ctrl+Enter is Obsidian's "Toggle checkbox status" default — prompt
-      // the user to claim it for Augment before they try to generate for the first time.
-      if (process.platform !== "darwin") {
-        steps.push({
-          label: "Claim Ctrl+Enter",
-          desc: "Obsidian\u2019s \u201cToggle checkbox status\u201d uses Ctrl+Enter by default, blocking Augment. Click to clear that conflict.",
-          done: this.plugin.settings.clearedLinkHotkey,
-          hotkey: null,
-          onClick: () => {
-            void this.plugin.clearObsidianLinkHotkey().then(() => renderSetupCard());
-          },
-        });
-      }
-
-      steps.push(
         {
           label: "Generate text for the first time",
           done: this.plugin.settings.hasGenerated,
@@ -380,7 +363,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             setTimeout(() => templateFolderInputEl?.focus(), 50);
           },
         },
-      );
+      ];
 
       for (const step of steps) {
         const row = statusCard.createEl("div", {
@@ -392,9 +375,6 @@ export class AugmentSettingTab extends PluginSettingTab {
         labelEl.addEventListener("click", (e) => { e.preventDefault(); step.onClick(); });
         if (step.hotkey) {
           row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
-        }
-        if (step.desc && !step.done) {
-          row.createEl("div", { cls: "augment-onboarding-step-desc", text: step.desc });
         }
       }
     };
