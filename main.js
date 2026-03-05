@@ -11238,9 +11238,11 @@ function formatLinkedNotesFull(notes) {
     return parts.join("\n");
   }).join("\n\n");
 }
-function buildSystemPrompt(ctx) {
+var DEFAULT_SYSTEM_PROMPT_BASE = "You are assisting with writing in an Obsidian vault.";
+function buildSystemPrompt(ctx, systemPromptOverride) {
+  if (systemPromptOverride) return systemPromptOverride.trim();
   const parts = [
-    "You are assisting with writing in an Obsidian vault.",
+    DEFAULT_SYSTEM_PROMPT_BASE,
     "",
     `Current note: ${ctx.title}`
   ];
@@ -11606,9 +11608,7 @@ var TEMPLATE_SCAFFOLD = `---
 name:
 description:
 ---
-You are Gus, a thinking partner embedded in this vault.
-
-Your task:
+Your task instruction here.
 
 {{note_content}}
 `;
@@ -11666,16 +11666,20 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
     const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
     const generateTab = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
-    const contextTab = tabNav.createEl("button", { cls: "augment-tab", text: "Context & Templates" });
+    const contextTab = tabNav.createEl("button", { cls: "augment-tab", text: "Context" });
+    const templatesTab = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
     const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const generatePane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const contextPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const templatesPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     generatePane.style.display = "none";
     contextPane.style.display = "none";
+    templatesPane.style.display = "none";
     const tabs = [
       { btn: overviewTab, pane: overviewPane },
       { btn: generateTab, pane: generatePane },
-      { btn: contextTab, pane: contextPane }
+      { btn: contextTab, pane: contextPane },
+      { btn: templatesTab, pane: templatesPane }
     ];
     tabs.forEach(({ btn, pane }) => {
       btn.addEventListener("click", () => {
@@ -11710,7 +11714,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         await this.plugin.saveData(this.plugin.settings);
         statusCard.empty();
       });
-      const steps2 = [
+      const steps = [
         {
           label: "Add your API key",
           done: !!this.plugin.settings.apiKey,
@@ -11733,12 +11737,12 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           done: this.plugin.settings.hasUsedTemplate,
           hotkey: process.platform === "darwin" ? "\u2318\u21E7\u21A9" : "Ctrl+Shift+\u21A9",
           onClick: () => {
-            jumpToTab(contextTab, contextPane);
+            jumpToTab(templatesTab, templatesPane);
             setTimeout(() => templateFolderInputEl == null ? void 0 : templateFolderInputEl.focus(), 50);
           }
         }
       ];
-      for (const step of steps2) {
+      for (const step of steps) {
         const row = statusCard.createEl("div", {
           cls: "augment-onboarding-step" + (step.done ? " is-done" : "")
         });
@@ -11775,14 +11779,14 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
-    const steps = [
+    const howSteps = [
       "Position your cursor where you want output to appear.",
       "Press Mod+Enter (or right-click \u2192 Augment: Generate).",
       "A loading indicator appears while Claude generates.",
       "The result is inserted at your cursor in the chosen format."
     ];
     const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
-    for (const step of steps) {
+    for (const step of howSteps) {
       ol.createEl("li", { text: step });
     }
     const mockEl = overviewPane.createEl("div", { cls: "augment-overview-mock" });
@@ -11801,7 +11805,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       { label: "Set your API key", tab: generateTab, pane: generatePane },
       { label: "Choose a model", tab: generateTab, pane: generatePane },
       { label: "Configure output format", tab: generateTab, pane: generatePane },
-      { label: "Manage templates", tab: contextTab, pane: contextPane }
+      { label: "Manage templates", tab: templatesTab, pane: templatesPane }
     ];
     for (const { label, tab, pane } of items) {
       const li = linkList.createEl("li");
@@ -11938,106 +11942,6 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-context-intro",
       text: "Augment sends everything in the current note above your cursor, along with the note title, frontmatter, and linked note summaries. If you have text selected, the selection is used instead of the above-cursor context."
     });
-    new import_obsidian3.Setting(contextPane).setName("Template folder").setDesc("Vault path to folder containing .md prompt templates").addText((text) => {
-      templateFolderInputEl = text.inputEl;
-      text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
-        this.plugin.settings.templateFolder = value;
-        await this.plugin.saveData(this.plugin.settings);
-        renderTemplateSection();
-      });
-    });
-    const templateSectionEl = contextPane.createDiv({ cls: "augment-template-section" });
-    const renderTemplateSection = () => {
-      var _a2;
-      templateSectionEl.empty();
-      const folder = this.plugin.settings.templateFolder;
-      const sectionHeader = templateSectionEl.createDiv({
-        cls: "augment-template-section-header"
-      });
-      sectionHeader.createSpan({ cls: "augment-section-label", text: "Templates" });
-      const newBtn = sectionHeader.createEl("button", {
-        cls: "augment-template-new clickable-icon"
-      });
-      (0, import_obsidian3.setIcon)(newBtn, "plus");
-      newBtn.createSpan({ text: " New template" });
-      newBtn.addEventListener("click", async () => {
-        if (!folder) {
-          new import_obsidian3.Notice("Set a template folder first");
-          return;
-        }
-        const newPath = `${folder}/New template.md`;
-        let newFile;
-        try {
-          newFile = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
-        } catch (e) {
-          const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
-          if (existing instanceof import_obsidian3.TFile) {
-            newFile = existing;
-          } else {
-            new import_obsidian3.Notice("Could not create template");
-            return;
-          }
-        }
-        await this.plugin.app.workspace.getLeaf().openFile(newFile);
-      });
-      const listEl = templateSectionEl.createDiv({ cls: "augment-template-list" });
-      const folderObj = folder ? this.plugin.app.vault.getFolderByPath(folder) : null;
-      const files = folderObj ? folderObj.children.filter(
-        (f) => f instanceof import_obsidian3.TFile && f.extension === "md"
-      ) : [];
-      if (files.length === 0) {
-        listEl.createDiv({
-          cls: "augment-template-empty",
-          text: "No templates found. Create one to get started."
-        });
-      } else {
-        for (const file of files) {
-          const fm = (_a2 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter;
-          const name = typeof (fm == null ? void 0 : fm.name) === "string" ? fm.name : file.basename;
-          const desc = typeof (fm == null ? void 0 : fm.description) === "string" ? fm.description : "";
-          const row = listEl.createDiv({ cls: "augment-template-row" });
-          const rowInfo = row.createDiv({ cls: "augment-template-row-info" });
-          rowInfo.createSpan({ cls: "augment-template-name", text: name });
-          if (desc) {
-            rowInfo.createSpan({ cls: "augment-template-desc", text: desc });
-          }
-          const openBtn = row.createEl("button", {
-            cls: "augment-template-open clickable-icon",
-            text: "Open \u2197"
-          });
-          openBtn.addEventListener("click", () => {
-            this.plugin.app.workspace.openLinkText(file.basename, "", false);
-          });
-        }
-      }
-      const varRef = templateSectionEl.createDiv({ cls: "augment-variable-ref" });
-      varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
-      const table = varRef.createEl("table", { cls: "augment-var-table" });
-      const tbody = table.createEl("tbody");
-      const varRows = [
-        { name: "{{title}}", desc: "Note filename (without extension)" },
-        { name: "{{note_content}}", desc: "Full text of the current note" },
-        {
-          name: "{{linked_notes_full}}",
-          desc: "Text of notes linked from this one \u2014 can be large"
-        }
-      ];
-      for (const v of varRows) {
-        const tr = tbody.createEl("tr");
-        const td1 = tr.createEl("td", { cls: "augment-var-name" });
-        td1.createEl("code", { text: v.name });
-        tr.createEl("td", { cls: "augment-var-desc", text: v.desc });
-      }
-      const formatGuide = templateSectionEl.createDiv({
-        cls: "augment-template-format"
-      });
-      formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
-      formatGuide.createEl("pre", {
-        cls: "augment-format-example",
-        text: "---\nname: Template name\ndescription: Shown in picker\n---\nYou are Gus, a thinking partner embedded in this vault.\n\nYour task: [instructions here]\n\n{{note_content}}"
-      });
-    };
-    renderTemplateSection();
     new import_obsidian3.Setting(contextPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
@@ -12060,6 +11964,123 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveData(this.plugin.settings);
         }
       });
+    });
+    templatesPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
+    });
+    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
+    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+    const varTable = varRef.createEl("table", { cls: "augment-var-table" });
+    const varTbody = varTable.createEl("tbody");
+    const varRows = [
+      { name: "{{title}}", desc: "Note filename (without extension)" },
+      { name: "{{selection}}", desc: "Current editor selection" },
+      { name: "{{context}}", desc: "~50 lines around the cursor" },
+      { name: "{{note_content}}", desc: "Full note text" },
+      { name: "{{linked_notes}}", desc: "Linked notes: title + frontmatter" },
+      { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
+      { name: "{{frontmatter.KEY}}", desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" }
+    ];
+    for (const v of varRows) {
+      const tr = varTbody.createEl("tr");
+      const td1 = tr.createEl("td");
+      td1.createEl("code", { text: v.name });
+      tr.createEl("td", { text: v.desc });
+    }
+    new import_obsidian3.Setting(templatesPane).setName("Template folder").setDesc("Vault path to folder containing .md prompt templates").addText((text) => {
+      templateFolderInputEl = text.inputEl;
+      text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
+        this.plugin.settings.templateFolder = value;
+        await this.plugin.saveData(this.plugin.settings);
+        renderTemplateList();
+      });
+    });
+    const folderLinkEl = templatesPane.createDiv({ cls: "augment-folder-link" });
+    const openFolderEl = folderLinkEl.createEl("a", {
+      cls: "augment-folder-open",
+      text: "Reveal in file explorer \u2197"
+    });
+    openFolderEl.href = "#";
+    openFolderEl.addEventListener("click", (e) => {
+      var _a2, _b, _c;
+      e.preventDefault();
+      const folderPath = this.plugin.settings.templateFolder;
+      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+      if (folder) {
+        const fe = (_b = (_a2 = this.plugin.app.internalPlugins) == null ? void 0 : _a2.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
+        (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
+      } else {
+        new import_obsidian3.Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
+      }
+    });
+    templatesPane.createDiv({ cls: "augment-template-section-header" }).createDiv({ cls: "augment-section-label", text: "Templates in folder" });
+    const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
+    const renderTemplateList = () => {
+      var _a2;
+      templateListEl.empty();
+      const folderPath = this.plugin.settings.templateFolder;
+      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+      if (!folder || !(folder instanceof import_obsidian3.TFolder)) {
+        templateListEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates found. Check the folder path above or create a template."
+        });
+        return;
+      }
+      const files = folder.children.filter((f) => f instanceof import_obsidian3.TFile && f.extension === "md").sort((a, b) => a.basename.localeCompare(b.basename));
+      if (files.length === 0) {
+        templateListEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates in this folder."
+        });
+        return;
+      }
+      for (const file of files) {
+        const meta = (_a2 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter;
+        const name = (meta == null ? void 0 : meta.name) || file.basename;
+        const desc = (meta == null ? void 0 : meta.description) || "";
+        const row = templateListEl.createDiv({ cls: "augment-template-row" });
+        const info = row.createDiv({ cls: "augment-template-row-info" });
+        info.createSpan({ cls: "augment-template-name", text: name });
+        if (desc) {
+          info.createSpan({ cls: "augment-template-desc", text: desc });
+        }
+        const openBtn = row.createEl("button", {
+          cls: "augment-template-open clickable-icon",
+          text: "Open \u2197"
+        });
+        openBtn.addEventListener("click", () => {
+          this.plugin.app.workspace.openLinkText(file.basename, "", false);
+        });
+      }
+    };
+    renderTemplateList();
+    const newTemplateBtn = templatesPane.createEl("button", {
+      cls: "augment-template-new-btn",
+      text: "+ New template"
+    });
+    newTemplateBtn.addEventListener("click", async () => {
+      const folder = this.plugin.settings.templateFolder || "Augment/templates";
+      const newPath = `${folder}/New template.md`;
+      try {
+        const file = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
+        await this.plugin.app.workspace.getLeaf().openFile(file);
+        renderTemplateList();
+      } catch (e) {
+        const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
+        if (existing instanceof import_obsidian3.TFile) {
+          await this.plugin.app.workspace.getLeaf().openFile(existing);
+        } else {
+          new import_obsidian3.Notice("Could not create template");
+        }
+      }
+    });
+    const formatGuide = templatesPane.createDiv({ cls: "augment-template-format" });
+    formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
+    formatGuide.createEl("pre", {
+      cls: "augment-format-example",
+      text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}"
     });
   }
 };
@@ -13576,14 +13597,12 @@ var import_state = require("@codemirror/state");
 var SCAFFOLD_FOLDER = "Augment/templates";
 var SCAFFOLD_TEMPLATES = [
   [
-    "Summarize note",
+    "Generate summary block",
     `---
-name: Summarize note
-description: Generate a concise summary of this note
+name: Generate summary block
+description: Write a concise summary of this note
 ---
-You are Gus, a thinking partner embedded in this vault.
-
-Summarize the following note. Identify the core claim, key ideas, and any open questions. Be concise.
+Summarize the following note. Identify the core claim, key supporting ideas, and any open questions. Write 3\u20135 sentences.
 
 Note: {{title}}
 
@@ -13591,16 +13610,27 @@ Note: {{title}}
 `
   ],
   [
-    "Synthesize from linked notes",
+    "Synthesis from linked notes",
     `---
-name: Synthesize from linked notes
+name: Synthesis from linked notes
 description: Draw connections across notes linked from this one
 ---
-You are Gus, a thinking partner embedded in this vault.
-
-The following notes are linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
+The following notes are all linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
 
 {{linked_notes_full}}
+`
+  ],
+  [
+    "Name this concept",
+    `---
+name: Name this concept
+description: Suggest candidate names for the concept in this note
+---
+Read the following note. Suggest 3\u20135 candidate names for the concept it describes. Each name should be concise (2\u20134 words), memorable, and capture the essential idea.
+
+Note: {{title}}
+
+{{note_content}}
 `
   ]
 ];
@@ -13642,8 +13672,10 @@ var spinnerField = import_state.StateField.define({
       if (cursor.value) spinnerPos = cursor.from;
       if (spinnerPos >= 0) {
         let deleted = false;
-        tr.changes.iterChangedRanges((fromA, toA) => {
-          if (toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
+        tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+          const removedLen = toA - fromA;
+          const insertedLen = toB - fromB;
+          if (removedLen > 0 && insertedLen < removedLen && toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
         });
         if (deleted) {
           const view = (_b = tr.view) != null ? _b : (_a2 = tr.state.field) == null ? void 0 : _a2._view;
@@ -13998,7 +14030,10 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         const cursor = editor.getCursor();
         const ctx = assembleVaultContext(this.app, editor, this.settings);
         new TemplatePicker(this.app, files, async (templateFile) => {
+          var _a2;
           const templateContent = await this.app.vault.read(templateFile);
+          const templateFm = (_a2 = this.app.metadataCache.getFileCache(templateFile)) == null ? void 0 : _a2.frontmatter;
+          const systemPromptOverride = typeof (templateFm == null ? void 0 : templateFm.system_prompt) === "string" ? templateFm.system_prompt : void 0;
           if (templateContent.includes("{{note_content}}")) {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile) ctx.content = await this.app.vault.read(activeFile);
@@ -14016,7 +14051,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           }
           const rendered = substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
-            var _a2;
+            var _a3;
             if (this.statusBarEl) {
               this.statusBarEl.empty();
               const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
@@ -14040,7 +14075,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel, abortController.signal);
+              const result = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
@@ -14082,7 +14117,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
                 await this.saveData(this.settings);
               }
             } catch (err) {
-              if (((_a2 = this.activeGeneration) == null ? void 0 : _a2.abortController) === abortController) {
+              if (((_a3 = this.activeGeneration) == null ? void 0 : _a3.abortController) === abortController) {
                 this.activeGeneration = null;
               }
               if (abortController.signal.aborted) return;

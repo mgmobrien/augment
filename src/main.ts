@@ -15,14 +15,12 @@ import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 const SCAFFOLD_FOLDER = "Augment/templates";
 const SCAFFOLD_TEMPLATES: [string, string][] = [
   [
-    "Summarize note",
+    "Generate summary block",
     `---
-name: Summarize note
-description: Generate a concise summary of this note
+name: Generate summary block
+description: Write a concise summary of this note
 ---
-You are Gus, a thinking partner embedded in this vault.
-
-Summarize the following note. Identify the core claim, key ideas, and any open questions. Be concise.
+Summarize the following note. Identify the core claim, key supporting ideas, and any open questions. Write 3\u20135 sentences.
 
 Note: {{title}}
 
@@ -30,16 +28,27 @@ Note: {{title}}
 `,
   ],
   [
-    "Synthesize from linked notes",
+    "Synthesis from linked notes",
     `---
-name: Synthesize from linked notes
+name: Synthesis from linked notes
 description: Draw connections across notes linked from this one
 ---
-You are Gus, a thinking partner embedded in this vault.
-
-The following notes are linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
+The following notes are all linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
 
 {{linked_notes_full}}
+`,
+  ],
+  [
+    "Name this concept",
+    `---
+name: Name this concept
+description: Suggest candidate names for the concept in this note
+---
+Read the following note. Suggest 3\u20135 candidate names for the concept it describes. Each name should be concise (2\u20134 words), memorable, and capture the essential idea.
+
+Note: {{title}}
+
+{{note_content}}
 `,
   ],
 ];
@@ -84,9 +93,12 @@ const spinnerField = StateField.define<DecorationSet>({
       if (cursor.value) spinnerPos = cursor.from;
       if (spinnerPos >= 0) {
         let deleted = false;
-        tr.changes.iterChangedRanges((fromA, toA) => {
-          // A deletion that touches the spinner position or the character before it.
-          if (toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
+        tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+          // Only cancel on deletions (removed > inserted) that touch the spinner position.
+          // Insertions (Enter, typing) have toA === fromA — ignore those.
+          const removedLen = toA - fromA;
+          const insertedLen = toB - fromB;
+          if (removedLen > 0 && insertedLen < removedLen && toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
         });
         if (deleted) {
           // Schedule cancel effect on the next microtask to avoid dispatching during update.
@@ -498,6 +510,12 @@ export default class AugmentTerminalPlugin extends Plugin {
         new TemplatePicker(this.app, files, async (templateFile) => {
           const templateContent = await this.app.vault.read(templateFile);
 
+          // Read system_prompt override from template frontmatter.
+          const templateFm = this.app.metadataCache.getFileCache(templateFile)?.frontmatter;
+          const systemPromptOverride = typeof templateFm?.system_prompt === "string"
+            ? templateFm.system_prompt
+            : undefined;
+
           // Lazy full-content reads — only when the template actually uses the variables.
           if (templateContent.includes("{{note_content}}")) {
             const activeFile = this.app.workspace.getActiveFile();
@@ -541,7 +559,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel, abortController.signal);
+              const result = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
