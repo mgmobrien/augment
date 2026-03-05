@@ -53,6 +53,78 @@ Note: {{title}}
   ],
 ];
 
+// Default skills written to vault on first install.
+// Each entry: [folder-name, SKILL.md content].
+const SCAFFOLD_SKILLS_FOLDER = "agents/skills";
+const SCAFFOLD_SKILLS: [string, string][] = [
+  [
+    "meeting-summary",
+    `---
+name: meeting-summary
+description: Summarise a meeting transcript or rough notes into structured output
+---
+
+# Meeting summary
+
+Read the note provided. It contains a meeting transcript, rough meeting notes, or a recording dump.
+
+Produce a structured summary with these sections:
+
+- **Attendees** (if identifiable)
+- **Key points** — the main topics discussed, 1–2 sentences each
+- **Decisions** — anything that was decided or agreed on
+- **Action items** — who committed to what, with deadlines if mentioned
+- **Open questions** — anything raised but not resolved
+
+Write the summary as markdown. Be concise — the summary should be shorter than the source. Preserve specific names, dates, and numbers exactly as stated.
+
+If the note is not a meeting transcript, say so and skip.
+`,
+  ],
+  [
+    "vault-search",
+    `---
+name: vault-search
+description: Search the vault for notes relevant to a question and synthesise an answer
+---
+
+# Vault search
+
+The user will ask a question or give a topic. Your job:
+
+1. Use Grep and Glob to search the vault for relevant notes.
+2. Read the most relevant hits (up to 10 notes).
+3. Synthesise what you found into a clear answer, citing note titles as \`[[wikilinks]]\`.
+
+If you find nothing relevant, say so. Do not fabricate content that isn't in the vault.
+
+Keep the answer concise. Link to source notes so the user can read further.
+`,
+  ],
+  [
+    "clean-up",
+    `---
+name: clean-up
+description: Tidy a rough note — fix formatting, add frontmatter, organise sections
+---
+
+# Clean up
+
+Read the note provided. Clean it up:
+
+- Fix markdown formatting (headings, lists, code blocks)
+- Add or complete frontmatter if missing (at minimum: a descriptive title)
+- Organise content into logical sections with headings
+- Fix obvious typos and grammatical errors
+- Remove redundant whitespace or broken formatting
+
+Preserve the original meaning and voice. Do not add new content or opinions. Do not delete substantive content — only remove formatting artifacts.
+
+Edit the file directly. Show what you changed.
+`,
+  ],
+];
+
 // CM6 spinner widget — inserts an HTML triangle animation at cursor without modifying document text
 const addSpinnerEffect = StateEffect.define<number>();
 const removeSpinnerEffect = StateEffect.define<null>();
@@ -536,6 +608,24 @@ export default class AugmentTerminalPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  private async scaffoldDefaultSkills(): Promise<void> {
+    // Create top-level folder if absent.
+    if (!this.app.vault.getAbstractFileByPath(SCAFFOLD_SKILLS_FOLDER)) {
+      try { await this.app.vault.createFolder(SCAFFOLD_SKILLS_FOLDER); } catch { /* already exists */ }
+    }
+
+    for (const [folderName, content] of SCAFFOLD_SKILLS) {
+      const skillFolder = `${SCAFFOLD_SKILLS_FOLDER}/${folderName}`;
+      if (!this.app.vault.getAbstractFileByPath(skillFolder)) {
+        try { await this.app.vault.createFolder(skillFolder); } catch { /* already exists */ }
+      }
+      const skillPath = `${skillFolder}/SKILL.md`;
+      if (!this.app.vault.getAbstractFileByPath(skillPath)) {
+        try { await this.app.vault.create(skillPath, content); } catch { /* already exists */ }
+      }
+    }
+  }
+
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
@@ -551,8 +641,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       void this.clearObsidianLinkHotkey().then(() => this.showHotkeyClaimedNotice());
     }
 
-    // Scaffold default templates on first install (fire-and-forget — doesn't block onload).
+    // Scaffold defaults on first install (fire-and-forget — doesn't block onload).
     void this.scaffoldDefaultTemplates();
+    void this.scaffoldDefaultSkills();
 
     // Fetch available models in the background — populates the model dropdown
     // and resolves "auto" to the best available model name in the status bar.
