@@ -8,7 +8,6 @@ import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntr
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
-import { VIEW_TYPE_WELCOME, WelcomeView } from "./welcome-view";
 import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
@@ -219,6 +218,74 @@ class RenameModal extends Modal {
   onClose(): void {
     this.contentEl.empty();
   }
+}
+
+function buildWelcomeNoteContent(mod: string): string {
+  return `# Get started with Augment
+
+Augment adds AI-powered writing continuation and Claude Code terminal sessions to Obsidian. This note walks you through everything.
+
+---
+
+## 1. Add your API key
+
+You need a console API key from [console.anthropic.com/settings/api-keys](https://console.anthropic.com/settings/api-keys) — not your Claude.ai login.
+
+> [!warning] Claude Max/Pro subscriptions don't work here
+> Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token key starting with \`sk-ant-api03-\`. Billing is separate from any subscription.
+
+Open settings: **${mod}+,** → Augment in the left sidebar → Overview tab. Add your key there, then come back.
+
+---
+
+## 2. Continuation (${mod}+Enter)
+
+Augment reads your note title, frontmatter, the text above your cursor, and any linked notes — then continues from where your cursor is. Output goes directly below your cursor.
+
+**Try it.** Put your cursor at the end of the line below and press ${mod}+Enter:
+
+The most interesting thing about writing in plain text is
+
+---
+
+## 3. Template picker (${mod}+Shift+Enter)
+
+Instead of free continuation, templates run a specific prompt on your current note — useful for recurring tasks: summarise, extract action items, rewrite in a different register.
+
+**Try it:** Press **${mod}+Shift+Enter** to open the template picker.
+
+Templates are \`.md\` files in your templates folder (\`Augment/templates/\` by default). Configure the folder in Settings → Templates. Each template can define a custom system prompt via \`system_prompt:\` in its frontmatter.
+
+---
+
+## 4. Context inspector
+
+The context inspector shows exactly what Augment sent to the AI: system prompt, this note's content, linked notes, and a token estimate per section. It updates live as you write.
+
+**Open it:** Command palette → \`Augment: Open context inspector\`
+
+The panel opens in your right sidebar. Use it to understand why the AI responded the way it did, or to check your context budget before generating.
+
+---
+
+## 5. Right-click menu
+
+Right-clicking in any note gives you quick access without shortcuts:
+- **Augment: Generate** — same as ${mod}+Enter
+- **Augment: Generate from template…** — same as ${mod}+Shift+Enter
+
+---
+
+## 6. Claude Code terminal sessions
+
+Augment can host Claude Code agent sessions in a panel alongside your notes. Each session runs a full CC conversation with access to your vault.
+
+**Set it up:** Settings → Terminal → follow the guided setup wizard (installs Python, Node.js, CC CLI, and configures your vault).
+
+---
+
+*This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette → \`Augment: Open welcome\`.*
+`;
 }
 
 export default class AugmentTerminalPlugin extends Plugin {
@@ -436,8 +503,6 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
     });
-    this.registerView(VIEW_TYPE_WELCOME, (leaf) => new WelcomeView(leaf, this));
-
     // Escape key cancels in-progress generation.
     const escapeKeymap = keymap.of([{
       key: "Escape",
@@ -666,15 +731,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       id: "open-welcome",
       name: "Open welcome",
       callback: () => {
-        const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_WELCOME);
-        if (existing.length > 0) {
-          this.app.workspace.revealLeaf(existing[0]);
-        } else {
-          this.app.workspace.onLayoutReady(() => {
-            const leaf = this.app.workspace.getLeaf("tab");
-            leaf.setViewState({ type: VIEW_TYPE_WELCOME, active: true });
-          });
-        }
+        void this.createAndOpenWelcomeNote();
       },
     });
 
@@ -697,13 +754,12 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
     this.refreshStatusBar();
 
-    // First-load welcome tab — shown once, only when not yet configured
+    // First-load welcome note — shown once, only when not yet configured
     if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
       this.settings.hasSeenWelcome = true;
       void this.saveData(this.settings);
       this.app.workspace.onLayoutReady(() => {
-        const leaf = this.app.workspace.getLeaf("tab");
-        leaf.setViewState({ type: VIEW_TYPE_WELCOME, active: true });
+        void this.createAndOpenWelcomeNote();
       });
     }
 
@@ -847,7 +903,6 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_WELCOME);
     cleanupXtermStyle();
     this.calloutStyleEl?.remove();
     this.calloutStyleEl = null;
@@ -855,6 +910,24 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   private getPluginDir(): string {
     return (this.app.vault.adapter as any).basePath + "/.obsidian/plugins/augment-terminal";
+  }
+
+  private async createAndOpenWelcomeNote(): Promise<void> {
+    const folderPath = "Augment";
+    const filePath = "Augment/Get started.md";
+
+    if (!this.app.vault.getAbstractFileByPath(folderPath)) {
+      await this.app.vault.createFolder(folderPath);
+    }
+
+    if (!this.app.vault.getAbstractFileByPath(filePath)) {
+      const mod = process.platform === "darwin" ? "Cmd" : "Ctrl";
+      await this.app.vault.create(filePath, buildWelcomeNoteContent(mod));
+    }
+
+    const file = this.app.vault.getAbstractFileByPath(filePath) as TFile;
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file);
   }
 
   private async openTerminal(
