@@ -17265,6 +17265,7 @@ var DEFAULT_SETTINGS = {
   systemPrompt: "",
   showGenerationToast: true,
   clearedLinkHotkey: false,
+  clearedHotkeyOriginals: {},
   sessionHistory: []
 };
 function stripObsidianMeta(fm) {
@@ -20351,6 +20352,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async clearObsidianLinkHotkey() {
     var _a2, _b;
+    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys = {};
@@ -20359,27 +20361,43 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         hotkeys = JSON.parse(raw);
       } catch (e) {
       }
-      hotkeys["editor:cycle-list-checklist"] = [];
-      hotkeys["editor:open-link-in-new-leaf"] = [];
+      const originals = {};
+      for (const id of CONFLICT_IDS) {
+        if (id in hotkeys) originals[id] = hotkeys[id];
+        hotkeys[id] = [];
+      }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);
       this.settings.clearedLinkHotkey = true;
+      this.settings.clearedHotkeyOriginals = originals;
       await this.saveData(this.settings);
     } catch (e) {
       console.warn("[Augment] could not clear link hotkey:", e);
     }
   }
   async restoreObsidianLinkHotkey() {
-    var _a2, _b;
+    var _a2, _b, _c;
+    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
-      const raw = await this.app.vault.adapter.read(hotkeyPath);
-      const hotkeys = JSON.parse(raw);
-      delete hotkeys["editor:cycle-list-checklist"];
-      delete hotkeys["editor:open-link-in-new-leaf"];
+      let hotkeys = {};
+      try {
+        const raw = await this.app.vault.adapter.read(hotkeyPath);
+        hotkeys = JSON.parse(raw);
+      } catch (e) {
+      }
+      const originals = (_a2 = this.settings.clearedHotkeyOriginals) != null ? _a2 : {};
+      for (const id of CONFLICT_IDS) {
+        if (id in originals) {
+          hotkeys[id] = originals[id];
+        } else {
+          delete hotkeys[id];
+        }
+      }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
-      (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);
+      (_c = (_b = this.app.hotkeyManager) == null ? void 0 : _b.load) == null ? void 0 : _c.call(_b);
       this.settings.clearedLinkHotkey = false;
+      this.settings.clearedHotkeyOriginals = {};
       await this.saveData(this.settings);
     } catch (e) {
       console.warn("[Augment] could not restore link hotkey:", e);

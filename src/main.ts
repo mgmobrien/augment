@@ -441,6 +441,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async clearObsidianLinkHotkey(): Promise<void> {
+    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
       let hotkeys: Record<string, unknown> = {};
@@ -448,13 +449,16 @@ export default class AugmentTerminalPlugin extends Plugin {
         const raw = await this.app.vault.adapter.read(hotkeyPath);
         hotkeys = JSON.parse(raw);
       } catch { /* file may not exist yet */ }
-      // Clear both — primary culprit is cycle-list-checklist (Toggle checkbox status),
-      // which uses Ctrl+Enter by default. open-link-in-new-leaf conflicts in some versions.
-      hotkeys["editor:cycle-list-checklist"] = [];
-      hotkeys["editor:open-link-in-new-leaf"] = [];
+      // Capture originals before overwriting so restore is exact.
+      const originals: Record<string, unknown> = {};
+      for (const id of CONFLICT_IDS) {
+        if (id in hotkeys) originals[id] = hotkeys[id];
+        hotkeys[id] = [];
+      }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (this.app as any).hotkeyManager?.load?.();
       this.settings.clearedLinkHotkey = true;
+      this.settings.clearedHotkeyOriginals = originals;
       await this.saveData(this.settings);
     } catch (e) {
       console.warn("[Augment] could not clear link hotkey:", e);
@@ -462,15 +466,26 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async restoreObsidianLinkHotkey(): Promise<void> {
+    const CONFLICT_IDS = ["editor:cycle-list-checklist", "editor:open-link-in-new-leaf"];
     try {
       const hotkeyPath = ".obsidian/hotkeys.json";
-      const raw = await this.app.vault.adapter.read(hotkeyPath);
-      const hotkeys = JSON.parse(raw);
-      delete hotkeys["editor:cycle-list-checklist"];
-      delete hotkeys["editor:open-link-in-new-leaf"];
+      let hotkeys: Record<string, unknown> = {};
+      try {
+        const raw = await this.app.vault.adapter.read(hotkeyPath);
+        hotkeys = JSON.parse(raw);
+      } catch { /* file may not exist */ }
+      const originals = this.settings.clearedHotkeyOriginals ?? {};
+      for (const id of CONFLICT_IDS) {
+        if (id in originals) {
+          hotkeys[id] = originals[id]; // restore exact original value
+        } else {
+          delete hotkeys[id]; // wasn't customised before — remove Augment's entry
+        }
+      }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
       (this.app as any).hotkeyManager?.load?.();
       this.settings.clearedLinkHotkey = false;
+      this.settings.clearedHotkeyOriginals = {};
       await this.saveData(this.settings);
     } catch (e) {
       console.warn("[Augment] could not restore link hotkey:", e);

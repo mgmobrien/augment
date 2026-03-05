@@ -34,6 +34,7 @@ export interface AugmentSettings {
   systemPrompt: string;
   showGenerationToast: boolean;
   clearedLinkHotkey: boolean;
+  clearedHotkeyOriginals: Record<string, unknown>; // original binding values captured before Augment cleared them
   sessionHistory: SessionRecord[];
 }
 
@@ -61,6 +62,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   systemPrompt: "",
   showGenerationToast: true,
   clearedLinkHotkey: false,
+  clearedHotkeyOriginals: {},
   sessionHistory: [],
 };
 
