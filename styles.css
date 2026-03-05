@@ -1706,7 +1706,7 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   z-index: 9999;
   max-width: 280px;
   padding: 8px 10px;
-  background: var(--background-modifier-hover);
+  background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
   font-size: 0.8em;
