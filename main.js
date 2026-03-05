@@ -17153,75 +17153,8 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
   }
 };
 
-// src/context-inspector.ts
+// src/context-inspector-view.ts
 var import_obsidian2 = require("obsidian");
-var ContextInspectorModal = class extends import_obsidian2.Modal {
-  constructor(app, ctx) {
-    super(app);
-    this.ctx = ctx;
-    this.modalEl.addClass("augment-context-modal");
-  }
-  onOpen() {
-    this.titleEl.setText("Context inspector");
-    this.render();
-  }
-  render() {
-    const { contentEl } = this;
-    contentEl.empty();
-    const titleSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
-    titleSection.createEl("div", { cls: "augment-ctx-section-label", text: "NOTE" });
-    titleSection.createEl("div", { cls: "augment-ctx-note-title", text: this.ctx.title });
-    if (this.ctx.frontmatter && Object.keys(this.ctx.frontmatter).length > 0) {
-      const fmSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
-      fmSection.createEl("div", { cls: "augment-ctx-section-label", text: "FRONTMATTER" });
-      for (const [key, val] of Object.entries(this.ctx.frontmatter)) {
-        const row = fmSection.createEl("div", { cls: "augment-ctx-fm-row" });
-        row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
-        const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
-        row.createEl("span", { text: valStr });
-      }
-    }
-    const ctxSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
-    if (this.ctx.selection) {
-      ctxSection.createEl("div", { cls: "augment-ctx-section-label", text: "SELECTION" });
-      ctxSection.createEl("pre", { cls: "augment-ctx-pre", text: this.ctx.selection });
-    } else {
-      ctxSection.createEl("div", { cls: "augment-ctx-section-label", text: "CONTEXT" });
-      ctxSection.createEl("pre", {
-        cls: "augment-ctx-pre",
-        text: this.ctx.surroundingContext || "(empty \u2014 position cursor in a note)"
-      });
-    }
-    if (this.ctx.linkedNotes.length > 0) {
-      const linkedSection = contentEl.createEl("div", { cls: "augment-ctx-section" });
-      linkedSection.createEl("div", {
-        cls: "augment-ctx-section-label",
-        text: `LINKED NOTES (${this.ctx.linkedNotes.length})`
-      });
-      for (const note of this.ctx.linkedNotes) {
-        const noteEl = linkedSection.createEl("div", { cls: "augment-ctx-linked-note" });
-        noteEl.createEl("div", { cls: "augment-ctx-note-title", text: note.title });
-        if (note.frontmatter && Object.keys(note.frontmatter).length > 0) {
-          for (const [key, val] of Object.entries(note.frontmatter)) {
-            const row = noteEl.createEl("div", { cls: "augment-ctx-fm-row" });
-            row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
-            const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
-            row.createEl("span", { text: valStr });
-          }
-        } else {
-          noteEl.createEl("div", { cls: "augment-ctx-note-empty", text: "(no frontmatter)" });
-        }
-      }
-    }
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-
-// src/settings-tab.ts
-var import_obsidian3 = require("obsidian");
-var import_child_process = require("child_process");
 
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
@@ -17285,7 +17218,158 @@ function assembleVaultContext(app, editor, settings) {
   return { title, frontmatter, selection, surroundingContext, linkedNotes };
 }
 
+// src/context-inspector-view.ts
+var VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
+var ContextInspectorView = class extends import_obsidian2.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.debouncedRefresh = (0, import_obsidian2.debounce)(() => this.refresh(), 300, true);
+  }
+  getViewType() {
+    return VIEW_TYPE_CONTEXT_INSPECTOR;
+  }
+  getDisplayText() {
+    return "Context inspector";
+  }
+  getIcon() {
+    return "eye";
+  }
+  async onOpen() {
+    this.contentDiv = this.containerEl.children[1];
+    this.contentDiv.addClass("augment-ctx-panel");
+    this.registerEvent(this.app.workspace.on("active-leaf-change", this.debouncedRefresh));
+    this.registerEvent(this.app.workspace.on("editor-change", this.debouncedRefresh));
+    this.refresh();
+  }
+  refresh() {
+    this.contentDiv.empty();
+    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
+    if (!activeView) {
+      this.contentDiv.createEl("div", { cls: "augment-ctx-empty", text: "Open a note to inspect its context." });
+      return;
+    }
+    const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
+    this.render(ctx, activeView);
+  }
+  estimateTokens(text) {
+    return Math.ceil(text.length / 4);
+  }
+  render(ctx, activeView) {
+    var _a2, _b;
+    const el = this.contentDiv;
+    el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
+    el.createEl("div", {
+      cls: "augment-ctx-panel-subtitle",
+      text: "What Augment sends to the AI when you press Mod+Enter"
+    });
+    let totalTokens = 0;
+    const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
+    const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    const sysText = "(default \u2014 Augment standard prompt)";
+    const sysTokens = this.estimateTokens(DEFAULT_SYSTEM_PROMPT_BASE);
+    totalTokens += sysTokens;
+    sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
+    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    sysSection.createEl("div", { cls: "augment-ctx-sys-default", text: sysText });
+    const noteSection = el.createEl("div", { cls: "augment-ctx-section" });
+    const noteHdr = noteSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    let noteContent = `Note: ${ctx.title}
+`;
+    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
+      for (const [key, val] of Object.entries(ctx.frontmatter)) {
+        const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
+        noteContent += `${key}: ${valStr}
+`;
+      }
+    }
+    if (ctx.selection) {
+      noteContent += `
+${ctx.selection}`;
+    } else if (ctx.surroundingContext) {
+      noteContent += `
+${ctx.surroundingContext}`;
+    }
+    const noteTokens = this.estimateTokens(noteContent);
+    totalTokens += noteTokens;
+    noteHdr.createEl("span", {
+      cls: "augment-ctx-section-label",
+      text: `This note \u2014 \u201C${ctx.title}\u201D`
+    });
+    noteHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${noteTokens} tokens` });
+    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
+      for (const [key, val] of Object.entries(ctx.frontmatter)) {
+        const row = noteSection.createEl("div", { cls: "augment-ctx-fm-row" });
+        row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
+        const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
+        row.createEl("span", { text: valStr });
+      }
+    }
+    if (ctx.selection) {
+      noteSection.createEl("div", { cls: "augment-ctx-content-label", text: "Selected text" });
+      noteSection.createEl("pre", { cls: "augment-ctx-pre", text: ctx.selection });
+    } else {
+      noteSection.createEl("pre", {
+        cls: "augment-ctx-pre",
+        text: ctx.surroundingContext || "(empty \u2014 position cursor in a note)"
+      });
+    }
+    if (ctx.linkedNotes.length > 0) {
+      const linkedSection = el.createEl("div", { cls: "augment-ctx-section" });
+      const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+      const activeFile = this.app.workspace.getActiveFile();
+      const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : ctx.linkedNotes.length;
+      let linkedContent = "";
+      for (const note of ctx.linkedNotes) {
+        linkedContent += `${note.title}
+`;
+        if (note.frontmatter) {
+          for (const [, val] of Object.entries(note.frontmatter)) {
+            linkedContent += `${String(val)}
+`;
+          }
+        }
+      }
+      const linkedTokens = this.estimateTokens(linkedContent);
+      totalTokens += linkedTokens;
+      linkedHdr.createEl("span", {
+        cls: "augment-ctx-section-label",
+        text: `Linked notes (${ctx.linkedNotes.length} of ${totalLinks} linked)`
+      });
+      linkedHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${linkedTokens} tokens` });
+      linkedSection.createEl("div", {
+        cls: "augment-ctx-linked-hint",
+        text: "Augment sends each linked note\u2019s frontmatter, not its body."
+      });
+      for (const note of ctx.linkedNotes) {
+        const noteEl = linkedSection.createEl("div", { cls: "augment-ctx-linked-note" });
+        noteEl.createEl("div", { cls: "augment-ctx-note-title", text: `\u25B8 ${note.title}` });
+        if (note.frontmatter && Object.keys(note.frontmatter).length > 0) {
+          for (const [key, val] of Object.entries(note.frontmatter)) {
+            const valStr = Array.isArray(val) ? val.join(", ") : String(val != null ? val : "");
+            noteEl.createEl("div", {
+              cls: "augment-ctx-linked-fm",
+              text: `  ${key}: ${valStr}`
+            });
+          }
+        } else {
+          noteEl.createEl("div", { cls: "augment-ctx-note-empty", text: "  (no frontmatter)" });
+        }
+      }
+    }
+    const totalSection = el.createEl("div", { cls: "augment-ctx-section augment-ctx-total" });
+    const totalHdr = totalSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    totalHdr.createEl("span", { cls: "augment-ctx-section-label", text: "Total" });
+    totalHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${totalTokens} tokens` });
+  }
+  async onClose() {
+    this.contentDiv.empty();
+  }
+};
+
 // src/settings-tab.ts
+var import_obsidian3 = require("obsidian");
+var import_child_process = require("child_process");
 function execAsync(cmd) {
   return new Promise((resolve, reject) => {
     (0, import_child_process.exec)(cmd, { timeout: 1e4 }, (err, stdout, stderr) => {
@@ -17629,17 +17713,14 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     overviewTab.addEventListener("click", renderSetupCard);
     const previewBtn = overviewPane.createEl("button", {
       cls: "augment-ctx-preview-btn",
-      text: "Preview context for current note"
+      text: "Open context inspector"
     });
     previewBtn.addEventListener("click", () => {
-      const activeView = this.plugin.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
-      if (!activeView) {
-        console.log("[Augment] no active note for context preview");
-        new import_obsidian3.Notice("Open a note to preview context");
-        return;
+      const leaf = this.plugin.app.workspace.getRightLeaf(false);
+      if (leaf) {
+        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+        this.plugin.app.workspace.revealLeaf(leaf);
       }
-      const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
-      new ContextInspectorModal(this.plugin.app, ctx).open();
     });
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
@@ -17655,10 +17736,13 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     apiKeySetting.descEl.appendChild(
       createFragment((frag) => {
-        frag.appendText("Anthropic API key. ");
+        frag.createEl("strong", { text: "Claude Max/Pro subscriptions don\u2019t work here." });
+        frag.appendText(" Anthropic prohibits OAuth tokens in third-party tools (enforcement tightened Feb 2026). You need a console API key (starts with ");
+        frag.createEl("code", { text: "sk-ant-api03-" });
+        frag.appendText(") \u2014 billing is pay-per-token, separate from any subscription. ");
         const a = frag.createEl("a", {
-          text: "Get your API key",
-          href: "https://platform.claude.com/settings/keys"
+          text: "Get a key at console.anthropic.com",
+          href: "https://console.anthropic.com/settings/api-keys"
         });
         a.target = "_blank";
         a.rel = "noopener";
@@ -18100,6 +18184,10 @@ function getTemplateFiles(app, folderPath) {
   console.log(debugMsg);
   new import_obsidian4.Notice(debugMsg, 8e3);
   if (!(folder instanceof import_obsidian4.TFolder)) return [];
+  folder.children.forEach((f, i) => {
+    var _a3, _b2;
+    console.log(`[Augment debug] child[${i}] name="${f.name}" type=${(_b2 = (_a3 = f == null ? void 0 : f.constructor) == null ? void 0 : _a3.name) != null ? _b2 : "null"} isFile=${f instanceof import_obsidian4.TFile} ext=${f instanceof import_obsidian4.TFile ? f.extension : "n/a"}`);
+  });
   return folder.children.filter(
     (f) => f instanceof import_obsidian4.TFile && f.extension === "md"
   );
@@ -19904,7 +19992,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           e.preventDefault();
           e.stopPropagation();
           notice.hide();
-          new ContextInspectorModal(this.app, ctx).open();
+          this.openContextInspector();
         });
         if (!this.settings.hasGenerated) {
           this.settings.hasGenerated = true;
@@ -19983,6 +20071,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
+    });
+    this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
+      return new ContextInspectorView(leaf, this);
     });
     const escapeKeymap = import_view.keymap.of([{
       key: "Escape",
@@ -20135,7 +20226,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
                 e.preventDefault();
                 e.stopPropagation();
                 notice.hide();
-                new ContextInspectorModal(this.app, ctx).open();
+                this.openContextInspector();
               });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
@@ -20181,16 +20272,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     });
     this.addCommand({
       id: "augment-view-context",
-      name: "View current note context",
+      name: "Open context inspector",
       callback: () => {
-        const activeView = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
-        if (!activeView) {
-          console.log("[Augment] no active note for context view");
-          new import_obsidian8.Notice("Augment: open a note to view its context");
-          return;
-        }
-        const ctx = assembleVaultContext(this.app, activeView.editor, this.settings);
-        new ContextInspectorModal(this.app, ctx).open();
+        this.openContextInspector();
       }
     });
     this.addSettingTab(new AugmentSettingTab(this.app, this));
@@ -20328,6 +20412,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     delete globalThis.__augmentCancelGeneration;
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
     cleanupXtermStyle();
     (_a2 = this.calloutStyleEl) == null ? void 0 : _a2.remove();
     this.calloutStyleEl = null;
@@ -20488,6 +20573,13 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async openTerminalNamed(name) {
     await this.openTerminal("tab", { name });
+  }
+  openContextInspector() {
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (leaf) {
+      leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+      this.app.workspace.revealLeaf(leaf);
+    }
   }
   async openFocusedTerminal() {
     return this.openTerminal("tab", { active: true });

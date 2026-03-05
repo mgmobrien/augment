@@ -8,6 +8,9 @@ export function getTemplateFiles(app: App, folderPath: string): TFile[] {
   console.log(debugMsg);
   new Notice(debugMsg, 8000);
   if (!(folder instanceof TFolder)) return [];
+  folder.children.forEach((f, i) => {
+    console.log(`[Augment debug] child[${i}] name="${f.name}" type=${f?.constructor?.name ?? "null"} isFile=${f instanceof TFile} ext=${f instanceof TFile ? f.extension : "n/a"}`);
+  });
   return folder.children.filter(
     (f): f is TFile => f instanceof TFile && f.extension === "md"
   );
