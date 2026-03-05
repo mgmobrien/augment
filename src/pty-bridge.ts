@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execFileSync } from "child_process";
 import { join } from "path";
 import { copyFileSync, existsSync, mkdirSync, chmodSync } from "fs";
 import { tmpdir } from "os";
@@ -9,7 +9,7 @@ export interface PtyBridgeOptions {
   cwd: string;
   shellPath?: string;
   onData: (data: string) => void;
-  onExit: (code: number) => void;
+  onExit: (code: number, signal?: NodeJS.Signals | null) => void;
   onError?: (err: Error) => void;
 }
 
@@ -25,12 +25,23 @@ function stageBinary(sourcePath: string, binaryName: string): string {
   if (!needsCopy) {
     try {
       const { statSync } = require("fs");
-      needsCopy = statSync(sourcePath).mtimeMs > statSync(staged).mtimeMs;
+      // Use >= so a freshly copied plugin binary with equal mtime still refreshes
+      // the staged executable after app reload (avoids stale bridge binaries).
+      needsCopy = statSync(sourcePath).mtimeMs >= statSync(staged).mtimeMs;
     } catch { needsCopy = true; }
   }
   if (needsCopy) {
     copyFileSync(sourcePath, staged);
     chmodSync(staged, 0o755);
+    // Best effort: refresh ad-hoc signature on staged copy.
+    // Some macOS setups reject copied executables from temp paths unless re-signed.
+    if (process.platform === "darwin") {
+      try {
+        execFileSync("codesign", ["-s", "-", "-f", staged], { stdio: "ignore" });
+      } catch {
+        // Fall through; direct-path candidate may still work.
+      }
+    }
   }
   return staged;
 }
@@ -38,11 +49,12 @@ function stageBinary(sourcePath: string, binaryName: string): string {
 export class PtyBridge {
   private process: ChildProcess | null = null;
   private controlStream: Writable | null = null;
+  private stopping = false;
   private pluginDir: string;
   private cwd: string;
   private shellPath: string;
   private onData: (data: string) => void;
-  private onExit: (code: number) => void;
+  private onExit: (code: number, signal?: NodeJS.Signals | null) => void;
   private onError?: (err: Error) => void;
 
   constructor(opts: PtyBridgeOptions) {
@@ -55,11 +67,18 @@ export class PtyBridge {
   }
 
   start(): void {
+    this.stopping = false;
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
     const sourcePath = join(this.pluginDir, "scripts", binaryName);
-    const binaryPath = stageBinary(sourcePath, binaryName);
+    const candidates: string[] = [sourcePath];
+    try {
+      const stagedPath = stageBinary(sourcePath, binaryName);
+      if (stagedPath !== sourcePath) candidates.push(stagedPath);
+    } catch {
+      // Keep direct path candidate only.
+    }
 
     const env: Record<string, string | undefined> = {
       ...process.env,
@@ -69,37 +88,67 @@ export class PtyBridge {
       AUGMENT_CWD: this.cwd,
     };
 
-    this.process = spawn(binaryPath, [], {
-      cwd: this.cwd,
-      env,
-      stdio: ["pipe", "pipe", "pipe", "pipe"],
-    });
+    let candidateIndex = 0;
+    const spawnCandidate = (): void => {
+      const binaryPath = candidates[candidateIndex];
+      const startedAt = Date.now();
 
-    this.controlStream = this.process.stdio[3] as Writable;
+      this.process = spawn(binaryPath, [], {
+        cwd: this.cwd,
+        env,
+        stdio: ["pipe", "pipe", "pipe", "pipe"],
+      });
 
-    this.process.stdout?.setEncoding("utf-8");
-    this.process.stdout?.on("data", (data: string) => {
-      this.onData(data);
-    });
+      this.controlStream = this.process.stdio[3] as Writable;
 
-    this.process.stderr?.setEncoding("utf-8");
-    this.process.stderr?.on("data", (data: string) => {
-      console.error("[augment-pty]", data);
-    });
+      this.process.stdout?.setEncoding("utf-8");
+      this.process.stdout?.on("data", (data: string) => {
+        this.onData(data);
+      });
 
-    this.process.on("exit", (code) => {
-      this.process = null;
-      this.controlStream = null;
-      this.onExit(code ?? 0);
-    });
+      this.process.stderr?.setEncoding("utf-8");
+      this.process.stderr?.on("data", (data: string) => {
+        console.error("[augment-pty]", data);
+      });
 
-    this.process.on("error", (err) => {
-      console.error("[augment-pty] Process error:", err);
-      this.onError?.(err);
-      this.process = null;
-      this.controlStream = null;
-      this.onExit(1);
-    });
+      this.process.on("exit", (code, signal) => {
+        const runtimeMs = Date.now() - startedAt;
+        this.process = null;
+        this.controlStream = null;
+
+        const shouldFallback =
+          !this.stopping &&
+          candidateIndex + 1 < candidates.length &&
+          signal === "SIGKILL" &&
+          runtimeMs < 1200;
+        if (shouldFallback) {
+          candidateIndex++;
+          spawnCandidate();
+          return;
+        }
+
+        this.onExit(code ?? 0, signal ?? null);
+      });
+
+      this.process.on("error", (err) => {
+        console.error("[augment-pty] Process error:", err);
+        this.process = null;
+        this.controlStream = null;
+
+        const shouldFallback =
+          !this.stopping && candidateIndex + 1 < candidates.length;
+        if (shouldFallback) {
+          candidateIndex++;
+          spawnCandidate();
+          return;
+        }
+
+        this.onError?.(err);
+        this.onExit(1);
+      });
+    };
+
+    spawnCandidate();
   }
 
   write(data: string): void {
@@ -111,6 +160,7 @@ export class PtyBridge {
   }
 
   kill(): void {
+    this.stopping = true;
     if (this.process) {
       this.process.kill("SIGTERM");
     }

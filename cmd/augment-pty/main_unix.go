@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/creack/pty"
@@ -22,7 +23,22 @@ func main() {
 		shell = "bash"
 	}
 
-	c := exec.Command(shell)
+	shellParts := strings.Fields(shell)
+	shellBin := shell
+	shellArgs := []string{}
+	if len(shellParts) > 0 {
+		shellBin = shellParts[0]
+		shellArgs = append(shellArgs, shellParts[1:]...)
+	}
+
+	// Run common shells in interactive mode by default so they don't
+	// auto-exit in PTY contexts where shell startup differs from a normal TTY.
+	base := filepath.Base(shellBin)
+	if len(shellArgs) == 0 && (base == "bash" || base == "zsh" || base == "sh" || base == "fish") {
+		shellArgs = append(shellArgs, "-i")
+	}
+
+	c := exec.Command(shellBin, shellArgs...)
 	cwd := os.Getenv("AUGMENT_CWD")
 	if cwd != "" {
 		c.Dir = cwd

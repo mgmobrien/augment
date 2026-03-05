@@ -32,6 +32,7 @@ export interface AugmentSettings {
   clearedLinkHotkey: boolean;
   clearedHotkeyOriginals: Record<string, unknown>; // original binding values captured before Augment cleared them
   terminalSetupDone: boolean;
+  terminalSetupBypassed: boolean;
   sessionHistory: SessionRecord[];
 }
 
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   clearedLinkHotkey: false,
   clearedHotkeyOriginals: {},
   terminalSetupDone: false,
+  terminalSetupBypassed: false,
   sessionHistory: [],
 };
 

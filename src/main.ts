@@ -12,6 +12,9 @@ import { scaffoldTeam, refreshTeamSkills, ScaffoldResult } from "./team-scaffold
 import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 
+declare const __AUGMENT_BUILD_ID__: string;
+declare const __AUGMENT_GIT_SHA__: string;
+
 // Default template files written to vault on first install
 const SCAFFOLD_FOLDER = "Augment/templates";
 const SCAFFOLD_TEMPLATES: [string, string][] = [
@@ -634,6 +637,8 @@ export default class AugmentTerminalPlugin extends Plugin {
   settings: AugmentSettings = { ...DEFAULT_SETTINGS };
   public availableModels: ModelInfo[] = [];
   public contextHistory: ContextEntry[] = [];
+  public readonly buildId: string = __AUGMENT_BUILD_ID__;
+  public readonly gitSha: string = __AUGMENT_GIT_SHA__;
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
@@ -665,6 +670,10 @@ export default class AugmentTerminalPlugin extends Plugin {
     } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+
+  public getBuildFingerprint(): string {
+    return `${this.buildId} (${this.gitSha})`;
   }
 
   private cancelGeneration(): void {
@@ -920,6 +929,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData() as Record<string, unknown> | null;
     // Schema migration: strip keys removed in prior versions.
     // v0.0.4: useWsl, pythonPath; v0.0.7: s3Token, s3Email
@@ -977,6 +987,11 @@ export default class AugmentTerminalPlugin extends Plugin {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };
       view.onAutoRenameRequest = async (excerpt: string) => {
+        const localFallback = this.deriveTerminalNameFromExcerpt(excerpt);
+        if (!this.settings.apiKey?.trim()) {
+          return localFallback;
+        }
+
         try {
           const raw = await generateText(
             "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2–4 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
@@ -984,10 +999,10 @@ export default class AugmentTerminalPlugin extends Plugin {
             this.settings,
             "claude-haiku-4-5-20251001"
           );
-          const cleaned = raw.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
-          return cleaned || null;
+          const cleaned = this.sanitizeTerminalName(raw);
+          return cleaned ?? localFallback;
         } catch {
-          return null;
+          return localFallback;
         }
       };
       return view;
@@ -1756,6 +1771,60 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   public async openTerminalNamed(name: string): Promise<void> {
     await this.openTerminal("tab", { name });
+  }
+
+  private sanitizeTerminalName(raw: string): string | null {
+    const cleaned = raw
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40);
+    return cleaned || null;
+  }
+
+  // Local fallback so auto-rename works without custom hooks or API success.
+  private deriveTerminalNameFromExcerpt(excerpt: string): string | null {
+    const lines = excerpt
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const userTurns: string[] = [];
+    for (const line of lines) {
+      if (line.startsWith("❯")) {
+        const text = line.replace(/^❯\s*/, "").trim();
+        if (text) userTurns.push(text);
+      }
+    }
+
+    const source = userTurns.slice(-3).join(" ") || lines.slice(-20).join(" ");
+    if (!source) return null;
+
+    const STOP_WORDS = new Set([
+      "the", "and", "for", "with", "that", "this", "from", "what", "when", "where",
+      "which", "who", "your", "have", "will", "would", "could", "should", "about",
+      "into", "them", "they", "dont", "doesnt", "cant", "isnt", "lets", "discussion",
+      "discuss", "thread", "session", "please", "help", "talk", "why", "how", "bad",
+      "good", "like", "love", "dont", "not",
+    ]);
+
+    const words = source
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+
+    const unique: string[] = [];
+    for (const word of words) {
+      if (unique.includes(word)) continue;
+      unique.push(word);
+      if (unique.length >= 4) break;
+    }
+
+    if (unique.length === 0) return null;
+    return this.sanitizeTerminalName(unique.join("-"));
   }
 
   public openContextInspector(): void {

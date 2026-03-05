@@ -17210,6 +17210,7 @@ var DEFAULT_SETTINGS = {
   clearedLinkHotkey: false,
   clearedHotkeyOriginals: {},
   terminalSetupDone: false,
+  terminalSetupBypassed: false,
   sessionHistory: []
 };
 function stripObsidianMeta(fm) {
@@ -18308,7 +18309,7 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
     });
     containerEl.createEl("div", {
       cls: "augment-settings-version",
-      text: `v${this.plugin.manifest.version}`
+      text: `v${this.plugin.manifest.version} \xB7 build ${this.plugin.getBuildFingerprint()}`
     });
   }
 };
@@ -18416,7 +18417,7 @@ function stageBinary(sourcePath, binaryName) {
   if (!needsCopy) {
     try {
       const { statSync: statSync2 } = require("fs");
-      needsCopy = statSync2(sourcePath).mtimeMs > statSync2(staged).mtimeMs;
+      needsCopy = statSync2(sourcePath).mtimeMs >= statSync2(staged).mtimeMs;
     } catch (e) {
       needsCopy = true;
     }
@@ -18424,6 +18425,12 @@ function stageBinary(sourcePath, binaryName) {
   if (needsCopy) {
     (0, import_fs2.copyFileSync)(sourcePath, staged);
     (0, import_fs2.chmodSync)(staged, 493);
+    if (process.platform === "darwin") {
+      try {
+        (0, import_child_process2.execFileSync)("codesign", ["-s", "-", "-f", staged], { stdio: "ignore" });
+      } catch (e) {
+      }
+    }
   }
   return staged;
 }
@@ -18431,6 +18438,7 @@ var PtyBridge = class {
   constructor(opts) {
     this.process = null;
     this.controlStream = null;
+    this.stopping = false;
     this.pluginDir = opts.pluginDir;
     this.cwd = opts.cwd;
     this.shellPath = opts.shellPath || "";
@@ -18439,12 +18447,17 @@ var PtyBridge = class {
     this.onError = opts.onError;
   }
   start() {
-    var _a2, _b, _c, _d;
+    this.stopping = false;
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
     const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
-    const binaryPath = stageBinary(sourcePath, binaryName);
+    const candidates = [sourcePath];
+    try {
+      const stagedPath = stageBinary(sourcePath, binaryName);
+      if (stagedPath !== sourcePath) candidates.push(stagedPath);
+    } catch (e) {
+    }
     const env = {
       ...process.env,
       TERM: "xterm-256color",
@@ -18452,33 +18465,53 @@ var PtyBridge = class {
       AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "cmd.exe" : "bash"),
       AUGMENT_CWD: this.cwd
     };
-    this.process = (0, import_child_process2.spawn)(binaryPath, [], {
-      cwd: this.cwd,
-      env,
-      stdio: ["pipe", "pipe", "pipe", "pipe"]
-    });
-    this.controlStream = this.process.stdio[3];
-    (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
-    (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
-      this.onData(data);
-    });
-    (_c = this.process.stderr) == null ? void 0 : _c.setEncoding("utf-8");
-    (_d = this.process.stderr) == null ? void 0 : _d.on("data", (data) => {
-      console.error("[augment-pty]", data);
-    });
-    this.process.on("exit", (code) => {
-      this.process = null;
-      this.controlStream = null;
-      this.onExit(code != null ? code : 0);
-    });
-    this.process.on("error", (err) => {
-      var _a3;
-      console.error("[augment-pty] Process error:", err);
-      (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
-      this.process = null;
-      this.controlStream = null;
-      this.onExit(1);
-    });
+    let candidateIndex = 0;
+    const spawnCandidate = () => {
+      var _a2, _b, _c, _d;
+      const binaryPath = candidates[candidateIndex];
+      const startedAt = Date.now();
+      this.process = (0, import_child_process2.spawn)(binaryPath, [], {
+        cwd: this.cwd,
+        env,
+        stdio: ["pipe", "pipe", "pipe", "pipe"]
+      });
+      this.controlStream = this.process.stdio[3];
+      (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
+      (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
+        this.onData(data);
+      });
+      (_c = this.process.stderr) == null ? void 0 : _c.setEncoding("utf-8");
+      (_d = this.process.stderr) == null ? void 0 : _d.on("data", (data) => {
+        console.error("[augment-pty]", data);
+      });
+      this.process.on("exit", (code, signal) => {
+        const runtimeMs = Date.now() - startedAt;
+        this.process = null;
+        this.controlStream = null;
+        const shouldFallback = !this.stopping && candidateIndex + 1 < candidates.length && signal === "SIGKILL" && runtimeMs < 1200;
+        if (shouldFallback) {
+          candidateIndex++;
+          spawnCandidate();
+          return;
+        }
+        this.onExit(code != null ? code : 0, signal != null ? signal : null);
+      });
+      this.process.on("error", (err) => {
+        var _a3;
+        console.error("[augment-pty] Process error:", err);
+        this.process = null;
+        this.controlStream = null;
+        const shouldFallback = !this.stopping && candidateIndex + 1 < candidates.length;
+        if (shouldFallback) {
+          candidateIndex++;
+          spawnCandidate();
+          return;
+        }
+        (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
+        this.onExit(1);
+      });
+    };
+    spawnCandidate();
   }
   write(data) {
     var _a2, _b;
@@ -18490,6 +18523,7 @@ var PtyBridge = class {
 `);
   }
   kill() {
+    this.stopping = true;
     if (this.process) {
       this.process.kill("SIGTERM");
     }
@@ -18735,6 +18769,9 @@ function translatePtyError(raw) {
   }
   if (l.includes("eacces") || l.includes("permission denied")) {
     return "Permission error \u2014 try running the install again.";
+  }
+  if (l.includes("sigkill") || l.includes("signal sigkill")) {
+    return "Terminal bridge was killed by macOS during launch.";
   }
   return "The terminal connection failed.";
 }
@@ -19005,6 +19042,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.errorBannerEl = null;
     this.currentActivity = null;
     this.messageFilter = null;
+    this.ptyStartedAtMs = 0;
+    this.startupRetryCount = 0;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -19150,10 +19189,41 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.bootTerminal();
     detectDeps(this.app).then((deps) => {
-      if (!deps.cc || !deps.authed) {
+      if ((!deps.cc || !deps.authed) && !this.isSetupBypassed()) {
         this.renderBootstrapper(this.contentEl, deps);
       }
     }).catch(() => {
+    });
+  }
+  isSetupBypassed() {
+    var _a2, _b, _c;
+    const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    return !!((_c = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _c.terminalSetupBypassed);
+  }
+  setSetupBypassed(value) {
+    var _a2, _b;
+    const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    if (!(plugin == null ? void 0 : plugin.settings)) return;
+    plugin.settings.terminalSetupBypassed = value;
+    if (value) plugin.settings.terminalSetupDone = true;
+    void plugin.saveData(plugin.settings);
+  }
+  createBootstrapperBypassActions(wrapper, dismiss) {
+    const actions = wrapper.createDiv({ cls: "augment-bootstrapper-actions" });
+    const continueBtn = actions.createEl("button", {
+      cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+      text: "Continue anyway"
+    });
+    (0, import_obsidian5.setIcon)(continueBtn, "play");
+    continueBtn.addEventListener("click", () => dismiss());
+    const bypassBtn = actions.createEl("button", {
+      cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+      text: "Don\u2019t show setup checks"
+    });
+    (0, import_obsidian5.setIcon)(bypassBtn, "eye-off");
+    bypassBtn.addEventListener("click", () => {
+      this.setSetupBypassed(true);
+      dismiss();
     });
   }
   renderBootstrapper(container, deps) {
@@ -19164,27 +19234,33 @@ var TerminalView = class extends import_obsidian5.ItemView {
     if (!deps.node) {
       wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
+      (0, import_obsidian5.setIcon)(btn, "download");
       btn.onclick = () => window.open("https://nodejs.org");
+      this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
     if (!deps.cc) {
       wrapper.createEl("p", { text: "Claude Code is not installed.", cls: "augment-bootstrapper-desc" });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
+      (0, import_obsidian5.setIcon)(btn, "terminal");
       btn.onclick = () => {
         var _a2;
         dismiss();
         (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
       };
+      this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
     if (!deps.authed) {
       wrapper.createEl("p", { text: "Sign in to connect your Anthropic account.", cls: "augment-bootstrapper-desc" });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
+      (0, import_obsidian5.setIcon)(btn, "log-in");
       btn.onclick = () => {
         var _a2;
         dismiss();
         (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("claude auth login\n");
       };
+      this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
   }
@@ -19235,10 +19311,12 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.resizeObserver.observe(container);
   }
-  startPtyBridge() {
+  startPtyBridge(forcedShellPath) {
     var _a2, _b;
     const vaultPath = this.app.vault.adapter.basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
+    const shellPath = forcedShellPath != null ? forcedShellPath : this.getShellPath();
+    this.ptyStartedAtMs = Date.now();
     (_a2 = this.ptyBridge) == null ? void 0 : _a2.kill();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
     this.messageFilter = new TeammateMessageFilter((filtered) => {
@@ -19249,7 +19327,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: customCwd || vaultPath,
-      shellPath: this.getShellPath(),
+      shellPath,
       onData: (data) => {
         this.messageFilter.feed(data);
         this.detectStatus(data);
@@ -19259,18 +19337,40 @@ var TerminalView = class extends import_obsidian5.ItemView {
         const friendly = translatePtyError(err.message);
         this.showErrorBanner(friendly, err.message);
       },
-      onExit: (code) => {
-        var _a3, _b2, _c;
-        (_a3 = this.terminal) == null ? void 0 : _a3.write(`\r
+      onExit: (code, signal) => {
+        var _a3, _b2, _c, _d, _e;
+        const runtimeMs = Date.now() - this.ptyStartedAtMs;
+        const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
+        if (exitedImmediately && this.startupRetryCount < 2) {
+          const fallbackShell = this.startupRetryCount === 0 ? "/bin/bash" : "/bin/zsh";
+          this.startupRetryCount++;
+          (_a3 = this.terminal) == null ? void 0 : _a3.write(
+            `\r
+\x1B[2m[Shell exited quickly (${runtimeMs}ms); retrying with ${fallbackShell}]\x1B[0m\r
+`
+          );
+          this.startPtyBridge(fallbackShell);
+          return;
+        }
+        if (signal) {
+          (_b2 = this.terminal) == null ? void 0 : _b2.write(`\r
+[Process terminated by ${signal}]\r
+`);
+        } else {
+          (_c = this.terminal) == null ? void 0 : _c.write(`\r
 [Process exited with code ${code}]\r
 `);
+        }
         this.isExited = true;
-        const exitStatus = code === 0 ? "exited" : "crashed";
+        const exitStatus = signal ? "crashed" : code === 0 ? "exited" : "crashed";
         this.setStatus(exitStatus);
-        (_b2 = this.onSessionExit) == null ? void 0 : _b2.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
+        (_d = this.onSessionExit) == null ? void 0 : _d.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
-        if (code !== 0) {
-          const friendly = (_c = translateExitCode(code)) != null ? _c : translatePtyError(`exit ${code}`);
+        if (signal) {
+          const friendly = translatePtyError(`signal ${signal}`);
+          this.showErrorBanner(friendly, `Signal: ${signal}`);
+        } else if (code !== 0) {
+          const friendly = (_e = translateExitCode(code)) != null ? _e : translatePtyError(`exit ${code}`);
           this.showErrorBanner(friendly, `Exit code: ${code}`);
         }
       }
@@ -19373,15 +19473,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const excerpt = stripAnsi(this.scrollbackBuffer).slice(-2e3);
     const name = await this.onAutoRenameRequest(excerpt);
     if (name) {
-      this.autoRenameNeeded = false;
-      this.terminalName = name;
-      this.refreshLeafName();
-      this.persistNameToLeafState();
-      this.autoNamedThisTurn = true;
-      this.app.workspace.trigger("augment-terminal:changed");
-      setTimeout(() => {
-        this.autoNamedThisTurn = false;
-      }, 1500);
+      this.applyAutoName(name);
     } else {
       this.autoRenameNeeded = true;
     }
@@ -19436,6 +19528,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const clean = line.trim();
     if (!clean) return false;
     let changed = false;
+    const renameFromHook = this.extractPaneNameHookRename(clean);
+    if (renameFromHook && !this.userRenamed) {
+      changed = this.applyAutoName(renameFromHook) || changed;
+    }
+    const renameFromTmux = this.extractTmuxRename(clean);
+    if (renameFromTmux && !this.userRenamed) {
+      changed = this.applyAutoName(renameFromTmux) || changed;
+    }
     const team = this.extractTeamName(clean);
     if (team) changed = this.addTeamName(team) || changed;
     const identity = this.extractAgentIdentity(clean);
@@ -19474,6 +19574,62 @@ var TerminalView = class extends import_obsidian5.ItemView {
       }) || changed;
     }
     return changed;
+  }
+  // Claude's pane-name hook can emit a Bash tool line like:
+  //   Bash(bash ~/.claude/hooks/pane-name.sh topic "dirt bikes pros cons")
+  // In Augment that may be the only observable rename signal, so capture it.
+  extractPaneNameHookRename(text) {
+    var _a2, _b, _c, _d;
+    if (!/\bBash\(/i.test(text) || !/pane-name\.sh/i.test(text)) return null;
+    const topicCall = text.match(
+      /\bpane-name\.sh\b[\s\S]*?\btopic\b\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (!topicCall) return null;
+    return this.normalizeRenameCandidate(
+      (_d = (_c = (_b = (_a2 = topicCall[1]) != null ? _a2 : topicCall[2]) != null ? _b : topicCall[3]) != null ? _c : topicCall[4]) != null ? _d : ""
+    );
+  }
+  // Claude Code often emits tmux rename commands (e.g. select-pane -T) after
+  // a few turns. In Augment there may be no live tmux bridge, so mirror that
+  // intent by applying the requested title directly to the leaf state.
+  extractTmuxRename(text) {
+    var _a2, _b, _c, _d, _e, _f, _g, _h;
+    if (!/\bBash\(/i.test(text) || !/\btmux\b/i.test(text)) return null;
+    const selectPane = text.match(
+      /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (selectPane) {
+      return this.normalizeRenameCandidate(
+        (_d = (_c = (_b = (_a2 = selectPane[1]) != null ? _a2 : selectPane[2]) != null ? _b : selectPane[3]) != null ? _c : selectPane[4]) != null ? _d : ""
+      );
+    }
+    const renameWindow = text.match(
+      /\btmux\b[\s\S]*?\brename-window\b[\s\S]*?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (renameWindow) {
+      return this.normalizeRenameCandidate(
+        (_h = (_g = (_f = (_e = renameWindow[1]) != null ? _e : renameWindow[2]) != null ? _f : renameWindow[3]) != null ? _g : renameWindow[4]) != null ? _h : ""
+      );
+    }
+    return null;
+  }
+  normalizeRenameCandidate(value) {
+    const cleaned = value.replace(/\\n/g, " ").replace(/\\t/g, " ").replace(/\\(["'`\\])/g, "$1").trim().slice(0, 80);
+    return cleaned || null;
+  }
+  applyAutoName(name) {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === this.terminalName) return false;
+    this.autoRenameNeeded = false;
+    this.terminalName = trimmed;
+    this.refreshLeafName();
+    this.persistNameToLeafState();
+    this.autoNamedThisTurn = true;
+    this.app.workspace.trigger("augment-terminal:changed");
+    setTimeout(() => {
+      this.autoNamedThisTurn = false;
+    }, 1500);
+    return true;
   }
   recordTeamEvent(event) {
     var _a2, _b, _c;
@@ -19791,8 +19947,11 @@ var SessionStore = class {
               }
             }
             if (text.trim()) {
-              title = text.trim().slice(0, 60);
-              break outer;
+              const cleaned = this.cleanTitle(text);
+              if (cleaned) {
+                title = cleaned;
+                break outer;
+              }
             }
           }
         } catch (e) {
@@ -19802,6 +19961,45 @@ var SessionStore = class {
     }
     this.titleCache.set(sessionPath, title);
     return title;
+  }
+  cleanTitle(raw) {
+    var _a2, _b;
+    const compact = raw.replace(/\s+/g, " ").trim();
+    if (!compact) return null;
+    const teammate = this.cleanTeammateXmlTitle(compact);
+    if (teammate) return teammate.slice(0, 60);
+    const stripped = compact.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!stripped) return null;
+    const roleForwarded = stripped.match(
+      /^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i
+    );
+    if (roleForwarded == null ? void 0 : roleForwarded[1]) {
+      const role = roleForwarded[1].replace(/\s+part$/i, "").trim();
+      const project = (_b = (_a2 = stripped.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
+      const label = project ? `${role} - ${project}` : role;
+      return label.slice(0, 60);
+    }
+    return stripped.slice(0, 60);
+  }
+  cleanTeammateXmlTitle(text) {
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+    const xml = text.match(
+      /<teammate-message\b([^>]*)>([\s\S]*?)<\/teammate-message>/i
+    );
+    if (!xml) return null;
+    const attrs = (_a2 = xml[1]) != null ? _a2 : "";
+    const body = ((_b = xml[2]) != null ? _b : "").replace(/\s+/g, " ").trim();
+    const teammateId = (_h = (_g = (_d = (_c = attrs.match(/\bteammate_id="([^"]+)"/i)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim()) != null ? _g : (_f = (_e = attrs.match(/\brecipient="([^"]+)"/i)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim()) != null ? _h : null;
+    const summary = (_k = (_j = (_i = attrs.match(/\bsummary="([^"]+)"/i)) == null ? void 0 : _i[1]) == null ? void 0 : _j.trim()) != null ? _k : null;
+    if (summary && teammateId) return `${teammateId} - ${summary}`;
+    if (summary) return summary;
+    const role = (_m = (_l = body.match(/^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i)) == null ? void 0 : _l[1]) == null ? void 0 : _m.trim();
+    const project = (_o = (_n = body.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _n[1]) == null ? void 0 : _o.trim();
+    if (role && project) return `${role} - ${project}`;
+    if (role) return role;
+    if (teammateId) return teammateId;
+    if (body) return body.slice(0, 60);
+    return null;
   }
 };
 
@@ -21742,6 +21940,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
+    this.buildId = "2026-03-05T19:15:02.354Z";
+    this.gitSha = "3e40c29";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -21769,6 +21969,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+  getBuildFingerprint() {
+    return `${this.buildId} (${this.gitSha})`;
   }
   cancelGeneration() {
     const gen = this.activeGeneration;
@@ -22012,6 +22215,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     var _a2;
+    console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData();
     if (raw && typeof raw === "object") {
       delete raw["useWsl"];
@@ -22055,6 +22259,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };
       view.onAutoRenameRequest = async (excerpt) => {
+        var _a3;
+        const localFallback = this.deriveTerminalNameFromExcerpt(excerpt);
+        if (!((_a3 = this.settings.apiKey) == null ? void 0 : _a3.trim())) {
+          return localFallback;
+        }
         try {
           const raw2 = await generateText(
             "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2\u20134 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
@@ -22063,10 +22272,10 @@ ${excerpt}`,
             this.settings,
             "claude-haiku-4-5-20251001"
           );
-          const cleaned = raw2.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
-          return cleaned || null;
+          const cleaned = this.sanitizeTerminalName(raw2);
+          return cleaned != null ? cleaned : localFallback;
         } catch (e) {
-          return null;
+          return localFallback;
         }
       };
       return view;
@@ -22716,6 +22925,76 @@ ${excerpt}`,
   }
   async openTerminalNamed(name) {
     await this.openTerminal("tab", { name });
+  }
+  sanitizeTerminalName(raw) {
+    const cleaned = raw.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
+    return cleaned || null;
+  }
+  // Local fallback so auto-rename works without custom hooks or API success.
+  deriveTerminalNameFromExcerpt(excerpt) {
+    const lines = excerpt.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const userTurns = [];
+    for (const line of lines) {
+      if (line.startsWith("\u276F")) {
+        const text = line.replace(/^❯\s*/, "").trim();
+        if (text) userTurns.push(text);
+      }
+    }
+    const source = userTurns.slice(-3).join(" ") || lines.slice(-20).join(" ");
+    if (!source) return null;
+    const STOP_WORDS = /* @__PURE__ */ new Set([
+      "the",
+      "and",
+      "for",
+      "with",
+      "that",
+      "this",
+      "from",
+      "what",
+      "when",
+      "where",
+      "which",
+      "who",
+      "your",
+      "have",
+      "will",
+      "would",
+      "could",
+      "should",
+      "about",
+      "into",
+      "them",
+      "they",
+      "dont",
+      "doesnt",
+      "cant",
+      "isnt",
+      "lets",
+      "discussion",
+      "discuss",
+      "thread",
+      "session",
+      "please",
+      "help",
+      "talk",
+      "why",
+      "how",
+      "bad",
+      "good",
+      "like",
+      "love",
+      "dont",
+      "not"
+    ]);
+    const words = source.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+    const unique = [];
+    for (const word of words) {
+      if (unique.includes(word)) continue;
+      unique.push(word);
+      if (unique.length >= 4) break;
+    }
+    if (unique.length === 0) return null;
+    return this.sanitizeTerminalName(unique.join("-"));
   }
   openContextInspector() {
     const leaf = this.app.workspace.getRightLeaf(false);

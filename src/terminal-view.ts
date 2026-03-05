@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -61,6 +61,9 @@ function translatePtyError(raw: string): string {
   }
   if (l.includes("eacces") || l.includes("permission denied")) {
     return "Permission error — try running the install again.";
+  }
+  if (l.includes("sigkill") || l.includes("signal sigkill")) {
+    return "Terminal bridge was killed by macOS during launch.";
   }
   return "The terminal connection failed.";
 }
@@ -303,6 +306,8 @@ export class TerminalView extends ItemView {
   private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
   private messageFilter: TeammateMessageFilter | null = null;
+  private ptyStartedAtMs: number = 0;
+  private startupRetryCount: number = 0;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -507,11 +512,45 @@ export class TerminalView extends ItemView {
 
     // Run dep detection in background; overlay bootstrapper if something is missing.
     detectDeps(this.app).then((deps) => {
-      if (!deps.cc || !deps.authed) {
+      if ((!deps.cc || !deps.authed) && !this.isSetupBypassed()) {
         this.renderBootstrapper(this.contentEl, deps);
       }
     }).catch(() => {
       // If dep detection itself errors, don't block the terminal.
+    });
+  }
+
+  private isSetupBypassed(): boolean {
+    const plugin = (this.app as any).plugins?.plugins?.["augment-terminal"];
+    return !!plugin?.settings?.terminalSetupBypassed;
+  }
+
+  private setSetupBypassed(value: boolean): void {
+    const plugin = (this.app as any).plugins?.plugins?.["augment-terminal"];
+    if (!plugin?.settings) return;
+    plugin.settings.terminalSetupBypassed = value;
+    if (value) plugin.settings.terminalSetupDone = true;
+    void plugin.saveData(plugin.settings);
+  }
+
+  private createBootstrapperBypassActions(wrapper: HTMLElement, dismiss: () => void): void {
+    const actions = wrapper.createDiv({ cls: "augment-bootstrapper-actions" });
+
+    const continueBtn = actions.createEl("button", {
+      cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+      text: "Continue anyway",
+    });
+    setIcon(continueBtn, "play");
+    continueBtn.addEventListener("click", () => dismiss());
+
+    const bypassBtn = actions.createEl("button", {
+      cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+      text: "Don’t show setup checks",
+    });
+    setIcon(bypassBtn, "eye-off");
+    bypassBtn.addEventListener("click", () => {
+      this.setSetupBypassed(true);
+      dismiss();
     });
   }
 
@@ -527,27 +566,33 @@ export class TerminalView extends ItemView {
     if (!deps.node) {
       wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
+      setIcon(btn, "download");
       btn.onclick = () => window.open("https://nodejs.org");
+      this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
 
     if (!deps.cc) {
       wrapper.createEl("p", { text: "Claude Code is not installed.", cls: "augment-bootstrapper-desc" });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
+      setIcon(btn, "terminal");
       btn.onclick = () => {
         dismiss();
         this.ptyBridge?.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
       };
+      this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
 
     if (!deps.authed) {
       wrapper.createEl("p", { text: "Sign in to connect your Anthropic account.", cls: "augment-bootstrapper-desc" });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
+      setIcon(btn, "log-in");
       btn.onclick = () => {
         dismiss();
         this.ptyBridge?.write("claude auth login\n");
       };
+      this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
   }
@@ -620,9 +665,11 @@ export class TerminalView extends ItemView {
     this.resizeObserver.observe(container);
   }
 
-  private startPtyBridge(): void {
+  private startPtyBridge(forcedShellPath?: string): void {
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
+    const shellPath = forcedShellPath ?? this.getShellPath();
+    this.ptyStartedAtMs = Date.now();
     this.ptyBridge?.kill();
     this.messageFilter?.destroy();
     this.messageFilter = new TeammateMessageFilter((filtered) => {
@@ -632,7 +679,7 @@ export class TerminalView extends ItemView {
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: customCwd || vaultPath,
-      shellPath: this.getShellPath(),
+      shellPath,
       onData: (data) => {
         this.messageFilter!.feed(data);
         this.detectStatus(data);
@@ -642,14 +689,33 @@ export class TerminalView extends ItemView {
         const friendly = translatePtyError(err.message);
         this.showErrorBanner(friendly, err.message);
       },
-      onExit: (code) => {
-        this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
+      onExit: (code, signal) => {
+        const runtimeMs = Date.now() - this.ptyStartedAtMs;
+        const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
+        if (exitedImmediately && this.startupRetryCount < 2) {
+          const fallbackShell = this.startupRetryCount === 0 ? "/bin/bash" : "/bin/zsh";
+          this.startupRetryCount++;
+          this.terminal?.write(
+            `\r\n\x1b[2m[Shell exited quickly (${runtimeMs}ms); retrying with ${fallbackShell}]\x1b[0m\r\n`
+          );
+          this.startPtyBridge(fallbackShell);
+          return;
+        }
+
+        if (signal) {
+          this.terminal?.write(`\r\n[Process terminated by ${signal}]\r\n`);
+        } else {
+          this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
+        }
         this.isExited = true;
-        const exitStatus: TerminalStatus = code === 0 ? "exited" : "crashed";
+        const exitStatus: TerminalStatus = signal ? "crashed" : (code === 0 ? "exited" : "crashed");
         this.setStatus(exitStatus);
         this.onSessionExit?.(this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
-        if (code !== 0) {
+        if (signal) {
+          const friendly = translatePtyError(`signal ${signal}`);
+          this.showErrorBanner(friendly, `Signal: ${signal}`);
+        } else if (code !== 0) {
           const friendly = translateExitCode(code) ?? translatePtyError(`exit ${code}`);
           this.showErrorBanner(friendly, `Exit code: ${code}`);
         }
@@ -774,13 +840,7 @@ export class TerminalView extends ItemView {
     const excerpt = stripAnsi(this.scrollbackBuffer).slice(-2000);
     const name = await this.onAutoRenameRequest(excerpt);
     if (name) {
-      this.autoRenameNeeded = false;
-      this.terminalName = name;
-      this.refreshLeafName();
-      this.persistNameToLeafState();
-      this.autoNamedThisTurn = true;
-      this.app.workspace.trigger("augment-terminal:changed");
-      setTimeout(() => { this.autoNamedThisTurn = false; }, 1500);
+      this.applyAutoName(name);
     } else {
       this.autoRenameNeeded = true;
     }
@@ -842,6 +902,15 @@ export class TerminalView extends ItemView {
     if (!clean) return false;
 
     let changed = false;
+    const renameFromHook = this.extractPaneNameHookRename(clean);
+    if (renameFromHook && !this.userRenamed) {
+      changed = this.applyAutoName(renameFromHook) || changed;
+    }
+
+    const renameFromTmux = this.extractTmuxRename(clean);
+    if (renameFromTmux && !this.userRenamed) {
+      changed = this.applyAutoName(renameFromTmux) || changed;
+    }
 
     const team = this.extractTeamName(clean);
     if (team) changed = this.addTeamName(team) || changed;
@@ -887,6 +956,73 @@ export class TerminalView extends ItemView {
     }
 
     return changed;
+  }
+
+  // Claude's pane-name hook can emit a Bash tool line like:
+  //   Bash(bash ~/.claude/hooks/pane-name.sh topic "dirt bikes pros cons")
+  // In Augment that may be the only observable rename signal, so capture it.
+  private extractPaneNameHookRename(text: string): string | null {
+    if (!/\bBash\(/i.test(text) || !/pane-name\.sh/i.test(text)) return null;
+
+    const topicCall = text.match(
+      /\bpane-name\.sh\b[\s\S]*?\btopic\b\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (!topicCall) return null;
+
+    return this.normalizeRenameCandidate(
+      topicCall[1] ?? topicCall[2] ?? topicCall[3] ?? topicCall[4] ?? ""
+    );
+  }
+
+  // Claude Code often emits tmux rename commands (e.g. select-pane -T) after
+  // a few turns. In Augment there may be no live tmux bridge, so mirror that
+  // intent by applying the requested title directly to the leaf state.
+  private extractTmuxRename(text: string): string | null {
+    if (!/\bBash\(/i.test(text) || !/\btmux\b/i.test(text)) return null;
+
+    const selectPane = text.match(
+      /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (selectPane) {
+      return this.normalizeRenameCandidate(
+        selectPane[1] ?? selectPane[2] ?? selectPane[3] ?? selectPane[4] ?? ""
+      );
+    }
+
+    const renameWindow = text.match(
+      /\btmux\b[\s\S]*?\brename-window\b[\s\S]*?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (renameWindow) {
+      return this.normalizeRenameCandidate(
+        renameWindow[1] ?? renameWindow[2] ?? renameWindow[3] ?? renameWindow[4] ?? ""
+      );
+    }
+
+    return null;
+  }
+
+  private normalizeRenameCandidate(value: string): string | null {
+    const cleaned = value
+      .replace(/\\n/g, " ")
+      .replace(/\\t/g, " ")
+      .replace(/\\(["'`\\])/g, "$1")
+      .trim()
+      .slice(0, 80);
+    return cleaned || null;
+  }
+
+  private applyAutoName(name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === this.terminalName) return false;
+
+    this.autoRenameNeeded = false;
+    this.terminalName = trimmed;
+    this.refreshLeafName();
+    this.persistNameToLeafState();
+    this.autoNamedThisTurn = true;
+    this.app.workspace.trigger("augment-terminal:changed");
+    setTimeout(() => { this.autoNamedThisTurn = false; }, 1500);
+    return true;
   }
 
   private recordTeamEvent(event: TeamEvent): boolean {

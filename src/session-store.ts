@@ -202,8 +202,11 @@ export class SessionStore {
               }
             }
             if (text.trim()) {
-              title = text.trim().slice(0, 60);
-              break outer;
+              const cleaned = this.cleanTitle(text);
+              if (cleaned) {
+                title = cleaned;
+                break outer;
+              }
             }
           }
         } catch {}
@@ -212,5 +215,54 @@ export class SessionStore {
 
     this.titleCache.set(sessionPath, title);
     return title;
+  }
+
+  private cleanTitle(raw: string): string | null {
+    const compact = raw.replace(/\s+/g, " ").trim();
+    if (!compact) return null;
+
+    const teammate = this.cleanTeammateXmlTitle(compact);
+    if (teammate) return teammate.slice(0, 60);
+
+    const stripped = compact.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!stripped) return null;
+
+    const roleForwarded = stripped.match(
+      /^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i
+    );
+    if (roleForwarded?.[1]) {
+      const role = roleForwarded[1].replace(/\s+part$/i, "").trim();
+      const project = stripped.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)?.[1]?.trim();
+      const label = project ? `${role} - ${project}` : role;
+      return label.slice(0, 60);
+    }
+
+    return stripped.slice(0, 60);
+  }
+
+  private cleanTeammateXmlTitle(text: string): string | null {
+    const xml = text.match(
+      /<teammate-message\b([^>]*)>([\s\S]*?)<\/teammate-message>/i
+    );
+    if (!xml) return null;
+
+    const attrs = xml[1] ?? "";
+    const body = (xml[2] ?? "").replace(/\s+/g, " ").trim();
+    const teammateId =
+      attrs.match(/\bteammate_id="([^"]+)"/i)?.[1]?.trim() ??
+      attrs.match(/\brecipient="([^"]+)"/i)?.[1]?.trim() ??
+      null;
+    const summary = attrs.match(/\bsummary="([^"]+)"/i)?.[1]?.trim() ?? null;
+
+    if (summary && teammateId) return `${teammateId} - ${summary}`;
+    if (summary) return summary;
+
+    const role = body.match(/^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i)?.[1]?.trim();
+    const project = body.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)?.[1]?.trim();
+    if (role && project) return `${role} - ${project}`;
+    if (role) return role;
+    if (teammateId) return teammateId;
+    if (body) return body.slice(0, 60);
+    return null;
   }
 }

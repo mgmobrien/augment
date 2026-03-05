@@ -959,7 +959,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     // ── Version footer (all tabs) ──────────────────────────
     containerEl.createEl("div", {
       cls: "augment-settings-version",
-      text: `v${this.plugin.manifest.version}`,
+      text: `v${this.plugin.manifest.version} · build ${this.plugin.getBuildFingerprint()}`,
     });
   }
 }
