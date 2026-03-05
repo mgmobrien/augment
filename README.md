@@ -29,6 +29,8 @@ cp main.js manifest.json styles.css "{vault}/.obsidian/plugins/augment/"
 
 Replace `{vault}` with the absolute path to your Obsidian vault.
 
+**Windows with WSL:** your vault is typically at `/mnt/c/Users/{username}/Documents/Obsidian/{vault-name}/`. Find the exact path in Obsidian: Settings → General → vault path — then prefix with `/mnt/c` and replace backslashes with forward slashes.
+
 `main.js` is committed to the repo — if you don't want to build from source, skip `npm run build` and copy the files directly.
 
 > `npm run obsidian:install` exists but is hardcoded to the maintainer's vault path. Use the manual copy above instead.
@@ -45,7 +47,7 @@ Replace `{vault}` with the absolute path to your Obsidian vault.
 1. Open any note
 2. Position cursor at end of a sentence
 3. Press Mod+Enter (Cmd+Enter on Mac, Ctrl+Enter on Windows/Linux)
-4. A generate prompt appears — enter a request and press Generate
+4. A spinner appears at the cursor while generating; output is inserted inline when complete
 5. Status bar shows "Augment: [model name]" when configured
 
 ## Windows / WSL
