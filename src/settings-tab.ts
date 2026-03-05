@@ -47,7 +47,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
     wordmark.createEl("div", {
       cls: "augment-settings-tagline",
-      text: "Vault-aware AI generation for Obsidian",
+      text: "In-editor continuation and a terminal system for Claude Code.",
     });
 
     // ── Tab nav ──────────────────────────────────────────────
@@ -171,7 +171,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
-      text: "Augment generates text inline using Claude, with context drawn from your current note — title, frontmatter, everything you\u2019ve written above your cursor, and linked notes.",
+      text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.",
     });
 
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });

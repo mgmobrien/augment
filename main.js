@@ -7676,12 +7676,12 @@ function encodeURIPath(str) {
   return str.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
 var EMPTY = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null));
-var createPathTagFunction = (pathEncoder = encodeURIPath) => function path2(statics, ...params) {
+var createPathTagFunction = (pathEncoder = encodeURIPath) => function path3(statics, ...params) {
   if (statics.length === 1)
     return statics[0];
   let postPath = false;
   const invalidSegments = [];
-  const path3 = statics.reduce((previousValue, currentValue, index) => {
+  const path4 = statics.reduce((previousValue, currentValue, index) => {
     var _a2, _b, _c;
     if (/[?#]/.test(currentValue)) {
       postPath = true;
@@ -7699,7 +7699,7 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path2(stat
     }
     return previousValue + currentValue + (index === params.length ? "" : encoded);
   }, "");
-  const pathOnly = path3.split(/[?#]/, 1)[0];
+  const pathOnly = path4.split(/[?#]/, 1)[0];
   const invalidSegmentPattern = /(?<=^|\/)(?:\.|%2e){1,2}(?=\/|$)/gi;
   let match;
   while ((match = invalidSegmentPattern.exec(pathOnly)) !== null) {
@@ -7720,10 +7720,10 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path2(stat
     }, "");
     throw new AnthropicError(`Path parameters result in path with invalid segments:
 ${invalidSegments.map((e) => e.error).join("\n")}
-${path3}
+${path4}
 ${underline}`);
   }
-  return path3;
+  return path4;
 };
 var path = /* @__PURE__ */ createPathTagFunction(encodeURIPath);
 
@@ -10862,9 +10862,9 @@ var BaseAnthropic = class {
   makeStatusError(status, error, message, headers) {
     return APIError.generate(status, error, message, headers);
   }
-  buildURL(path2, query, defaultBaseURL) {
+  buildURL(path3, query, defaultBaseURL) {
     const baseURL = !__classPrivateFieldGet(this, _BaseAnthropic_instances, "m", _BaseAnthropic_baseURLOverridden).call(this) && defaultBaseURL || this.baseURL;
-    const url = isAbsoluteURL(path2) ? new URL(path2) : new URL(baseURL + (baseURL.endsWith("/") && path2.startsWith("/") ? path2.slice(1) : path2));
+    const url = isAbsoluteURL(path3) ? new URL(path3) : new URL(baseURL + (baseURL.endsWith("/") && path3.startsWith("/") ? path3.slice(1) : path3));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -10895,24 +10895,24 @@ var BaseAnthropic = class {
    */
   async prepareRequest(request, { url, options }) {
   }
-  get(path2, opts) {
-    return this.methodRequest("get", path2, opts);
+  get(path3, opts) {
+    return this.methodRequest("get", path3, opts);
   }
-  post(path2, opts) {
-    return this.methodRequest("post", path2, opts);
+  post(path3, opts) {
+    return this.methodRequest("post", path3, opts);
   }
-  patch(path2, opts) {
-    return this.methodRequest("patch", path2, opts);
+  patch(path3, opts) {
+    return this.methodRequest("patch", path3, opts);
   }
-  put(path2, opts) {
-    return this.methodRequest("put", path2, opts);
+  put(path3, opts) {
+    return this.methodRequest("put", path3, opts);
   }
-  delete(path2, opts) {
-    return this.methodRequest("delete", path2, opts);
+  delete(path3, opts) {
+    return this.methodRequest("delete", path3, opts);
   }
-  methodRequest(method, path2, opts) {
+  methodRequest(method, path3, opts) {
     return this.request(Promise.resolve(opts).then((opts2) => {
-      return { method, path: path2, ...opts2 };
+      return { method, path: path3, ...opts2 };
     }));
   }
   request(options, remainingRetries = null) {
@@ -11017,8 +11017,8 @@ var BaseAnthropic = class {
     }));
     return { response, options, controller, requestLogID, retryOfRequestLogID, startTime };
   }
-  getAPIList(path2, Page2, opts) {
-    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path2, ...opts2 })) : { method: "get", path: path2, ...opts });
+  getAPIList(path3, Page2, opts) {
+    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path3, ...opts2 })) : { method: "get", path: path3, ...opts });
   }
   requestAPIList(Page2, options) {
     const request = this.makeRequest(options, null, void 0);
@@ -11108,8 +11108,8 @@ var BaseAnthropic = class {
   async buildRequest(inputOptions, { retryCount = 0 } = {}) {
     var _a2, _b, _c;
     const options = { ...inputOptions };
-    const { method, path: path2, query, defaultBaseURL } = options;
-    const url = this.buildURL(path2, query, defaultBaseURL);
+    const { method, path: path3, query, defaultBaseURL } = options;
+    const url = this.buildURL(path3, query, defaultBaseURL);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     options.timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
@@ -11350,14 +11350,17 @@ ${body}`;
       return text;
   }
 }
-async function generateText(systemPrompt, userMessage, settings, modelOverride) {
+async function generateText(systemPrompt, userMessage, settings, modelOverride, signal) {
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
-  const message = await client.messages.create({
-    model: modelOverride != null ? modelOverride : settings.model,
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }]
-  });
+  const message = await client.messages.create(
+    {
+      model: modelOverride != null ? modelOverride : settings.model,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }]
+    },
+    { signal }
+  );
   const block = message.content[0];
   if (block.type !== "text") throw new Error("Unexpected response type from Anthropic API");
   return block.text;
@@ -11555,7 +11558,8 @@ var DEFAULT_SETTINGS = {
   setupCardDismissed: false,
   hasGenerated: false,
   hasUsedTemplate: false,
-  hasSeenWelcome: false
+  hasSeenWelcome: false,
+  sessionHistory: []
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -11647,7 +11651,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
     wordmark.createEl("div", {
       cls: "augment-settings-tagline",
-      text: "Vault-aware AI generation for Obsidian"
+      text: "In-editor continuation and a terminal system for Claude Code."
     });
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
     const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
@@ -11757,7 +11761,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
-      text: "Augment generates text inline using Claude, with context drawn from your current note \u2014 title, frontmatter, everything you\u2019ve written above your cursor, and linked notes."
+      text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes."
     });
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
@@ -12466,6 +12470,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.ptyBridge = null;
     this.resizeObserver = null;
     this.parseBuffer = "";
+    this.startedAt = Date.now();
     this.isExited = false;
     this.status = "shell";
     this.restoredSnapshot = "";
@@ -12653,12 +12658,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
         this.detectOrchestrationActivity(data);
       },
       (code) => {
-        var _a2;
+        var _a2, _b;
         (_a2 = this.terminal) == null ? void 0 : _a2.write(`\r
 [Process exited with code ${code}]\r
 `);
         this.isExited = true;
-        this.setStatus(code === 0 ? "exited" : "crashed");
+        const exitStatus = code === 0 ? "exited" : "crashed";
+        this.setStatus(exitStatus);
+        (_b = this.onSessionExit) == null ? void 0 : _b.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
       }
     );
@@ -12714,6 +12721,16 @@ var TerminalView = class extends import_obsidian5.ItemView {
     (_a2 = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _a2.setAttribute("data-augment-status", newStatus);
     this.leaf.updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
+  }
+  setSkillName(name) {
+    this.skillName = name;
+  }
+  getStartedAt() {
+    return this.startedAt;
+  }
+  write(data) {
+    var _a2;
+    (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
   }
   markSkillRunning() {
     this.setStatus("running");
@@ -12940,11 +12957,108 @@ var TerminalView = class extends import_obsidian5.ItemView {
 
 // src/terminal-manager-view.ts
 var import_obsidian6 = require("obsidian");
+
+// src/session-store.ts
+var fs = __toESM(require("fs"));
+var path2 = __toESM(require("path"));
+var os = __toESM(require("os"));
+var SessionStore = class {
+  constructor(vaultBasePath) {
+    this.vaultBasePath = vaultBasePath;
+    this.titleCache = /* @__PURE__ */ new Map();
+  }
+  // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
+  // CC encodes cwd by replacing '/' and spaces with '-'.
+  findProjectDir() {
+    var _a2;
+    const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
+    const encoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const dir = path2.join(home, ".claude", "projects", encoded);
+    try {
+      if (fs.statSync(dir).isDirectory()) return dir;
+    } catch (e) {
+    }
+    return null;
+  }
+  // Sort session files by mtime desc, take first `limit`.
+  loadSessions(limit) {
+    const dir = this.findProjectDir();
+    if (!dir) return [];
+    try {
+      const now = Date.now();
+      const entries = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => {
+        const fullPath = path2.join(dir, f);
+        try {
+          const mtimeMs = fs.statSync(fullPath).mtimeMs;
+          return { name: f, fullPath, mtimeMs };
+        } catch (e) {
+          return null;
+        }
+      }).filter((e) => e !== null).sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit);
+      return entries.map((e) => ({
+        id: e.name.slice(0, -6),
+        // strip .jsonl
+        title: this.readTitle(e.fullPath),
+        status: now - e.mtimeMs < 3e4 ? "stale" : "complete",
+        mtimeMs: e.mtimeMs
+      }));
+    } catch (e) {
+      return [];
+    }
+  }
+  // Read first user message from session JSONL for display as title.
+  readTitle(sessionPath) {
+    var _a2;
+    if (this.titleCache.has(sessionPath)) {
+      return this.titleCache.get(sessionPath);
+    }
+    let title = path2.basename(sessionPath, ".jsonl");
+    try {
+      const content = fs.readFileSync(sessionPath, "utf-8");
+      outer: for (const line of content.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const obj = JSON.parse(line);
+          if (obj.type === "user") {
+            const msgContent = (_a2 = obj.message) == null ? void 0 : _a2.content;
+            let text = "";
+            if (typeof msgContent === "string") {
+              text = msgContent;
+            } else if (Array.isArray(msgContent)) {
+              for (const block of msgContent) {
+                if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
+                  text = block.text;
+                  break;
+                }
+              }
+            }
+            if (text.trim()) {
+              title = text.trim().slice(0, 60);
+              break outer;
+            }
+          }
+        } catch (e) {
+        }
+      }
+    } catch (e) {
+    }
+    this.titleCache.set(sessionPath, title);
+    return title;
+  }
+};
+
+// src/terminal-manager-view.ts
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 var TerminalManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf) {
     super(leaf);
     this.listEl = null;
+    this.sessionStore = null;
+    this.historyLoadedCount = 50;
+    this.expandedSessionId = null;
+    // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
+    this.lastHistoryLoadTime = 0;
+    this.cachedSessions = [];
   }
   getViewType() {
     return VIEW_TYPE_TERMINAL_MANAGER;
@@ -12971,6 +13085,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       );
     });
     this.listEl = container.createDiv({ cls: "augment-tm-list" });
+    const vaultPath = this.app.vault.adapter.basePath;
+    this.sessionStore = new SessionStore(vaultPath);
     this.refresh();
     window.setTimeout(() => this.refresh(), 0);
     this.app.workspace.onLayoutReady(() => this.refresh());
@@ -12986,6 +13102,19 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         () => this.refresh()
       )
     );
+  }
+  getPlugin() {
+    var _a2, _b;
+    return (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+  }
+  getHistorySessions() {
+    var _a2, _b;
+    const now = Date.now();
+    if (now - this.lastHistoryLoadTime >= 500) {
+      this.lastHistoryLoadTime = now;
+      this.cachedSessions = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.loadSessions(this.historyLoadedCount)) != null ? _b : [];
+    }
+    return this.cachedSessions;
   }
   getTerminalLeaves() {
     const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -13019,93 +13148,257 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     for (const leaf of leaves) {
       const view = leaf.view;
       const identity = typeof view.getAgentIdentity === "function" ? (_a2 = view.getAgentIdentity()) != null ? _a2 : "" : "";
-      if (identity.toLowerCase() === target) {
-        return leaf;
-      }
+      if (identity.toLowerCase() === target) return leaf;
     }
     for (const leaf of leaves) {
       const view = leaf.view;
       const name = typeof view.getName === "function" ? (_b = view.getName()) != null ? _b : "" : "";
-      if (name.toLowerCase() === target) {
-        return leaf;
-      }
+      if (name.toLowerCase() === target) return leaf;
     }
     for (const leaf of leaves) {
       const view = leaf.view;
       const name = typeof view.getName === "function" ? (_c = view.getName()) != null ? _c : "" : "";
-      if (name.toLowerCase().includes(target)) {
-        return leaf;
-      }
+      if (name.toLowerCase().includes(target)) return leaf;
     }
     return null;
   }
   refresh() {
+    var _a2, _b;
     if (!this.listEl) return;
     this.listEl.empty();
     const leaves = this.getTerminalLeaves();
+    const sessions = this.getHistorySessions();
+    const totalOnDisk = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.loadSessions(1e4).length) != null ? _b : 0;
     const activeLeaf = this.app.workspace.activeLeaf;
-    if (leaves.length === 0) {
+    const hasOpen = leaves.length > 0;
+    const hasHistory = sessions.length > 0;
+    if (!hasOpen && !hasHistory) {
       this.listEl.createDiv({
         cls: "augment-tm-empty",
         text: "No terminals open"
       });
       return;
     }
-    for (const leaf of leaves) {
-      const view = leaf.view;
-      const row = this.listEl.createDiv({ cls: "augment-tm-item" });
-      if (leaf === activeLeaf) {
-        row.addClass("is-active");
+    if (hasOpen) {
+      this.listEl.createDiv({
+        cls: "augment-tm-section-label",
+        text: "OPEN"
+      });
+      for (const leaf of leaves) {
+        this.renderOpenRow(leaf, activeLeaf);
       }
-      const line = row.createDiv({ cls: "augment-tm-line" });
-      const dot = line.createDiv({ cls: "augment-tm-dot" });
-      const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
-      dot.addClass(status);
-      const name = this.getLeafTerminalName(leaf, view);
-      line.createSpan({ cls: "augment-tm-name", text: name });
-      line.createDiv({ cls: "augment-tm-spacer" });
-      const unread = typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0;
-      if (unread > 0) {
-        line.createSpan({
-          cls: "augment-tm-unread",
-          text: unread > 99 ? "99+" : String(unread)
-        });
-      }
-      const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
-      if (summary) {
-        row.createDiv({ cls: "augment-tm-summary", text: summary });
-      }
-      const teams = typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
-      const members = typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
-      if (teams.length > 0 || members.length > 0) {
-        const meta = row.createDiv({ cls: "augment-tm-meta" });
-        if (teams.length > 0) {
-          const teamLabel = teams.slice(0, 2).join(", ");
-          meta.createSpan({ cls: "augment-tm-team", text: teamLabel });
-        }
-        if (members.length > 0) {
-          const membersWrap = meta.createDiv({ cls: "augment-tm-members" });
-          for (const member of members.slice(0, 8)) {
-            const chip = membersWrap.createEl("button", {
-              cls: "augment-tm-member",
-              text: member,
-              attr: { type: "button" }
-            });
-            chip.addEventListener("click", (evt) => {
-              evt.preventDefault();
-              evt.stopPropagation();
-              const targetLeaf = this.findLeafForAgent(member);
-              if (targetLeaf) {
-                this.focusLeaf(targetLeaf);
-              }
-            });
-          }
-        }
-      }
-      row.addEventListener("click", () => {
-        this.focusLeaf(leaf);
+    }
+    if (hasHistory) {
+      this.listEl.createDiv({
+        cls: "augment-tm-section-label",
+        text: "HISTORY"
+      });
+      this.renderHistorySections(sessions, totalOnDisk);
+    }
+  }
+  renderOpenRow(leaf, activeLeaf) {
+    const view = leaf.view;
+    const row = this.listEl.createDiv({ cls: "augment-tm-item" });
+    if (leaf === activeLeaf) row.addClass("is-active");
+    const line = row.createDiv({ cls: "augment-tm-line" });
+    const dot = line.createDiv({ cls: "augment-tm-dot" });
+    const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
+    dot.addClass(status);
+    const name = this.getLeafTerminalName(leaf, view);
+    line.createSpan({ cls: "augment-tm-name", text: name });
+    line.createDiv({ cls: "augment-tm-spacer" });
+    const unread = typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0;
+    if (unread > 0) {
+      line.createSpan({
+        cls: "augment-tm-unread",
+        text: unread > 99 ? "99+" : String(unread)
       });
     }
+    const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
+    if (summary) row.createDiv({ cls: "augment-tm-summary", text: summary });
+    const teams = typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+    const members = typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
+    if (teams.length > 0 || members.length > 0) {
+      const meta = row.createDiv({ cls: "augment-tm-meta" });
+      if (teams.length > 0) {
+        meta.createSpan({
+          cls: "augment-tm-team",
+          text: teams.slice(0, 2).join(", ")
+        });
+      }
+      if (members.length > 0) {
+        const membersWrap = meta.createDiv({ cls: "augment-tm-members" });
+        for (const member of members.slice(0, 8)) {
+          const chip = membersWrap.createEl("button", {
+            cls: "augment-tm-member",
+            text: member,
+            attr: { type: "button" }
+          });
+          chip.addEventListener("click", (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            const targetLeaf = this.findLeafForAgent(member);
+            if (targetLeaf) this.focusLeaf(targetLeaf);
+          });
+        }
+      }
+    }
+    row.addEventListener("click", () => this.focusLeaf(leaf));
+    row.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const menu = new import_obsidian6.Menu();
+      menu.addItem(
+        (item) => item.setTitle("Focus").setIcon("eye").onClick(() => this.focusLeaf(leaf))
+      );
+      menu.addItem(
+        (item) => item.setTitle("Close").setIcon("x").onClick(() => leaf.detach())
+      );
+      menu.showAtMouseEvent(evt);
+    });
+  }
+  renderHistorySections(sessions, totalOnDisk) {
+    const now = /* @__PURE__ */ new Date();
+    const todayStr = this.dateStr(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = this.dateStr(yesterday);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const startOfWeekStr = this.dateStr(startOfWeek);
+    const groups = /* @__PURE__ */ new Map();
+    const groupOrder = [];
+    for (const session of sessions) {
+      const d = new Date(session.mtimeMs);
+      const dStr = this.dateStr(d);
+      let groupKey;
+      if (dStr === todayStr) {
+        groupKey = "Today";
+      } else if (dStr === yesterdayStr) {
+        groupKey = "Yesterday";
+      } else if (dStr >= startOfWeekStr && dStr < todayStr) {
+        groupKey = "This week";
+      } else {
+        groupKey = d.toLocaleString("en-US", {
+          month: "long",
+          year: "numeric"
+        });
+      }
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+        groupOrder.push(groupKey);
+      }
+      groups.get(groupKey).push(session);
+    }
+    const GROUP_COLLAPSE_THRESHOLD = 10;
+    const GROUP_PREVIEW_COUNT = 5;
+    for (const groupKey of groupOrder) {
+      const groupSessions = groups.get(groupKey);
+      this.listEl.createDiv({
+        cls: "augment-tm-date-group",
+        text: groupKey
+      });
+      const showAll = groupSessions.length <= GROUP_COLLAPSE_THRESHOLD;
+      const visible = showAll ? groupSessions : groupSessions.slice(0, GROUP_PREVIEW_COUNT);
+      for (const session of visible) {
+        this.renderHistoryRow(session);
+      }
+      if (!showAll) {
+        const remaining = groupSessions.length - GROUP_PREVIEW_COUNT;
+        const showMore = this.listEl.createDiv({
+          cls: "augment-tm-load-more",
+          text: `Show ${remaining} more`
+        });
+        showMore.addEventListener("click", () => {
+          for (const session of groupSessions.slice(GROUP_PREVIEW_COUNT)) {
+            this.renderHistoryRow(session);
+          }
+          showMore.remove();
+        });
+      }
+    }
+    if (totalOnDisk > this.historyLoadedCount) {
+      const loadMore = this.listEl.createDiv({
+        cls: "augment-tm-load-more",
+        text: "Load 50 more \u2193"
+      });
+      loadMore.addEventListener("click", () => {
+        this.historyLoadedCount += 50;
+        this.lastHistoryLoadTime = 0;
+        this.refresh();
+      });
+    }
+  }
+  renderHistoryRow(session) {
+    const isExpanded = this.expandedSessionId === session.id;
+    const row = this.listEl.createDiv({ cls: "augment-tm-item is-history" });
+    const line = row.createDiv({ cls: "augment-tm-line" });
+    const dot = line.createDiv({ cls: "augment-tm-dot" });
+    dot.addClass(session.status === "stale" ? "stale" : "exited");
+    line.createSpan({ cls: "augment-tm-name", text: session.title });
+    line.createDiv({ cls: "augment-tm-spacer" });
+    line.createSpan({
+      cls: "augment-tm-timestamp",
+      text: this.relativeTime(session.mtimeMs)
+    });
+    if (isExpanded) {
+      const expand = row.createDiv({ cls: "augment-tm-expand" });
+      const label = session.status === "stale" ? `Last active ${this.relativeTime(session.mtimeMs)} \u2014 may still be running` : `Closed ${this.relativeTime(session.mtimeMs)}`;
+      expand.createSpan({ cls: "augment-tm-expand-label", text: label });
+      const actions = expand.createDiv({ cls: "augment-tm-expand-actions" });
+      const resumeBtn = actions.createEl("button", {
+        cls: "augment-tm-resume",
+        text: "Resume in terminal",
+        attr: { type: "button" }
+      });
+      resumeBtn.addEventListener("click", async (evt) => {
+        evt.stopPropagation();
+        const plugin = this.getPlugin();
+        if (!plugin) return;
+        const termView = await plugin.openFocusedTerminal();
+        if (termView) {
+          setTimeout(() => {
+            termView.write(`claude --resume ${session.id}
+`);
+          }, 800);
+        }
+      });
+    }
+    row.addEventListener("click", () => {
+      this.expandedSessionId = isExpanded ? null : session.id;
+      this.refresh();
+    });
+    row.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const menu = new import_obsidian6.Menu();
+      menu.addItem(
+        (item) => item.setTitle("Resume in terminal").setIcon("terminal").onClick(async () => {
+          const plugin = this.getPlugin();
+          if (!plugin) return;
+          const termView = await plugin.openFocusedTerminal();
+          if (termView) {
+            setTimeout(() => {
+              termView.write(`claude --resume ${session.id}
+`);
+            }, 800);
+          }
+        })
+      );
+      menu.showAtMouseEvent(evt);
+    });
+  }
+  relativeTime(mtimeMs) {
+    const diff = Date.now() - mtimeMs;
+    const mins = Math.floor(diff / 6e4);
+    const hours = Math.floor(diff / 36e5);
+    const days = Math.floor(diff / 864e5);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return `${Math.floor(days / 7)}w ago`;
+  }
+  dateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
   async onClose() {
     this.listEl = null;
@@ -13119,15 +13412,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     }
     if (typeof view.getName === "function") {
       const value = view.getName();
-      if (value == null ? void 0 : value.trim()) {
-        return value.trim();
-      }
+      if (value == null ? void 0 : value.trim()) return value.trim();
     }
     const leafEl = (_f = (_e = (_d = leafAny == null ? void 0 : leafAny.view) == null ? void 0 : _d.containerEl) == null ? void 0 : _e.closest) == null ? void 0 : _f.call(_e, ".workspace-leaf");
     const headerName = (_i = (_h = (_g = leafEl == null ? void 0 : leafEl.querySelector) == null ? void 0 : _g.call(leafEl, ".view-header-title")) == null ? void 0 : _h.textContent) == null ? void 0 : _i.trim();
-    if (headerName) {
-      return headerName;
-    }
+    if (headerName) return headerName;
     return ((_j = leafAny.getDisplayText) == null ? void 0 : _j.call(leafAny)) || "terminal";
   }
 };
@@ -13213,17 +13502,40 @@ var SpinnerWidget = class extends import_view.WidgetType {
     return true;
   }
 };
+var cancelGenerationEffect = import_state.StateEffect.define();
 var spinnerField = import_state.StateField.define({
   create() {
     return import_view.Decoration.none;
   },
   update(decos, tr) {
+    var _a2, _b;
     decos = decos.map(tr.changes);
     for (const e of tr.effects) {
       if (e.is(addSpinnerEffect)) {
         decos = decos.update({ add: [import_view.Decoration.widget({ widget: new SpinnerWidget(), side: -1 }).range(e.value)] });
       } else if (e.is(removeSpinnerEffect)) {
         decos = import_view.Decoration.none;
+      }
+    }
+    if (decos !== import_view.Decoration.none && tr.docChanged) {
+      let spinnerPos = -1;
+      const cursor = decos.iter();
+      if (cursor.value) spinnerPos = cursor.from;
+      if (spinnerPos >= 0) {
+        let deleted = false;
+        tr.changes.iterChangedRanges((fromA, toA) => {
+          if (toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
+        });
+        if (deleted) {
+          const view = (_b = tr.view) != null ? _b : (_a2 = tr.state.field) == null ? void 0 : _a2._view;
+          Promise.resolve().then(() => {
+            var _a3;
+            try {
+              (_a3 = globalThis.__augmentCancelGeneration) == null ? void 0 : _a3.call(globalThis);
+            } catch (e) {
+            }
+          });
+        }
       }
     }
     return decos;
@@ -13322,6 +13634,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
+    this.activeGeneration = null;
   }
   // Returns the actual model ID to use, resolving "auto" to the best available.
   resolveModel() {
@@ -13343,6 +13656,16 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     } else {
       this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
     }
+  }
+  cancelGeneration() {
+    const gen = this.activeGeneration;
+    if (!gen) return;
+    gen.abortController.abort();
+    gen.cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
+    gen.cmView.dispatch({ selection: import_state.EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
+    this.activeGeneration = null;
+    this.refreshStatusBar();
+    new import_obsidian8.Notice("Augment: generation cancelled");
   }
   triggerGenerate(editor) {
     const cursor = editor.getCursor();
@@ -13367,11 +13690,15 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     }
     const cmView = editor.cm;
     cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+    const abortController = new AbortController();
+    this.activeGeneration = { abortController, cmView, insertPos };
     void (async () => {
+      var _a2;
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel);
+        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel, abortController.signal);
+        this.activeGeneration = null;
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
         const insertPosLine = editor.offsetToPos(insertPos);
@@ -13408,6 +13735,10 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           await this.saveData(this.settings);
         }
       } catch (err) {
+        if (((_a2 = this.activeGeneration) == null ? void 0 : _a2.abortController) === abortController) {
+          this.activeGeneration = null;
+        }
+        if (abortController.signal.aborted) return;
         console.error("[Augment]", err);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         new import_obsidian8.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
@@ -13434,10 +13765,10 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       }
     }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path2 = `${SCAFFOLD_FOLDER}/${name}.md`;
-      if (!this.app.vault.getAbstractFileByPath(path2)) {
+      const path3 = `${SCAFFOLD_FOLDER}/${name}.md`;
+      if (!this.app.vault.getAbstractFileByPath(path3)) {
         try {
-          await this.app.vault.create(path2, content);
+          await this.app.vault.create(path3, content);
         } catch (e) {
         }
       }
@@ -13457,7 +13788,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       `.callout[data-callout="ai"] .callout-title::before { content: "" !important; display: none !important; }`
     ].join("\n");
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
-      return new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
+      const view = new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
+      view.onSessionExit = (name, status, startedAt, skillName) => {
+        this.appendSessionRecord(name, status, startedAt, skillName);
+      };
+      return view;
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
@@ -13898,6 +14233,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     const terminalView = await this.openTerminalSidebar();
     if (!terminalView) return;
     terminalView.markSkillRunning();
+    terminalView.setSkillName(skillName);
     setTimeout(() => {
       terminalView.write(claudeCmd);
     }, 1500);
@@ -13913,6 +14249,36 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         }
       });
     }
+  }
+  appendSessionRecord(name, status, startedAt, skillName) {
+    const record = {
+      id: `${startedAt}-${Math.random().toString(36).slice(2)}`,
+      name,
+      skillName,
+      status,
+      startedAt,
+      closedAt: Date.now()
+    };
+    if (!Array.isArray(this.settings.sessionHistory)) {
+      this.settings.sessionHistory = [];
+    }
+    this.settings.sessionHistory.push(record);
+    if (this.settings.sessionHistory.length > 200) {
+      this.settings.sessionHistory = this.settings.sessionHistory.slice(-200);
+    }
+    void this.saveData(this.settings);
+  }
+  async openTerminalNamed(name) {
+    await this.openTerminal("tab", { name });
+  }
+  async openFocusedTerminal() {
+    return this.openTerminal("tab", { active: true });
+  }
+  deleteSessionRecord(id) {
+    var _a2;
+    this.settings.sessionHistory = ((_a2 = this.settings.sessionHistory) != null ? _a2 : []).filter((r) => r.id !== id);
+    void this.saveData(this.settings);
+    this.app.workspace.trigger("augment-terminal:changed");
   }
   hasTerminalNamed(name) {
     var _a2, _b, _c;
