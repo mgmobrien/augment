@@ -62,7 +62,7 @@ const spinnerField = StateField.define<DecorationSet>({
     decos = decos.map(tr.changes);
     for (const e of tr.effects) {
       if (e.is(addSpinnerEffect)) {
-        decos = decos.update({ add: [Decoration.widget({ widget: new SpinnerWidget(), side: 1 }).range(e.value)] });
+        decos = decos.update({ add: [Decoration.widget({ widget: new SpinnerWidget(), side: -1 }).range(e.value)] });
       } else if (e.is(removeSpinnerEffect)) {
         decos = Decoration.none;
       }

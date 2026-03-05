@@ -13221,7 +13221,7 @@ var spinnerField = import_state.StateField.define({
     decos = decos.map(tr.changes);
     for (const e of tr.effects) {
       if (e.is(addSpinnerEffect)) {
-        decos = decos.update({ add: [import_view.Decoration.widget({ widget: new SpinnerWidget(), side: 1 }).range(e.value)] });
+        decos = decos.update({ add: [import_view.Decoration.widget({ widget: new SpinnerWidget(), side: -1 }).range(e.value)] });
       } else if (e.is(removeSpinnerEffect)) {
         decos = import_view.Decoration.none;
       }
