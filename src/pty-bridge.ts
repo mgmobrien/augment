@@ -1,5 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 import { join } from "path";
+import { copyFileSync, existsSync, mkdirSync, chmodSync } from "fs";
+import { tmpdir } from "os";
 import { Writable } from "stream";
 
 export interface PtyBridgeOptions {
@@ -9,6 +11,28 @@ export interface PtyBridgeOptions {
   onData: (data: string) => void;
   onExit: (code: number) => void;
   onError?: (err: Error) => void;
+}
+
+// macOS may SIGKILL binaries executed from certain paths (vault dirs, iCloud-
+// synced folders, etc.). Copy the binary to a temp location before spawning.
+const STAGING_DIR = join(tmpdir(), "augment-pty");
+
+function stageBinary(sourcePath: string, binaryName: string): string {
+  if (!existsSync(STAGING_DIR)) mkdirSync(STAGING_DIR, { recursive: true });
+  const staged = join(STAGING_DIR, binaryName);
+  // Re-copy if source is newer or staged copy doesn't exist.
+  let needsCopy = !existsSync(staged);
+  if (!needsCopy) {
+    try {
+      const { statSync } = require("fs");
+      needsCopy = statSync(sourcePath).mtimeMs > statSync(staged).mtimeMs;
+    } catch { needsCopy = true; }
+  }
+  if (needsCopy) {
+    copyFileSync(sourcePath, staged);
+    chmodSync(staged, 0o755);
+  }
+  return staged;
 }
 
 export class PtyBridge {
@@ -34,7 +58,8 @@ export class PtyBridge {
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
-    const binaryPath = join(this.pluginDir, "scripts", binaryName);
+    const sourcePath = join(this.pluginDir, "scripts", binaryName);
+    const binaryPath = stageBinary(sourcePath, binaryName);
 
     const env: Record<string, string | undefined> = {
       ...process.env,

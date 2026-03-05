@@ -18355,6 +18355,27 @@ var import_addon_web_links = __toESM(require_addon_web_links());
 // src/pty-bridge.ts
 var import_child_process2 = require("child_process");
 var import_path8 = require("path");
+var import_fs2 = require("fs");
+var import_os = require("os");
+var STAGING_DIR = (0, import_path8.join)((0, import_os.tmpdir)(), "augment-pty");
+function stageBinary(sourcePath, binaryName) {
+  if (!(0, import_fs2.existsSync)(STAGING_DIR)) (0, import_fs2.mkdirSync)(STAGING_DIR, { recursive: true });
+  const staged = (0, import_path8.join)(STAGING_DIR, binaryName);
+  let needsCopy = !(0, import_fs2.existsSync)(staged);
+  if (!needsCopy) {
+    try {
+      const { statSync: statSync2 } = require("fs");
+      needsCopy = statSync2(sourcePath).mtimeMs > statSync2(staged).mtimeMs;
+    } catch (e) {
+      needsCopy = true;
+    }
+  }
+  if (needsCopy) {
+    (0, import_fs2.copyFileSync)(sourcePath, staged);
+    (0, import_fs2.chmodSync)(staged, 493);
+  }
+  return staged;
+}
 var PtyBridge = class {
   constructor(opts) {
     this.process = null;
@@ -18371,7 +18392,8 @@ var PtyBridge = class {
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
-    const binaryPath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
+    const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
+    const binaryPath = stageBinary(sourcePath, binaryName);
     const env = {
       ...process.env,
       TERM: "xterm-256color",
