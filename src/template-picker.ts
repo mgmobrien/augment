@@ -1,16 +1,9 @@
-import { App, FuzzySuggestModal, Modal, Notice, Setting, TFile, TFolder } from "obsidian";
+import { App, FuzzyMatch, FuzzySuggestModal, Modal, Notice, Setting, TFile, TFolder } from "obsidian";
 import { VaultContext } from "./vault-context";
 
 export function getTemplateFiles(app: App, folderPath: string): TFile[] {
   const folder = app.vault.getAbstractFileByPath(folderPath);
-  // DEBUG — remove after diagnosis
-  const debugMsg = `[Augment debug] path="${folderPath}" type=${folder?.constructor?.name ?? "null"} children=${folder instanceof TFolder ? folder.children.length : "n/a"}`;
-  console.log(debugMsg);
-  new Notice(debugMsg, 8000);
   if (!(folder instanceof TFolder)) return [];
-  folder.children.forEach((f, i) => {
-    console.log(`[Augment debug] child[${i}] name="${f.name}" type=${f?.constructor?.name ?? "null"} isFile=${f instanceof TFile} ext=${f instanceof TFile ? f.extension : "n/a"}`);
-  });
   return folder.children.filter(
     (f): f is TFile => f instanceof TFile && f.extension === "md"
   );
@@ -35,9 +28,9 @@ export class TemplatePicker extends FuzzySuggestModal<TFile> {
     return file.basename;
   }
 
-  renderSuggestion(file: TFile, el: HTMLElement): void {
-    el.createEl("div", { text: file.basename });
-    const desc = this.app.metadataCache.getFileCache(file)?.frontmatter?.["description"];
+  renderSuggestion(match: FuzzyMatch<TFile>, el: HTMLElement): void {
+    el.createEl("div", { text: match.item.basename });
+    const desc = this.app.metadataCache.getFileCache(match.item)?.frontmatter?.["description"];
     if (desc && typeof desc === "string") {
       el.createEl("div", { cls: "augment-tpl-desc", text: desc });
     }
