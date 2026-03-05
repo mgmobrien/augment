@@ -61,25 +61,25 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Tab nav ──────────────────────────────────────────────
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
-    const overviewTab   = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
-    const generateTab   = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
-    const contextTab    = tabNav.createEl("button", { cls: "augment-tab", text: "Context" });
-    const templatesTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
+    const overviewTab  = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
+    const generateTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
+    const templatesTab = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
+    const terminalTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
 
     // ── Panes ────────────────────────────────────────────────
-    const overviewPane   = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const generatePane   = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const contextPane    = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const templatesPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const overviewPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const generatePane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const templatesPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const terminalPane  = containerEl.createEl("div", { cls: "augment-tab-pane" });
     generatePane.style.display  = "none";
-    contextPane.style.display   = "none";
     templatesPane.style.display = "none";
+    terminalPane.style.display  = "none";
 
     const tabs = [
       { btn: overviewTab,  pane: overviewPane  },
       { btn: generateTab,  pane: generatePane  },
-      { btn: contextTab,   pane: contextPane   },
       { btn: templatesTab, pane: templatesPane },
+      { btn: terminalTab,  pane: terminalPane  },
     ];
 
     tabs.forEach(({ btn, pane }) => {
@@ -221,12 +221,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       const a = li.createEl("a", { cls: "augment-overview-link", text: label });
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        tabs.forEach(({ btn: b, pane: p }) => {
-          b.removeClass("is-active");
-          p.style.display = "none";
-        });
-        tab.addClass("is-active");
-        pane.style.display = "";
+        jumpToTab(tab, pane);
       });
     }
 
@@ -367,43 +362,14 @@ export class AugmentSettingTab extends PluginSettingTab {
       await this.plugin.saveData(this.plugin.settings);
     });
 
-    new Setting(generatePane)
-      .setName("Show template preview")
-      .setDesc("Preview the rendered prompt before generating from a template")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.showTemplatePreview)
-          .onChange(async (value) => {
-            this.plugin.settings.showTemplatePreview = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
-
-    if (process.platform === "win32") {
-      new Setting(generatePane)
-        .setName("Run terminal via WSL")
-        .setDesc(
-          "Spawn the terminal PTY bridge through WSL (Windows Subsystem for Linux) instead of native Python. " +
-          "Required on Windows \u2014 Python\u2019s pty module is Unix-only. " +
-          "Requires WSL installed with python3 available in the default distro."
-        )
-        .addToggle((toggle) => {
-          toggle
-            .setValue(this.plugin.settings.useWsl)
-            .onChange(async (value) => {
-              this.plugin.settings.useWsl = value;
-              await this.plugin.saveData(this.plugin.settings);
-            });
-        });
-    }
-
-    // ── Context pane ─────────────────────────────────────────
-    contextPane.createEl("p", {
+    // ── Context section (within Generate pane) ────────────────
+    generatePane.createDiv({ cls: "augment-section-label", text: "Context" });
+    generatePane.createEl("p", {
       cls: "augment-context-intro",
-      text: "Augment sends everything in the current note above your cursor, along with the note title, frontmatter, and linked note summaries. If you have text selected, the selection is used instead of the above-cursor context.",
+      text: "Augment sends note title, frontmatter, above-cursor text, and linked notes.",
     });
 
-    new Setting(contextPane)
+    new Setting(generatePane)
       .setName("Linked notes in context")
       .setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.")
       .addText((text) => {
@@ -422,9 +388,9 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(contextPane)
+    new Setting(generatePane)
       .setName("Context limit")
-      .setDesc("Maximum characters of context sent per generation (measured in tokens; 1 token \u2248 4 characters). The default of 2000 tokens (~8000 characters) fits most notes. Raise this if you have long notes or many linked notes and want to include more context.")
+      .setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.")
       .addText((text) => {
         text.inputEl.type = "number";
         text.inputEl.min = "1";
@@ -501,6 +467,19 @@ export class AugmentSettingTab extends PluginSettingTab {
         new Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
       }
     });
+
+    // Show template preview toggle — moved from Generate tab.
+    new Setting(templatesPane)
+      .setName("Show template preview")
+      .setDesc("Preview the rendered prompt before generating from a template")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showTemplatePreview)
+          .onChange(async (value) => {
+            this.plugin.settings.showTemplatePreview = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
 
     // Template list container.
     templatesPane.createDiv({ cls: "augment-template-section-header" })
@@ -586,5 +565,77 @@ export class AugmentSettingTab extends PluginSettingTab {
       cls: "augment-format-example",
       text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}",
     });
+
+    // ── Terminal pane ────────────────────────────────────────
+    terminalPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Settings for the integrated terminal. Most users won't need to change these.",
+    });
+
+    if (process.platform === "win32") {
+      new Setting(terminalPane)
+        .setName("Run terminal via WSL")
+        .setDesc(
+          "Spawn the PTY bridge through WSL instead of native Python. Required on Windows. " +
+          "WSL must be installed with python3 available in the default distro."
+        )
+        .addToggle((toggle) => {
+          toggle
+            .setValue(this.plugin.settings.useWsl)
+            .onChange(async (value) => {
+              this.plugin.settings.useWsl = value;
+              await this.plugin.saveData(this.plugin.settings);
+            });
+        });
+    }
+
+    new Setting(terminalPane)
+      .setName("Python path")
+      .setDesc("Path to python3 binary for the PTY bridge. Leave blank to use system default.")
+      .addText((text) => {
+        text
+          .setPlaceholder("python3")
+          .setValue(this.plugin.settings.pythonPath)
+          .onChange(async (value) => {
+            this.plugin.settings.pythonPath = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
+    new Setting(terminalPane)
+      .setName("Shell")
+      .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
+      .addText((text) => {
+        text
+          .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
+          .setValue(this.plugin.settings.shellPath)
+          .onChange(async (value) => {
+            this.plugin.settings.shellPath = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
+    new Setting(terminalPane)
+      .setName("Default working directory")
+      .setDesc("Starting directory for new terminals. Leave blank to use the vault root.")
+      .addText((text) => {
+        text
+          .setPlaceholder("(vault root)")
+          .setValue(this.plugin.settings.defaultWorkingDirectory)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultWorkingDirectory = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
+    // WSL doc link
+    const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
+    const wslLink = termFooter.createEl("a", {
+      cls: "augment-folder-open",
+      text: "WSL setup guide \u2197",
+      href: "https://github.com/mgmobrien/augment/blob/main/WSL.md",
+    });
+    wslLink.target = "_blank";
+    wslLink.rel = "noopener";
   }
 }

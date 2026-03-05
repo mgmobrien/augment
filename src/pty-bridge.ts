@@ -16,19 +16,35 @@ function toWslPath(winPath: string): string {
     .replace(/\\/g, "/");
 }
 
+export interface PtyBridgeOptions {
+  pluginDir: string;
+  cwd: string;
+  useWsl: boolean;
+  pythonPath?: string;
+  shellPath?: string;
+  onData: (data: string) => void;
+  onExit: (code: number) => void;
+}
+
 export class PtyBridge {
   private process: ChildProcess | null = null;
   private controlStream: Writable | null = null;
   private pluginDir: string;
+  private cwd: string;
+  private useWsl: boolean;
+  private pythonPath: string;
+  private shellPath: string;
+  private onData: (data: string) => void;
+  private onExit: (code: number) => void;
 
-  constructor(
-    pluginDir: string,
-    private cwd: string,
-    private useWsl: boolean,
-    private onData: (data: string) => void,
-    private onExit: (code: number) => void
-  ) {
-    this.pluginDir = pluginDir;
+  constructor(opts: PtyBridgeOptions) {
+    this.pluginDir = opts.pluginDir;
+    this.cwd = opts.cwd;
+    this.useWsl = opts.useWsl;
+    this.pythonPath = opts.pythonPath || "";
+    this.shellPath = opts.shellPath || "";
+    this.onData = opts.onData;
+    this.onExit = opts.onExit;
   }
 
   start(): void {
@@ -62,25 +78,32 @@ export class PtyBridge {
     //   - If your WSL distro uses a custom mountRoot in /etc/wsl.conf, update toWslPath()
     //
     // To pick a specific distro: change "wsl" to "wsl" with args ["-d", "Ubuntu", "python3", ...]
+    const python = this.pythonPath || "python3";
     let cmd: string;
     let args: string[];
     if (this.useWsl && process.platform === "win32") {
       // Route through WSL: convert Windows path to Linux mount path
       const wslScript = toWslPath(ptyScript);
       cmd = "wsl";
-      args = ["python3", wslScript];
+      args = [python, wslScript];
     } else {
-      cmd = "python3";
+      cmd = python;
       args = [ptyScript];
+    }
+
+    // Pass shell override to the PTY bridge via environment variable.
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      TERM: "xterm-256color",
+      LANG: process.env.LANG || "en_US.UTF-8",
+    };
+    if (this.shellPath) {
+      env.SHELL = this.shellPath;
     }
 
     this.process = spawn(cmd, args, {
       cwd: this.cwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        LANG: process.env.LANG || "en_US.UTF-8",
-      },
+      env,
       // stdio tuple: [stdin, stdout, stderr, fd-3-control-channel]
       // fd 3 is a writable pipe that carries out-of-band control messages
       // (resize commands) without polluting the terminal data stream.

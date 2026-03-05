@@ -420,7 +420,14 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     // Register views
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
-      const view = new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
+      const view = new TerminalView(
+        leaf,
+        this.getPluginDir(),
+        () => this.settings.useWsl,
+        () => this.settings.pythonPath,
+        () => this.settings.shellPath,
+        () => this.settings.defaultWorkingDirectory
+      );
       view.onSessionExit = (name, status, startedAt, skillName) => {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };

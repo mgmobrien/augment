@@ -105,6 +105,9 @@ export class TerminalView extends ItemView {
   private parseBuffer: string = "";
   private pluginDir: string;
   private getUseWsl: () => boolean;
+  private getPythonPath: () => string;
+  private getShellPath: () => string;
+  private getDefaultWorkingDirectory: () => string;
   private terminalName: string;
   private startedAt: number = Date.now();
   private skillName?: string;
@@ -123,10 +126,20 @@ export class TerminalView extends ItemView {
   private lastEventSignature: string = "";
   private lastEventAt: number = 0;
 
-  constructor(leaf: WorkspaceLeaf, pluginDir: string, getUseWsl: () => boolean = () => false) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    pluginDir: string,
+    getUseWsl: () => boolean = () => false,
+    getPythonPath: () => string = () => "",
+    getShellPath: () => string = () => "",
+    getDefaultWorkingDirectory: () => string = () => ""
+  ) {
     super(leaf);
     this.pluginDir = pluginDir;
     this.getUseWsl = getUseWsl;
+    this.getPythonPath = getPythonPath;
+    this.getShellPath = getShellPath;
+    this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
     this.terminalName = generateTerminalName();
   }
 
@@ -345,25 +358,28 @@ export class TerminalView extends ItemView {
 
     // Start PTY.
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
-    this.ptyBridge = new PtyBridge(
-      this.pluginDir,
-      vaultPath,
-      this.getUseWsl(),
-      (data) => {
+    const customCwd = this.getDefaultWorkingDirectory();
+    this.ptyBridge = new PtyBridge({
+      pluginDir: this.pluginDir,
+      cwd: customCwd || vaultPath,
+      useWsl: this.getUseWsl(),
+      pythonPath: this.getPythonPath(),
+      shellPath: this.getShellPath(),
+      onData: (data) => {
         this.terminal?.write(data);
         this.appendToScrollback(data);
         this.detectStatus(data);
         this.detectOrchestrationActivity(data);
       },
-      (code) => {
+      onExit: (code) => {
         this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
         this.isExited = true;
         const exitStatus: TerminalStatus = code === 0 ? "exited" : "crashed";
         this.setStatus(exitStatus);
         this.onSessionExit?.(this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
-      }
-    );
+      },
+    });
     this.ptyBridge.start();
 
     // Terminal input → PTY.

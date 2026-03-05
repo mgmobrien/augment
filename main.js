@@ -17235,6 +17235,9 @@ var DEFAULT_SETTINGS = {
   calloutType: "ai",
   calloutExpanded: true,
   useWsl: false,
+  pythonPath: "",
+  shellPath: "",
+  defaultWorkingDirectory: "",
   setupCardDismissed: false,
   hasGenerated: false,
   hasUsedTemplate: false,
@@ -17344,20 +17347,20 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
     const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
     const generateTab = tabNav.createEl("button", { cls: "augment-tab", text: "Generate" });
-    const contextTab = tabNav.createEl("button", { cls: "augment-tab", text: "Context" });
     const templatesTab = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
+    const terminalTab = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
     const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const generatePane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const contextPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const templatesPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const terminalPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     generatePane.style.display = "none";
-    contextPane.style.display = "none";
     templatesPane.style.display = "none";
+    terminalPane.style.display = "none";
     const tabs = [
       { btn: overviewTab, pane: overviewPane },
       { btn: generateTab, pane: generatePane },
-      { btn: contextTab, pane: contextPane },
-      { btn: templatesTab, pane: templatesPane }
+      { btn: templatesTab, pane: templatesPane },
+      { btn: terminalTab, pane: terminalPane }
     ];
     tabs.forEach(({ btn, pane }) => {
       btn.addEventListener("click", () => {
@@ -17490,12 +17493,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       const a = li.createEl("a", { cls: "augment-overview-link", text: label });
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        tabs.forEach(({ btn: b, pane: p }) => {
-          b.removeClass("is-active");
-          p.style.display = "none";
-        });
-        tab.addClass("is-active");
-        pane.style.display = "";
+        jumpToTab(tab, pane);
       });
     }
     const apiKeySetting = new import_obsidian3.Setting(generatePane).setName("API key").addText((text) => {
@@ -17600,27 +17598,12 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
       await this.plugin.saveData(this.plugin.settings);
     });
-    new import_obsidian3.Setting(generatePane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.showTemplatePreview).onChange(async (value) => {
-        this.plugin.settings.showTemplatePreview = value;
-        await this.plugin.saveData(this.plugin.settings);
-      });
-    });
-    if (process.platform === "win32") {
-      new import_obsidian3.Setting(generatePane).setName("Run terminal via WSL").setDesc(
-        "Spawn the terminal PTY bridge through WSL (Windows Subsystem for Linux) instead of native Python. Required on Windows \u2014 Python\u2019s pty module is Unix-only. Requires WSL installed with python3 available in the default distro."
-      ).addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.useWsl).onChange(async (value) => {
-          this.plugin.settings.useWsl = value;
-          await this.plugin.saveData(this.plugin.settings);
-        });
-      });
-    }
-    contextPane.createEl("p", {
+    generatePane.createDiv({ cls: "augment-section-label", text: "Context" });
+    generatePane.createEl("p", {
       cls: "augment-context-intro",
-      text: "Augment sends everything in the current note above your cursor, along with the note title, frontmatter, and linked note summaries. If you have text selected, the selection is used instead of the above-cursor context."
+      text: "Augment sends note title, frontmatter, above-cursor text, and linked notes."
     });
-    new import_obsidian3.Setting(contextPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
+    new import_obsidian3.Setting(generatePane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text.inputEl.max = "10";
@@ -17632,7 +17615,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         }
       });
     });
-    new import_obsidian3.Setting(contextPane).setName("Context limit").setDesc("Maximum characters of context sent per generation (measured in tokens; 1 token \u2248 4 characters). The default of 2000 tokens (~8000 characters) fits most notes. Raise this if you have long notes or many linked notes and want to include more context.").addText((text) => {
+    new import_obsidian3.Setting(generatePane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "1";
       text.setPlaceholder("2000").setValue(String(this.plugin.settings.maxContextTokens)).onChange(async (value) => {
@@ -17691,6 +17674,12 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       } else {
         new import_obsidian3.Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
       }
+    });
+    new import_obsidian3.Setting(templatesPane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.showTemplatePreview).onChange(async (value) => {
+        this.plugin.settings.showTemplatePreview = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
     });
     templatesPane.createDiv({ cls: "augment-template-section-header" }).createDiv({ cls: "augment-section-label", text: "Templates in folder" });
     const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
@@ -17760,6 +17749,46 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-format-example",
       text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}"
     });
+    terminalPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Settings for the integrated terminal. Most users won't need to change these."
+    });
+    if (process.platform === "win32") {
+      new import_obsidian3.Setting(terminalPane).setName("Run terminal via WSL").setDesc(
+        "Spawn the PTY bridge through WSL instead of native Python. Required on Windows. WSL must be installed with python3 available in the default distro."
+      ).addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.useWsl).onChange(async (value) => {
+          this.plugin.settings.useWsl = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+    }
+    new import_obsidian3.Setting(terminalPane).setName("Python path").setDesc("Path to python3 binary for the PTY bridge. Leave blank to use system default.").addText((text) => {
+      text.setPlaceholder("python3").setValue(this.plugin.settings.pythonPath).onChange(async (value) => {
+        this.plugin.settings.pythonPath = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    new import_obsidian3.Setting(terminalPane).setName("Shell").setDesc("Shell to launch in new terminals. Leave blank to use the system default.").addText((text) => {
+      text.setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
+        this.plugin.settings.shellPath = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    new import_obsidian3.Setting(terminalPane).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
+      text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
+        this.plugin.settings.defaultWorkingDirectory = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    const termFooter = terminalPane.createDiv({ cls: "augment-folder-link" });
+    const wslLink = termFooter.createEl("a", {
+      cls: "augment-folder-open",
+      text: "WSL setup guide \u2197",
+      href: "https://github.com/mgmobrien/augment/blob/main/WSL.md"
+    });
+    wslLink.target = "_blank";
+    wslLink.rel = "noopener";
   }
 };
 
@@ -17854,35 +17883,42 @@ function toWslPath(winPath) {
   return winPath.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, "/");
 }
 var PtyBridge = class {
-  constructor(pluginDir, cwd, useWsl, onData, onExit) {
-    this.cwd = cwd;
-    this.useWsl = useWsl;
-    this.onData = onData;
-    this.onExit = onExit;
+  constructor(opts) {
     this.process = null;
     this.controlStream = null;
-    this.pluginDir = pluginDir;
+    this.pluginDir = opts.pluginDir;
+    this.cwd = opts.cwd;
+    this.useWsl = opts.useWsl;
+    this.pythonPath = opts.pythonPath || "";
+    this.shellPath = opts.shellPath || "";
+    this.onData = opts.onData;
+    this.onExit = opts.onExit;
   }
   start() {
     var _a2, _b, _c, _d;
     const ptyScript = (0, import_path8.join)(this.pluginDir, "scripts", "terminal_pty.py");
+    const python = this.pythonPath || "python3";
     let cmd;
     let args;
     if (this.useWsl && process.platform === "win32") {
       const wslScript = toWslPath(ptyScript);
       cmd = "wsl";
-      args = ["python3", wslScript];
+      args = [python, wslScript];
     } else {
-      cmd = "python3";
+      cmd = python;
       args = [ptyScript];
+    }
+    const env = {
+      ...process.env,
+      TERM: "xterm-256color",
+      LANG: process.env.LANG || "en_US.UTF-8"
+    };
+    if (this.shellPath) {
+      env.SHELL = this.shellPath;
     }
     this.process = (0, import_child_process.spawn)(cmd, args, {
       cwd: this.cwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        LANG: process.env.LANG || "en_US.UTF-8"
-      },
+      env,
       // stdio tuple: [stdin, stdout, stderr, fd-3-control-channel]
       // fd 3 is a writable pipe that carries out-of-band control messages
       // (resize commands) without polluting the terminal data stream.
@@ -18265,7 +18301,7 @@ var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?(
 var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
 var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
 var TerminalView = class extends import_obsidian5.ItemView {
-  constructor(leaf, pluginDir, getUseWsl = () => false) {
+  constructor(leaf, pluginDir, getUseWsl = () => false, getPythonPath = () => "", getShellPath = () => "", getDefaultWorkingDirectory = () => "") {
     super(leaf);
     this.terminal = null;
     this.fitAddon = null;
@@ -18288,6 +18324,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.lastEventAt = 0;
     this.pluginDir = pluginDir;
     this.getUseWsl = getUseWsl;
+    this.getPythonPath = getPythonPath;
+    this.getShellPath = getShellPath;
+    this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
     this.terminalName = generateTerminalName();
   }
   getViewType() {
@@ -18448,18 +18487,21 @@ var TerminalView = class extends import_obsidian5.ItemView {
       );
     }
     const vaultPath = this.app.vault.adapter.basePath || ".";
-    this.ptyBridge = new PtyBridge(
-      this.pluginDir,
-      vaultPath,
-      this.getUseWsl(),
-      (data) => {
+    const customCwd = this.getDefaultWorkingDirectory();
+    this.ptyBridge = new PtyBridge({
+      pluginDir: this.pluginDir,
+      cwd: customCwd || vaultPath,
+      useWsl: this.getUseWsl(),
+      pythonPath: this.getPythonPath(),
+      shellPath: this.getShellPath(),
+      onData: (data) => {
         var _a2;
         (_a2 = this.terminal) == null ? void 0 : _a2.write(data);
         this.appendToScrollback(data);
         this.detectStatus(data);
         this.detectOrchestrationActivity(data);
       },
-      (code) => {
+      onExit: (code) => {
         var _a2, _b;
         (_a2 = this.terminal) == null ? void 0 : _a2.write(`\r
 [Process exited with code ${code}]\r
@@ -18470,7 +18512,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
         (_b = this.onSessionExit) == null ? void 0 : _b.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
       }
-    );
+    });
     this.ptyBridge.start();
     this.terminal.onData((data) => {
       var _a2;
@@ -19629,7 +19671,14 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       `.callout[data-callout="ai"] .callout-title::before { content: "" !important; display: none !important; }`
     ].join("\n");
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
-      const view = new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
+      const view = new TerminalView(
+        leaf,
+        this.getPluginDir(),
+        () => this.settings.useWsl,
+        () => this.settings.pythonPath,
+        () => this.settings.shellPath,
+        () => this.settings.defaultWorkingDirectory
+      );
       view.onSessionExit = (name, status, startedAt, skillName) => {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };
