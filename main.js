@@ -17199,6 +17199,7 @@ var DEFAULT_SETTINGS = {
   hasGenerated: false,
   hasUsedTemplate: false,
   hasSeenWelcome: false,
+  systemPrompt: "",
   sessionHistory: []
 };
 function stripObsidianMeta(fm) {
@@ -17246,8 +17247,8 @@ var VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
 var ContextInspectorView = class extends import_obsidian2.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
+    this.lastEditorView = null;
     this.plugin = plugin;
-    this.debouncedRefresh = (0, import_obsidian2.debounce)(() => this.refresh(), 300, true);
   }
   getViewType() {
     return VIEW_TYPE_CONTEXT_INSPECTOR;
@@ -17261,19 +17262,37 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
   async onOpen() {
     this.contentDiv = this.containerEl.children[1];
     this.contentDiv.addClass("augment-ctx-panel");
-    this.registerEvent(this.app.workspace.on("active-leaf-change", this.debouncedRefresh));
-    this.registerEvent(this.app.workspace.on("editor-change", this.debouncedRefresh));
+    this.debouncedRefresh = (0, import_obsidian2.debounce)(() => this.refresh(), 300, true);
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian2.MarkdownView) {
+          this.lastEditorView = leaf.view;
+          this.debouncedRefresh();
+        }
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on("editor-change", this.debouncedRefresh)
+    );
+    const current = this.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
+    if (current) this.lastEditorView = current;
     this.refresh();
   }
   refresh() {
     this.contentDiv.empty();
-    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
-    if (!activeView) {
-      this.contentDiv.createEl("div", { cls: "augment-ctx-empty", text: "Open a note to inspect its context." });
+    if (!this.lastEditorView) {
+      this.contentDiv.createEl("div", {
+        cls: "augment-ctx-empty",
+        text: "Open a note to inspect its context."
+      });
       return;
     }
-    const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
-    this.render(ctx, activeView);
+    const ctx = assembleVaultContext(
+      this.plugin.app,
+      this.lastEditorView.editor,
+      this.plugin.settings
+    );
+    this.render(ctx, this.lastEditorView);
   }
   estimateTokens(text) {
     return Math.ceil(text.length / 4);
@@ -17288,13 +17307,14 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     });
     let totalTokens = 0;
     const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
-    const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
-    const sysText = "(default \u2014 Augment standard prompt)";
-    const sysTokens = this.estimateTokens(DEFAULT_SYSTEM_PROMPT_BASE);
+    const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || void 0);
+    const sysTokens = this.estimateTokens(sysPromptText);
     totalTokens += sysTokens;
-    sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
-    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    sysSection.createEl("div", { cls: "augment-ctx-sys-default", text: sysText });
+    const sysDetails = sysSection.createEl("details");
+    const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
+    sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
+    sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    sysDetails.createEl("pre", { cls: "augment-ctx-pre augment-ctx-sys-pre", text: sysPromptText });
     const noteSection = el.createEl("div", { cls: "augment-ctx-section" });
     const noteHdr = noteSection.createEl("div", { cls: "augment-ctx-section-hdr" });
     let noteContent = `Note: ${ctx.title}
@@ -17340,7 +17360,7 @@ ${ctx.surroundingContext}`;
     if (ctx.linkedNotes.length > 0) {
       const linkedSection = el.createEl("div", { cls: "augment-ctx-section" });
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
-      const activeFile = this.app.workspace.getActiveFile();
+      const activeFile = activeView.file;
       const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : ctx.linkedNotes.length;
       let linkedContent = "";
       for (const note of ctx.linkedNotes) {
@@ -17734,17 +17754,6 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     };
     renderSetupCard();
     overviewTab.addEventListener("click", renderSetupCard);
-    const previewBtn = overviewPane.createEl("button", {
-      cls: "augment-ctx-preview-btn",
-      text: "Open context inspector"
-    });
-    previewBtn.addEventListener("click", () => {
-      const leaf = this.plugin.app.workspace.getRightLeaf(false);
-      if (leaf) {
-        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
-        this.plugin.app.workspace.revealLeaf(leaf);
-      }
-    });
     overviewPane.createEl("p", {
       cls: "augment-overview-intro",
       text: "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with Mod+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes."
@@ -17921,6 +17930,26 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveData(this.plugin.settings);
         }
       });
+    });
+    new import_obsidian3.Setting(continuationPane).setName("System prompt").setDesc("Override the default system prompt. Leave blank to use Augment's default.").addTextArea((text) => {
+      text.setPlaceholder("You are assisting with writing in an Obsidian vault.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
+        this.plugin.settings.systemPrompt = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+      text.inputEl.rows = 5;
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.fontFamily = "var(--font-monospace)";
+    });
+    const inspectorBtn = continuationPane.createEl("button", {
+      cls: "augment-ctx-preview-btn",
+      text: "Open context inspector"
+    });
+    inspectorBtn.addEventListener("click", () => {
+      const leaf = this.plugin.app.workspace.getRightLeaf(false);
+      if (leaf) {
+        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+        this.plugin.app.workspace.revealLeaf(leaf);
+      }
     });
     templatesPane.createEl("p", {
       cls: "augment-context-intro",
@@ -20052,7 +20081,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const result = await generateText(buildSystemPrompt(ctx), promptText, this.settings, resolvedModel, abortController.signal);
+        const result = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0), promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
@@ -20069,7 +20098,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           timestamp: Date.now(),
           noteName: ctx.title,
           model: resolvedModelName,
-          systemPrompt: buildSystemPrompt(ctx),
+          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || void 0),
           userMessage: buildUserMessage(ctx, promptText)
         };
         this.pushContextHistory(entry);
@@ -20315,7 +20344,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
                 timestamp: Date.now(),
                 noteName: ctx.title,
                 model: resolvedModelName,
-                systemPrompt: buildSystemPrompt(ctx),
+                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride),
                 userMessage: rendered
               };
               this.pushContextHistory(entry);
