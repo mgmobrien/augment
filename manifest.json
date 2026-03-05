@@ -1,6 +1,6 @@
 {
   "id": "augment-terminal",
-  "name": "Augment Terminal",
+  "name": "Augment",
   "version": "0.0.1",
   "minAppVersion": "0.15.0",
   "description": "Terminal panes in Obsidian for running Claude Code sessions",
