@@ -180,24 +180,49 @@ class TeammateMessageFilter {
     this.buffering = false;
     this.buffer = "";
 
-    // Extract attributes and content
-    const idMatch = clean.match(/teammate_id="([^"]+)"/);
-    const summaryMatch = clean.match(/summary="([^"]+)"/);
-    const id = idMatch?.[1] ?? "?";
-    const summary = summaryMatch?.[1] ?? "";
+    // Extract attributes
+    const attr = (name: string): string =>
+      clean.match(new RegExp(`${name}="([^"]*)"`))?.[1] ?? "";
+    const type = attr("type") || "message";
+    const id = attr("teammate_id") || attr("recipient") || "?";
+    const summary = attr("summary").slice(0, 70);
 
-    // Extract body between > and </teammate-message>
-    const bodyMatch = clean.match(/<teammate-message[^>]*>([\s\S]*?)<\/teammate-message>/);
-    const body = bodyMatch?.[1]?.trim() ?? summary;
+    // ANSI codes: dim = \x1b[2m, yellow = \x1b[33m, reset = \x1b[0m
+    const DIM = "\x1b[2m";
+    const WARN = "\x1b[33m";
+    const RST = "\x1b[0m";
 
-    // Determine direction: if this terminal's agent identity matches teammate_id, it's incoming
-    const arrow = "\u2190"; // ← incoming (from teammate to this terminal)
-    const label = `${arrow} from ${id}`;
-    const preview = summary || body.split("\n")[0].slice(0, 80);
+    let line: string;
+    switch (type) {
+      case "message":
+        // Outgoing DM: ↗ [recipient] summary
+        line = `${DIM}\u2197 [${id}] ${summary}${RST}`;
+        break;
+      case "broadcast":
+        line = `${DIM}\u2197 [broadcast] ${summary}${RST}`;
+        break;
+      case "shutdown_request":
+        line = `${WARN}[shutdown request \u2192 ${id}]${RST}`;
+        break;
+      case "shutdown_response": {
+        const approved = /approve.*true/i.test(clean);
+        const verb = approved ? "approved" : "rejected";
+        const color = approved ? DIM : WARN;
+        line = `${color}[shutdown ${verb} \u2192 ${id}]${RST}`;
+        break;
+      }
+      case "plan_approval_response": {
+        const approved = /approve.*true/i.test(clean);
+        const verb = approved ? "approved" : "rejected";
+        const color = approved ? DIM : WARN;
+        line = `${color}[plan ${verb} \u2192 ${id}]${RST}`;
+        break;
+      }
+      default:
+        line = `${DIM}\u2197 [${id}] ${summary || type}${RST}`;
+    }
 
-    // Emit as dim ANSI line: ← from name: summary
-    const formatted = `\r\n\x1b[2m${label}: ${preview}\x1b[0m\r\n`;
-    this.passthrough(formatted);
+    this.passthrough(`\r\n${line}\r\n`);
   }
 
   private startTimer(): void {
