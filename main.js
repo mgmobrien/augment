@@ -20807,6 +20807,23 @@ function scaffoldTeam(projectRoot) {
       skipped.push(skillPath);
     }
   }
+  const gitignorePath = (0, import_path9.join)(projectRoot, ".gitignore");
+  const GITIGNORE_MARKER = "# augment-team: session logs";
+  const GITIGNORE_BLOCK = `
+${GITIGNORE_MARKER}
+.parts/*/sessions/*.md
+`;
+  let existingGitignore = "";
+  try {
+    existingGitignore = fs2.readFileSync(gitignorePath, "utf-8");
+  } catch (e) {
+  }
+  if (!existingGitignore.includes(GITIGNORE_MARKER)) {
+    fs2.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
+    created.push(".gitignore (appended session log patterns)");
+  } else {
+    skipped.push(".gitignore (session log patterns already present)");
+  }
   return { created, skipped };
 }
 function refreshTeamSkills(projectRoot) {

@@ -8,15 +8,7 @@
     "dev": "node esbuild.config.mjs watch",
     "build": "node esbuild.config.mjs build",
     "obsidian:install": "cp -R main.js styles.css manifest.json scripts \"/Users/mattobrien/Obsidian Main Vault/ObsidianVault/.obsidian/plugins/augment-terminal/\"",
-    "test:rename-sync": "node scripts/check-rename-sync.mjs",
-    "electron:build": "node electron/build.mjs",
-    "electron:watch": "node electron/build.mjs --watch",
-    "electron:dev": "npm run electron:build && electron electron/main.cjs",
-    "electron:open": "npm run electron:build && open -n node_modules/electron/dist/Electron.app --args electron/main.cjs",
-    "electron:pack": "npm run electron:build && npx electron-builder --dir -m -c.mac.identity=null",
-    "electron:dist": "npm run electron:build && npx electron-builder -m -c.mac.identity=null",
-    "electron:open-pack": "npm run electron:pack && open -n dist-electron/mac-arm64/Augment.app",
-    "electron:install": "npm run electron:pack && rm -rf ~/Applications/Augment.app && cp -R dist-electron/mac-arm64/Augment.app ~/Applications/Augment.app"
+    "test:rename-sync": "node scripts/check-rename-sync.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -30,37 +22,8 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "builtin-modules": "^3.3.0",
-    "electron": "^40.6.1",
-    "electron-builder": "^26.8.1",
     "esbuild": "^0.21.0",
     "obsidian": "latest",
     "typescript": "^5.4.0"
-  },
-  "build": {
-    "appId": "md.augment.standalone",
-    "productName": "Augment",
-    "asar": false,
-    "directories": {
-      "output": "dist-electron"
-    },
-    "electronDist": "node_modules/electron/dist",
-    "files": [
-      "electron/**/*",
-      "scripts/terminal_pty.py",
-      "scripts/tmux-shim.sh",
-      "scripts/shim-bin/**/*",
-      "package.json"
-    ],
-    "extraMetadata": {
-      "main": "electron/main.cjs"
-    },
-    "mac": {
-      "icon": "build/icon.icns",
-      "target": [
-        "dir",
-        "zip"
-      ],
-      "category": "public.app-category.developer-tools"
-    }
   }
 }

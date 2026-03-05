@@ -732,6 +732,22 @@ export function scaffoldTeam(projectRoot: string): ScaffoldResult {
     }
   }
 
+  // .gitignore — append sessions/ patterns if not already present.
+  // Session logs are working notes, not shipping code.
+  // What commits: PARTS.md, skills/, config.md, .state/current.md, sessions/.gitkeep
+  // What gitignores: sessions/*.md (all session log files)
+  const gitignorePath = join(projectRoot, ".gitignore");
+  const GITIGNORE_MARKER = "# augment-team: session logs";
+  const GITIGNORE_BLOCK = `\n${GITIGNORE_MARKER}\n.parts/*/sessions/*.md\n`;
+  let existingGitignore = "";
+  try { existingGitignore = fs.readFileSync(gitignorePath, "utf-8"); } catch { /* no .gitignore yet */ }
+  if (!existingGitignore.includes(GITIGNORE_MARKER)) {
+    fs.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
+    created.push(".gitignore (appended session log patterns)");
+  } else {
+    skipped.push(".gitignore (session log patterns already present)");
+  }
+
   return { created, skipped };
 }
 
