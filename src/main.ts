@@ -1,7 +1,7 @@
 import { Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile } from "obsidian";
 import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, generateText, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
-import { ContextInspectorModal } from "./context-inspector";
+import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord } from "./vault-context";
@@ -334,7 +334,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           e.preventDefault();
           e.stopPropagation();
           notice.hide();
-          new ContextInspectorModal(this.app, ctx).open();
+          this.openContextInspector();
         });
         if (!this.settings.hasGenerated) {
           this.settings.hasGenerated = true;
@@ -431,6 +431,9 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
+    });
+    this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
+      return new ContextInspectorView(leaf, this);
     });
 
     // Escape key cancels in-progress generation.
@@ -598,7 +601,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 e.preventDefault();
                 e.stopPropagation();
                 notice.hide();
-                new ContextInspectorModal(this.app, ctx).open();
+                this.openContextInspector();
               });
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
@@ -648,16 +651,9 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.addCommand({
       id: "augment-view-context",
-      name: "View current note context",
+      name: "Open context inspector",
       callback: () => {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!activeView) {
-          console.log("[Augment] no active note for context view");
-          new Notice("Augment: open a note to view its context");
-          return;
-        }
-        const ctx = assembleVaultContext(this.app, activeView.editor, this.settings);
-        new ContextInspectorModal(this.app, ctx).open();
+        this.openContextInspector();
       },
     });
 
@@ -830,6 +826,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     delete (globalThis as any).__augmentCancelGeneration;
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
     cleanupXtermStyle();
     this.calloutStyleEl?.remove();
     this.calloutStyleEl = null;
@@ -1030,6 +1027,14 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   public async openTerminalNamed(name: string): Promise<void> {
     await this.openTerminal("tab", { name });
+  }
+
+  public openContextInspector(): void {
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (leaf) {
+      leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+      this.app.workspace.revealLeaf(leaf);
+    }
   }
 
   public async openFocusedTerminal(): Promise<TerminalView> {

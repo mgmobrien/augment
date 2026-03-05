@@ -1,0 +1,175 @@
+import { debounce, ItemView, MarkdownView, WorkspaceLeaf } from "obsidian";
+import AugmentTerminalPlugin from "./main";
+import { assembleVaultContext, VaultContext } from "./vault-context";
+
+export const VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
+
+export class ContextInspectorView extends ItemView {
+  private plugin: AugmentTerminalPlugin;
+  private contentDiv!: HTMLElement;
+  private debouncedRefresh: () => void;
+
+  constructor(leaf: WorkspaceLeaf, plugin: AugmentTerminalPlugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.debouncedRefresh = debounce(() => this.refresh(), 300, true);
+  }
+
+  getViewType(): string { return VIEW_TYPE_CONTEXT_INSPECTOR; }
+  getDisplayText(): string { return "Context inspector"; }
+  getIcon(): string { return "eye"; }
+
+  async onOpen(): Promise<void> {
+    this.contentDiv = this.containerEl.children[1] as HTMLElement;
+    this.contentDiv.addClass("augment-ctx-panel");
+    this.registerEvent(this.app.workspace.on("active-leaf-change", this.debouncedRefresh));
+    this.registerEvent(this.app.workspace.on("editor-change", this.debouncedRefresh));
+    this.refresh();
+  }
+
+  private refresh(): void {
+    this.contentDiv.empty();
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView) {
+      this.contentDiv.createEl("div", { cls: "augment-ctx-empty", text: "Open a note to inspect its context." });
+      return;
+    }
+    const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
+    this.render(ctx, activeView);
+  }
+
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  private render(ctx: VaultContext, activeView: MarkdownView): void {
+    const el = this.contentDiv;
+
+    // Header
+    el.createEl("div", { cls: "augment-ctx-panel-header", text: "Context inspector" });
+    el.createEl("div", {
+      cls: "augment-ctx-panel-subtitle",
+      text: "What Augment sends to the AI when you press Mod+Enter",
+    });
+
+    let totalTokens = 0;
+
+    // ── System prompt section ──
+    const sysSection = el.createEl("div", { cls: "augment-ctx-section" });
+    const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    const sysText = "(default \u2014 Augment standard prompt)";
+    const sysTokens = this.estimateTokens(sysText);
+    totalTokens += sysTokens;
+    sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
+    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    sysSection.createEl("div", { cls: "augment-ctx-sys-default", text: sysText });
+
+    // ── This note section ──
+    const noteSection = el.createEl("div", { cls: "augment-ctx-section" });
+    const noteHdr = noteSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+
+    // Build combined content for token count
+    let noteContent = `Note: ${ctx.title}\n`;
+    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
+      for (const [key, val] of Object.entries(ctx.frontmatter)) {
+        const valStr = Array.isArray(val) ? val.join(", ") : String(val ?? "");
+        noteContent += `${key}: ${valStr}\n`;
+      }
+    }
+    if (ctx.selection) {
+      noteContent += `\n${ctx.selection}`;
+    } else if (ctx.surroundingContext) {
+      noteContent += `\n${ctx.surroundingContext}`;
+    }
+    const noteTokens = this.estimateTokens(noteContent);
+    totalTokens += noteTokens;
+
+    noteHdr.createEl("span", {
+      cls: "augment-ctx-section-label",
+      text: `This note \u2014 \u201c${ctx.title}\u201d`,
+    });
+    noteHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${noteTokens} tokens` });
+
+    // Frontmatter
+    if (ctx.frontmatter && Object.keys(ctx.frontmatter).length > 0) {
+      for (const [key, val] of Object.entries(ctx.frontmatter)) {
+        const row = noteSection.createEl("div", { cls: "augment-ctx-fm-row" });
+        row.createEl("span", { cls: "augment-ctx-fm-key", text: key });
+        const valStr = Array.isArray(val) ? val.join(", ") : String(val ?? "");
+        row.createEl("span", { text: valStr });
+      }
+    }
+
+    // Text content
+    if (ctx.selection) {
+      noteSection.createEl("div", { cls: "augment-ctx-content-label", text: "Selected text" });
+      noteSection.createEl("pre", { cls: "augment-ctx-pre", text: ctx.selection });
+    } else {
+      noteSection.createEl("pre", {
+        cls: "augment-ctx-pre",
+        text: ctx.surroundingContext || "(empty \u2014 position cursor in a note)",
+      });
+    }
+
+    // ── Linked notes section ──
+    if (ctx.linkedNotes.length > 0) {
+      const linkedSection = el.createEl("div", { cls: "augment-ctx-section" });
+      const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+
+      // Count total links in the note for the "N of M" display
+      const activeFile = this.app.workspace.getActiveFile();
+      const totalLinks = activeFile
+        ? (this.app.metadataCache.getFileCache(activeFile)?.links ?? []).length
+        : ctx.linkedNotes.length;
+
+      let linkedContent = "";
+      for (const note of ctx.linkedNotes) {
+        linkedContent += `${note.title}\n`;
+        if (note.frontmatter) {
+          for (const [, val] of Object.entries(note.frontmatter)) {
+            linkedContent += `${String(val)}\n`;
+          }
+        }
+      }
+      const linkedTokens = this.estimateTokens(linkedContent);
+      totalTokens += linkedTokens;
+
+      linkedHdr.createEl("span", {
+        cls: "augment-ctx-section-label",
+        text: `Linked notes (${ctx.linkedNotes.length} of ${totalLinks} linked)`,
+      });
+      linkedHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${linkedTokens} tokens` });
+
+      linkedSection.createEl("div", {
+        cls: "augment-ctx-linked-hint",
+        text: "Augment sends each linked note\u2019s frontmatter, not its body.",
+      });
+
+      for (const note of ctx.linkedNotes) {
+        const noteEl = linkedSection.createEl("div", { cls: "augment-ctx-linked-note" });
+        noteEl.createEl("div", { cls: "augment-ctx-note-title", text: `\u25b8 ${note.title}` });
+        if (note.frontmatter && Object.keys(note.frontmatter).length > 0) {
+          for (const [key, val] of Object.entries(note.frontmatter)) {
+            const valStr = Array.isArray(val) ? val.join(", ") : String(val ?? "");
+            noteEl.createEl("div", {
+              cls: "augment-ctx-linked-fm",
+              text: `  ${key}: ${valStr}`,
+            });
+          }
+        } else {
+          noteEl.createEl("div", { cls: "augment-ctx-note-empty", text: "  (no frontmatter)" });
+        }
+      }
+    }
+
+    // ── Total ──
+    const totalSection = el.createEl("div", { cls: "augment-ctx-section augment-ctx-total" });
+    const totalHdr = totalSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    totalHdr.createEl("span", { cls: "augment-ctx-section-label", text: "Total" });
+    totalHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${totalTokens} tokens` });
+  }
+
+  async onClose(): Promise<void> {
+    this.contentDiv.empty();
+  }
+}

@@ -1,9 +1,9 @@
-import { App, MarkdownView, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
 import { exec } from "child_process";
 import AugmentTerminalPlugin from "./main";
-import { AugmentSettings, assembleVaultContext } from "./vault-context";
+import { AugmentSettings } from "./vault-context";
 import { modelDisplayName } from "./ai-client";
-import { ContextInspectorModal } from "./context-inspector";
+import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 
 interface CCDeps {
   python: boolean;
@@ -384,17 +384,14 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     const previewBtn = overviewPane.createEl("button", {
       cls: "augment-ctx-preview-btn",
-      text: "Preview context for current note",
+      text: "Open context inspector",
     });
     previewBtn.addEventListener("click", () => {
-      const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-      if (!activeView) {
-        console.log("[Augment] no active note for context preview");
-        new Notice("Open a note to preview context");
-        return;
+      const leaf = this.plugin.app.workspace.getRightLeaf(false);
+      if (leaf) {
+        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+        this.plugin.app.workspace.revealLeaf(leaf);
       }
-      const ctx = assembleVaultContext(this.plugin.app, activeView.editor, this.plugin.settings);
-      new ContextInspectorModal(this.plugin.app, ctx).open();
     });
 
     overviewPane.createEl("p", {

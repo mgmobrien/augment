@@ -1239,3 +1239,74 @@
   text-decoration: none;
 }
 .augment-cc-recheck a:hover { color: var(--text-muted); }
+
+/* ── Context inspector sidebar panel ── */
+.augment-ctx-panel {
+  padding: 12px 14px;
+  font-size: var(--font-small);
+}
+
+.augment-ctx-panel-header {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-medium);
+  margin-bottom: 2px;
+}
+
+.augment-ctx-panel-subtitle {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.augment-ctx-panel .augment-ctx-section {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 10px 0;
+}
+
+.augment-ctx-panel .augment-ctx-section:first-of-type {
+  border-top: none;
+}
+
+.augment-ctx-token-count {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+}
+
+.augment-ctx-sys-default {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.augment-ctx-content-label {
+  font-size: var(--font-smallest);
+  font-weight: var(--font-semibold);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 6px 0 4px;
+}
+
+.augment-ctx-linked-hint {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  font-style: italic;
+  margin-bottom: 6px;
+}
+
+.augment-ctx-linked-fm {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  padding-left: 12px;
+}
+
+.augment-ctx-total {
+  font-weight: var(--font-semibold);
+}
+
+.augment-ctx-empty {
+  color: var(--text-faint);
+  font-size: var(--font-small);
+  font-style: italic;
+  padding: 20px 0;
+}
