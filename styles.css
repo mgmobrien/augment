@@ -6,6 +6,7 @@
 
 /* Container fills the Obsidian leaf pane */
 .augment-terminal-container {
+  position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -45,6 +46,36 @@
 .augment-terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb-bg);
   border-radius: 3px;
+}
+
+/* ── Bootstrapper overlay ── */
+.augment-bootstrapper-wrapper {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-normal);
+  background-color: var(--background-primary);
+}
+
+.augment-bootstrapper-title {
+  font-size: 1.1em;
+  margin-bottom: 0.75rem;
+}
+
+.augment-bootstrapper-desc {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  max-width: 320px;
+}
+
+.augment-bootstrapper-btn {
+  margin-top: 0.5rem;
 }
 
 /* Tab status indicator dot */

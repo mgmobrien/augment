@@ -1197,13 +1197,13 @@ var require_ast = __commonJS({
         helperExpression: function helperExpression(node) {
           return node.type === "SubExpression" || (node.type === "MustacheStatement" || node.type === "BlockStatement") && !!(node.params && node.params.length || node.hash);
         },
-        scopedId: function scopedId(path3) {
-          return /^\.|this\b/.test(path3.original);
+        scopedId: function scopedId(path4) {
+          return /^\.|this\b/.test(path4.original);
         },
         // an ID is simple if it only has one part, and that part is not
         // `..` or `this`.
-        simpleId: function simpleId(path3) {
-          return path3.parts.length === 1 && !AST.helpers.scopedId(path3) && !path3.depth;
+        simpleId: function simpleId(path4) {
+          return path4.parts.length === 1 && !AST.helpers.scopedId(path4) && !path4.depth;
         }
       }
     };
@@ -2273,12 +2273,12 @@ var require_helpers2 = __commonJS({
         loc
       };
     }
-    function prepareMustache(path3, params, hash, open, strip2, locInfo) {
+    function prepareMustache(path4, params, hash, open, strip2, locInfo) {
       var escapeFlag = open.charAt(3) || open.charAt(2), escaped = escapeFlag !== "{" && escapeFlag !== "&";
       var decorator = /\*/.test(open);
       return {
         type: decorator ? "Decorator" : "MustacheStatement",
-        path: path3,
+        path: path4,
         params,
         hash,
         escaped,
@@ -2548,9 +2548,9 @@ var require_compiler = __commonJS({
       },
       DecoratorBlock: function DecoratorBlock(decorator) {
         var program = decorator.program && this.compileProgram(decorator.program);
-        var params = this.setupFullMustacheParams(decorator, program, void 0), path3 = decorator.path;
+        var params = this.setupFullMustacheParams(decorator, program, void 0), path4 = decorator.path;
         this.useDecorators = true;
-        this.opcode("registerDecorator", params.length, path3.original);
+        this.opcode("registerDecorator", params.length, path4.original);
       },
       PartialStatement: function PartialStatement(partial) {
         this.usePartial = true;
@@ -2614,46 +2614,46 @@ var require_compiler = __commonJS({
         }
       },
       ambiguousSexpr: function ambiguousSexpr(sexpr, program, inverse) {
-        var path3 = sexpr.path, name = path3.parts[0], isBlock = program != null || inverse != null;
-        this.opcode("getContext", path3.depth);
+        var path4 = sexpr.path, name = path4.parts[0], isBlock = program != null || inverse != null;
+        this.opcode("getContext", path4.depth);
         this.opcode("pushProgram", program);
         this.opcode("pushProgram", inverse);
-        path3.strict = true;
-        this.accept(path3);
+        path4.strict = true;
+        this.accept(path4);
         this.opcode("invokeAmbiguous", name, isBlock);
       },
       simpleSexpr: function simpleSexpr(sexpr) {
-        var path3 = sexpr.path;
-        path3.strict = true;
-        this.accept(path3);
+        var path4 = sexpr.path;
+        path4.strict = true;
+        this.accept(path4);
         this.opcode("resolvePossibleLambda");
       },
       helperSexpr: function helperSexpr(sexpr, program, inverse) {
-        var params = this.setupFullMustacheParams(sexpr, program, inverse), path3 = sexpr.path, name = path3.parts[0];
+        var params = this.setupFullMustacheParams(sexpr, program, inverse), path4 = sexpr.path, name = path4.parts[0];
         if (this.options.knownHelpers[name]) {
           this.opcode("invokeKnownHelper", params.length, name);
         } else if (this.options.knownHelpersOnly) {
           throw new _exception2["default"]("You specified knownHelpersOnly, but used the unknown helper " + name, sexpr);
         } else {
-          path3.strict = true;
-          path3.falsy = true;
-          this.accept(path3);
-          this.opcode("invokeHelper", params.length, path3.original, _ast2["default"].helpers.simpleId(path3));
+          path4.strict = true;
+          path4.falsy = true;
+          this.accept(path4);
+          this.opcode("invokeHelper", params.length, path4.original, _ast2["default"].helpers.simpleId(path4));
         }
       },
-      PathExpression: function PathExpression(path3) {
-        this.addDepth(path3.depth);
-        this.opcode("getContext", path3.depth);
-        var name = path3.parts[0], scoped = _ast2["default"].helpers.scopedId(path3), blockParamId = !path3.depth && !scoped && this.blockParamIndex(name);
+      PathExpression: function PathExpression(path4) {
+        this.addDepth(path4.depth);
+        this.opcode("getContext", path4.depth);
+        var name = path4.parts[0], scoped = _ast2["default"].helpers.scopedId(path4), blockParamId = !path4.depth && !scoped && this.blockParamIndex(name);
         if (blockParamId) {
-          this.opcode("lookupBlockParam", blockParamId, path3.parts);
+          this.opcode("lookupBlockParam", blockParamId, path4.parts);
         } else if (!name) {
           this.opcode("pushContext");
-        } else if (path3.data) {
+        } else if (path4.data) {
           this.options.data = true;
-          this.opcode("lookupData", path3.depth, path3.parts, path3.strict);
+          this.opcode("lookupData", path4.depth, path4.parts, path4.strict);
         } else {
-          this.opcode("lookupOnContext", path3.parts, path3.falsy, path3.strict, scoped);
+          this.opcode("lookupOnContext", path4.parts, path4.falsy, path4.strict, scoped);
         }
       },
       StringLiteral: function StringLiteral(string) {
@@ -3003,16 +3003,16 @@ var require_util = __commonJS({
     }
     exports.urlGenerate = urlGenerate;
     function normalize(aPath) {
-      var path3 = aPath;
+      var path4 = aPath;
       var url = urlParse(aPath);
       if (url) {
         if (!url.path) {
           return aPath;
         }
-        path3 = url.path;
+        path4 = url.path;
       }
-      var isAbsolute = exports.isAbsolute(path3);
-      var parts = path3.split(/\/+/);
+      var isAbsolute = exports.isAbsolute(path4);
+      var parts = path4.split(/\/+/);
       for (var part, up = 0, i = parts.length - 1; i >= 0; i--) {
         part = parts[i];
         if (part === ".") {
@@ -3029,18 +3029,18 @@ var require_util = __commonJS({
           }
         }
       }
-      path3 = parts.join("/");
-      if (path3 === "") {
-        path3 = isAbsolute ? "/" : ".";
+      path4 = parts.join("/");
+      if (path4 === "") {
+        path4 = isAbsolute ? "/" : ".";
       }
       if (url) {
-        url.path = path3;
+        url.path = path4;
         return urlGenerate(url);
       }
-      return path3;
+      return path4;
     }
     exports.normalize = normalize;
-    function join4(aRoot, aPath) {
+    function join5(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -3072,7 +3072,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports.join = join4;
+    exports.join = join5;
     exports.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -3245,7 +3245,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index + 1);
           }
         }
-        sourceURL = join4(urlGenerate(parsed), sourceURL);
+        sourceURL = join5(urlGenerate(parsed), sourceURL);
       }
       return normalize(sourceURL);
     }
@@ -12835,10 +12835,10 @@ var SSEDecoder = class {
     return null;
   }
 };
-function partition(str, delimiter) {
-  const index = str.indexOf(delimiter);
+function partition(str, delimiter2) {
+  const index = str.indexOf(delimiter2);
   if (index !== -1) {
-    return [str.substring(0, index), delimiter, str.substring(index + delimiter.length)];
+    return [str.substring(0, index), delimiter2, str.substring(index + delimiter2.length)];
   }
   return [str, "", ""];
 }
@@ -13346,12 +13346,12 @@ function encodeURIPath(str) {
   return str.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
 var EMPTY = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null));
-var createPathTagFunction = (pathEncoder = encodeURIPath) => function path3(statics, ...params) {
+var createPathTagFunction = (pathEncoder = encodeURIPath) => function path4(statics, ...params) {
   if (statics.length === 1)
     return statics[0];
   let postPath = false;
   const invalidSegments = [];
-  const path4 = statics.reduce((previousValue, currentValue, index) => {
+  const path5 = statics.reduce((previousValue, currentValue, index) => {
     var _a2, _b, _c;
     if (/[?#]/.test(currentValue)) {
       postPath = true;
@@ -13369,7 +13369,7 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path3(stat
     }
     return previousValue + currentValue + (index === params.length ? "" : encoded);
   }, "");
-  const pathOnly = path4.split(/[?#]/, 1)[0];
+  const pathOnly = path5.split(/[?#]/, 1)[0];
   const invalidSegmentPattern = /(?<=^|\/)(?:\.|%2e){1,2}(?=\/|$)/gi;
   let match;
   while ((match = invalidSegmentPattern.exec(pathOnly)) !== null) {
@@ -13390,10 +13390,10 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path3(stat
     }, "");
     throw new AnthropicError(`Path parameters result in path with invalid segments:
 ${invalidSegments.map((e) => e.error).join("\n")}
-${path4}
+${path5}
 ${underline}`);
   }
-  return path4;
+  return path5;
 };
 var path = /* @__PURE__ */ createPathTagFunction(encodeURIPath);
 
@@ -16532,9 +16532,9 @@ var BaseAnthropic = class {
   makeStatusError(status, error, message, headers) {
     return APIError.generate(status, error, message, headers);
   }
-  buildURL(path3, query, defaultBaseURL) {
+  buildURL(path4, query, defaultBaseURL) {
     const baseURL = !__classPrivateFieldGet(this, _BaseAnthropic_instances, "m", _BaseAnthropic_baseURLOverridden).call(this) && defaultBaseURL || this.baseURL;
-    const url = isAbsoluteURL(path3) ? new URL(path3) : new URL(baseURL + (baseURL.endsWith("/") && path3.startsWith("/") ? path3.slice(1) : path3));
+    const url = isAbsoluteURL(path4) ? new URL(path4) : new URL(baseURL + (baseURL.endsWith("/") && path4.startsWith("/") ? path4.slice(1) : path4));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -16565,24 +16565,24 @@ var BaseAnthropic = class {
    */
   async prepareRequest(request, { url, options }) {
   }
-  get(path3, opts) {
-    return this.methodRequest("get", path3, opts);
+  get(path4, opts) {
+    return this.methodRequest("get", path4, opts);
   }
-  post(path3, opts) {
-    return this.methodRequest("post", path3, opts);
+  post(path4, opts) {
+    return this.methodRequest("post", path4, opts);
   }
-  patch(path3, opts) {
-    return this.methodRequest("patch", path3, opts);
+  patch(path4, opts) {
+    return this.methodRequest("patch", path4, opts);
   }
-  put(path3, opts) {
-    return this.methodRequest("put", path3, opts);
+  put(path4, opts) {
+    return this.methodRequest("put", path4, opts);
   }
-  delete(path3, opts) {
-    return this.methodRequest("delete", path3, opts);
+  delete(path4, opts) {
+    return this.methodRequest("delete", path4, opts);
   }
-  methodRequest(method, path3, opts) {
+  methodRequest(method, path4, opts) {
     return this.request(Promise.resolve(opts).then((opts2) => {
-      return { method, path: path3, ...opts2 };
+      return { method, path: path4, ...opts2 };
     }));
   }
   request(options, remainingRetries = null) {
@@ -16687,8 +16687,8 @@ var BaseAnthropic = class {
     }));
     return { response, options, controller, requestLogID, retryOfRequestLogID, startTime };
   }
-  getAPIList(path3, Page2, opts) {
-    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path3, ...opts2 })) : { method: "get", path: path3, ...opts });
+  getAPIList(path4, Page2, opts) {
+    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path4, ...opts2 })) : { method: "get", path: path4, ...opts });
   }
   requestAPIList(Page2, options) {
     const request = this.makeRequest(options, null, void 0);
@@ -16778,8 +16778,8 @@ var BaseAnthropic = class {
   async buildRequest(inputOptions, { retryCount = 0 } = {}) {
     var _a2, _b, _c;
     const options = { ...inputOptions };
-    const { method, path: path3, query, defaultBaseURL } = options;
-    const url = this.buildURL(path3, query, defaultBaseURL);
+    const { method, path: path4, query, defaultBaseURL } = options;
+    const url = this.buildURL(path4, query, defaultBaseURL);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     options.timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
@@ -17233,8 +17233,8 @@ function assembleVaultContext(app, editor, settings) {
   let surroundingContext = "";
   if (!selection) {
     const cursor = editor.getCursor();
-    const startLine = Math.max(0, cursor.line - 25);
-    const endLine = Math.min(editor.lastLine(), cursor.line + 25);
+    const startLine = 0;
+    const endLine = cursor.line;
     const lines = [];
     for (let i = startLine; i <= endLine; i++) {
       lines.push(editor.getLine(i));
@@ -17266,11 +17266,16 @@ var MODEL_PRICING = {
   "claude-opus-4-6": { input: 15, output: 75 }
 };
 var DEFAULT_PRICING = { input: 3, output: 15 };
-function estimateCost(inputTokens, modelId) {
+var MAX_TOKENS = 1024;
+function inputCost(tokens, modelId) {
   var _a2;
   const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
-  const outputTokens = 1024;
-  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1e6;
+  return tokens * pricing.input / 1e6;
+}
+function outputCost(tokens, modelId) {
+  var _a2;
+  const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+  return tokens * pricing.output / 1e6;
 }
 function formatCost(dollars) {
   if (dollars < 1e-4) return `$${dollars.toFixed(6)}`;
@@ -17282,10 +17287,21 @@ function formatCost(dollars) {
 function estimateTokens(text) {
   return Math.ceil(text.length / 4);
 }
+function formatTimeAgo(ms) {
+  const sec = Math.round((Date.now() - ms) / 1e3);
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  return `${hr}h ago`;
+}
 var ContextInspectorView = class extends import_obsidian2.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.lastEditorView = null;
+    this.state = "cursor";
+    this.generatedAt = 0;
     this.plugin = plugin;
   }
   getViewType() {
@@ -17300,20 +17316,26 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
   async onOpen() {
     this.contentDiv = this.containerEl.children[1];
     this.contentDiv.addClass("augment-ctx-panel");
-    this.debouncedRefresh = (0, import_obsidian2.debounce)(() => this.refresh(), 300, true);
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian2.MarkdownView) {
           this.lastEditorView = leaf.view;
-          this.debouncedRefresh();
         }
       })
     );
     this.registerEvent(
-      this.app.workspace.on("editor-change", this.debouncedRefresh)
+      this.app.workspace.on("augment:generation-complete", () => {
+        this.state = "post-generation";
+        this.generatedAt = Date.now();
+        this.refresh();
+      })
     );
     const current = this.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
     if (current) this.lastEditorView = current;
+    this.refresh();
+  }
+  refreshToCursor() {
+    this.state = "cursor";
     this.refresh();
   }
   refresh() {
@@ -17333,16 +17355,29 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     this.render(ctx, this.lastEditorView);
   }
   render(ctx, activeView) {
-    var _a2, _b;
+    var _a2, _b, _c;
     const el = this.contentDiv;
     const headerEl = el.createEl("div", { cls: "augment-ctx-panel-header" });
-    const iconEl = headerEl.createEl("span", { cls: "augment-ctx-panel-header-icon" });
+    const headerLeft = headerEl.createEl("span", { cls: "augment-ctx-panel-header-left" });
+    const iconEl = headerLeft.createEl("span", { cls: "augment-ctx-panel-header-icon" });
     (0, import_obsidian2.setIcon)(iconEl, "radio-tower");
-    headerEl.createEl("span", { text: "Context inspector" });
-    el.createEl("div", {
-      cls: "augment-ctx-panel-subtitle",
-      text: "What Augment sends when you generate"
-    });
+    headerLeft.createEl("span", { text: "Context inspector" });
+    const refreshBtn = headerEl.createEl("span", { cls: "augment-ctx-refresh clickable-icon" });
+    (0, import_obsidian2.setIcon)(refreshBtn, "refresh-cw");
+    refreshBtn.addEventListener("click", () => this.refreshToCursor());
+    const subtitleEl = el.createEl("div", { cls: "augment-ctx-panel-subtitle" });
+    if (this.state === "post-generation") {
+      subtitleEl.createEl("span", {
+        text: `Sent last generation \xB7 ${formatTimeAgo(this.generatedAt)}`
+      });
+      const backLink = subtitleEl.createEl("span", {
+        cls: "augment-ctx-back-to-cursor",
+        text: "back to cursor \u2191"
+      });
+      backLink.addEventListener("click", () => this.refreshToCursor());
+    } else {
+      subtitleEl.setText("What Augment sends when you generate");
+    }
     const sysPromptText = buildSystemPrompt(ctx, this.plugin.settings.systemPrompt || void 0);
     const userMsgText = buildUserMessage(ctx, "Continue writing.");
     const sysTokens = estimateTokens(sysPromptText);
@@ -17361,31 +17396,81 @@ ${key}: ${valStr}`;
     const linkedTokens = linkedData.reduce((sum, d) => sum + d.tokens, 0);
     const totalTokens = sysTokens + noteTokens + linkedTokens;
     const modelId = this.plugin.resolveModel();
-    const cost = estimateCost(totalTokens, modelId);
-    el.createEl("div", {
-      cls: "augment-ctx-token-bar",
-      text: `~${totalTokens.toLocaleString()} tokens \xB7 ~${formatCost(cost)} per generation`
+    const modelName = this.plugin.resolveModelDisplayName();
+    const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+    const inCost = inputCost(totalTokens, modelId);
+    const estOutputTokens = Math.round(MAX_TOKENS / 4);
+    const outCost = outputCost(estOutputTokens, modelId);
+    const totalCost = inCost + outCost;
+    const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
+    tokenBar.createEl("span", {
+      cls: "augment-ctx-token-bar-summary",
+      text: `${totalTokens.toLocaleString()} tokens \xB7 ~${formatCost(totalCost)}`
     });
-    const scroll = el.createEl("div", { cls: "augment-ctx-scroll" });
-    const sysSection = scroll.createEl("div", { cls: "augment-ctx-section" });
-    const sysDetails = sysSection.createEl("details");
-    const sysSummary = sysDetails.createEl("summary", { cls: "augment-ctx-section-hdr" });
-    sysSummary.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
-    sysSummary.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
-    sysDetails.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
-    const noteSection = scroll.createEl("div", { cls: "augment-ctx-section" });
+    const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
+    (0, import_obsidian2.setIcon)(barChevron, "chevron-right");
+    tokenBar.addEventListener("click", () => {
+      tokenBar.toggleClass("is-open", !tokenBar.hasClass("is-open"));
+    });
+    const detail = el.createEl("div", { cls: "augment-ctx-token-bar-detail" });
+    const addRow = (label, value) => {
+      const row = detail.createEl("div", { cls: "augment-ctx-token-bar-row" });
+      row.createEl("span", { cls: "augment-ctx-token-bar-label", text: label });
+      row.createEl("span", { cls: "augment-ctx-token-bar-value", text: value });
+    };
+    addRow("Model", modelName);
+    addRow("Input", `${totalTokens.toLocaleString()} tok  \xB7  ~${formatCost(inCost)}  ($${pricing.input}/Mtok)`);
+    addRow("Output", `~${estOutputTokens.toLocaleString()} tok  \xB7  ~${formatCost(outCost)}  ($${pricing.output}/Mtok, est.)`);
+    addRow("Total", `~${formatCost(totalCost)}`);
+    const scroll = el.createEl("div", { cls: "augment-ctx-panel-body" });
+    const sysSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible" });
+    const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    const sysChevron = sysHdr.createEl("span", { cls: "augment-ctx-chevron" });
+    (0, import_obsidian2.setIcon)(sysChevron, "chevron-right");
+    sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
+    const sysEditBtn = sysHdr.createEl("span", { cls: "augment-ctx-edit-btn clickable-icon" });
+    (0, import_obsidian2.setIcon)(sysEditBtn, "pencil");
+    sysEditBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const setting = this.app.setting;
+      setting.open();
+      setting.openTabById("augment-terminal");
+      setTimeout(() => {
+        var _a3, _b2;
+        const tab = (_b2 = (_a3 = setting.containerEl) == null ? void 0 : _a3.querySelector) == null ? void 0 : _b2.call(_a3, ".augment-tab:nth-child(2)");
+        tab == null ? void 0 : tab.click();
+        setTimeout(() => {
+          var _a4, _b3;
+          const textarea = (_b3 = (_a4 = setting.containerEl) == null ? void 0 : _a4.querySelector) == null ? void 0 : _b3.call(_a4, "textarea");
+          textarea == null ? void 0 : textarea.focus();
+        }, 50);
+      }, 50);
+    });
+    sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
+    const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+    sysContent.createEl("div", { cls: "augment-ctx-block", text: sysPromptText });
+    sysHdr.addEventListener("click", () => {
+      sysSection.toggleClass("is-open", !sysSection.hasClass("is-open"));
+    });
+    const noteSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible is-open" });
     const noteHdr = noteSection.createEl("div", { cls: "augment-ctx-section-hdr" });
+    const noteChevron = noteHdr.createEl("span", { cls: "augment-ctx-chevron" });
+    (0, import_obsidian2.setIcon)(noteChevron, "chevron-right");
     noteHdr.createEl("span", {
       cls: "augment-ctx-section-label",
       text: `This note \u2014 \u201C${ctx.title}\u201D`
     });
     noteHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${noteTokens} tokens` });
-    const noteBlock = noteSection.createEl("div", { cls: "augment-ctx-block" });
+    const noteContent = noteSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
+    const noteBlock = noteContent.createEl("div", { cls: "augment-ctx-block" });
     noteBlock.setText(userMsgText);
+    noteHdr.addEventListener("click", () => {
+      noteSection.toggleClass("is-open", !noteSection.hasClass("is-open"));
+    });
     if (linkedData.length > 0) {
       const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section" });
       const activeFile = activeView.file;
-      const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : linkedData.length;
+      const totalLinks = activeFile ? ((_c = (_b = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _b.links) != null ? _c : []).length : linkedData.length;
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
       linkedHdr.createEl("span", {
         cls: "augment-ctx-section-label",
@@ -17415,31 +17500,42 @@ ${key}: ${valStr}`;
 
 // src/settings-tab.ts
 var import_obsidian3 = require("obsidian");
+
+// src/deps.ts
 var import_child_process = require("child_process");
+var import_fs = require("fs");
+var path2 = __toESM(require("path"));
+function shellEnv() {
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  const extra = [
+    path2.join(home, ".local", "bin"),
+    path2.join(home, ".nvm", "versions", "node"),
+    // nvm
+    "/usr/local/bin",
+    "/opt/homebrew/bin"
+  ].filter((p) => (0, import_fs.existsSync)(p));
+  const current = process.env.PATH || "";
+  return { ...process.env, PATH: [...extra, current].join(path2.delimiter) };
+}
 function execAsync(cmd) {
   return new Promise((resolve, reject) => {
-    (0, import_child_process.exec)(cmd, { timeout: 1e4 }, (err, stdout, stderr) => {
+    (0, import_child_process.exec)(cmd, { timeout: 1e4, env: shellEnv() }, (err, stdout, stderr) => {
       if (err) reject(err);
-      else resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
+      else resolve({ stdout, stderr });
     });
   });
 }
 async function checkBool(cmd) {
   try {
-    const r = await execAsync(cmd);
-    return r.stdout.trim().length > 0;
+    await execAsync(cmd);
+    return true;
   } catch (e) {
     return false;
   }
 }
-async function checkAuth(prefix) {
+async function checkAuth() {
   try {
-    const r = await execAsync(`${prefix}claude auth status`);
-    try {
-      const parsed = JSON.parse(r.stdout.trim());
-      if (typeof parsed.loggedIn === "boolean") return parsed.loggedIn;
-    } catch (e) {
-    }
+    const r = await execAsync("claude auth status");
     const lower = r.stdout.toLowerCase();
     return !lower.includes("not logged in") && !lower.includes("not authenticated");
   } catch (e) {
@@ -17450,9 +17546,11 @@ async function detectDeps(app) {
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
   const node = await checkBool("node --version");
   const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude") : false;
-  const authed = cc ? await checkAuth("") : false;
+  const authed = cc ? await checkAuth() : false;
   return { node, cc, authed, vaultConfigured };
 }
+
+// src/settings-tab.ts
 function getSetupStep(deps) {
   if (!deps.node) {
     return {
@@ -18670,6 +18768,129 @@ function generateTerminalName() {
 function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "").replace(/\x1b[()][0-9A-B]/g, "");
 }
+var FLUSH_TIMEOUT_MS = 2e3;
+var TeammateMessageFilter = class {
+  constructor(passthrough) {
+    this.buffer = "";
+    this.buffering = false;
+    this.flushTimer = null;
+    this.passthrough = passthrough;
+  }
+  feed(data) {
+    const clean = stripAnsi(data);
+    if (this.buffering) {
+      this.buffer += data;
+      if (clean.includes("</teammate-message>")) {
+        this.clearTimer();
+        this.emitFormatted();
+      }
+      return;
+    }
+    const openIdx = clean.indexOf("<teammate-message");
+    if (openIdx === -1) {
+      this.passthrough(data);
+      return;
+    }
+    if (openIdx > 0) {
+      const rawBefore = this.findRawOffset(data, clean, openIdx);
+      this.passthrough(data.slice(0, rawBefore));
+      data = data.slice(rawBefore);
+    }
+    this.buffering = true;
+    this.buffer = data;
+    if (clean.includes("</teammate-message>")) {
+      this.emitFormatted();
+    } else {
+      this.startTimer();
+    }
+  }
+  findRawOffset(raw, clean, cleanOffset) {
+    let ci = 0;
+    let ri = 0;
+    while (ri < raw.length && ci < cleanOffset) {
+      if (raw[ri] === "\x1B") {
+        const m = raw.slice(ri).match(/^\x1b(?:\[[0-9;]*[a-zA-Z]|\][^\x07]*\x07|[()][0-9A-B])/);
+        if (m) {
+          ri += m[0].length;
+          continue;
+        }
+      }
+      ri++;
+      ci++;
+    }
+    return ri;
+  }
+  emitFormatted() {
+    const clean = stripAnsi(this.buffer);
+    this.buffering = false;
+    this.buffer = "";
+    const attr = (name) => {
+      var _a2, _b;
+      return (_b = (_a2 = clean.match(new RegExp(`${name}="([^"]*)"`))) == null ? void 0 : _a2[1]) != null ? _b : "";
+    };
+    const type = attr("type") || "message";
+    const id = attr("teammate_id") || attr("recipient") || "?";
+    const summary = attr("summary").slice(0, 70);
+    const DIM = "\x1B[2m";
+    const WARN = "\x1B[33m";
+    const RST = "\x1B[0m";
+    let line;
+    switch (type) {
+      case "message":
+        line = `${DIM}\u2197 [${id}] ${summary}${RST}`;
+        break;
+      case "broadcast":
+        line = `${DIM}\u2197 [broadcast] ${summary}${RST}`;
+        break;
+      case "shutdown_request":
+        line = `${WARN}[shutdown request \u2192 ${id}]${RST}`;
+        break;
+      case "shutdown_response": {
+        const approved = /approve.*true/i.test(clean);
+        const verb = approved ? "approved" : "rejected";
+        const color = approved ? DIM : WARN;
+        line = `${color}[shutdown ${verb} \u2192 ${id}]${RST}`;
+        break;
+      }
+      case "plan_approval_response": {
+        const approved = /approve.*true/i.test(clean);
+        const verb = approved ? "approved" : "rejected";
+        const color = approved ? DIM : WARN;
+        line = `${color}[plan ${verb} \u2192 ${id}]${RST}`;
+        break;
+      }
+      default:
+        line = `${DIM}\u2197 [${id}] ${summary || type}${RST}`;
+    }
+    this.passthrough(`\r
+${line}\r
+`);
+  }
+  startTimer() {
+    this.clearTimer();
+    this.flushTimer = setTimeout(() => {
+      if (this.buffering) {
+        this.passthrough(this.buffer);
+        this.buffering = false;
+        this.buffer = "";
+      }
+    }, FLUSH_TIMEOUT_MS);
+  }
+  clearTimer() {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+  destroy() {
+    this.clearTimer();
+    if (this.buffering) {
+      this.passthrough(this.buffer);
+      this.buffering = false;
+      this.buffer = "";
+    }
+  }
+};
 var TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(/;
 var TOOL_DETAIL_PATTERN = /\b(Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(([^)\n]{0,120})\)/;
 var TEAM_CREATE_ACTIVITY_PATTERN = /\bTeamCreate\b/i;
@@ -18710,6 +18931,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.autoNamedThisTurn = false;
     this.errorBannerEl = null;
     this.currentActivity = null;
+    this.messageFilter = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -18853,6 +19075,47 @@ var TerminalView = class extends import_obsidian5.ItemView {
       xtermStyleEl.textContent = xterm_default;
       document.head.appendChild(xtermStyleEl);
     }
+    this.bootTerminal();
+    detectDeps(this.app).then((deps) => {
+      if (!deps.cc || !deps.authed) {
+        this.renderBootstrapper(this.contentEl, deps);
+      }
+    }).catch(() => {
+    });
+  }
+  renderBootstrapper(container, deps) {
+    const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
+    wrapper.createEl("h2", { text: "Set up Claude Code", cls: "augment-bootstrapper-title" });
+    wrapper.createEl("p", { text: "Terminal sessions in Augment run on Claude Code, Anthropic\u2019s command-line AI agent.", cls: "augment-bootstrapper-desc" });
+    const dismiss = () => wrapper.remove();
+    if (!deps.node) {
+      wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
+      btn.onclick = () => window.open("https://nodejs.org");
+      return;
+    }
+    if (!deps.cc) {
+      wrapper.createEl("p", { text: "Claude Code is not installed.", cls: "augment-bootstrapper-desc" });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
+      btn.onclick = () => {
+        var _a2;
+        dismiss();
+        (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
+      };
+      return;
+    }
+    if (!deps.authed) {
+      wrapper.createEl("p", { text: "Sign in to connect your Anthropic account.", cls: "augment-bootstrapper-desc" });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
+      btn.onclick = () => {
+        var _a2;
+        dismiss();
+        (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("claude auth login\n");
+      };
+      return;
+    }
+  }
+  bootTerminal() {
     const container = this.contentEl;
     container.empty();
     container.addClass("augment-terminal-container");
@@ -18900,18 +19163,22 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.resizeObserver.observe(container);
   }
   startPtyBridge() {
-    var _a2;
+    var _a2, _b;
     const vaultPath = this.app.vault.adapter.basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
     (_a2 = this.ptyBridge) == null ? void 0 : _a2.kill();
+    (_b = this.messageFilter) == null ? void 0 : _b.destroy();
+    this.messageFilter = new TeammateMessageFilter((filtered) => {
+      var _a3;
+      (_a3 = this.terminal) == null ? void 0 : _a3.write(filtered);
+      this.appendToScrollback(filtered);
+    });
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: customCwd || vaultPath,
       shellPath: this.getShellPath(),
       onData: (data) => {
-        var _a3;
-        (_a3 = this.terminal) == null ? void 0 : _a3.write(data);
-        this.appendToScrollback(data);
+        this.messageFilter.feed(data);
         this.detectStatus(data);
         this.detectOrchestrationActivity(data);
       },
@@ -18920,14 +19187,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
         this.showErrorBanner(friendly, err.message);
       },
       onExit: (code) => {
-        var _a3, _b, _c;
+        var _a3, _b2, _c;
         (_a3 = this.terminal) == null ? void 0 : _a3.write(`\r
 [Process exited with code ${code}]\r
 `);
         this.isExited = true;
         const exitStatus = code === 0 ? "exited" : "crashed";
         this.setStatus(exitStatus);
-        (_b = this.onSessionExit) == null ? void 0 : _b.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
+        (_b2 = this.onSessionExit) == null ? void 0 : _b2.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
         if (code !== 0) {
           const friendly = (_c = translateExitCode(code)) != null ? _c : translatePtyError(`exit ${code}`);
@@ -19273,14 +19540,16 @@ var TerminalView = class extends import_obsidian5.ItemView {
     };
   }
   async onClose() {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d;
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
     }
     (_a2 = this.resizeObserver) == null ? void 0 : _a2.disconnect();
-    (_b = this.ptyBridge) == null ? void 0 : _b.kill();
-    (_c = this.terminal) == null ? void 0 : _c.dispose();
+    (_b = this.messageFilter) == null ? void 0 : _b.destroy();
+    this.messageFilter = null;
+    (_c = this.ptyBridge) == null ? void 0 : _c.kill();
+    (_d = this.terminal) == null ? void 0 : _d.dispose();
     this.terminal = null;
     this.fitAddon = null;
     this.ptyBridge = null;
@@ -19293,7 +19562,7 @@ var import_obsidian6 = require("obsidian");
 
 // src/session-store.ts
 var fs = __toESM(require("fs"));
-var path2 = __toESM(require("path"));
+var path3 = __toESM(require("path"));
 var os = __toESM(require("os"));
 var SessionStore = class {
   constructor(vaultBasePath) {
@@ -19306,7 +19575,7 @@ var SessionStore = class {
     var _a2;
     const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
     const encoded = this.vaultBasePath.replace(/[/ ]/g, "-");
-    const dir = path2.join(home, ".claude", "projects", encoded);
+    const dir = path3.join(home, ".claude", "projects", encoded);
     try {
       if (fs.statSync(dir).isDirectory()) return dir;
     } catch (e) {
@@ -19317,18 +19586,18 @@ var SessionStore = class {
   findAllProjectDirs() {
     var _a2;
     const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
-    const projectsRoot = path2.join(home, ".claude", "projects");
+    const projectsRoot = path3.join(home, ".claude", "projects");
     const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
     const encodedHome = home.replace(/[/ ]/g, "-");
     try {
       return fs.readdirSync(projectsRoot).filter((name) => {
         try {
-          return fs.statSync(path2.join(projectsRoot, name)).isDirectory();
+          return fs.statSync(path3.join(projectsRoot, name)).isDirectory();
         } catch (e) {
           return false;
         }
       }).map((encodedName) => {
-        const projectDir = path2.join(projectsRoot, encodedName);
+        const projectDir = path3.join(projectsRoot, encodedName);
         const isVault = encodedName === vaultEncoded;
         let relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
         const projectName = relative.replace(/-/g, "/") || encodedName;
@@ -19384,7 +19653,7 @@ var SessionStore = class {
     try {
       const now = Date.now();
       const entries = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => {
-        const fullPath = path2.join(dir, f);
+        const fullPath = path3.join(dir, f);
         try {
           const mtimeMs = fs.statSync(fullPath).mtimeMs;
           return { name: f, fullPath, mtimeMs };
@@ -19428,7 +19697,7 @@ var SessionStore = class {
     if (this.titleCache.has(sessionPath)) {
       return this.titleCache.get(sessionPath);
     }
-    let title = path2.basename(sessionPath, ".jsonl");
+    let title = path3.basename(sessionPath, ".jsonl");
     try {
       const content = fs.readFileSync(sessionPath, "utf-8");
       outer: for (const line of content.split("\n")) {
@@ -19490,7 +19759,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return "Terminals";
   }
   getIcon() {
-    return "layout-list";
+    return "monitor-dot";
   }
   async onOpen() {
     const container = this.contentEl;
@@ -21528,6 +21797,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   pushContextHistory(entry) {
     this.contextHistory.push(entry);
     if (this.contextHistory.length > 5) this.contextHistory.shift();
+    this.app.workspace.trigger("augment:generation-complete");
   }
   async loadAvailableModels() {
     if (!this.settings.apiKey) return;
@@ -21632,10 +21902,10 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       await this.saveData(this.settings);
     }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path3 = `${targetFolder}/${name}.md`;
-      if (!this.app.vault.getAbstractFileByPath(path3)) {
+      const path4 = `${targetFolder}/${name}.md`;
+      if (!this.app.vault.getAbstractFileByPath(path4)) {
         try {
-          await this.app.vault.create(path3, content);
+          await this.app.vault.create(path4, content);
         } catch (e) {
         }
       }

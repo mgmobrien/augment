@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { PtyBridge } from "./pty-bridge";
+import { detectDeps, CCDeps } from "./deps";
 // esbuild loads .css as text string via loader config
 // @ts-ignore
 import xtermCssText from "@xterm/xterm/css/xterm.css";
@@ -501,6 +502,57 @@ export class TerminalView extends ItemView {
       document.head.appendChild(xtermStyleEl);
     }
 
+    // Always boot the terminal immediately — never block on dep checks.
+    this.bootTerminal();
+
+    // Run dep detection in background; overlay bootstrapper if something is missing.
+    detectDeps(this.app).then((deps) => {
+      if (!deps.cc || !deps.authed) {
+        this.renderBootstrapper(this.contentEl, deps);
+      }
+    }).catch(() => {
+      // If dep detection itself errors, don't block the terminal.
+    });
+  }
+
+  private renderBootstrapper(container: HTMLElement, deps: CCDeps): void {
+    // Overlay on top of the already-running terminal.
+    const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
+
+    wrapper.createEl("h2", { text: "Set up Claude Code", cls: "augment-bootstrapper-title" });
+    wrapper.createEl("p", { text: "Terminal sessions in Augment run on Claude Code, Anthropic\u2019s command-line AI agent.", cls: "augment-bootstrapper-desc" });
+
+    const dismiss = () => wrapper.remove();
+
+    if (!deps.node) {
+      wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
+      btn.onclick = () => window.open("https://nodejs.org");
+      return;
+    }
+
+    if (!deps.cc) {
+      wrapper.createEl("p", { text: "Claude Code is not installed.", cls: "augment-bootstrapper-desc" });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
+      btn.onclick = () => {
+        dismiss();
+        this.ptyBridge?.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
+      };
+      return;
+    }
+
+    if (!deps.authed) {
+      wrapper.createEl("p", { text: "Sign in to connect your Anthropic account.", cls: "augment-bootstrapper-desc" });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
+      btn.onclick = () => {
+        dismiss();
+        this.ptyBridge?.write("claude auth login\n");
+      };
+      return;
+    }
+  }
+
+  private bootTerminal(): void {
     const container = this.contentEl;
     container.empty();
     container.addClass("augment-terminal-container");

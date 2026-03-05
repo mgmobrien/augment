@@ -1,54 +1,11 @@
 import { App, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
-import { exec } from "child_process";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings } from "./vault-context";
 import { modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
+import { detectDeps, CCDeps } from "./deps";
 
-interface CCDeps {
-  node: boolean;
-  cc: boolean;
-  authed: boolean;
-  vaultConfigured: boolean;
-}
 
-function execAsync(cmd: string): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    exec(cmd, { timeout: 10000 }, (err, stdout, stderr) => {
-      if (err) reject(err);
-      else resolve({ stdout: stdout.toString(), stderr: stderr.toString() });
-    });
-  });
-}
-
-async function checkBool(cmd: string): Promise<boolean> {
-  try {
-    const r = await execAsync(cmd);
-    return r.stdout.trim().length > 0;
-  } catch { return false; }
-}
-
-async function checkAuth(prefix: string): Promise<boolean> {
-  try {
-    const r = await execAsync(`${prefix}claude auth status`);
-    // Parse JSON output — look for loggedIn field.
-    try {
-      const parsed = JSON.parse(r.stdout.trim());
-      if (typeof parsed.loggedIn === "boolean") return parsed.loggedIn;
-    } catch { /* not JSON — fall through */ }
-    // Heuristic: if command succeeded and doesn't say "not", assume authed.
-    const lower = r.stdout.toLowerCase();
-    return !lower.includes("not logged in") && !lower.includes("not authenticated");
-  } catch { return false; }
-}
-
-async function detectDeps(app: App): Promise<CCDeps> {
-  const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
-  const node = await checkBool("node --version");
-  const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude") : false;
-  const authed = cc ? await checkAuth("") : false;
-  return { node, cc, authed, vaultConfigured };
-}
 
 
 interface WizardStep {
