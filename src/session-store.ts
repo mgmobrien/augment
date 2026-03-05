@@ -60,6 +60,17 @@ export class SessionStore {
     }
   }
 
+  // Fast count of all session files — no stats or reads.
+  countSessions(): number {
+    const dir = this.findProjectDir();
+    if (!dir) return 0;
+    try {
+      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+    } catch {
+      return 0;
+    }
+  }
+
   // Read first user message from session JSONL for display as title.
   private readTitle(sessionPath: string): string {
     if (this.titleCache.has(sessionPath)) {

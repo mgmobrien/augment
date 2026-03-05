@@ -165,7 +165,7 @@ export class TerminalManagerView extends ItemView {
 
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
-    const totalOnDisk = this.sessionStore?.loadSessions(10_000).length ?? 0;
+    const totalOnDisk = this.sessionStore?.countSessions() ?? 0;
     const activeLeaf = this.app.workspace.activeLeaf;
 
     const hasOpen = leaves.length > 0;

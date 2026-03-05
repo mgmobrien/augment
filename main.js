@@ -13006,6 +13006,16 @@ var SessionStore = class {
       return [];
     }
   }
+  // Fast count of all session files — no stats or reads.
+  countSessions() {
+    const dir = this.findProjectDir();
+    if (!dir) return 0;
+    try {
+      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+    } catch (e) {
+      return 0;
+    }
+  }
   // Read first user message from session JSONL for display as title.
   readTitle(sessionPath) {
     var _a2;
@@ -13168,7 +13178,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.listEl.empty();
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
-    const totalOnDisk = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.loadSessions(1e4).length) != null ? _b : 0;
+    const totalOnDisk = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.countSessions()) != null ? _b : 0;
     const activeLeaf = this.app.workspace.activeLeaf;
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
@@ -13797,7 +13807,18 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
     });
-    this.registerEditorExtension([spinnerField, agentWidgetField]);
+    const escapeKeymap = import_view.keymap.of([{
+      key: "Escape",
+      run: () => {
+        if (this.activeGeneration) {
+          this.cancelGeneration();
+          return true;
+        }
+        return false;
+      }
+    }]);
+    this.registerEditorExtension([spinnerField, agentWidgetField, escapeKeymap]);
+    globalThis.__augmentCancelGeneration = () => this.cancelGeneration();
     const agentSuggest = new AgentSuggest(this.app);
     this.registerEditorSuggest(agentSuggest);
     this.registerEvent(
@@ -13874,6 +13895,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           }
           const rendered = substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
+            var _a2;
             if (this.statusBarEl) {
               this.statusBarEl.empty();
               const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
@@ -13892,10 +13914,13 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
             }
             const cmView = editor.cm;
             cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+            const abortController = new AbortController();
+            this.activeGeneration = { abortController, cmView, insertPos };
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel);
+              const result = await generateText(buildSystemPrompt(ctx), rendered, this.settings, resolvedModel, abortController.signal);
+              this.activeGeneration = null;
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
               const insertPosLine = editor.offsetToPos(insertPos);
@@ -13936,6 +13961,10 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
                 await this.saveData(this.settings);
               }
             } catch (err) {
+              if (((_a2 = this.activeGeneration) == null ? void 0 : _a2.abortController) === abortController) {
+                this.activeGeneration = null;
+              }
+              if (abortController.signal.aborted) return;
               console.error("[Augment]", err);
               cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               new import_obsidian8.Notice(`Augment: generation failed \u2014 ${err instanceof Error ? err.message : String(err)}`);
@@ -14108,6 +14137,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onunload() {
     var _a2;
+    delete globalThis.__augmentCancelGeneration;
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
     cleanupXtermStyle();
