@@ -4,7 +4,7 @@ import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorModal } from "./context-inspector";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
-import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS } from "./vault-context";
+import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -334,7 +334,11 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     // Register views
     this.registerView(VIEW_TYPE_TERMINAL, (leaf) => {
-      return new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
+      const view = new TerminalView(leaf, this.getPluginDir(), () => this.settings.useWsl);
+      view.onSessionExit = (name, status, startedAt, skillName) => {
+        this.appendSessionRecord(name, status, startedAt, skillName);
+      };
+      return view;
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
@@ -854,6 +858,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     // Mark as skill session immediately — green steady dot in terminal manager.
     terminalView.markSkillRunning();
+    terminalView.setSkillName(skillName);
 
     // Shell needs ~1500ms to initialize before we can write to it.
     setTimeout(() => {
@@ -874,6 +879,35 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
       });
     }
+  }
+
+  private appendSessionRecord(name: string, status: "exited" | "crashed", startedAt: number, skillName?: string): void {
+    const record: SessionRecord = {
+      id: `${startedAt}-${Math.random().toString(36).slice(2)}`,
+      name,
+      skillName,
+      status,
+      startedAt,
+      closedAt: Date.now(),
+    };
+    if (!Array.isArray(this.settings.sessionHistory)) {
+      this.settings.sessionHistory = [];
+    }
+    this.settings.sessionHistory.push(record);
+    if (this.settings.sessionHistory.length > 200) {
+      this.settings.sessionHistory = this.settings.sessionHistory.slice(-200);
+    }
+    void this.saveData(this.settings);
+  }
+
+  public async openTerminalNamed(name: string): Promise<void> {
+    await this.openTerminal("tab", { name });
+  }
+
+  public deleteSessionRecord(id: string): void {
+    this.settings.sessionHistory = (this.settings.sessionHistory ?? []).filter(r => r.id !== id);
+    void this.saveData(this.settings);
+    this.app.workspace.trigger("augment-terminal:changed");
   }
 
   private hasTerminalNamed(name: string): boolean {

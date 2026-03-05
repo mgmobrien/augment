@@ -1,5 +1,15 @@
 import { App, Editor, TFile } from "obsidian";
 
+export interface SessionRecord {
+  id: string;
+  name: string;
+  skillName?: string;
+  status: "exited" | "crashed";
+  startedAt: number;
+  closedAt: number;
+  conversationPath?: string;
+}
+
 export interface AugmentSettings {
   apiKey: string;
   model: string;
@@ -16,6 +26,7 @@ export interface AugmentSettings {
   hasGenerated: boolean;
   hasUsedTemplate: boolean;
   hasSeenWelcome: boolean;
+  sessionHistory: SessionRecord[];
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -34,6 +45,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   hasGenerated: false,
   hasUsedTemplate: false,
   hasSeenWelcome: false,
+  sessionHistory: [],
 };
 
 export interface LinkedNoteSummary {

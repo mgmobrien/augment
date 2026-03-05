@@ -1,5 +1,6 @@
-import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
+import { SessionRecord } from "./vault-context";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
@@ -14,8 +15,12 @@ type TerminalViewLike = {
   markActivityRead?: () => void;
 };
 
+const CLOSED_PREVIEW_COUNT = 8;
+
 export class TerminalManagerView extends ItemView {
   private listEl: HTMLElement | null = null;
+  private expandedSessionId: string | null = null;
+  private showAllHistory: boolean = false;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -71,6 +76,10 @@ export class TerminalManagerView extends ItemView {
         this.refresh()
       )
     );
+  }
+
+  private getPlugin(): any {
+    return (this.app as any).plugins?.plugins?.["augment-terminal"];
   }
 
   private getTerminalLeaves(): WorkspaceLeaf[] {
@@ -150,9 +159,12 @@ export class TerminalManagerView extends ItemView {
     this.listEl.empty();
 
     const leaves = this.getTerminalLeaves();
-    const activeLeaf = this.app.workspace.activeLeaf;
+    const plugin = this.getPlugin();
+    const sessionHistory: SessionRecord[] = Array.isArray(plugin?.settings?.sessionHistory)
+      ? plugin.settings.sessionHistory
+      : [];
 
-    if (leaves.length === 0) {
+    if (leaves.length === 0 && sessionHistory.length === 0) {
       this.listEl.createDiv({
         cls: "augment-tm-empty",
         text: "No terminals open",
@@ -160,86 +172,289 @@ export class TerminalManagerView extends ItemView {
       return;
     }
 
-    for (const leaf of leaves) {
-      const view = leaf.view as TerminalViewLike;
-      const row = this.listEl.createDiv({ cls: "augment-tm-item" });
+    const activeLeaf = this.app.workspace.activeLeaf;
 
-      if (leaf === activeLeaf) {
-        row.addClass("is-active");
+    // OPEN section.
+    if (leaves.length > 0) {
+      this.listEl.createDiv({ cls: "augment-tm-section-header", text: "OPEN" });
+      for (const leaf of leaves) {
+        this.renderOpenRow(leaf, activeLeaf);
       }
+    }
 
-      const line = row.createDiv({ cls: "augment-tm-line" });
+    // History sections.
+    if (sessionHistory.length > 0) {
+      this.renderHistorySections(sessionHistory, plugin);
+    }
+  }
 
-      // Status dot.
-      const dot = line.createDiv({ cls: "augment-tm-dot" });
-      const status =
-        typeof view.getStatus === "function" ? view.getStatus() : "shell";
-      dot.addClass(status);
+  private renderOpenRow(leaf: WorkspaceLeaf, activeLeaf: WorkspaceLeaf | null): void {
+    const view = leaf.view as TerminalViewLike;
+    const row = this.listEl!.createDiv({ cls: "augment-tm-item" });
 
-      // Name.
-      const name = this.getLeafTerminalName(leaf, view);
-      line.createSpan({ cls: "augment-tm-name", text: name });
-      line.createDiv({ cls: "augment-tm-spacer" });
+    if (leaf === activeLeaf) {
+      row.addClass("is-active");
+    }
 
-      const unread =
-        typeof view.getUnreadActivity === "function"
-          ? view.getUnreadActivity()
-          : 0;
-      if (unread > 0) {
-        line.createSpan({
-          cls: "augment-tm-unread",
-          text: unread > 99 ? "99+" : String(unread),
-        });
-      }
+    const line = row.createDiv({ cls: "augment-tm-line" });
 
-      const summary =
-        typeof view.getLastTeamEventSummary === "function"
-          ? view.getLastTeamEventSummary()
-          : null;
-      if (summary) {
-        row.createDiv({ cls: "augment-tm-summary", text: summary });
-      }
+    // Status dot.
+    const dot = line.createDiv({ cls: "augment-tm-dot" });
+    const status =
+      typeof view.getStatus === "function" ? view.getStatus() : "shell";
+    dot.addClass(status);
 
-      const teams =
-        typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
-      const members =
-        typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
+    // Name.
+    const name = this.getLeafTerminalName(leaf, view);
+    line.createSpan({ cls: "augment-tm-name", text: name });
+    line.createDiv({ cls: "augment-tm-spacer" });
 
-      if (teams.length > 0 || members.length > 0) {
-        const meta = row.createDiv({ cls: "augment-tm-meta" });
-
-        if (teams.length > 0) {
-          const teamLabel = teams.slice(0, 2).join(", ");
-          meta.createSpan({ cls: "augment-tm-team", text: teamLabel });
-        }
-
-        if (members.length > 0) {
-          const membersWrap = meta.createDiv({ cls: "augment-tm-members" });
-          for (const member of members.slice(0, 8)) {
-            const chip = membersWrap.createEl("button", {
-              cls: "augment-tm-member",
-              text: member,
-              attr: { type: "button" },
-            });
-
-            chip.addEventListener("click", (evt) => {
-              evt.preventDefault();
-              evt.stopPropagation();
-
-              const targetLeaf = this.findLeafForAgent(member);
-              if (targetLeaf) {
-                this.focusLeaf(targetLeaf);
-              }
-            });
-          }
-        }
-      }
-
-      // Click row to reveal terminal.
-      row.addEventListener("click", () => {
-        this.focusLeaf(leaf);
+    const unread =
+      typeof view.getUnreadActivity === "function"
+        ? view.getUnreadActivity()
+        : 0;
+    if (unread > 0) {
+      line.createSpan({
+        cls: "augment-tm-unread",
+        text: unread > 99 ? "99+" : String(unread),
       });
     }
+
+    const summary =
+      typeof view.getLastTeamEventSummary === "function"
+        ? view.getLastTeamEventSummary()
+        : null;
+    if (summary) {
+      row.createDiv({ cls: "augment-tm-summary", text: summary });
+    }
+
+    const teams =
+      typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
+    const members =
+      typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
+
+    if (teams.length > 0 || members.length > 0) {
+      const meta = row.createDiv({ cls: "augment-tm-meta" });
+
+      if (teams.length > 0) {
+        const teamLabel = teams.slice(0, 2).join(", ");
+        meta.createSpan({ cls: "augment-tm-team", text: teamLabel });
+      }
+
+      if (members.length > 0) {
+        const membersWrap = meta.createDiv({ cls: "augment-tm-members" });
+        for (const member of members.slice(0, 8)) {
+          const chip = membersWrap.createEl("button", {
+            cls: "augment-tm-member",
+            text: member,
+            attr: { type: "button" },
+          });
+
+          chip.addEventListener("click", (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+
+            const targetLeaf = this.findLeafForAgent(member);
+            if (targetLeaf) {
+              this.focusLeaf(targetLeaf);
+            }
+          });
+        }
+      }
+    }
+
+    // Click row to reveal terminal.
+    row.addEventListener("click", () => {
+      this.focusLeaf(leaf);
+    });
+
+    // Right-click context menu.
+    row.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle("Focus")
+          .setIcon("eye")
+          .onClick(() => this.focusLeaf(leaf))
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle("Close")
+          .setIcon("x")
+          .onClick(() => leaf.detach())
+      );
+      menu.showAtMouseEvent(evt);
+    });
+  }
+
+  private renderHistorySections(sessionHistory: SessionRecord[], plugin: any): void {
+    const now = new Date();
+    const todayStr = this.dateStr(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = this.dateStr(yesterday);
+
+    // Start of current week (Sunday).
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const startOfWeekStr = this.dateStr(startOfWeek);
+
+    // Sort descending by close time.
+    const sorted = [...sessionHistory].sort((a, b) => b.closedAt - a.closedAt);
+
+    // Group into labelled buckets.
+    const groups = new Map<string, SessionRecord[]>();
+    const groupOrder: string[] = [];
+
+    for (const record of sorted) {
+      const d = new Date(record.closedAt);
+      const dStr = this.dateStr(d);
+      let groupKey: string;
+
+      if (dStr === todayStr) {
+        groupKey = "TODAY";
+      } else if (dStr === yesterdayStr) {
+        groupKey = "YESTERDAY";
+      } else if (dStr >= startOfWeekStr && dStr < todayStr) {
+        groupKey = "EARLIER THIS WEEK";
+      } else {
+        groupKey = d
+          .toLocaleString("en-US", { month: "long", year: "numeric" })
+          .toUpperCase();
+      }
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+        groupOrder.push(groupKey);
+      }
+      groups.get(groupKey)!.push(record);
+    }
+
+    const totalClosed = sorted.length;
+    let rendered = 0;
+
+    for (const groupKey of groupOrder) {
+      if (!this.showAllHistory && rendered >= CLOSED_PREVIEW_COUNT) break;
+
+      const records = groups.get(groupKey)!;
+      this.listEl!.createDiv({ cls: "augment-tm-section-header", text: groupKey });
+
+      for (const record of records) {
+        if (!this.showAllHistory && rendered >= CLOSED_PREVIEW_COUNT) break;
+        this.renderClosedRow(record, plugin);
+        rendered++;
+      }
+    }
+
+    if (!this.showAllHistory && totalClosed > CLOSED_PREVIEW_COUNT) {
+      const remaining = totalClosed - CLOSED_PREVIEW_COUNT;
+      const showMore = this.listEl!.createDiv({
+        cls: "augment-tm-show-older",
+        text: `Show ${remaining} older session${remaining === 1 ? "" : "s"}`,
+      });
+      showMore.addEventListener("click", () => {
+        this.showAllHistory = true;
+        this.refresh();
+      });
+    }
+  }
+
+  private renderClosedRow(record: SessionRecord, plugin: any): void {
+    const isExpanded = this.expandedSessionId === record.id;
+    const row = this.listEl!.createDiv({ cls: "augment-tm-item is-closed" });
+
+    const line = row.createDiv({ cls: "augment-tm-line" });
+
+    // Status dot.
+    const dot = line.createDiv({ cls: "augment-tm-dot" });
+    dot.addClass(record.status);
+
+    // Name.
+    line.createSpan({ cls: "augment-tm-name", text: record.name });
+    line.createDiv({ cls: "augment-tm-spacer" });
+
+    // Close timestamp.
+    const ts = new Date(record.closedAt);
+    const tsText = ts
+      .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+      .toLowerCase();
+    line.createSpan({ cls: "augment-tm-timestamp", text: tsText });
+
+    // Expand/collapse toggle.
+    const expandBtn = line.createEl("button", {
+      cls: "augment-tm-expand clickable-icon",
+      attr: { type: "button" },
+    });
+    setIcon(expandBtn, isExpanded ? "chevron-up" : "chevron-down");
+
+    // Inline actions (expanded).
+    if (isExpanded) {
+      const actions = row.createDiv({ cls: "augment-tm-expand-actions" });
+
+      const reopenBtn = actions.createEl("button", {
+        cls: "augment-tm-action",
+        text: "Reopen",
+        attr: { type: "button" },
+      });
+      reopenBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        plugin?.openTerminalNamed?.(record.name);
+      });
+
+      const deleteBtn = actions.createEl("button", {
+        cls: "augment-tm-action is-danger",
+        text: "Delete",
+        attr: { type: "button" },
+      });
+      deleteBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        if (this.expandedSessionId === record.id) {
+          this.expandedSessionId = null;
+        }
+        plugin?.deleteSessionRecord?.(record.id);
+      });
+    }
+
+    // Toggle expansion on row click.
+    row.addEventListener("click", () => {
+      this.expandedSessionId = isExpanded ? null : record.id;
+      this.refresh();
+    });
+
+    expandBtn.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+      this.expandedSessionId = isExpanded ? null : record.id;
+      this.refresh();
+    });
+
+    // Right-click context menu.
+    row.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item
+          .setTitle("Reopen")
+          .setIcon("terminal")
+          .onClick(() => plugin?.openTerminalNamed?.(record.name))
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle("Delete")
+          .setIcon("trash")
+          .onClick(() => {
+            if (this.expandedSessionId === record.id) {
+              this.expandedSessionId = null;
+            }
+            plugin?.deleteSessionRecord?.(record.id);
+          })
+      );
+      menu.showAtMouseEvent(evt);
+    });
+  }
+
+  private dateStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
 
   async onClose(): Promise<void> {

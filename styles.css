@@ -897,6 +897,86 @@
   text-decoration: underline;
 }
 
+/* ── Terminal manager: history sections ── */
+.augment-tm-section-header {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 8px 10px 3px;
+  user-select: none;
+}
+
+.augment-tm-item.is-closed {
+  opacity: 0.6;
+}
+
+.augment-tm-item.is-closed:hover {
+  opacity: 1;
+}
+
+.augment-tm-timestamp {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+.augment-tm-expand {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.augment-tm-expand-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px 6px 28px;
+}
+
+.augment-tm-action {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.augment-tm-action:hover {
+  background: var(--background-modifier-hover);
+}
+
+.augment-tm-action.is-danger {
+  color: var(--text-error);
+}
+
+.augment-tm-action.is-danger:hover {
+  background: rgba(var(--color-red-rgb), 0.1);
+}
+
+.augment-tm-show-older {
+  font-size: 12px;
+  color: var(--text-accent);
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.augment-tm-show-older:hover {
+  color: var(--text-accent-hover, var(--text-accent));
+  text-decoration: underline;
+}
+
 /* ── Template preview modal ── */
 .augment-gen-preview-prompt {
   background-color: var(--background-secondary);

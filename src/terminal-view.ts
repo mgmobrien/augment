@@ -106,8 +106,11 @@ export class TerminalView extends ItemView {
   private pluginDir: string;
   private getUseWsl: () => boolean;
   private terminalName: string;
+  private startedAt: number = Date.now();
+  private skillName?: string;
   private isExited: boolean = false;
   private status: TerminalStatus = "shell";
+  public onSessionExit?: (name: string, status: "exited" | "crashed", startedAt: number, skillName?: string) => void;
   private restoredSnapshot: string = "";
   private scrollbackBuffer: string = "";
   private statusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -355,7 +358,9 @@ export class TerminalView extends ItemView {
       (code) => {
         this.terminal?.write(`\r\n[Process exited with code ${code}]\r\n`);
         this.isExited = true;
-        this.setStatus(code === 0 ? "exited" : "crashed");
+        const exitStatus: TerminalStatus = code === 0 ? "exited" : "crashed";
+        this.setStatus(exitStatus);
+        this.onSessionExit?.(this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
       }
     );
@@ -432,6 +437,18 @@ export class TerminalView extends ItemView {
       ?.setAttribute("data-augment-status", newStatus);
     (this.leaf as any).updateHeader();
     this.app.workspace.trigger("augment-terminal:changed");
+  }
+
+  setSkillName(name: string): void {
+    this.skillName = name;
+  }
+
+  getStartedAt(): number {
+    return this.startedAt;
+  }
+
+  write(data: string): void {
+    this.ptyBridge?.write(data);
   }
 
   markSkillRunning(): void {
