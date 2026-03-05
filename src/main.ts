@@ -1352,7 +1352,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     // Add ribbon icon
-    this.addRibbonIcon("terminal", "Open terminal", () => {
+    this.addRibbonIcon("square-terminal", "Open terminal", () => {
       this.openTerminal();
     });
 

@@ -19490,7 +19490,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return "Terminals";
   }
   getIcon() {
-    return "terminal";
+    return "layout-list";
   }
   async onOpen() {
     const container = this.contentEl;
@@ -22044,7 +22044,7 @@ ${excerpt}`,
       }
       this.triggerGenerate(view.editor);
     });
-    this.addRibbonIcon("terminal", "Open terminal", () => {
+    this.addRibbonIcon("square-terminal", "Open terminal", () => {
       this.openTerminal();
     });
     this.addCommand({
