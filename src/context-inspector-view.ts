@@ -13,10 +13,16 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 };
 const DEFAULT_PRICING = { input: 3.00, output: 15.00 }; // sonnet as fallback
 
-function estimateCost(inputTokens: number, modelId: string): number {
+const MAX_TOKENS = 1024; // matches max_tokens in generateText
+
+function inputCost(tokens: number, modelId: string): number {
   const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
-  const outputTokens = 1024; // max_tokens configured in generateText
-  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+  return (tokens * pricing.input) / 1_000_000;
+}
+
+function outputCost(tokens: number, modelId: string): number {
+  const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
+  return (tokens * pricing.output) / 1_000_000;
 }
 
 function formatCost(dollars: number): string {
@@ -127,13 +133,38 @@ export class ContextInspectorView extends ItemView {
     const linkedTokens = linkedData.reduce((sum, d) => sum + d.tokens, 0);
     const totalTokens = sysTokens + noteTokens + linkedTokens;
 
-    // ── Pinned token bar ──
+    // ── Pinned token bar (collapsible) ──
     const modelId = this.plugin.resolveModel();
-    const cost = estimateCost(totalTokens, modelId);
-    el.createEl("div", {
-      cls: "augment-ctx-token-bar",
-      text: `~${totalTokens.toLocaleString()} tokens \u00b7 ~${formatCost(cost)} per generation`,
+    const modelName = this.plugin.resolveModelDisplayName();
+    const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
+    const inCost = inputCost(totalTokens, modelId);
+    const estOutputTokens = Math.round(MAX_TOKENS / 4);
+    const outCost = outputCost(estOutputTokens, modelId);
+    const totalCost = inCost + outCost;
+
+    const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
+    tokenBar.createEl("span", {
+      cls: "augment-ctx-token-bar-summary",
+      text: `${totalTokens.toLocaleString()} tokens \u00b7 ~${formatCost(totalCost)}`,
     });
+    const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
+    setIcon(barChevron, "chevron-right");
+    tokenBar.addEventListener("click", () => {
+      tokenBar.toggleClass("is-open", !tokenBar.hasClass("is-open"));
+    });
+
+    const detail = el.createEl("div", { cls: "augment-ctx-token-bar-detail" });
+
+    const addRow = (label: string, value: string) => {
+      const row = detail.createEl("div", { cls: "augment-ctx-token-bar-row" });
+      row.createEl("span", { cls: "augment-ctx-token-bar-label", text: label });
+      row.createEl("span", { cls: "augment-ctx-token-bar-value", text: value });
+    };
+
+    addRow("Model", modelName);
+    addRow("Input", `${totalTokens.toLocaleString()} tok  \u00b7  ~${formatCost(inCost)}  ($${pricing.input}/Mtok)`);
+    addRow("Output", `~${estOutputTokens.toLocaleString()} tok  \u00b7  ~${formatCost(outCost)}  ($${pricing.output}/Mtok, est.)`);
+    addRow("Total", `~${formatCost(totalCost)}`);
 
     // ── Scrollable content ──
     const scroll = el.createEl("div", { cls: "augment-ctx-panel-body" });

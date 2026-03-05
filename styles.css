@@ -1436,13 +1436,49 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 }
 
 .augment-ctx-token-bar {
-  font-size: var(--font-smaller);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-ui-small);
   color: var(--text-muted);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--background-modifier-border);
-  margin-bottom: 0;
+  padding: 8px 0 4px;
+  cursor: pointer;
   flex-shrink: 0;
 }
+
+.augment-ctx-token-bar-summary {
+  flex: 1;
+}
+
+.augment-ctx-token-bar-chevron {
+  display: flex;
+  align-items: center;
+  transition: transform 150ms ease;
+  color: var(--icon-color);
+}
+.augment-ctx-token-bar-chevron svg { width: 12px; height: 12px; }
+.augment-ctx-token-bar.is-open .augment-ctx-token-bar-chevron {
+  transform: rotate(90deg);
+}
+
+.augment-ctx-token-bar-detail {
+  display: none;
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px 0 4px;
+  flex-shrink: 0;
+}
+.augment-ctx-token-bar.is-open + .augment-ctx-token-bar-detail {
+  display: block;
+}
+
+.augment-ctx-token-bar-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-ui-small);
+  padding: 2px 0;
+}
+.augment-ctx-token-bar-label { color: var(--text-muted); }
+.augment-ctx-token-bar-value { color: var(--text-normal); }
 
 .augment-ctx-panel-body {
   flex: 1;
