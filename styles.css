@@ -1653,3 +1653,11 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   color: var(--color-orange);
   font-weight: 600;
 }
+
+/* ── Settings version footer ───────────────────────────────────────────── */
+.augment-settings-version {
+  text-align: right;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  padding: 16px 0 0;
+}

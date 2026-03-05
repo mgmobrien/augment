@@ -18194,6 +18194,10 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
       cls: "augment-terminal-notice",
       text: "Claude Code reads and writes vault files directly via the filesystem. Do not use CC to rename or move files \u2014 use Obsidian\u2019s built-in rename to preserve wikilinks."
     });
+    containerEl.createEl("div", {
+      cls: "augment-settings-version",
+      text: `v${this.plugin.manifest.version}`
+    });
   }
 };
 

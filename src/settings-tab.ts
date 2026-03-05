@@ -939,5 +939,11 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
 
     // <!-- Advanced: Obsidian MCP server setup (v2) -->
+
+    // ── Version footer (all tabs) ──────────────────────────
+    containerEl.createEl("div", {
+      cls: "augment-settings-version",
+      text: `v${this.plugin.manifest.version}`,
+    });
   }
 }
