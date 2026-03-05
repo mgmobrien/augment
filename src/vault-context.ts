@@ -12,8 +12,6 @@ export interface SessionRecord {
 
 export interface AugmentSettings {
   apiKey: string;
-  s3Token: string;       // System 3 account JWT (set when logged in via Relay account)
-  s3Email: string;       // Display only — email of logged-in account
   model: string;
   templateFolder: string;
   linkedNoteCount: number;
@@ -39,8 +37,6 @@ export interface AugmentSettings {
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
   apiKey: "",
-  s3Token: "",
-  s3Email: "",
   model: "auto",
   templateFolder: "",
   linkedNoteCount: 3,

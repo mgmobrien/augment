@@ -900,10 +900,13 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   async onload(): Promise<void> {
     const raw = await this.loadData() as Record<string, unknown> | null;
-    // Schema migration: strip keys removed in v0.0.4 (useWsl, pythonPath).
+    // Schema migration: strip keys removed in prior versions.
+    // v0.0.4: useWsl, pythonPath; v0.0.7: s3Token, s3Email
     if (raw && typeof raw === "object") {
       delete raw["useWsl"];
       delete raw["pythonPath"];
+      delete raw["s3Token"];
+      delete raw["s3Email"];
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
 

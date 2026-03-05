@@ -174,12 +174,6 @@ export function applyOutputFormat(text: string, settings: AugmentSettings, resol
 // Maps known Anthropic API errors to human-readable messages.
 // Returns null for unrecognised errors so callers can fall back to err.message.
 export function friendlyApiError(err: unknown): string | null {
-  if (err instanceof ProxyError) {
-    if (err.status === 401) return "Session expired \u2014 log in again in Settings \u2192 Overview";
-    if (err.status === 402 || err.status === 403) return "No active Relay subscription \u2014 subscribe at relay.md";
-    if (err.status === 429) return "Daily limit reached \u2014 resets at midnight UTC";
-    return `Proxy error: ${err.message}`;
-  }
   if (err instanceof BadRequestError) {
     const msg = String((err.error as any)?.error?.message ?? err.message ?? "");
     if (msg.toLowerCase().includes("credit balance")) {
@@ -217,50 +211,6 @@ export function logApiDiagnostics(err: unknown, apiKey: string, model: string): 
   }
 }
 
-const S3_PROXY_URL = "https://api.system3.md/api/augment/complete";
-
-// Error class for proxy-specific errors (not from the Anthropic SDK).
-export class ProxyError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-    this.name = "ProxyError";
-  }
-}
-
-// Generate via System 3 proxy — used when user is logged into their Relay account.
-async function generateViaProxy(
-  systemPrompt: string,
-  userMessage: string,
-  token: string,
-  model: string,
-  signal?: AbortSignal
-): Promise<string> {
-  const res = await fetch(S3_PROXY_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-      max_tokens: 1024,
-    }),
-    signal,
-  });
-  if (!res.ok) {
-    let msg: string;
-    try { msg = (await res.json()).message ?? res.statusText; }
-    catch { msg = res.statusText; }
-    throw new ProxyError(res.status, msg);
-  }
-  const data = await res.json();
-  const block = data.content?.[0];
-  if (!block || block.type !== "text") throw new Error("Unexpected response from proxy");
-  return block.text;
-}
-
 // modelOverride: pass the resolved model ID when settings.model is "auto".
 export async function generateText(
   systemPrompt: string,
@@ -270,11 +220,6 @@ export async function generateText(
   signal?: AbortSignal
 ): Promise<string> {
   const model = modelOverride ?? settings.model;
-
-  // Use proxy when logged into System 3 account; fall back to direct API key.
-  if (settings.s3Token) {
-    return generateViaProxy(systemPrompt, userMessage, settings.s3Token, model, signal);
-  }
 
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create(

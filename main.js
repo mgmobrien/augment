@@ -17032,12 +17032,6 @@ ${body}`;
 }
 function friendlyApiError(err) {
   var _a2, _b, _c, _d;
-  if (err instanceof ProxyError) {
-    if (err.status === 401) return "Session expired \u2014 log in again in Settings \u2192 Overview";
-    if (err.status === 402 || err.status === 403) return "No active Relay subscription \u2014 subscribe at relay.md";
-    if (err.status === 429) return "Daily limit reached \u2014 resets at midnight UTC";
-    return `Proxy error: ${err.message}`;
-  }
   if (err instanceof BadRequestError) {
     const msg = String((_d = (_c = (_b = (_a2 = err.error) == null ? void 0 : _a2.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
     if (msg.toLowerCase().includes("credit balance")) {
@@ -17072,49 +17066,8 @@ function logApiDiagnostics(err, apiKey, model) {
     console.log("[Augment] diagnostic \u2014 error:", err.message);
   }
 }
-var S3_PROXY_URL = "https://api.system3.md/api/augment/complete";
-var ProxyError = class extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-    this.name = "ProxyError";
-  }
-};
-async function generateViaProxy(systemPrompt, userMessage, token, model, signal) {
-  var _a2, _b;
-  const res = await fetch(S3_PROXY_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-      max_tokens: 1024
-    }),
-    signal
-  });
-  if (!res.ok) {
-    let msg;
-    try {
-      msg = (_a2 = (await res.json()).message) != null ? _a2 : res.statusText;
-    } catch (e) {
-      msg = res.statusText;
-    }
-    throw new ProxyError(res.status, msg);
-  }
-  const data = await res.json();
-  const block = (_b = data.content) == null ? void 0 : _b[0];
-  if (!block || block.type !== "text") throw new Error("Unexpected response from proxy");
-  return block.text;
-}
 async function generateText(systemPrompt, userMessage, settings, modelOverride, signal) {
   const model = modelOverride != null ? modelOverride : settings.model;
-  if (settings.s3Token) {
-    return generateViaProxy(systemPrompt, userMessage, settings.s3Token, model, signal);
-  }
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create(
     {
@@ -17243,8 +17196,6 @@ var import_obsidian2 = require("obsidian");
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
   apiKey: "",
-  s3Token: "",
-  s3Email: "",
   model: "auto",
   templateFolder: "",
   linkedNoteCount: 3,
@@ -17540,53 +17491,6 @@ async function detectDeps(app) {
   const authed = cc ? await checkAuth("") : false;
   return { node, cc, authed, vaultConfigured };
 }
-var S3_AUTH_BASE = "https://auth.system3.md";
-var S3_REDIRECT_URL = `${S3_AUTH_BASE}/api/oauth2-redirect`;
-async function doSsoLogin(providerName) {
-  var _a2, _b, _c, _d;
-  const methodsRes = await fetch(`${S3_AUTH_BASE}/api/collections/users/auth-methods`);
-  if (!methodsRes.ok) throw new Error("Could not reach auth server");
-  const methodsData = await methodsRes.json();
-  const provider = (_a2 = methodsData.authProviders) == null ? void 0 : _a2.find((p) => p.name === providerName);
-  if (!provider) throw new Error(`Provider "${providerName}" not available`);
-  const fullAuthUrl = provider.authUrl + S3_REDIRECT_URL;
-  try {
-    const { shell } = window.require("electron");
-    shell.openExternal(fullAuthUrl);
-  } catch (e) {
-    window.open(fullAuthUrl, "_blank");
-  }
-  const stateKey = provider.state.slice(0, 15);
-  let code = null;
-  for (let i = 0; i < 60 && !code; i++) {
-    await new Promise((r) => setTimeout(r, 1e3));
-    try {
-      const codeRes = await fetch(`${S3_AUTH_BASE}/api/collections/code_exchange/records/${stateKey}`);
-      if (codeRes.ok) {
-        const codeData = await codeRes.json();
-        if (codeData.code) code = codeData.code;
-      }
-    } catch (e) {
-    }
-  }
-  if (!code) throw new Error("Login timed out \u2014 please try again");
-  const exchangeRes = await fetch(`${S3_AUTH_BASE}/api/collections/users/auth-with-oauth2-code`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      provider: providerName,
-      code,
-      codeVerifier: provider.codeVerifier,
-      redirectUrl: S3_REDIRECT_URL
-    })
-  });
-  if (!exchangeRes.ok) {
-    const err = await exchangeRes.json().catch(() => ({}));
-    throw new Error((_b = err.message) != null ? _b : "Code exchange failed");
-  }
-  const authData = await exchangeRes.json();
-  return { token: authData.token, email: (_d = (_c = authData.record) == null ? void 0 : _c.email) != null ? _d : "" };
-}
 function getSetupStep(deps) {
   if (!deps.node) {
     return {
@@ -17800,53 +17704,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       cls: "augment-overview-intro",
       text: `Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.`
     });
-    overviewPane.createEl("h3", { cls: "augment-settings-section-heading", text: "System 3 account" });
-    const apiKeyWrapper = overviewPane.createDiv();
-    const s3AccountSetting = new import_obsidian3.Setting(overviewPane);
-    const renderS3Account = () => {
-      s3AccountSetting.clear();
-      apiKeyWrapper.style.display = this.plugin.settings.s3Token ? "none" : "";
-      if (this.plugin.settings.s3Token) {
-        s3AccountSetting.setName(this.plugin.settings.s3Email || "Logged in").setDesc("Generating via System 3 proxy \u2014 no API key needed.").addButton((btn) => {
-          btn.setButtonText("Log out").onClick(async () => {
-            this.plugin.settings.s3Token = "";
-            this.plugin.settings.s3Email = "";
-            await this.plugin.saveData(this.plugin.settings);
-            renderS3Account();
-          });
-        });
-      } else {
-        s3AccountSetting.setName("Log in with Relay account").setDesc("Relay subscribers get Augment included \u2014 no separate API key needed.");
-        const ssoRow = s3AccountSetting.settingEl.createDiv({ cls: "augment-sso-btn-row" });
-        for (const { name, label } of [
-          { name: "google", label: "Google" },
-          { name: "github", label: "GitHub" },
-          { name: "discord", label: "Discord" },
-          { name: "microsoft", label: "Microsoft" }
-        ]) {
-          const btn = ssoRow.createEl("button", { cls: "augment-sso-btn", text: `Continue with ${label}` });
-          btn.addEventListener("click", async () => {
-            ssoRow.querySelectorAll("button").forEach((b) => {
-              b.disabled = true;
-            });
-            btn.textContent = "Waiting for browser\u2026";
-            try {
-              const { token, email } = await doSsoLogin(name);
-              this.plugin.settings.s3Token = token;
-              this.plugin.settings.s3Email = email;
-              await this.plugin.saveData(this.plugin.settings);
-              renderS3Account();
-            } catch (e) {
-              new import_obsidian3.Notice(`Login failed: ${e.message}`);
-              renderS3Account();
-            }
-          });
-        }
-      }
-    };
-    overviewPane.insertBefore(s3AccountSetting.settingEl, apiKeyWrapper);
-    renderS3Account();
-    const apiKeySetting = new import_obsidian3.Setting(apiKeyWrapper).setName("API key").addText((text) => {
+    const apiKeySetting = new import_obsidian3.Setting(overviewPane).setName("API key").addText((text) => {
       apiKeyInputEl = text.inputEl;
       text.inputEl.type = "password";
       text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
@@ -21791,6 +21649,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     if (raw && typeof raw === "object") {
       delete raw["useWsl"];
       delete raw["pythonPath"];
+      delete raw["s3Token"];
+      delete raw["s3Email"];
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
     if (this.settings.clearedLinkHotkey && process.platform === "darwin") {
