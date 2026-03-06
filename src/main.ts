@@ -718,7 +718,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      this.statusBarEl.createEl("span", { text: " generating" });
+      this.statusBarEl.createEl("span", { text: " Generating" });
     }
     this.ribbonGenerateEl?.addClass("augment-ribbon-generating");
   }
