@@ -1,4 +1,4 @@
-import Anthropic, { APIConnectionError, APIError, AuthenticationError, BadRequestError, PermissionDeniedError, RateLimitError } from "@anthropic-ai/sdk";
+import Anthropic, { APIConnectionError, APIConnectionTimeoutError, APIError, AuthenticationError, BadRequestError, InternalServerError, PermissionDeniedError, RateLimitError } from "@anthropic-ai/sdk";
 import Handlebars from "handlebars";
 import { AugmentSettings, LinkedNoteSummary, VaultContext } from "./vault-context";
 
@@ -177,8 +177,8 @@ export function applyOutputFormat(text: string, settings: AugmentSettings, resol
 export function friendlyApiError(err: unknown): string | null {
   if (err instanceof BadRequestError) {
     const msg = String((err.error as any)?.error?.message ?? err.message ?? "");
-    if (msg.toLowerCase().includes("credit balance")) {
-      return "No API credits — top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a moment and try again.";
+    if (msg.toLowerCase().includes("credit balance") || msg.toLowerCase().includes("credit_balance_too_low")) {
+      return "No API credits — top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a few minutes for the balance to become available.";
     }
     return `Bad request: ${msg || err.message}`;
   }
@@ -189,7 +189,28 @@ export function friendlyApiError(err: unknown): string | null {
     return "API key lacks permission for this request";
   }
   if (err instanceof RateLimitError) {
+    const body = (err.error as any)?.error;
+    // Credit exhaustion can surface as a 429 with a credit-related message
+    if (body?.message?.toLowerCase().includes("credit")) {
+      return "No API credits — top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a few minutes for the balance to become available.";
+    }
+    // Use retry-after header if present
+    const retryAfter = (err as any).headers?.["retry-after"];
+    if (retryAfter) {
+      const secs = parseInt(retryAfter, 10);
+      if (!isNaN(secs) && secs > 0) return `Rate limited — retry in ${secs}s`;
+    }
     return "Rate limited — wait a moment and try again";
+  }
+  if (err instanceof InternalServerError) {
+    if (err.status === 529) {
+      return "Anthropic API is overloaded — wait a few seconds and try again";
+    }
+    return `Anthropic server error (${err.status}) — try again shortly`;
+  }
+  // Check timeout before generic connection error (it's a subclass)
+  if (err instanceof APIConnectionTimeoutError) {
+    return "Request timed out — check your internet connection and try again";
   }
   if (err instanceof APIConnectionError) {
     return "Connection failed — check your internet connection";

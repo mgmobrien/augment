@@ -17032,11 +17032,11 @@ ${body}`;
   }
 }
 function friendlyApiError(err) {
-  var _a2, _b, _c, _d;
+  var _a2, _b, _c, _d, _e, _f, _g;
   if (err instanceof BadRequestError) {
     const msg = String((_d = (_c = (_b = (_a2 = err.error) == null ? void 0 : _a2.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
-    if (msg.toLowerCase().includes("credit balance")) {
-      return "No API credits \u2014 top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a moment and try again.";
+    if (msg.toLowerCase().includes("credit balance") || msg.toLowerCase().includes("credit_balance_too_low")) {
+      return "No API credits \u2014 top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a few minutes for the balance to become available.";
     }
     return `Bad request: ${msg || err.message}`;
   }
@@ -17047,7 +17047,25 @@ function friendlyApiError(err) {
     return "API key lacks permission for this request";
   }
   if (err instanceof RateLimitError) {
+    const body = (_e = err.error) == null ? void 0 : _e.error;
+    if ((_f = body == null ? void 0 : body.message) == null ? void 0 : _f.toLowerCase().includes("credit")) {
+      return "No API credits \u2014 top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a few minutes for the balance to become available.";
+    }
+    const retryAfter = (_g = err.headers) == null ? void 0 : _g["retry-after"];
+    if (retryAfter) {
+      const secs = parseInt(retryAfter, 10);
+      if (!isNaN(secs) && secs > 0) return `Rate limited \u2014 retry in ${secs}s`;
+    }
     return "Rate limited \u2014 wait a moment and try again";
+  }
+  if (err instanceof InternalServerError) {
+    if (err.status === 529) {
+      return "Anthropic API is overloaded \u2014 wait a few seconds and try again";
+    }
+    return `Anthropic server error (${err.status}) \u2014 try again shortly`;
+  }
+  if (err instanceof APIConnectionTimeoutError) {
+    return "Request timed out \u2014 check your internet connection and try again";
   }
   if (err instanceof APIConnectionError) {
     return "Connection failed \u2014 check your internet connection";
@@ -22244,8 +22262,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T18:51:26.978Z";
-    this.gitSha = "597daf9";
+    this.buildId = "2026-03-06T18:52:25.824Z";
+    this.gitSha = "9d83c1a";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
