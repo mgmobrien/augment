@@ -327,6 +327,13 @@ export class TerminalManagerView extends ItemView {
     if (!this.listEl) return;
     this.listEl.empty();
 
+    // Sync otherProjectsEnabled from persisted settings on every render so
+    // the toggle in Settings → Terminal takes effect immediately.
+    const plugin = this.getPlugin();
+    if (plugin?.settings) {
+      this.otherProjectsEnabled = plugin.settings.showOtherProjects;
+    }
+
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];

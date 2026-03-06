@@ -1270,6 +1270,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.showOtherProjects = value;
             await this.plugin.saveData(this.plugin.settings);
+            (this.plugin.app.workspace as any).trigger("augment-terminal:changed");
           });
       });
 

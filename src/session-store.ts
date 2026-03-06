@@ -309,14 +309,18 @@ export class SessionStore {
   }
 
   private isMetaUserText(text: string): boolean {
-    const compact = text.trim();
-    if (!compact) return true;
-    if (compact.includes("<local-command-caveat>")) return true;
-    if (compact.includes("<command-name>")) return true;
-    if (compact.includes("<local-command-stdout>")) return true;
-    if (compact.includes("<user-prompt-submit-hook>")) return true;
+    // Strip known system-injected blocks before checking for real user content.
+    // A message may have real text with hook output appended — the real text still counts.
+    const stripped = text
+      .replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, "")
+      .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "")
+      .replace(/<command-name>[\s\S]*?<\/command-name>/gi, "")
+      .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!stripped) return true;
     // A message that is entirely one XML element — skip regardless of length.
-    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact)) return true;
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(stripped)) return true;
     return false;
   }
 
@@ -332,6 +336,10 @@ export class SessionStore {
     const deSystemed = compact
       .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ")
       .replace(/<env>[\s\S]*?<\/env>/gi, " ")
+      .replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, " ")
+      .replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, " ")
+      .replace(/<command-name>[\s\S]*?<\/command-name>/gi, " ")
+      .replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
 
