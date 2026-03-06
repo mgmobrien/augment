@@ -572,7 +572,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           } else {
             profilerSection.createEl("p", {
               cls: "augment-profiler-hint",
-              text: "No other plugin timings captured. Augment may not have loaded first — restart Obsidian to retry.",
+              text: "No other plugin timings captured. Augment must load before other plugins for timing to work — check that it appears first in community-plugins.json, then restart Obsidian.",
             });
           }
         }

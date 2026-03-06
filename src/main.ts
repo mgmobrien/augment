@@ -964,23 +964,33 @@ export default class AugmentTerminalPlugin extends Plugin {
     // wrap Component.prototype.load before Obsidian loads subsequent plugins.
     const _profilerT0 = performance.now();
     const _profilerPlugins: { id: string; name: string; ms: number }[] = [];
-    // Wrap Plugin.prototype.onload — this is what Obsidian calls for each plugin.
-    // Component.prototype.load calls this.onload() internally, so wrapping onload
-    // catches all plugins regardless of prototype chain shadowing.
-    const _PluginProto = Plugin.prototype as any;
-    const _origOnload = _PluginProto.onload;
-    _PluginProto.onload = function(this: any, ...args: any[]) {
-      const pid = this.manifest?.id as string | undefined;
-      if (!pid || pid === "augment-terminal") return _origOnload.apply(this, args);
-      const t = performance.now();
-      const result = _origOnload.apply(this, args);
-      const finish = () => _profilerPlugins.push({ id: pid, name: this.manifest?.name ?? pid, ms: Math.round(performance.now() - t) });
-      if (result && typeof (result as any).then === "function") {
-        return (result as Promise<any>).then((v: any) => { finish(); return v; }, (e: any) => { finish(); return Promise.reject(e); });
-      }
-      finish();
-      return result;
-    };
+    // Walk the prototype chain from Plugin.prototype to find where 'load' is
+    // actually defined (typically Component.prototype). Obsidian's plugin manager
+    // calls component.load(), which internally calls this.onload(). Wrapping at
+    // load() (not onload()) intercepts all plugins: each plugin overrides onload()
+    // on its own prototype, so Plugin.prototype.onload is never in the lookup chain
+    // and wrapping it captures nothing. Walking to the true owner of load() handles
+    // both cases: Plugin.prototype if it shadows Component, or Component.prototype
+    // if it doesn't.
+    let _loadProto: any = Plugin.prototype;
+    while (_loadProto && !Object.prototype.hasOwnProperty.call(_loadProto, "load")) {
+      _loadProto = Object.getPrototypeOf(_loadProto);
+    }
+    const _origLoad = _loadProto?.load as ((...args: unknown[]) => unknown) | undefined;
+    if (_origLoad) {
+      _loadProto.load = function(this: any, ...args: any[]) {
+        const pid = this.manifest?.id as string | undefined;
+        if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
+        const t = performance.now();
+        const result = _origLoad.apply(this, args);
+        const finish = () => _profilerPlugins.push({ id: pid, name: this.manifest?.name ?? pid, ms: Math.round(performance.now() - t) });
+        if (result && typeof (result as any).then === "function") {
+          return (result as Promise<any>).then((v: any) => { finish(); return v; }, (e: any) => { finish(); return Promise.reject(e); });
+        }
+        finish();
+        return result;
+      };
+    }
     // ── End profiler setup ───────────────────────────────────────────────────
 
     // Register the System 3 pyramid icon: three dots (red top, blue bottom-left, green bottom-right).
@@ -1595,8 +1605,8 @@ export default class AugmentTerminalPlugin extends Plugin {
     );
 
     this.app.workspace.onLayoutReady(() => {
-      // Restore Plugin.prototype.onload and store profiler results.
-      _PluginProto.onload = _origOnload;
+      // Restore the patched prototype method and store profiler results.
+      if (_loadProto && _origLoad) _loadProto.load = _origLoad;
       if (this.settings.enableProfiler) {
         this.startupTimings = {
           ownMs: Math.round(_augmentSyncEnd - _profilerT0),
