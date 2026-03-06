@@ -4,18 +4,27 @@ Augment is designed for high-speed, in-editor continuation while also providing 
 
 ## Parts system
 
-This project has a persistent parts architecture at `.parts/`. See `.parts/PARTS.md` for the full project constitution, roster, and conventions.
+This project uses a persistent parts architecture. Agent memory lives in the vault at `agents/parts/augment-plugin/`.
 
-To boot the project team from the vault, Matt says "Augment CEO" or "CEO augment" — this invokes the generic `project-ceo` skill which resolves the project, reads `.parts/PARTS.md`, and spawns domain parts using `project-*` vault skills parameterized with local `config.md` files.
-
-@.parts/PARTS.md
+To boot the project team from the vault, Matt says "Augment CEO" or "CEO augment" — this invokes the generic `project-ceo` skill which resolves the project, reads the parts config, and spawns domain parts using `project-*` vault skills.
 
 ## Project structure
 
 - `src/` — TypeScript source (main.ts, terminal-view.ts, terminal-manager-view.ts, pty-bridge.ts, terminal-switcher.ts)
-- `scripts/` — Build and utility scripts (terminal_pty.py, deploy.sh)
+- `scripts/` — Build and utility scripts (terminal_pty.py, deploy.sh, setup-test.sh, start-test.sh)
+- `playwright/` — Playwright smoke tests (connect.mjs, tests/smoke.mjs)
 - `styles.css` — Plugin styling
-- `.parts/` — Project parts (CEO, Product, Design, CTO, Visionary, Values)
+
+## Coding conventions
+
+- TypeScript, not JavaScript
+- Obsidian plugin API patterns (Plugin subclass, WorkspaceLeaf, ItemView, Modal, Setting)
+- Arrow functions preferred for callbacks; named functions for top-level exports
+- No React — this is a vanilla TypeScript Obsidian plugin
+- ES modules (import/export)
+- Async/await over raw promises
+- Template literals over string concatenation
+- Descriptive variable names; avoid single-letter variables except loop counters
 
 ## Installing Augment for a new user
 
