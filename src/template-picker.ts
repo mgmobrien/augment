@@ -121,6 +121,8 @@ export class TemplatePreviewModal extends Modal {
 
 // ── Folder scan → template generation ───────────────────────────────────────
 
+export const NO_FILES_ERROR = "no-files";
+
 export class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
   private onChoose: (folder: TFolder) => void;
 
@@ -229,7 +231,7 @@ export async function generateTemplatesFromFolder(
   resolvedModel: string
 ): Promise<GeneratedTemplate[]> {
   const analysis = await analyzeFolderContents(app, folder);
-  if (analysis.fileCount === 0) throw new Error("no-files");
+  if (analysis.fileCount === 0) throw new Error(NO_FILES_ERROR);
 
   const lines: string[] = [
     `Folder: "${analysis.folderPath}" (${analysis.fileCount} notes scanned)`,
@@ -313,7 +315,7 @@ export function runGenerateTemplatesFlow(
       }).open();
     } catch (err: any) {
       notice.hide();
-      if (err?.message === "no-files") {
+      if (err?.message === NO_FILES_ERROR) {
         new Notice("No .md notes found in that folder");
       } else {
         new Notice("Template generation failed \u2014 see console for details");

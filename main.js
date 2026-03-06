@@ -17868,7 +17868,7 @@ function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
       }).open();
     } catch (err) {
       notice.hide();
-      if ((err == null ? void 0 : err.message) === "no-files") {
+      if ((err == null ? void 0 : err.message) === NO_FILES_ERROR) {
         new import_obsidian3.Notice("No .md notes found in that folder");
       } else {
         new import_obsidian3.Notice("Template generation failed \u2014 see console for details");
@@ -22651,8 +22651,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:46:49.013Z";
-    this.gitSha = "3b57988";
+    this.buildId = "2026-03-06T21:46:55.770Z";
+    this.gitSha = "9d13b17";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
