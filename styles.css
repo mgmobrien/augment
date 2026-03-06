@@ -486,6 +486,7 @@
   height: 9px;
   vertical-align: middle;
   flex-shrink: 0;
+  margin-right: 3px;
 }
 
 .augment-sb-dot {

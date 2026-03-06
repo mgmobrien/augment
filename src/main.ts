@@ -985,6 +985,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
     `);
 
+    const _augmentSyncEnd = performance.now();
     console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData() as Record<string, unknown> | null;
     // Schema migration: strip keys removed in prior versions.
@@ -1591,7 +1592,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       _ComponentProto.load = _origLoad;
       if (this.settings.enableProfiler) {
         this.startupTimings = {
-          ownMs: Math.round(performance.now() - _profilerT0),
+          ownMs: Math.round(_augmentSyncEnd - _profilerT0),
           layoutReadyMs: Math.round(performance.now() - _profilerT0),
           plugins: _profilerPlugins.slice().sort((a, b) => b.ms - a.ms),
         };
