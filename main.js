@@ -20629,17 +20629,14 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.sessionStore = null;
     this.historyLoadedCount = 20;
     this.refreshFrameId = null;
-    // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
-    this.lastHistoryLoadTime = 0;
-    this.cachedSessions = [];
-    this.historyLoadInFlight = false;
-    this.historyReloadRequested = false;
-    // Other-projects scan debounce.
-    this.lastProjectGroupsLoadTime = 0;
-    this.cachedProjectGroups = [];
-    this.projectGroupsLoadInFlight = false;
-    this.projectGroupsReloadRequested = false;
     this.otherProjectsEnabled = false;
+    // Async loader state objects — owned by createAsyncLoader() closures.
+    this.historyState = { cached: [], lastLoadTime: 0, inFlight: false, reloadRequested: false };
+    this.projectsState = { cached: [], lastLoadTime: 0, inFlight: false, reloadRequested: false };
+    this.maybeLoadHistory = () => {
+    };
+    this.maybeLoadProjects = () => {
+    };
     // Which other-project groups are expanded (collapsed by default).
     this.expandedProjects = /* @__PURE__ */ new Set();
     // Collapse state for the RECENT history section.
@@ -20676,6 +20673,21 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.listEl = container.createDiv({ cls: "augment-tm-list" });
     const vaultPath = this.app.vault.adapter.basePath;
     this.sessionStore = new SessionStore(vaultPath);
+    let historyRequestedLimit = 0;
+    this.maybeLoadHistory = this.createAsyncLoader(
+      this.historyState,
+      () => {
+        historyRequestedLimit = this.historyLoadedCount;
+        return this.sessionStore.loadSessions(historyRequestedLimit);
+      },
+      1500,
+      () => this.historyLoadedCount !== historyRequestedLimit
+    );
+    this.maybeLoadProjects = this.createAsyncLoader(
+      this.projectsState,
+      () => this.sessionStore.loadAllProjectGroups(50).then((gs) => gs.filter((g) => !g.isVault)),
+      2e3
+    );
     this.requestRefresh();
     window.setTimeout(() => this.requestRefresh(), 0);
     this.app.workspace.onLayoutReady(() => this.requestRefresh());
@@ -20705,65 +20717,44 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     });
   }
   getHistorySessions() {
-    this.maybeLoadHistorySessions();
-    return this.cachedSessions;
+    this.maybeLoadHistory();
+    return this.historyState.cached;
   }
   getOtherProjectGroups() {
-    this.maybeLoadOtherProjectGroups();
-    return this.cachedProjectGroups;
+    this.maybeLoadProjects();
+    return this.projectsState.cached;
   }
-  maybeLoadHistorySessions() {
-    const now = Date.now();
-    const stale = now - this.lastHistoryLoadTime >= 1500;
-    if (!stale) return;
-    if (!this.sessionStore) return;
-    if (this.historyLoadInFlight) {
-      this.historyReloadRequested = true;
-      return;
-    }
-    this.historyLoadInFlight = true;
-    const requestedLimit = this.historyLoadedCount;
-    this.sessionStore.loadSessions(requestedLimit).then((sessions) => {
-      this.cachedSessions = sessions;
-      this.lastHistoryLoadTime = Date.now();
-    }).catch(() => {
-      this.lastHistoryLoadTime = Date.now();
-    }).finally(() => {
-      this.historyLoadInFlight = false;
-      const needsReload = this.historyReloadRequested || this.historyLoadedCount !== requestedLimit;
-      this.historyReloadRequested = false;
-      if (needsReload) {
-        this.lastHistoryLoadTime = 0;
-        this.maybeLoadHistorySessions();
+  // Returns a debounced async loader for a given load function and TTL.
+  // State is stored in the passed-in object so callers can reset lastLoadTime
+  // and set reloadRequested externally (e.g., from "Load more" click handlers).
+  // extraReload: optional extra condition that triggers a reload in finally().
+  createAsyncLoader(state, loadFn, ttlMs, extraReload) {
+    const maybeLoad = () => {
+      if (Date.now() - state.lastLoadTime < ttlMs) return;
+      if (!this.sessionStore) return;
+      if (state.inFlight) {
+        state.reloadRequested = true;
+        return;
       }
-      if (this.listEl) this.requestRefresh();
-    });
-  }
-  maybeLoadOtherProjectGroups() {
-    const now = Date.now();
-    const stale = now - this.lastProjectGroupsLoadTime >= 2e3;
-    if (!stale) return;
-    if (!this.sessionStore) return;
-    if (this.projectGroupsLoadInFlight) {
-      this.projectGroupsReloadRequested = true;
-      return;
-    }
-    this.projectGroupsLoadInFlight = true;
-    this.sessionStore.loadAllProjectGroups(50).then((groups) => {
-      this.cachedProjectGroups = groups.filter((g) => !g.isVault);
-      this.lastProjectGroupsLoadTime = Date.now();
-    }).catch(() => {
-      this.lastProjectGroupsLoadTime = Date.now();
-    }).finally(() => {
-      this.projectGroupsLoadInFlight = false;
-      const needsReload = this.projectGroupsReloadRequested;
-      this.projectGroupsReloadRequested = false;
-      if (needsReload) {
-        this.lastProjectGroupsLoadTime = 0;
-        this.maybeLoadOtherProjectGroups();
-      }
-      if (this.listEl) this.requestRefresh();
-    });
+      state.inFlight = true;
+      loadFn().then((result) => {
+        state.cached = result;
+        state.lastLoadTime = Date.now();
+      }).catch(() => {
+        state.lastLoadTime = Date.now();
+      }).finally(() => {
+        var _a2;
+        state.inFlight = false;
+        const needsReload = state.reloadRequested || ((_a2 = extraReload == null ? void 0 : extraReload()) != null ? _a2 : false);
+        state.reloadRequested = false;
+        if (needsReload) {
+          state.lastLoadTime = 0;
+          maybeLoad();
+        }
+        if (this.listEl) this.requestRefresh();
+      });
+    };
+    return maybeLoad;
   }
   getTerminalLeaves() {
     const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -20919,8 +20910,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       });
       loadRow.addEventListener("click", () => {
         this.otherProjectsEnabled = true;
-        this.lastProjectGroupsLoadTime = 0;
-        this.projectGroupsReloadRequested = true;
+        this.projectsState.lastLoadTime = 0;
+        this.projectsState.reloadRequested = true;
         this.requestRefresh();
       });
     }
@@ -21129,8 +21120,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         } else {
           this.expandedProjects.add(group.encodedName);
         }
-        this.lastProjectGroupsLoadTime = 0;
-        this.projectGroupsReloadRequested = true;
+        this.projectsState.lastLoadTime = 0;
+        this.projectsState.reloadRequested = true;
         this.requestRefresh();
       });
       if (isExpanded) {
@@ -21191,8 +21182,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       });
       loadMore.addEventListener("click", () => {
         this.historyLoadedCount += 50;
-        this.lastHistoryLoadTime = 0;
-        this.historyReloadRequested = true;
+        this.historyState.lastLoadTime = 0;
+        this.historyState.reloadRequested = true;
         this.requestRefresh();
       });
     }
@@ -22629,8 +22620,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:51:07.895Z";
-    this.gitSha = "974d25e";
+    this.buildId = "2026-03-06T21:52:14.644Z";
+    this.gitSha = "e2d2efb";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

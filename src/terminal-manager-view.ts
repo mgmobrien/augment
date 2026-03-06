@@ -31,17 +31,13 @@ export class TerminalManagerView extends ItemView {
   private historyLoadedCount: number = 20;
   private refreshFrameId: number | null = null;
 
-  // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
-  private lastHistoryLoadTime = 0;
-  private cachedSessions: SessionMeta[] = [];
-  private historyLoadInFlight = false;
-  private historyReloadRequested = false;
-  // Other-projects scan debounce.
-  private lastProjectGroupsLoadTime = 0;
-  private cachedProjectGroups: ProjectGroup[] = [];
-  private projectGroupsLoadInFlight = false;
-  private projectGroupsReloadRequested = false;
   private otherProjectsEnabled = false;
+
+  // Async loader state objects — owned by createAsyncLoader() closures.
+  private historyState = { cached: [] as SessionMeta[], lastLoadTime: 0, inFlight: false, reloadRequested: false };
+  private projectsState = { cached: [] as ProjectGroup[], lastLoadTime: 0, inFlight: false, reloadRequested: false };
+  private maybeLoadHistory: () => void = () => {};
+  private maybeLoadProjects: () => void = () => {};
 
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
@@ -96,6 +92,24 @@ export class TerminalManagerView extends ItemView {
     const vaultPath = (this.app.vault.adapter as any).basePath as string;
     this.sessionStore = new SessionStore(vaultPath);
 
+    // Wire up async loaders. historyRequestedLimit is captured per-call to
+    // detect mid-load limit changes (user clicked "Load 50 more").
+    let historyRequestedLimit = 0;
+    this.maybeLoadHistory = this.createAsyncLoader(
+      this.historyState,
+      () => {
+        historyRequestedLimit = this.historyLoadedCount;
+        return this.sessionStore!.loadSessions(historyRequestedLimit);
+      },
+      1500,
+      () => this.historyLoadedCount !== historyRequestedLimit
+    );
+    this.maybeLoadProjects = this.createAsyncLoader(
+      this.projectsState,
+      () => this.sessionStore!.loadAllProjectGroups(50).then((gs) => gs.filter((g) => !g.isVault)),
+      2000
+    );
+
     this.requestRefresh();
     window.setTimeout(() => this.requestRefresh(), 0);
     this.app.workspace.onLayoutReady(() => this.requestRefresh());
@@ -129,82 +143,43 @@ export class TerminalManagerView extends ItemView {
   }
 
   private getHistorySessions(): SessionMeta[] {
-    this.maybeLoadHistorySessions();
-    return this.cachedSessions;
+    this.maybeLoadHistory();
+    return this.historyState.cached;
   }
 
   private getOtherProjectGroups(): ProjectGroup[] {
-    this.maybeLoadOtherProjectGroups();
-    return this.cachedProjectGroups;
+    this.maybeLoadProjects();
+    return this.projectsState.cached;
   }
 
-  private maybeLoadHistorySessions(): void {
-    const now = Date.now();
-    const stale = now - this.lastHistoryLoadTime >= 1500;
-    if (!stale) return;
-    if (!this.sessionStore) return;
+  // Returns a debounced async loader for a given load function and TTL.
+  // State is stored in the passed-in object so callers can reset lastLoadTime
+  // and set reloadRequested externally (e.g., from "Load more" click handlers).
+  // extraReload: optional extra condition that triggers a reload in finally().
+  private createAsyncLoader<T>(
+    state: { cached: T; lastLoadTime: number; inFlight: boolean; reloadRequested: boolean },
+    loadFn: () => Promise<T>,
+    ttlMs: number,
+    extraReload?: () => boolean
+  ): () => void {
+    const maybeLoad = (): void => {
+      if (Date.now() - state.lastLoadTime < ttlMs) return;
+      if (!this.sessionStore) return;
+      if (state.inFlight) { state.reloadRequested = true; return; }
 
-    if (this.historyLoadInFlight) {
-      this.historyReloadRequested = true;
-      return;
-    }
-
-    this.historyLoadInFlight = true;
-    const requestedLimit = this.historyLoadedCount;
-    this.sessionStore
-      .loadSessions(requestedLimit)
-      .then((sessions) => {
-        this.cachedSessions = sessions;
-        this.lastHistoryLoadTime = Date.now();
-      })
-      .catch(() => {
-        this.lastHistoryLoadTime = Date.now();
-      })
-      .finally(() => {
-        this.historyLoadInFlight = false;
-        const needsReload =
-          this.historyReloadRequested ||
-          this.historyLoadedCount !== requestedLimit;
-        this.historyReloadRequested = false;
-        if (needsReload) {
-          this.lastHistoryLoadTime = 0;
-          this.maybeLoadHistorySessions();
-        }
-        if (this.listEl) this.requestRefresh();
-      });
-  }
-
-  private maybeLoadOtherProjectGroups(): void {
-    const now = Date.now();
-    const stale = now - this.lastProjectGroupsLoadTime >= 2000;
-    if (!stale) return;
-    if (!this.sessionStore) return;
-
-    if (this.projectGroupsLoadInFlight) {
-      this.projectGroupsReloadRequested = true;
-      return;
-    }
-
-    this.projectGroupsLoadInFlight = true;
-    this.sessionStore
-      .loadAllProjectGroups(50)
-      .then((groups) => {
-        this.cachedProjectGroups = groups.filter((g) => !g.isVault);
-        this.lastProjectGroupsLoadTime = Date.now();
-      })
-      .catch(() => {
-        this.lastProjectGroupsLoadTime = Date.now();
-      })
-      .finally(() => {
-        this.projectGroupsLoadInFlight = false;
-        const needsReload = this.projectGroupsReloadRequested;
-        this.projectGroupsReloadRequested = false;
-        if (needsReload) {
-          this.lastProjectGroupsLoadTime = 0;
-          this.maybeLoadOtherProjectGroups();
-        }
-        if (this.listEl) this.requestRefresh();
-      });
+      state.inFlight = true;
+      loadFn()
+        .then((result) => { state.cached = result; state.lastLoadTime = Date.now(); })
+        .catch(() => { state.lastLoadTime = Date.now(); })
+        .finally(() => {
+          state.inFlight = false;
+          const needsReload = state.reloadRequested || (extraReload?.() ?? false);
+          state.reloadRequested = false;
+          if (needsReload) { state.lastLoadTime = 0; maybeLoad(); }
+          if (this.listEl) this.requestRefresh();
+        });
+    };
+    return maybeLoad;
   }
 
   private getTerminalLeaves(): WorkspaceLeaf[] {
@@ -415,8 +390,8 @@ export class TerminalManagerView extends ItemView {
       });
       loadRow.addEventListener("click", () => {
         this.otherProjectsEnabled = true;
-        this.lastProjectGroupsLoadTime = 0;
-        this.projectGroupsReloadRequested = true;
+        this.projectsState.lastLoadTime = 0;
+        this.projectsState.reloadRequested = true;
         this.requestRefresh();
       });
     }
@@ -676,8 +651,8 @@ export class TerminalManagerView extends ItemView {
         } else {
           this.expandedProjects.add(group.encodedName);
         }
-        this.lastProjectGroupsLoadTime = 0; // allow fresh load
-        this.projectGroupsReloadRequested = true;
+        this.projectsState.lastLoadTime = 0; // allow fresh load
+        this.projectsState.reloadRequested = true;
         this.requestRefresh();
       });
 
@@ -754,8 +729,8 @@ export class TerminalManagerView extends ItemView {
       });
       loadMore.addEventListener("click", () => {
         this.historyLoadedCount += 50;
-        this.lastHistoryLoadTime = 0; // force reload
-        this.historyReloadRequested = true;
+        this.historyState.lastLoadTime = 0; // force reload
+        this.historyState.reloadRequested = true;
         this.requestRefresh();
       });
     }
