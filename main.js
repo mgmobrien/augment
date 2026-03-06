@@ -20670,7 +20670,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return "Terminals";
   }
   getIcon() {
-    return "monitor-dot";
+    return "square-terminal";
   }
   async onOpen() {
     const container = this.contentEl;
@@ -22643,8 +22643,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:35:31.495Z";
-    this.gitSha = "0df3b51";
+    this.buildId = "2026-03-06T19:38:08.520Z";
+    this.gitSha = "12855b0";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

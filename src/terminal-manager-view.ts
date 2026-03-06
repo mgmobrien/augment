@@ -74,7 +74,7 @@ export class TerminalManagerView extends ItemView {
   }
 
   getIcon(): string {
-    return "monitor-dot";
+    return "square-terminal";
   }
 
   async onOpen(): Promise<void> {
