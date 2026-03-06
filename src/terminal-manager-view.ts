@@ -528,21 +528,28 @@ export class TerminalManagerView extends ItemView {
     const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
     const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
 
-    if (exchangeCount > 0 || summary) {
+    if (exchangeCount > 0 || lastActivityMs > 0 || summary) {
       const secEl = row.createDiv({ cls: "augment-tm-summary" });
       if (exchangeCount > 0) {
-        const parts: string[] = [`${exchangeCount} msg${exchangeCount !== 1 ? "s" : ""}`];
+        const countText = `${exchangeCount} msg${exchangeCount !== 1 ? "s" : ""}`;
         if (lastActivityMs > 0) {
           const rtEl = document.createElement("span");
           rtEl.className = "augment-tm-reltime";
           rtEl.dataset.ms = String(lastActivityMs);
           rtEl.textContent = this.relativeTime(lastActivityMs);
-          secEl.textContent = parts[0] + " · ";
+          secEl.textContent = countText + " · ";
           secEl.appendChild(rtEl);
         } else {
-          secEl.textContent = parts[0];
+          secEl.textContent = countText;
         }
-        if (summary) secEl.textContent += " — " + summary;
+        if (summary) secEl.appendChild(document.createTextNode(" — " + summary));
+      } else if (lastActivityMs > 0) {
+        const rtEl = document.createElement("span");
+        rtEl.className = "augment-tm-reltime";
+        rtEl.dataset.ms = String(lastActivityMs);
+        rtEl.textContent = this.relativeTime(lastActivityMs);
+        secEl.appendChild(rtEl);
+        if (summary) secEl.appendChild(document.createTextNode(" — " + summary));
       } else if (summary) {
         secEl.textContent = summary;
       }
@@ -785,7 +792,8 @@ export class TerminalManagerView extends ItemView {
 
     const ageEl = line.createSpan({ cls: "augment-tm-age" });
     ageEl.dataset.ms = String(session.mtimeMs);
-    ageEl.textContent = this.relativeTime(session.mtimeMs, true);
+    ageEl.dataset.msgCount = String(session.msgCount);
+    ageEl.textContent = this.formatHistoryMeta(session.msgCount, session.mtimeMs);
 
     // Click directly resumes the session — no expand drawer.
     row.addEventListener("click", async () => {
@@ -828,10 +836,21 @@ export class TerminalManagerView extends ItemView {
     });
     this.listEl.querySelectorAll<HTMLElement>(".augment-tm-reltime[data-ms], .augment-tm-age[data-ms]").forEach(el => {
       const ms = Number(el.dataset.ms);
-      el.textContent = el.classList.contains("augment-tm-age")
-        ? this.relativeTime(ms, true)
-        : this.relativeTime(ms);
+      if (el.classList.contains("augment-tm-age")) {
+        const msgCount = el.dataset.msgCount !== undefined ? Number(el.dataset.msgCount) : -1;
+        el.textContent = msgCount >= 0
+          ? this.formatHistoryMeta(msgCount, ms)
+          : this.relativeTime(ms, true);
+      } else {
+        el.textContent = this.relativeTime(ms);
+      }
     });
+  }
+
+  private formatHistoryMeta(msgCount: number, mtimeMs: number): string {
+    const age = this.relativeTime(mtimeMs, true);
+    if (msgCount > 0) return `${msgCount} msg${msgCount !== 1 ? "s" : ""} · ${age}`;
+    return age;
   }
 
   private relativeTime(mtimeMs: number, abbreviated = false): string {

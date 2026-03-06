@@ -21189,21 +21189,28 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const exchangeCount = typeof view.getExchangeCount === "function" ? view.getExchangeCount() : 0;
     const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
     const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
-    if (exchangeCount > 0 || summary) {
+    if (exchangeCount > 0 || lastActivityMs > 0 || summary) {
       const secEl = row.createDiv({ cls: "augment-tm-summary" });
       if (exchangeCount > 0) {
-        const parts = [`${exchangeCount} msg${exchangeCount !== 1 ? "s" : ""}`];
+        const countText = `${exchangeCount} msg${exchangeCount !== 1 ? "s" : ""}`;
         if (lastActivityMs > 0) {
           const rtEl = document.createElement("span");
           rtEl.className = "augment-tm-reltime";
           rtEl.dataset.ms = String(lastActivityMs);
           rtEl.textContent = this.relativeTime(lastActivityMs);
-          secEl.textContent = parts[0] + " \xB7 ";
+          secEl.textContent = countText + " \xB7 ";
           secEl.appendChild(rtEl);
         } else {
-          secEl.textContent = parts[0];
+          secEl.textContent = countText;
         }
-        if (summary) secEl.textContent += " \u2014 " + summary;
+        if (summary) secEl.appendChild(document.createTextNode(" \u2014 " + summary));
+      } else if (lastActivityMs > 0) {
+        const rtEl = document.createElement("span");
+        rtEl.className = "augment-tm-reltime";
+        rtEl.dataset.ms = String(lastActivityMs);
+        rtEl.textContent = this.relativeTime(lastActivityMs);
+        secEl.appendChild(rtEl);
+        if (summary) secEl.appendChild(document.createTextNode(" \u2014 " + summary));
       } else if (summary) {
         secEl.textContent = summary;
       }
@@ -21400,7 +21407,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     line.createDiv({ cls: "augment-tm-spacer" });
     const ageEl = line.createSpan({ cls: "augment-tm-age" });
     ageEl.dataset.ms = String(session.mtimeMs);
-    ageEl.textContent = this.relativeTime(session.mtimeMs, true);
+    ageEl.dataset.msgCount = String(session.msgCount);
+    ageEl.textContent = this.formatHistoryMeta(session.msgCount, session.mtimeMs);
     row.addEventListener("click", async () => {
       const plugin = this.getPlugin();
       if (!plugin) return;
@@ -21438,8 +21446,18 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     });
     this.listEl.querySelectorAll(".augment-tm-reltime[data-ms], .augment-tm-age[data-ms]").forEach((el) => {
       const ms = Number(el.dataset.ms);
-      el.textContent = el.classList.contains("augment-tm-age") ? this.relativeTime(ms, true) : this.relativeTime(ms);
+      if (el.classList.contains("augment-tm-age")) {
+        const msgCount = el.dataset.msgCount !== void 0 ? Number(el.dataset.msgCount) : -1;
+        el.textContent = msgCount >= 0 ? this.formatHistoryMeta(msgCount, ms) : this.relativeTime(ms, true);
+      } else {
+        el.textContent = this.relativeTime(ms);
+      }
     });
+  }
+  formatHistoryMeta(msgCount, mtimeMs) {
+    const age = this.relativeTime(mtimeMs, true);
+    if (msgCount > 0) return `${msgCount} msg${msgCount !== 1 ? "s" : ""} \xB7 ${age}`;
+    return age;
   }
   relativeTime(mtimeMs, abbreviated = false) {
     const diff = Date.now() - mtimeMs;
@@ -22824,8 +22842,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:20:11.095Z";
-    this.gitSha = "9a3f5e8";
+    this.buildId = "2026-03-06T23:20:35.606Z";
+    this.gitSha = "a5bc97e";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
