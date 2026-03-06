@@ -1498,6 +1498,7 @@
 
 /* ── Setup wizard card (Terminal tab) ── */
 .augment-setup-card {
+  clear: right; /* don't let hotkey cheat-sheet float overlap this background */
   margin-bottom: 16px;
   padding: 12px 14px;
   background: var(--background-secondary);
