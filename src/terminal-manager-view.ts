@@ -21,6 +21,7 @@ type TerminalViewLike = {
   getExchangeCount?: () => number;
   getLastActivityMs?: () => number;
   getAutoNamed?: () => boolean;
+  getWorkingDirectory?: () => string;
 };
 
 type TeamContext = { isTeamMember: boolean; isSubAgent: boolean };
@@ -511,6 +512,14 @@ export class TerminalManagerView extends ItemView {
     if (identity && identity.toLowerCase() !== name.toLowerCase()) {
       line.createSpan({ cls: "augment-tm-role", text: identity });
     }
+
+    // Working directory basename label.
+    const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
+    if (cwd) {
+      const cwdBasename = cwd.split("/").filter(Boolean).pop() || cwd;
+      line.createSpan({ cls: "augment-tm-cwd", text: cwdBasename });
+    }
+
     line.createDiv({ cls: "augment-tm-spacer" });
 
     const unread =

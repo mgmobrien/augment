@@ -309,6 +309,7 @@ export class TerminalView extends ItemView {
   private messageFilter: TeammateMessageFilter | null = null;
   private ptyStartedAtMs: number = 0;
   private startupRetryCount: number = 0;
+  private resolvedCwd: string = "";
   private promptTurnCount: number = 0;
   private lastPromptText: string = "";
   private lastPromptAtMs: number = 0;
@@ -346,6 +347,10 @@ export class TerminalView extends ItemView {
 
   getIsExited(): boolean {
     return this.isExited;
+  }
+
+  getWorkingDirectory(): string {
+    return this.resolvedCwd;
   }
 
   getStatus(): TerminalStatus {
@@ -810,6 +815,7 @@ export class TerminalView extends ItemView {
   private startPtyBridge(forcedShellPath?: string): void {
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
+    this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath ?? this.getShellPath();
     this.ptyStartedAtMs = Date.now();
     this.ptyBridge?.kill();
