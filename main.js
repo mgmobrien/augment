@@ -20887,22 +20887,19 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
     if (hasHistory) {
-      if (!hasOpen && !this.isHistoryExpanded && !this.historyUserCollapsed) {
-        this.isHistoryExpanded = true;
-      }
+      const isExpanded = this.historyCollapseState === "open" || this.historyCollapseState === "auto" && !hasOpen;
       const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (this.isHistoryExpanded) divider.addClass("is-open");
+      if (isExpanded) divider.addClass("is-open");
       divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
       divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
       divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
       const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-      if (!this.isHistoryExpanded) historyContainer.style.display = "none";
+      if (!isExpanded) historyContainer.style.display = "none";
       this.renderHistorySections(sessions, historyContainer);
       divider.addEventListener("click", () => {
-        this.isHistoryExpanded = !this.isHistoryExpanded;
-        this.historyUserCollapsed = !this.isHistoryExpanded;
-        divider.toggleClass("is-open", this.isHistoryExpanded);
-        historyContainer.style.display = this.isHistoryExpanded ? "" : "none";
+        this.historyCollapseState = isExpanded ? "closed" : "open";
+        divider.toggleClass("is-open", !isExpanded);
+        historyContainer.style.display = isExpanded ? "none" : "";
       });
     }
     if (this.otherProjectsEnabled) {
@@ -22639,8 +22636,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:47:49.970Z";
-    this.gitSha = "bd887fa";
+    this.buildId = "2026-03-06T21:48:13.010Z";
+    this.gitSha = "ffc9fb0";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

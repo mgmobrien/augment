@@ -369,27 +369,24 @@ export class TerminalManagerView extends ItemView {
 
     // ── RECENT section with collapse ──────────────────────────
     if (hasHistory) {
-      // Auto-expand when no live sessions so user isn't looking at an empty panel.
-      // Only do this if the user hasn't explicitly collapsed the section.
-      if (!hasOpen && !this.isHistoryExpanded && !this.historyUserCollapsed) {
-        this.isHistoryExpanded = true;
-      }
+      const isExpanded =
+        this.historyCollapseState === "open" ||
+        (this.historyCollapseState === "auto" && !hasOpen);
 
       const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (this.isHistoryExpanded) divider.addClass("is-open");
+      if (isExpanded) divider.addClass("is-open");
       divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
       divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
       divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
       const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-      if (!this.isHistoryExpanded) historyContainer.style.display = "none";
+      if (!isExpanded) historyContainer.style.display = "none";
       this.renderHistorySections(sessions, historyContainer);
 
       divider.addEventListener("click", () => {
-        this.isHistoryExpanded = !this.isHistoryExpanded;
-        this.historyUserCollapsed = !this.isHistoryExpanded;
-        divider.toggleClass("is-open", this.isHistoryExpanded);
-        historyContainer.style.display = this.isHistoryExpanded ? "" : "none";
+        this.historyCollapseState = isExpanded ? "closed" : "open";
+        divider.toggleClass("is-open", !isExpanded);
+        historyContainer.style.display = isExpanded ? "none" : "";
       });
     }
 
