@@ -407,6 +407,70 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     }
 
+    // ── Keyboard shortcuts (Overview pane) ───────────────────
+    const isMac = process.platform === "darwin";
+
+    interface AugmentCmd { id: string; label: string; defaultKeys: { modifiers: string[]; key: string }[]; }
+    const AUGMENT_CMDS: AugmentCmd[] = [
+      { id: "augment-generate",               label: "Generate",                     defaultKeys: [{ modifiers: ["Mod"],           key: "Enter" }] },
+      { id: "augment-generate-from-template", label: "Generate from template",       defaultKeys: [{ modifiers: ["Mod", "Shift"],  key: "Enter" }] },
+      { id: "open-terminal",                  label: "Open terminal",                defaultKeys: [{ modifiers: ["Ctrl"],          key: "t" }] },
+      { id: "open-terminal-manager",          label: "Show terminal manager",        defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
+      { id: "switch-terminal",                label: "Switch terminal",              defaultKeys: [] },
+      { id: "rename-terminal",                label: "Rename terminal",              defaultKeys: [] },
+      { id: "open-terminal-right",            label: "Open terminal to the right",   defaultKeys: [] },
+      { id: "open-terminal-down",             label: "Open terminal below",          defaultKeys: [] },
+      { id: "augment-view-context",           label: "Open context inspector",       defaultKeys: [] },
+      { id: "jump-to-next-waiting-session",   label: "Jump to next waiting session", defaultKeys: [] },
+      { id: "augment-open-settings",          label: "Open settings",                defaultKeys: [] },
+    ];
+
+    const renderHotkeyStr = (hk: { modifiers: string[]; key: string }): string => {
+      const parts: string[] = [];
+      for (const m of hk.modifiers) {
+        if (m === "Mod")        parts.push(isMac ? "\u2318" : "Ctrl");
+        else if (m === "Ctrl")  parts.push("Ctrl");
+        else if (m === "Shift") parts.push("\u21e7");
+        else if (m === "Alt")   parts.push(isMac ? "\u2325" : "Alt");
+      }
+      parts.push(hk.key === "Enter" ? "\u21a9" : hk.key.toUpperCase());
+      return parts.join("+");
+    };
+
+    const hm = (this.app as any).hotkeyManager;
+    const customKeys: Record<string, { modifiers: string[]; key: string }[]> = hm?.customKeys ?? {};
+
+    const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
+    shortcutsEl.createEl("div", { cls: "augment-overview-how-title", text: "Keyboard shortcuts" });
+
+    const kbTable = shortcutsEl.createEl("table", { cls: "augment-var-table" });
+    const kbTbody = kbTable.createEl("tbody");
+
+    for (const cmd of AUGMENT_CMDS) {
+      const fullId = "augment-terminal:" + cmd.id;
+      // User customizations (including cleared bindings) override plugin defaults.
+      const effectiveKeys = fullId in customKeys ? customKeys[fullId] : cmd.defaultKeys;
+
+      const tr = kbTbody.createEl("tr");
+      tr.createEl("td", { cls: "augment-shortcuts-label", text: cmd.label });
+      const keyTd = tr.createEl("td", { cls: "augment-shortcuts-keys" });
+      if (effectiveKeys.length > 0) {
+        for (const hk of effectiveKeys) {
+          keyTd.createEl("kbd", { cls: "augment-onboarding-hotkey", text: renderHotkeyStr(hk) });
+        }
+      } else {
+        keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
+      }
+    }
+
+    const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
+    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Hotkeys" });
+    customizeLink.href = "#";
+    customizeLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      (this.app as any).setting.openTabById("hotkeys");
+    });
+
     // ── Continuation pane ────────────────────────────────────
     const calloutTypes = detectCalloutTypes();
 
@@ -821,6 +885,15 @@ export class AugmentSettingTab extends PluginSettingTab {
       // Header
       wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
 
+      // Step progress (shown only while setup is incomplete)
+      if (!allReady && activeStep) {
+        const stepIdx = getStepIndex(deps);
+        wizardBody.createEl("div", {
+          cls: "augment-cc-step-progress",
+          text: `Step ${stepIdx.current} of ${stepIdx.total}: ${activeStep.title}`,
+        });
+      }
+
       // Dep rows
       const list = wizardBody.createEl("div", { cls: "augment-cc-dep-list" });
       let activeFound = false;
@@ -879,6 +952,11 @@ export class AugmentSettingTab extends PluginSettingTab {
               void renderStatusCard();
             });
           }
+
+          // Show the step description under the action controls.
+          if (activeStep.desc) {
+            list.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
+          }
         } else if (isPending) {
           rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
         }
@@ -896,13 +974,13 @@ export class AugmentSettingTab extends PluginSettingTab {
       if (allReady) {
         footer.createEl("span", { cls: "augment-cc-all-ready", text: "Claude Code sessions are ready." });
       } else if (activeStep && activeStep.action !== "vault") {
-        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 check \u21ba" });
+        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 verify \u21ba" });
         doneLink.href = "#";
         doneLink.addEventListener("click", (e) => {
           e.preventDefault();
           doneLink.textContent = "Checking\u2026";
           doneLink.style.pointerEvents = "none";
-          setTimeout(() => void renderStatusCard(), 2000);
+          setTimeout(() => void renderStatusCard(), 300);
         });
       }
       const recheck = footer.createEl("a", { cls: "augment-cc-recheck-always", text: "Re-check \u21ba" });

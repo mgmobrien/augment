@@ -18354,6 +18354,9 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
               void renderStatusCard();
             });
           }
+          if (activeStep.desc) {
+            list.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
+          }
         } else if (isPending) {
           rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
         }
@@ -18367,13 +18370,13 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       if (allReady) {
         footer.createEl("span", { cls: "augment-cc-all-ready", text: "Claude Code sessions are ready." });
       } else if (activeStep && activeStep.action !== "vault") {
-        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 check \u21BA" });
+        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 verify \u21BA" });
         doneLink.href = "#";
         doneLink.addEventListener("click", (e) => {
           e.preventDefault();
           doneLink.textContent = "Checking\u2026";
           doneLink.style.pointerEvents = "none";
-          setTimeout(() => void renderStatusCard(), 2e3);
+          setTimeout(() => void renderStatusCard(), 300);
         });
       }
       const recheck = footer.createEl("a", { cls: "augment-cc-recheck-always", text: "Re-check \u21BA" });
@@ -22367,8 +22370,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T18:59:51.925Z";
-    this.gitSha = "544ff82";
+    this.buildId = "2026-03-06T19:00:21.112Z";
+    this.gitSha = "eaa6d30";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

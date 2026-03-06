@@ -1393,6 +1393,17 @@
   margin-top: 4px;
   font-size: 0.85em;
 }
+.augment-cc-step-progress {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.augment-cc-step-desc {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  margin: 4px 0 6px 20px;
+  line-height: 1.4;
+}
 .augment-cc-all-ready { color: var(--color-green); }
 .augment-cc-recheck-always {
   color: var(--text-faint);
