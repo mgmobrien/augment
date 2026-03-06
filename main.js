@@ -20629,12 +20629,6 @@ var SessionStore = class {
 
 // src/terminal-manager-view.ts
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
-function formatAge(ms) {
-  const seconds = Math.floor((Date.now() - ms) / 1e3);
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
-}
 var TerminalManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf) {
     super(leaf);
@@ -20655,11 +20649,10 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.otherProjectsEnabled = false;
     // Which other-project groups are expanded (collapsed by default).
     this.expandedProjects = /* @__PURE__ */ new Set();
-    // Whether the RECENT history section is expanded.
-    this.isHistoryExpanded = false;
-    // Set to true when the user explicitly collapses the history section.
-    // Prevents auto-expand from overriding the user's preference.
-    this.historyUserCollapsed = false;
+    // Collapse state for the RECENT history section.
+    // "auto": expand when no live sessions, collapse otherwise.
+    // "open" / "closed": explicit user preference.
+    this.historyCollapseState = "auto";
     // Hover tooltip for session activity.
     this.tooltipEl = null;
   }
@@ -21222,7 +21215,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     line.createDiv({ cls: "augment-tm-spacer" });
     const ageEl = line.createSpan({ cls: "augment-tm-age" });
     ageEl.dataset.ms = String(session.mtimeMs);
-    ageEl.textContent = formatAge(session.mtimeMs);
+    ageEl.textContent = this.relativeTime(session.mtimeMs, true);
     row.addEventListener("click", async () => {
       const plugin = this.getPlugin();
       if (!plugin) return;
@@ -21260,14 +21253,19 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     });
     this.listEl.querySelectorAll(".augment-tm-reltime[data-ms], .augment-tm-age[data-ms]").forEach((el) => {
       const ms = Number(el.dataset.ms);
-      el.textContent = el.classList.contains("augment-tm-age") ? formatAge(ms) : this.relativeTime(ms);
+      el.textContent = el.classList.contains("augment-tm-age") ? this.relativeTime(ms, true) : this.relativeTime(ms);
     });
   }
-  relativeTime(mtimeMs) {
+  relativeTime(mtimeMs, abbreviated = false) {
     const diff = Date.now() - mtimeMs;
     const mins = Math.floor(diff / 6e4);
     const hours = Math.floor(diff / 36e5);
     const days = Math.floor(diff / 864e5);
+    if (abbreviated) {
+      if (diff < 36e5) return `${mins}m`;
+      if (diff < 864e5) return `${hours}h`;
+      return `${days}d`;
+    }
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
     if (hours < 24) return `${hours}h ago`;
@@ -22641,8 +22639,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:47:12.726Z";
-    this.gitSha = "97b6568";
+    this.buildId = "2026-03-06T21:47:49.970Z";
+    this.gitSha = "bd887fa";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

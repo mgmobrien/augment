@@ -4,12 +4,6 @@ import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
-function formatAge(ms: number): string {
-  const seconds = Math.floor((Date.now() - ms) / 1000);
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
-}
 
 type ActivityState = "thinking" | "bash" | "read" | "write" | "mcp" | "waiting" | "idle" | null;
 type CurrentActivity = { state: ActivityState; detail: string | null } | null;
@@ -52,11 +46,11 @@ export class TerminalManagerView extends ItemView {
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
 
-  // Whether the RECENT history section is expanded.
-  private isHistoryExpanded: boolean = false;
-  // Set to true when the user explicitly collapses the history section.
-  // Prevents auto-expand from overriding the user's preference.
-  private historyUserCollapsed: boolean = false;
+  // Collapse state for the RECENT history section.
+  // "auto": expand when no live sessions, collapse otherwise.
+  // "open" / "closed": explicit user preference.
+  private historyCollapseState: "auto" | "open" | "closed" = "auto";
+
 
   // Hover tooltip for session activity.
   private tooltipEl: HTMLDivElement | null = null;
@@ -783,7 +777,7 @@ export class TerminalManagerView extends ItemView {
 
     const ageEl = line.createSpan({ cls: "augment-tm-age" });
     ageEl.dataset.ms = String(session.mtimeMs);
-    ageEl.textContent = formatAge(session.mtimeMs);
+    ageEl.textContent = this.relativeTime(session.mtimeMs, true);
 
     // Click directly resumes the session — no expand drawer.
     row.addEventListener("click", async () => {
@@ -827,16 +821,22 @@ export class TerminalManagerView extends ItemView {
     this.listEl.querySelectorAll<HTMLElement>(".augment-tm-reltime[data-ms], .augment-tm-age[data-ms]").forEach(el => {
       const ms = Number(el.dataset.ms);
       el.textContent = el.classList.contains("augment-tm-age")
-        ? formatAge(ms)
+        ? this.relativeTime(ms, true)
         : this.relativeTime(ms);
     });
   }
 
-  private relativeTime(mtimeMs: number): string {
+  private relativeTime(mtimeMs: number, abbreviated = false): string {
     const diff = Date.now() - mtimeMs;
     const mins = Math.floor(diff / 60_000);
     const hours = Math.floor(diff / 3_600_000);
     const days = Math.floor(diff / 86_400_000);
+
+    if (abbreviated) {
+      if (diff < 3_600_000) return `${mins}m`;
+      if (diff < 86_400_000) return `${hours}h`;
+      return `${days}d`;
+    }
 
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
