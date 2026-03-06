@@ -22860,8 +22860,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:25:45.156Z";
-    this.gitSha = "35eefa0";
+    this.buildId = "2026-03-06T23:31:40.950Z";
+    this.gitSha = "0019591";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23197,6 +23197,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
     `);
+    const _augmentSyncEnd = performance.now();
     console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData();
     if (raw && typeof raw === "object") {
@@ -23206,6 +23207,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       delete raw["s3Email"];
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
+    if (this.settings.defaultTerminalLocation === "sidebar-right") {
+      this.settings.defaultTerminalLocation = "sidebar-right-bottom";
+    } else if (this.settings.defaultTerminalLocation === "sidebar-left") {
+      this.settings.defaultTerminalLocation = "sidebar-left-bottom";
+    }
     {
       const hm = this.app.hotkeyManager;
       const RUNTIME_CONFLICTS = [
@@ -23376,14 +23382,7 @@ ${excerpt}`,
           const rendered = substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
             var _a4, _b, _c;
-            if (this.statusBarEl) {
-              this.statusBarEl.empty();
-              const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-              this.statusBarEl.createEl("span", { text: " generating" });
-            }
+            this.showStatusBarGenerating();
             const isCursorMode = targetMode === "cursor";
             const isBlock = this.settings.outputFormat !== "plain";
             let insertPos = 0;
@@ -23734,7 +23733,7 @@ ${excerpt}`,
       _ComponentProto.load = _origLoad;
       if (this.settings.enableProfiler) {
         this.startupTimings = {
-          ownMs: Math.round(performance.now() - _profilerT0),
+          ownMs: Math.round(_augmentSyncEnd - _profilerT0),
           layoutReadyMs: Math.round(performance.now() - _profilerT0),
           plugins: _profilerPlugins.slice().sort((a, b) => b.ms - a.ms)
         };

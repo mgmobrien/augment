@@ -998,6 +998,13 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
     this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
 
+    // Migrate legacy sidebar location values to their top/bottom variants.
+    if (this.settings.defaultTerminalLocation === "sidebar-right") {
+      this.settings.defaultTerminalLocation = "sidebar-right-bottom";
+    } else if (this.settings.defaultTerminalLocation === "sidebar-left") {
+      this.settings.defaultTerminalLocation = "sidebar-left-bottom";
+    }
+
     // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
     // Two mechanisms: (1) removeDefaultHotkeys on the runtime hotkey manager (immediate),
     // (2) write [] to hotkeys.json (persists across reloads for non-plugin built-ins).
@@ -1188,14 +1195,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           const rendered = substituteVariables(templateContent, ctx);
 
           const runGenerate = async () => {
-            if (this.statusBarEl) {
-              this.statusBarEl.empty();
-              const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-              sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-              this.statusBarEl.createEl("span", { text: " generating" });
-            }
+            this.showStatusBarGenerating();
 
             const isCursorMode = targetMode === "cursor";
             const isBlock = this.settings.outputFormat !== "plain";
