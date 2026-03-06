@@ -1580,8 +1580,9 @@ export default class AugmentTerminalPlugin extends Plugin {
   async onunload(): Promise<void> {
     delete (globalThis as any).__augmentCancelGeneration;
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
+    // Do not detach VIEW_TYPE_TERMINAL_MANAGER or VIEW_TYPE_CONTEXT_INSPECTOR on unload.
+    // Obsidian persists their sidebar placement across reloads. Detaching here would
+    // remove the saved position and force a re-place to the default location every time.
     cleanupXtermStyle();
     this.calloutStyleEl?.remove();
     this.calloutStyleEl = null;

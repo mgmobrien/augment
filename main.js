@@ -22643,8 +22643,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:38:08.520Z";
-    this.gitSha = "12855b0";
+    this.buildId = "2026-03-06T19:40:05.239Z";
+    this.gitSha = "752e055";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23496,8 +23496,6 @@ ${excerpt}`,
     var _a2;
     delete globalThis.__augmentCancelGeneration;
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
     cleanupXtermStyle();
     (_a2 = this.calloutStyleEl) == null ? void 0 : _a2.remove();
     this.calloutStyleEl = null;
