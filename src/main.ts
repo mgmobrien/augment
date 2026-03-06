@@ -642,6 +642,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
+  public startupTimings: { ownMs: number; layoutReadyMs: number; plugins: { id: string; name: string; ms: number }[] } | null = null;
   private waitingBadgeEl: HTMLElement | null = null;
   private waitingCursor: number = 0;
   private activeGeneration: {
@@ -941,6 +942,27 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    // ── Startup profiler ─────────────────────────────────────────────────────
+    // Must be the very first synchronous code — before any await — so we can
+    // wrap Component.prototype.load before Obsidian loads subsequent plugins.
+    const _profilerT0 = performance.now();
+    const _profilerPlugins: { id: string; name: string; ms: number }[] = [];
+    const _ComponentProto = Object.getPrototypeOf(Plugin).prototype as any;
+    const _origLoad = _ComponentProto.load;
+    _ComponentProto.load = function(this: any, ...args: any[]) {
+      const pid = this.manifest?.id as string | undefined;
+      if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
+      const t = performance.now();
+      const result = _origLoad.apply(this, args);
+      const finish = () => _profilerPlugins.push({ id: pid, name: this.manifest?.name ?? pid, ms: Math.round(performance.now() - t) });
+      if (result && typeof (result as any).then === "function") {
+        return (result as Promise<any>).then((v: any) => { finish(); return v; }, (e: any) => { finish(); return Promise.reject(e); });
+      }
+      finish();
+      return result;
+    };
+    // ── End profiler setup ───────────────────────────────────────────────────
+
     // Register the System 3 pyramid icon: three dots (red top, blue bottom-left, green bottom-right).
     addIcon("augment-pyramid", `
       <circle cx="50" cy="18" r="16" fill="#ff3d00"/>
@@ -1549,6 +1571,16 @@ export default class AugmentTerminalPlugin extends Plugin {
     );
 
     this.app.workspace.onLayoutReady(() => {
+      // Restore Component.prototype.load and store profiler results.
+      _ComponentProto.load = _origLoad;
+      if (this.settings.enableProfiler) {
+        this.startupTimings = {
+          ownMs: Math.round(performance.now() - _profilerT0),
+          layoutReadyMs: Math.round(performance.now() - _profilerT0),
+          plugins: _profilerPlugins.slice().sort((a, b) => b.ms - a.ms),
+        };
+      }
+
       // Scaffold defaults on first install — deferred so vault I/O doesn't
       // compete with Obsidian's core startup sequence.
       void this.scaffoldDefaultTemplates();

@@ -18339,6 +18339,52 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       e.preventDefault();
       this.app.setting.openTabById("hotkeys");
     });
+    {
+      const timings = this.plugin.startupTimings;
+      const profilerSection = overviewPane.createDiv({ cls: "augment-profiler-section" });
+      new import_obsidian4.Setting(profilerSection).setName("Startup profiler").setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.").addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.enableProfiler).onChange(async (val) => {
+          this.plugin.settings.enableProfiler = val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.display();
+        });
+      });
+      if (this.plugin.settings.enableProfiler) {
+        if (!timings) {
+          profilerSection.createEl("p", {
+            cls: "augment-profiler-hint",
+            text: "Restart Obsidian to capture startup timing."
+          });
+        } else {
+          const summaryEl = profilerSection.createDiv({ cls: "augment-profiler-summary" });
+          summaryEl.createEl("div", {
+            cls: "augment-profiler-row augment-profiler-own",
+            text: `Augment (this plugin): ${timings.ownMs}ms`
+          });
+          summaryEl.createEl("div", {
+            cls: "augment-profiler-row",
+            text: `Total window (load \u2192 layout ready): ${timings.layoutReadyMs}ms`
+          });
+          if (timings.plugins.length > 0) {
+            profilerSection.createDiv({ cls: "augment-pane-section augment-profiler-plugins-label", text: "Other plugins" });
+            const table = profilerSection.createEl("table", { cls: "augment-var-table augment-profiler-table" });
+            const tbody = table.createEl("tbody");
+            for (const p of timings.plugins) {
+              const tr = tbody.createEl("tr");
+              tr.createEl("td", { text: p.name });
+              const msEl = tr.createEl("td", { cls: "augment-profiler-ms", text: `${p.ms}ms` });
+              if (p.ms > 500) msEl.addClass("augment-profiler-slow");
+              else if (p.ms > 200) msEl.addClass("augment-profiler-med");
+            }
+          } else {
+            profilerSection.createEl("p", {
+              cls: "augment-profiler-hint",
+              text: "No other plugin timings captured. Augment may not have loaded first \u2014 restart Obsidian to retry."
+            });
+          }
+        }
+      }
+    }
     this.renderHotkeyBox(continuationPane, [
       { label: "Generate", commandId: "augment-terminal:augment-generate" },
       { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
@@ -22736,8 +22782,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:10:29.647Z";
-    this.gitSha = "94558c5";
+    this.buildId = "2026-03-06T23:10:59.650Z";
+    this.gitSha = "a58c267";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

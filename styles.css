@@ -921,6 +921,61 @@
   text-decoration: underline;
 }
 
+/* ── Startup profiler ── */
+.augment-profiler-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.augment-profiler-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin: 4px 0 0 0;
+}
+
+.augment-profiler-summary {
+  margin: 8px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.augment-profiler-row {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.augment-profiler-own {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+.augment-profiler-plugins-label {
+  margin-top: 0;
+}
+
+.augment-profiler-table {
+  width: 100%;
+}
+
+.augment-profiler-ms {
+  text-align: right;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.augment-profiler-ms.augment-profiler-slow {
+  color: var(--color-red);
+  font-weight: var(--font-semibold);
+}
+
+.augment-profiler-ms.augment-profiler-med {
+  color: var(--color-orange);
+}
+
 /* ── Context pane intro ── */
 .augment-context-intro {
   color: var(--text-muted);
