@@ -278,6 +278,51 @@ export async function generateTemplatesFromFolder(
     .slice(0, 5);
 }
 
+// Shared flow: folder picker → generate → confirm modal → write files.
+// onComplete is called after templates are created (e.g. to refresh a UI list).
+export function runGenerateTemplatesFlow(
+  app: App,
+  settings: AugmentSettings,
+  resolvedModel: string,
+  onComplete?: () => void
+): void {
+  new FolderSuggestModal(app, async (folder) => {
+    const notice = new Notice("Scanning folder and generating templates\u2026", 0);
+    try {
+      const templates = await generateTemplatesFromFolder(app, folder, settings, resolvedModel);
+      notice.hide();
+      const targetFolder = settings.templateFolder || "Augment/templates";
+      new GeneratedTemplatesModal(app, templates, targetFolder, async (ts) => {
+        if (!app.vault.getAbstractFileByPath(targetFolder)) {
+          try { await app.vault.createFolder(targetFolder); } catch { /* already exists */ }
+        }
+        let created = 0;
+        for (const t of ts) {
+          const path = `${targetFolder}/${t.name}.md`;
+          if (!app.vault.getAbstractFileByPath(path)) {
+            await app.vault.create(path, buildTemplateFileContent(t));
+            created++;
+          }
+        }
+        if (created > 0) {
+          new Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
+          onComplete?.();
+        } else {
+          new Notice("All generated templates already exist \u2014 no files created");
+        }
+      }).open();
+    } catch (err: any) {
+      notice.hide();
+      if (err?.message === "no-files") {
+        new Notice("No .md notes found in that folder");
+      } else {
+        new Notice("Template generation failed \u2014 see console for details");
+        console.error("[Augment] generate-templates-from-folder failed", err);
+      }
+    }
+  }).open();
+}
+
 export function buildTemplateFileContent(t: GeneratedTemplate): string {
   const lines = ["---", `name: ${t.name}`];
   if (t.description) lines.push(`description: ${t.description}`);

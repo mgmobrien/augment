@@ -17836,6 +17836,46 @@ async function generateTemplatesFromFolder(app, folder, settings, resolvedModel)
     body: t.body.trim()
   })).slice(0, 5);
 }
+function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
+  new FolderSuggestModal(app, async (folder) => {
+    const notice = new import_obsidian3.Notice("Scanning folder and generating templates\u2026", 0);
+    try {
+      const templates = await generateTemplatesFromFolder(app, folder, settings, resolvedModel);
+      notice.hide();
+      const targetFolder = settings.templateFolder || "Augment/templates";
+      new GeneratedTemplatesModal(app, templates, targetFolder, async (ts) => {
+        if (!app.vault.getAbstractFileByPath(targetFolder)) {
+          try {
+            await app.vault.createFolder(targetFolder);
+          } catch (e) {
+          }
+        }
+        let created = 0;
+        for (const t of ts) {
+          const path4 = `${targetFolder}/${t.name}.md`;
+          if (!app.vault.getAbstractFileByPath(path4)) {
+            await app.vault.create(path4, buildTemplateFileContent(t));
+            created++;
+          }
+        }
+        if (created > 0) {
+          new import_obsidian3.Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
+          onComplete == null ? void 0 : onComplete();
+        } else {
+          new import_obsidian3.Notice("All generated templates already exist \u2014 no files created");
+        }
+      }).open();
+    } catch (err) {
+      notice.hide();
+      if ((err == null ? void 0 : err.message) === "no-files") {
+        new import_obsidian3.Notice("No .md notes found in that folder");
+      } else {
+        new import_obsidian3.Notice("Template generation failed \u2014 see console for details");
+        console.error("[Augment] generate-templates-from-folder failed", err);
+      }
+    }
+  }).open();
+}
 function buildTemplateFileContent(t) {
   const lines = ["---", `name: ${t.name}`];
   if (t.description) lines.push(`description: ${t.description}`);
@@ -18521,49 +18561,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           new import_obsidian4.Notice("Add an API key in the Overview tab first");
           return;
         }
-        new FolderSuggestModal(this.app, async (folder) => {
-          const notice = new import_obsidian4.Notice("Scanning folder and generating templates\u2026", 0);
-          try {
-            const templates = await generateTemplatesFromFolder(
-              this.app,
-              folder,
-              this.plugin.settings,
-              this.plugin.resolveModel()
-            );
-            notice.hide();
-            const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
-            new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
-              if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
-                try {
-                  await this.app.vault.createFolder(targetFolder);
-                } catch (e) {
-                }
-              }
-              let created = 0;
-              for (const t of ts) {
-                const path4 = `${targetFolder}/${t.name}.md`;
-                if (!this.app.vault.getAbstractFileByPath(path4)) {
-                  await this.app.vault.create(path4, buildTemplateFileContent(t));
-                  created++;
-                }
-              }
-              if (created > 0) {
-                new import_obsidian4.Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
-                renderTemplateList();
-              } else {
-                new import_obsidian4.Notice("All generated templates already exist \u2014 no files created");
-              }
-            }).open();
-          } catch (err) {
-            notice.hide();
-            if ((err == null ? void 0 : err.message) === "no-files") {
-              new import_obsidian4.Notice("No .md notes found in that folder");
-            } else {
-              new import_obsidian4.Notice("Template generation failed \u2014 check the console for details");
-              console.error("[Augment] template scan failed", err);
-            }
-          }
-        }).open();
+        runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
       });
     });
     const newTemplateBtn = templatesPane.createEl("button", {
@@ -22649,8 +22647,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T20:23:32.031Z";
-    this.gitSha = "7fa9b7f";
+    this.buildId = "2026-03-06T21:46:00.762Z";
+    this.gitSha = "0453ff7";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23252,46 +23250,7 @@ ${excerpt}`,
           new import_obsidian8.Notice("Augment: add an API key in Settings \u2192 Augment first");
           return;
         }
-        new FolderSuggestModal(this.app, async (folder) => {
-          const notice = new import_obsidian8.Notice("Scanning folder and generating templates\u2026", 0);
-          try {
-            const templates = await generateTemplatesFromFolder(
-              this.app,
-              folder,
-              this.settings,
-              this.resolveModel()
-            );
-            notice.hide();
-            const targetFolder = this.settings.templateFolder || "Augment/templates";
-            new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
-              if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
-                try {
-                  await this.app.vault.createFolder(targetFolder);
-                } catch (e) {
-                }
-              }
-              let created = 0;
-              for (const t of ts) {
-                const path4 = `${targetFolder}/${t.name}.md`;
-                if (!this.app.vault.getAbstractFileByPath(path4)) {
-                  await this.app.vault.create(path4, buildTemplateFileContent(t));
-                  created++;
-                }
-              }
-              new import_obsidian8.Notice(
-                created > 0 ? `Created ${created} template${created !== 1 ? "s" : ""}` : "All generated templates already exist \u2014 no files created"
-              );
-            }).open();
-          } catch (err) {
-            notice.hide();
-            if ((err == null ? void 0 : err.message) === "no-files") {
-              new import_obsidian8.Notice("No .md notes found in that folder");
-            } else {
-              new import_obsidian8.Notice("Template generation failed \u2014 see console for details");
-              console.error("[Augment] generate-templates-from-folder failed", err);
-            }
-          }
-        }).open();
+        runGenerateTemplatesFlow(this.app, this.settings, this.resolveModel());
       }
     });
     this.addCommand({

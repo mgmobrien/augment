@@ -5,7 +5,7 @@ import { modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
-import { buildTemplateFileContent, FolderSuggestModal, generateTemplatesFromFolder, GeneratedTemplatesModal } from "./template-picker";
+import { runGenerateTemplatesFlow } from "./template-picker";
 
 
 
@@ -817,46 +817,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             new Notice("Add an API key in the Overview tab first");
             return;
           }
-          new FolderSuggestModal(this.app, async (folder) => {
-            const notice = new Notice("Scanning folder and generating templates\u2026", 0);
-            try {
-              const templates = await generateTemplatesFromFolder(
-                this.app,
-                folder,
-                this.plugin.settings,
-                this.plugin.resolveModel()
-              );
-              notice.hide();
-              const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
-              new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
-                if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
-                  try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
-                }
-                let created = 0;
-                for (const t of ts) {
-                  const path = `${targetFolder}/${t.name}.md`;
-                  if (!this.app.vault.getAbstractFileByPath(path)) {
-                    await this.app.vault.create(path, buildTemplateFileContent(t));
-                    created++;
-                  }
-                }
-                if (created > 0) {
-                  new Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
-                  renderTemplateList();
-                } else {
-                  new Notice("All generated templates already exist \u2014 no files created");
-                }
-              }).open();
-            } catch (err: any) {
-              notice.hide();
-              if (err?.message === "no-files") {
-                new Notice("No .md notes found in that folder");
-              } else {
-                new Notice("Template generation failed \u2014 check the console for details");
-                console.error("[Augment] template scan failed", err);
-              }
-            }
-          }).open();
+          runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
         });
       });
 

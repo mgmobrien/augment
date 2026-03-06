@@ -3,7 +3,7 @@ import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, bui
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
-import { buildTemplateFileContent, FolderSuggestModal, generateTemplatesFromFolder, GeneratedTemplatesModal, getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
+import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord, TerminalOpenLocation } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
@@ -1289,46 +1289,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           new Notice("Augment: add an API key in Settings \u2192 Augment first");
           return;
         }
-        new FolderSuggestModal(this.app, async (folder) => {
-          const notice = new Notice("Scanning folder and generating templates\u2026", 0);
-          try {
-            const templates = await generateTemplatesFromFolder(
-              this.app,
-              folder,
-              this.settings,
-              this.resolveModel()
-            );
-            notice.hide();
-            const targetFolder = this.settings.templateFolder || "Augment/templates";
-            new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
-              // Ensure target folder exists before writing files.
-              if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
-                try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
-              }
-              let created = 0;
-              for (const t of ts) {
-                const path = `${targetFolder}/${t.name}.md`;
-                if (!this.app.vault.getAbstractFileByPath(path)) {
-                  await this.app.vault.create(path, buildTemplateFileContent(t));
-                  created++;
-                }
-              }
-              new Notice(
-                created > 0
-                  ? `Created ${created} template${created !== 1 ? "s" : ""}`
-                  : "All generated templates already exist \u2014 no files created"
-              );
-            }).open();
-          } catch (err: any) {
-            notice.hide();
-            if (err?.message === "no-files") {
-              new Notice("No .md notes found in that folder");
-            } else {
-              new Notice("Template generation failed \u2014 see console for details");
-              console.error("[Augment] generate-templates-from-folder failed", err);
-            }
-          }
-        }).open();
+        runGenerateTemplatesFlow(this.app, this.settings, this.resolveModel());
       },
     });
 
