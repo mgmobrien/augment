@@ -642,6 +642,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
+  private ribbonGenerateEl: HTMLElement | null = null;
   public startupTimings: { ownMs: number; layoutReadyMs: number; plugins: { id: string; name: string; ms: number }[] } | null = null;
   private waitingBadgeEl: HTMLElement | null = null;
   private waitingCursor: number = 0;
@@ -674,6 +675,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public refreshStatusBar(): void {
+    this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
     if (!this.statusBarEl) return;
     if (!this.settings.apiKey) {
       this.statusBarEl.setText("Augment: API key needed");
@@ -700,13 +702,15 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   private showStatusBarGenerating(): void {
-    if (!this.statusBarEl) return;
-    this.statusBarEl.empty();
-    const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-    this.statusBarEl.createEl("span", { text: " generating" });
+    if (this.statusBarEl) {
+      this.statusBarEl.empty();
+      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+      this.statusBarEl.createEl("span", { text: " generating" });
+    }
+    this.ribbonGenerateEl?.addClass("augment-ribbon-generating");
   }
 
   private triggerGenerate(editor: Editor): void {
@@ -964,10 +968,11 @@ export default class AugmentTerminalPlugin extends Plugin {
     // ── End profiler setup ───────────────────────────────────────────────────
 
     // Register the System 3 pyramid icon: three dots (red top, blue bottom-left, green bottom-right).
+    // Lucide-style: stroke outlines, currentColor, no fill. Three circles in pyramid.
     addIcon("augment-pyramid", `
-      <circle cx="50" cy="18" r="16" fill="#ff3d00"/>
-      <circle cx="18" cy="72" r="16" fill="#1565c0"/>
-      <circle cx="82" cy="72" r="16" fill="#2e7d32"/>
+      <circle cx="50" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
     `);
 
     console.log(`[augment] build ${this.getBuildFingerprint()}`);
@@ -1412,7 +1417,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     // Ribbon: augment-pyramid → generate AI text
-    this.addRibbonIcon("augment-pyramid", "Generate", () => {
+    this.ribbonGenerateEl = this.addRibbonIcon("augment-pyramid", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to generate");

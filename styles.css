@@ -441,6 +441,29 @@
 .theme-dark .augment-dot-green { background: #43a047; }
 .theme-dark .augment-dot-blue  { background: #1e88e5; }
 
+/* ── Ribbon Generate icon — active state during generation ── */
+@keyframes augment-ribbon-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1.0; }
+}
+
+.augment-ribbon-generating svg circle:nth-child(1) {
+  fill: #ff3d00; stroke: none;
+  animation: augment-ribbon-pulse 1.5s ease-in-out 0s   infinite;
+}
+.augment-ribbon-generating svg circle:nth-child(2) {
+  fill: #1565c0; stroke: none;
+  animation: augment-ribbon-pulse 1.5s ease-in-out 0.5s infinite;
+}
+.augment-ribbon-generating svg circle:nth-child(3) {
+  fill: #2e7d32; stroke: none;
+  animation: augment-ribbon-pulse 1.5s ease-in-out 1.0s infinite;
+}
+
+.theme-dark .augment-ribbon-generating svg circle:nth-child(1) { fill: #ff6e40; }
+.theme-dark .augment-ribbon-generating svg circle:nth-child(2) { fill: #1e88e5; }
+.theme-dark .augment-ribbon-generating svg circle:nth-child(3) { fill: #43a047; }
+
 /* ── Status bar generation dots — S3 pyramid layout ── */
 @keyframes augment-sb-pulse {
   0%, 100% { transform: scale(0.6);  opacity: 0.25; }
