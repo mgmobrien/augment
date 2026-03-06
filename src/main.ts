@@ -1411,8 +1411,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon: antenna → Augment settings
-    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+    // Ribbon: settings → Augment settings
+    this.addRibbonIcon("settings", "Augment settings", () => {
       (this.app as any).setting.open();
       (this.app as any).setting.openTabById("augment-terminal");
     });
@@ -1422,8 +1422,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
 
-    // Ribbon: ellipsis (three dots) → generate AI text
-    this.addRibbonIcon("ellipsis", "Augment: generate AI text in current note", () => {
+    // Ribbon: sparkles → generate AI text
+    this.addRibbonIcon("sparkles", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to generate");
