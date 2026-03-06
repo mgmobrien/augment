@@ -296,9 +296,9 @@ export class SessionStore {
     if (compact.includes("<local-command-caveat>")) return true;
     if (compact.includes("<command-name>")) return true;
     if (compact.includes("<local-command-stdout>")) return true;
-    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact) && compact.length < 220) {
-      return true;
-    }
+    if (compact.includes("<user-prompt-submit-hook>")) return true;
+    // A message that is entirely one XML element — skip regardless of length.
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact)) return true;
     return false;
   }
 
@@ -309,7 +309,18 @@ export class SessionStore {
     const teammate = this.cleanTeammateXmlTitle(compact);
     if (teammate) return teammate.slice(0, 60);
 
-    const stripped = compact.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    // Remove system-injected tag blocks entirely (tag + content) before stripping.
+    // Stripping just the tags would leave the injected content as the title text.
+    const deSystemed = compact
+      .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ")
+      .replace(/<env>[\s\S]*?<\/env>/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!deSystemed) return null;
+
+    // Strip any remaining XML tags.
+    const stripped = deSystemed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (!stripped) return null;
 
     const roleForwarded = stripped.match(

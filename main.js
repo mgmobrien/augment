@@ -20197,9 +20197,8 @@ var SessionStore = class {
     if (compact.includes("<local-command-caveat>")) return true;
     if (compact.includes("<command-name>")) return true;
     if (compact.includes("<local-command-stdout>")) return true;
-    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact) && compact.length < 220) {
-      return true;
-    }
+    if (compact.includes("<user-prompt-submit-hook>")) return true;
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact)) return true;
     return false;
   }
   cleanTitle(raw) {
@@ -20208,7 +20207,9 @@ var SessionStore = class {
     if (!compact) return null;
     const teammate = this.cleanTeammateXmlTitle(compact);
     if (teammate) return teammate.slice(0, 60);
-    const stripped = compact.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const deSystemed = compact.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ").replace(/<env>[\s\S]*?<\/env>/gi, " ").replace(/\s+/g, " ").trim();
+    if (!deSystemed) return null;
+    const stripped = deSystemed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (!stripped) return null;
     const roleForwarded = stripped.match(
       /^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i
@@ -22256,8 +22257,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T18:53:56.895Z";
-    this.gitSha = "9eff5be";
+    this.buildId = "2026-03-06T18:56:04.084Z";
+    this.gitSha = "6f84eef";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
