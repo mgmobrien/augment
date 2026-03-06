@@ -585,6 +585,11 @@ export class AugmentSettingTab extends PluginSettingTab {
       { label: "Run template",      commandId: "augment-terminal:augment-generate-from-template" },
     ]);
 
+    continuationPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it — the AI sees your note title, frontmatter, surrounding context, and linked notes.",
+    });
+
     const calloutTypes = detectCalloutTypes();
 
     const formatSetting = new Setting(continuationPane)

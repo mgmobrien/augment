@@ -18420,6 +18420,10 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       { label: "Generate", commandId: "augment-terminal:augment-generate" },
       { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
     ]);
+    continuationPane.createEl("p", {
+      cls: "augment-context-intro",
+      text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it \u2014 the AI sees your note title, frontmatter, surrounding context, and linked notes."
+    });
     const calloutTypes = detectCalloutTypes();
     const formatSetting = new import_obsidian4.Setting(continuationPane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
@@ -22860,8 +22864,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:34:36.556Z";
-    this.gitSha = "026217e";
+    this.buildId = "2026-03-06T23:35:36.756Z";
+    this.gitSha = "7bc7b36";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
