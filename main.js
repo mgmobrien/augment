@@ -18688,7 +18688,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
             });
           }
           if (activeStep.desc) {
-            list.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
+            rowEl.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
           }
         } else if (isPending) {
           rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
@@ -22643,8 +22643,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:40:05.239Z";
-    this.gitSha = "752e055";
+    this.buildId = "2026-03-06T20:18:28.207Z";
+    this.gitSha = "fc70b65";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

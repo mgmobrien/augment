@@ -1436,7 +1436,7 @@
 .augment-cc-step-desc {
   font-size: 0.82em;
   color: var(--text-muted);
-  margin: 4px 0 6px 20px;
+  margin: 4px 0 6px 0;
   line-height: 1.4;
 }
 .augment-cc-all-ready { color: var(--color-green); }

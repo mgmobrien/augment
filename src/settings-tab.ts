@@ -1009,7 +1009,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
           // Show the step description under the action controls.
           if (activeStep.desc) {
-            list.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
+            rowEl.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
           }
         } else if (isPending) {
           rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
