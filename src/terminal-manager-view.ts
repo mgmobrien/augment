@@ -35,7 +35,6 @@ export class TerminalManagerView extends ItemView {
   private listEl: HTMLElement | null = null;
   private sessionStore: SessionStore | null = null;
   private historyLoadedCount: number = 20;
-  private expandedSessionId: string | null = null;
   private refreshFrameId: number | null = null;
 
   // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
@@ -55,6 +54,9 @@ export class TerminalManagerView extends ItemView {
 
   // Whether the RECENT history section is expanded.
   private isHistoryExpanded: boolean = false;
+  // Set to true when the user explicitly collapses the history section.
+  // Prevents auto-expand from overriding the user's preference.
+  private historyUserCollapsed: boolean = false;
 
   // Hover tooltip for session activity.
   private tooltipEl: HTMLDivElement | null = null;
@@ -374,7 +376,8 @@ export class TerminalManagerView extends ItemView {
     // ── RECENT section with collapse ──────────────────────────
     if (hasHistory) {
       // Auto-expand when no live sessions so user isn't looking at an empty panel.
-      if (!hasOpen && !this.isHistoryExpanded) {
+      // Only do this if the user hasn't explicitly collapsed the section.
+      if (!hasOpen && !this.isHistoryExpanded && !this.historyUserCollapsed) {
         this.isHistoryExpanded = true;
       }
 
@@ -390,6 +393,7 @@ export class TerminalManagerView extends ItemView {
 
       divider.addEventListener("click", () => {
         this.isHistoryExpanded = !this.isHistoryExpanded;
+        this.historyUserCollapsed = !this.isHistoryExpanded;
         divider.toggleClass("is-open", this.isHistoryExpanded);
         historyContainer.style.display = this.isHistoryExpanded ? "" : "none";
       });

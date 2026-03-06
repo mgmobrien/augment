@@ -20641,7 +20641,6 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.listEl = null;
     this.sessionStore = null;
     this.historyLoadedCount = 20;
-    this.expandedSessionId = null;
     this.refreshFrameId = null;
     // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
     this.lastHistoryLoadTime = 0;
@@ -20658,6 +20657,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.expandedProjects = /* @__PURE__ */ new Set();
     // Whether the RECENT history section is expanded.
     this.isHistoryExpanded = false;
+    // Set to true when the user explicitly collapses the history section.
+    // Prevents auto-expand from overriding the user's preference.
+    this.historyUserCollapsed = false;
     // Hover tooltip for session activity.
     this.tooltipEl = null;
   }
@@ -20892,7 +20894,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
     if (hasHistory) {
-      if (!hasOpen && !this.isHistoryExpanded) {
+      if (!hasOpen && !this.isHistoryExpanded && !this.historyUserCollapsed) {
         this.isHistoryExpanded = true;
       }
       const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
@@ -20905,6 +20907,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       this.renderHistorySections(sessions, historyContainer);
       divider.addEventListener("click", () => {
         this.isHistoryExpanded = !this.isHistoryExpanded;
+        this.historyUserCollapsed = !this.isHistoryExpanded;
         divider.toggleClass("is-open", this.isHistoryExpanded);
         historyContainer.style.display = this.isHistoryExpanded ? "" : "none";
       });
@@ -22640,8 +22643,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:32:50.405Z";
-    this.gitSha = "3489d4e";
+    this.buildId = "2026-03-06T19:34:30.765Z";
+    this.gitSha = "d520e8e";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
