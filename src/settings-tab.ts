@@ -829,6 +829,9 @@ export class AugmentSettingTab extends PluginSettingTab {
               notice.hide();
               const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
               new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
+                if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
+                  try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
+                }
                 let created = 0;
                 for (const t of ts) {
                   const path = `${targetFolder}/${t.name}.md`;
