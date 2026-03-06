@@ -22655,8 +22655,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:00:56.159Z";
-    this.gitSha = "fc4b2b9";
+    this.buildId = "2026-03-06T23:02:02.134Z";
+    this.gitSha = "a7a9a79";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22712,19 +22712,21 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     console.log("[Augment] generation cancelled");
     new import_obsidian8.Notice("Augment: generation cancelled");
   }
+  showStatusBarGenerating() {
+    if (!this.statusBarEl) return;
+    this.statusBarEl.empty();
+    const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+    this.statusBarEl.createEl("span", { text: " generating" });
+  }
   triggerGenerate(editor) {
     const cursor = editor.getCursor();
     const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
     const promptText = aboveCursor.trim() || editor.getValue().trim();
     const ctx = assembleVaultContext(this.app, editor, this.settings);
-    if (this.statusBarEl) {
-      this.statusBarEl.empty();
-      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      this.statusBarEl.createEl("span", { text: " generating" });
-    }
+    this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
       new import_obsidian8.Notice("Generating\u2026", 3e3);
     }
@@ -22943,6 +22945,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     var _a2;
+    (0, import_obsidian8.addIcon)("augment-pyramid", `
+      <circle cx="50" cy="18" r="16" fill="#ff3d00"/>
+      <circle cx="18" cy="72" r="16" fill="#1565c0"/>
+      <circle cx="82" cy="72" r="16" fill="#2e7d32"/>
+    `);
     console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData();
     if (raw && typeof raw === "object") {
@@ -22966,8 +22973,6 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         if (isFirst) this.showHotkeyClaimedNotice();
       });
     }
-    void this.scaffoldDefaultTemplates();
-    void this.scaffoldDefaultSkills();
     void this.loadAvailableModels();
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
@@ -23328,7 +23333,7 @@ ${excerpt}`,
     this.addRibbonIcon("terminal", "Open terminal", () => {
       this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
-    this.addRibbonIcon("sparkles", "Generate", () => {
+    this.addRibbonIcon("augment-pyramid", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
       if (!view) {
         new import_obsidian8.Notice("Open a note to generate");
@@ -23478,6 +23483,8 @@ ${excerpt}`,
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
     this.app.workspace.onLayoutReady(() => {
+      void this.scaffoldDefaultTemplates();
+      void this.scaffoldDefaultSkills();
       this.refreshAttentionBadge();
       if (this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER).length === 0) {
         const leaf = this.app.workspace.getLeftLeaf(false);

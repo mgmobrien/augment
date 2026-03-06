@@ -698,20 +698,23 @@ export default class AugmentTerminalPlugin extends Plugin {
     new Notice("Augment: generation cancelled");
   }
 
+  private showStatusBarGenerating(): void {
+    if (!this.statusBarEl) return;
+    this.statusBarEl.empty();
+    const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
+    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+    sbSpinner.createEl("span", { cls: "augment-sb-dot" });
+    this.statusBarEl.createEl("span", { text: " generating" });
+  }
+
   private triggerGenerate(editor: Editor): void {
     const cursor = editor.getCursor();
     const aboveCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
     const promptText = aboveCursor.trim() || editor.getValue().trim();
     const ctx = assembleVaultContext(this.app, editor, this.settings);
 
-    if (this.statusBarEl) {
-      this.statusBarEl.empty();
-      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      this.statusBarEl.createEl("span", { text: " generating" });
-    }
+    this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
       new Notice("Generating\u2026", 3000);
     }
@@ -974,10 +977,6 @@ export default class AugmentTerminalPlugin extends Plugin {
         if (isFirst) this.showHotkeyClaimedNotice();
       });
     }
-
-    // Scaffold defaults on first install (fire-and-forget — doesn't block onload).
-    void this.scaffoldDefaultTemplates();
-    void this.scaffoldDefaultSkills();
 
     // Fetch available models in the background — populates the model dropdown
     // and resolves "auto" to the best available model name in the status bar.
@@ -1390,8 +1389,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
 
-    // Ribbon: sparkles → generate AI text
-    this.addRibbonIcon("sparkles", "Generate", () => {
+    // Ribbon: augment-pyramid → generate AI text
+    this.addRibbonIcon("augment-pyramid", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to generate");
@@ -1550,6 +1549,10 @@ export default class AugmentTerminalPlugin extends Plugin {
     );
 
     this.app.workspace.onLayoutReady(() => {
+      // Scaffold defaults on first install — deferred so vault I/O doesn't
+      // compete with Obsidian's core startup sequence.
+      void this.scaffoldDefaultTemplates();
+      void this.scaffoldDefaultSkills();
       this.refreshAttentionBadge();
       // Auto-open Terminal Manager in left sidebar after reload.
       // Obsidian persists sidebar state, so check if one already exists.
