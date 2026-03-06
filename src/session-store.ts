@@ -239,12 +239,11 @@ export class SessionStore {
             for (const block of msgContent) {
               if (block?.type === "text" && typeof block.text === "string") {
                 const text = block.text.trim();
-                if (text.length > 40) {
-                  // Take up to the first sentence boundary, capped at 60 chars.
-                  const sentence = text.replace(/\n[\s\S]*/m, "").replace(/[.!?].*/, "").trim();
-                  const candidate = (sentence.length > 10 ? sentence : text.replace(/\s+/g, " ")).slice(0, 60);
-                  if (candidate) firstAssistantText = candidate;
-                }
+                // Take up to the first sentence boundary on the first line.
+                const firstLine = text.replace(/\n[\s\S]*/m, "").trim();
+                const sentence = firstLine.replace(/[.!?].*/, "").trim();
+                const candidate = (sentence.length > 5 ? sentence : firstLine).slice(0, 55);
+                if (candidate.length > 3) firstAssistantText = candidate;
                 break;
               }
             }
@@ -253,14 +252,13 @@ export class SessionStore {
       } catch {}
     }
 
-    // Priority: explicit rename > meaningful user title (>10 chars, not slash-command)
-    // > first assistant text > short/slash user title > UUID fallback.
-    const userTitleIsWeak = !firstUserTitle || firstUserTitle.length <= 10 || firstUserTitle.startsWith("/");
-    const title = explicitRenameTitle
-      ?? (!userTitleIsWeak ? firstUserTitle : null)
-      ?? firstAssistantText
-      ?? firstUserTitle
-      ?? fallbackTitle;
+    // Concatenate user message + assistant excerpt, separated by " — ", capped at 60 chars.
+    // Explicit rename wins outright; otherwise join whatever parts exist; fall back to UUID.
+    const parts: string[] = [];
+    if (firstUserTitle) parts.push(firstUserTitle);
+    if (firstAssistantText) parts.push(firstAssistantText);
+    const combined = parts.join(" — ").slice(0, 60) || fallbackTitle;
+    const title = explicitRenameTitle ?? combined;
     return { msgCount, resumeId, title };
   }
 

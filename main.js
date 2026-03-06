@@ -20661,7 +20661,7 @@ var SessionStore = class {
     }
   }
   parseSessionContent(content, fallbackTitle) {
-    var _a2, _b, _c, _d, _e, _f;
+    var _a2, _b, _c;
     let firstUserTitle = null;
     let firstAssistantText = null;
     let explicitRenameTitle = null;
@@ -20708,11 +20708,10 @@ var SessionStore = class {
             for (const block of msgContent) {
               if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
                 const text = block.text.trim();
-                if (text.length > 40) {
-                  const sentence = text.replace(/\n[\s\S]*/m, "").replace(/[.!?].*/, "").trim();
-                  const candidate = (sentence.length > 10 ? sentence : text.replace(/\s+/g, " ")).slice(0, 60);
-                  if (candidate) firstAssistantText = candidate;
-                }
+                const firstLine = text.replace(/\n[\s\S]*/m, "").trim();
+                const sentence = firstLine.replace(/[.!?].*/, "").trim();
+                const candidate = (sentence.length > 5 ? sentence : firstLine).slice(0, 55);
+                if (candidate.length > 3) firstAssistantText = candidate;
                 break;
               }
             }
@@ -20721,8 +20720,11 @@ var SessionStore = class {
       } catch (e) {
       }
     }
-    const userTitleIsWeak = !firstUserTitle || firstUserTitle.length <= 10 || firstUserTitle.startsWith("/");
-    const title = (_f = (_e = (_d = explicitRenameTitle != null ? explicitRenameTitle : !userTitleIsWeak ? firstUserTitle : null) != null ? _d : firstAssistantText) != null ? _e : firstUserTitle) != null ? _f : fallbackTitle;
+    const parts = [];
+    if (firstUserTitle) parts.push(firstUserTitle);
+    if (firstAssistantText) parts.push(firstAssistantText);
+    const combined = parts.join(" \u2014 ").slice(0, 60) || fallbackTitle;
+    const title = explicitRenameTitle != null ? explicitRenameTitle : combined;
     return { msgCount, resumeId, title };
   }
   extractExplicitRenameTitle(command) {
@@ -22869,8 +22871,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:37:02.821Z";
-    this.gitSha = "4b706a1";
+    this.buildId = "2026-03-06T23:37:27.315Z";
+    this.gitSha = "99d5acc";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
