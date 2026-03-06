@@ -22640,8 +22640,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:11:59.754Z";
-    this.gitSha = "c03982d";
+    this.buildId = "2026-03-06T19:32:50.405Z";
+    this.gitSha = "3489d4e";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23255,6 +23255,12 @@ ${excerpt}`,
             notice.hide();
             const targetFolder = this.settings.templateFolder || "Augment/templates";
             new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
+              if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
+                try {
+                  await this.app.vault.createFolder(targetFolder);
+                } catch (e) {
+                }
+              }
               let created = 0;
               for (const t of ts) {
                 const path4 = `${targetFolder}/${t.name}.md`;

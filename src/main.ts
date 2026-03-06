@@ -1301,6 +1301,10 @@ export default class AugmentTerminalPlugin extends Plugin {
             notice.hide();
             const targetFolder = this.settings.templateFolder || "Augment/templates";
             new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
+              // Ensure target folder exists before writing files.
+              if (!this.app.vault.getAbstractFileByPath(targetFolder)) {
+                try { await this.app.vault.createFolder(targetFolder); } catch { /* already exists */ }
+              }
               let created = 0;
               for (const t of ts) {
                 const path = `${targetFolder}/${t.name}.md`;
