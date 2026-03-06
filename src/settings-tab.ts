@@ -837,7 +837,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     renderTemplateList();
 
     // "Generate templates from folder" button.
-    new Setting(templatesPane)
+    const genTplSetting = new Setting(templatesPane)
       .setName("Generate templates from folder")
       .setDesc("Scan a vault folder and generate Handlebars templates based on the content patterns found there.")
       .addButton((btn) => {
@@ -849,6 +849,31 @@ export class AugmentSettingTab extends PluginSettingTab {
           runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
         });
       });
+
+    // Info icon — warns that this feature calls the API and incurs charges.
+    genTplSetting.descEl.appendChild(
+      createFragment((frag) => {
+        frag.appendText("\u00a0");
+        const infoIcon = frag.createEl("span", {
+          cls: "augment-api-key-info",
+          text: "\u24d8",
+        });
+        let tip: HTMLElement | null = null;
+        infoIcon.addEventListener("mouseenter", () => {
+          tip = document.createElement("div");
+          tip.className = "augment-api-key-tip";
+          tip.textContent = "This feature calls Claude to analyse your notes and write templates. It uses your API key and will incur charges. Larger folders or complex notes cost more.";
+          document.body.appendChild(tip);
+          const rect = infoIcon.getBoundingClientRect();
+          tip.style.top = `${rect.bottom + 6}px`;
+          tip.style.left = `${rect.left}px`;
+        });
+        infoIcon.addEventListener("mouseleave", () => {
+          tip?.remove();
+          tip = null;
+        });
+      })
+    );
 
     // "+ New template" button.
     const newTemplateBtn = templatesPane.createEl("button", {

@@ -18575,7 +18575,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       }
     };
     renderTemplateList();
-    new import_obsidian4.Setting(templatesPane).setName("Generate templates from folder").setDesc("Scan a vault folder and generate Handlebars templates based on the content patterns found there.").addButton((btn) => {
+    const genTplSetting = new import_obsidian4.Setting(templatesPane).setName("Generate templates from folder").setDesc("Scan a vault folder and generate Handlebars templates based on the content patterns found there.").addButton((btn) => {
       btn.setButtonText("Choose folder\u2026").onClick(async () => {
         if (!this.plugin.settings.apiKey) {
           new import_obsidian4.Notice("Add an API key in the Overview tab first");
@@ -18584,6 +18584,29 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
         runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
       });
     });
+    genTplSetting.descEl.appendChild(
+      createFragment((frag) => {
+        frag.appendText("\xA0");
+        const infoIcon = frag.createEl("span", {
+          cls: "augment-api-key-info",
+          text: "\u24D8"
+        });
+        let tip = null;
+        infoIcon.addEventListener("mouseenter", () => {
+          tip = document.createElement("div");
+          tip.className = "augment-api-key-tip";
+          tip.textContent = "This feature calls Claude to analyse your notes and write templates. It uses your API key and will incur charges. Larger folders or complex notes cost more.";
+          document.body.appendChild(tip);
+          const rect = infoIcon.getBoundingClientRect();
+          tip.style.top = `${rect.bottom + 6}px`;
+          tip.style.left = `${rect.left}px`;
+        });
+        infoIcon.addEventListener("mouseleave", () => {
+          tip == null ? void 0 : tip.remove();
+          tip = null;
+        });
+      })
+    );
     const newTemplateBtn = templatesPane.createEl("button", {
       cls: "augment-template-new-btn",
       text: "+ New template"
@@ -22655,8 +22678,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:03:25.781Z";
-    this.gitSha = "426f1ea";
+    this.buildId = "2026-03-06T23:05:07.126Z";
+    this.gitSha = "8736baf";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
