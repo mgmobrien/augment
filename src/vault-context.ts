@@ -1,5 +1,7 @@
 import { App, Editor, TFile } from "obsidian";
 
+export type TerminalOpenLocation = "tab" | "split-right" | "split-down" | "sidebar-right" | "sidebar-left";
+
 export interface SessionRecord {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ export interface AugmentSettings {
   clearedHotkeyOriginals: Record<string, unknown>; // original binding values captured before Augment cleared them
   terminalSetupDone: boolean;
   terminalSetupBypassed: boolean;
+  defaultTerminalLocation: TerminalOpenLocation;
   sessionHistory: SessionRecord[];
 }
 
@@ -59,6 +62,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   clearedHotkeyOriginals: {},
   terminalSetupDone: false,
   terminalSetupBypassed: false,
+  defaultTerminalLocation: "tab",
   sessionHistory: [],
 };
 

@@ -3,8 +3,8 @@ import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, bui
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
-import { getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
-import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord } from "./vault-context";
+import { buildTemplateFileContent, FolderSuggestModal, generateTemplatesFromFolder, GeneratedTemplatesModal, getTemplateFiles, TemplatePicker, TemplatePreviewModal } from "./template-picker";
+import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord, TerminalOpenLocation } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -1282,6 +1282,53 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "generate-templates-from-folder",
+      name: "Generate templates from folder\u2026",
+      callback: () => {
+        if (!this.settings.apiKey) {
+          new Notice("Augment: add an API key in Settings \u2192 Augment first");
+          return;
+        }
+        new FolderSuggestModal(this.app, async (folder) => {
+          const notice = new Notice("Scanning folder and generating templates\u2026", 0);
+          try {
+            const templates = await generateTemplatesFromFolder(
+              this.app,
+              folder,
+              this.settings,
+              this.resolveModel()
+            );
+            notice.hide();
+            const targetFolder = this.settings.templateFolder || "Augment/templates";
+            new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
+              let created = 0;
+              for (const t of ts) {
+                const path = `${targetFolder}/${t.name}.md`;
+                if (!this.app.vault.getAbstractFileByPath(path)) {
+                  await this.app.vault.create(path, buildTemplateFileContent(t));
+                  created++;
+                }
+              }
+              new Notice(
+                created > 0
+                  ? `Created ${created} template${created !== 1 ? "s" : ""}`
+                  : "All generated templates already exist \u2014 no files created"
+              );
+            }).open();
+          } catch (err: any) {
+            notice.hide();
+            if (err?.message === "no-files") {
+              new Notice("No .md notes found in that folder");
+            } else {
+              new Notice("Template generation failed \u2014 see console for details");
+              console.error("[Augment] generate-templates-from-folder failed", err);
+            }
+          }
+        }).open();
+      },
+    });
+
+    this.addCommand({
       id: "augment-open-settings",
       name: "Open settings",
       callback: () => {
@@ -1366,9 +1413,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       (this.app as any).setting.openTabById("augment-terminal");
     });
 
-    // Ribbon: terminal → open terminal
+    // Ribbon: terminal → open terminal (respects defaultTerminalLocation setting)
     this.addRibbonIcon("terminal", "Open terminal", () => {
-      this.openTerminal();
+      this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
 
     // Ribbon: ellipsis (three dots) → generate AI text
@@ -1381,48 +1428,58 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.triggerGenerate(view.editor);
     });
 
-    // Add command
+    // Default open command — uses defaultTerminalLocation setting.
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
       hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
       callback: () => {
-        this.openTerminal();
+        this.openTerminalAt(this.settings.defaultTerminalLocation);
       },
     });
 
-    // Tiling commands
+    // Explicit location commands (users can bind hotkeys to these individually).
+    this.addCommand({
+      id: "open-terminal-tab",
+      name: "Open terminal in new tab",
+      callback: () => { this.openTerminalAt("tab"); },
+    });
+
     this.addCommand({
       id: "open-terminal-right",
       name: "Open terminal to the right",
-      callback: () => {
-        this.openTerminal("split-vertical");
-      },
+      callback: () => { this.openTerminalAt("split-right"); },
     });
 
     this.addCommand({
       id: "open-terminal-down",
       name: "Open terminal below",
-      callback: () => {
-        this.openTerminal("split-horizontal");
-      },
+      callback: () => { this.openTerminalAt("split-down"); },
+    });
+
+    this.addCommand({
+      id: "open-terminal-sidebar-right",
+      name: "Open terminal in right sidebar",
+      callback: () => { this.openTerminalAt("sidebar-right"); },
+    });
+
+    this.addCommand({
+      id: "open-terminal-sidebar-left",
+      name: "Open terminal in left sidebar",
+      callback: () => { this.openTerminalAt("sidebar-left"); },
     });
 
     this.addCommand({
       id: "open-terminal-grid",
       name: "Open terminal grid (2x2)",
-      callback: () => {
-        this.openTerminalGrid();
-      },
+      callback: () => { this.openTerminalGrid(); },
     });
 
-    // Sidebar terminal
+    // Keep old sidebar command ID for backwards compat with any saved hotkeys.
     this.addCommand({
       id: "open-terminal-sidebar",
-      name: "Open terminal in sidebar",
-      callback: () => {
-        this.openTerminalSidebar();
-      },
+      name: "Open terminal in sidebar (right)",
+      callback: () => { this.openTerminalAt("sidebar-right"); },
     });
 
     // Rename command
@@ -1589,8 +1646,11 @@ export default class AugmentTerminalPlugin extends Plugin {
     await leaf.openFile(file);
   }
 
-  private async openTerminal(
-    mode: "tab" | "split-vertical" | "split-horizontal" = "tab",
+  // Open a terminal at the user-configured default location (or a fixed location
+  // for explicit-location commands). Sidebar locations fall back to a new tab if
+  // the workspace API returns null for the sidebar leaf.
+  private async openTerminalAt(
+    location: TerminalOpenLocation = "tab",
     options?: { name?: string; active?: boolean; reveal?: boolean }
   ): Promise<TerminalView> {
     const { workspace } = this.app;
@@ -1598,11 +1658,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     const active = options?.active ?? true;
     const reveal = options?.reveal ?? true;
 
-    let leaf;
-    if (mode === "split-vertical") {
+    let leaf: WorkspaceLeaf;
+    if (location === "split-right") {
       leaf = workspace.getLeaf("split", "vertical");
-    } else if (mode === "split-horizontal") {
+    } else if (location === "split-down") {
       leaf = workspace.getLeaf("split", "horizontal");
+    } else if (location === "sidebar-right") {
+      leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
+    } else if (location === "sidebar-left") {
+      leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf("tab");
     } else {
       leaf = workspace.getLeaf("tab");
     }
@@ -1625,6 +1689,20 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
 
     return leaf.view as TerminalView;
+  }
+
+  // Keep the old openTerminal() signature for internal callers that always
+  // want a specific mode (team spawn, openTerminalNamed, openFocusedTerminal).
+  private async openTerminal(
+    mode: "tab" | "split-vertical" | "split-horizontal" = "tab",
+    options?: { name?: string; active?: boolean; reveal?: boolean }
+  ): Promise<TerminalView> {
+    const locationMap: Record<string, TerminalOpenLocation> = {
+      "tab": "tab",
+      "split-vertical": "split-right",
+      "split-horizontal": "split-down",
+    };
+    return this.openTerminalAt(locationMap[mode] ?? "tab", options);
   }
 
   private async openTerminalSidebar(): Promise<TerminalView | null> {

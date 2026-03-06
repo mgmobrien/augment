@@ -1,10 +1,11 @@
 import { App, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
-import { AugmentSettings } from "./vault-context";
+import { AugmentSettings, TerminalOpenLocation } from "./vault-context";
 import { modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
+import { buildTemplateFileContent, FolderSuggestModal, generateTemplatesFromFolder, GeneratedTemplatesModal } from "./template-picker";
 
 
 
@@ -414,12 +415,15 @@ export class AugmentSettingTab extends PluginSettingTab {
     const AUGMENT_CMDS: AugmentCmd[] = [
       { id: "augment-generate",               label: "Generate",                     defaultKeys: [{ modifiers: ["Mod"],           key: "Enter" }] },
       { id: "augment-generate-from-template", label: "Generate from template",       defaultKeys: [{ modifiers: ["Mod", "Shift"],  key: "Enter" }] },
-      { id: "open-terminal",                  label: "Open terminal",                defaultKeys: [{ modifiers: ["Ctrl"],          key: "t" }] },
-      { id: "open-terminal-manager",          label: "Show terminal manager",        defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
-      { id: "switch-terminal",                label: "Switch terminal",              defaultKeys: [] },
-      { id: "rename-terminal",                label: "Rename terminal",              defaultKeys: [] },
-      { id: "open-terminal-right",            label: "Open terminal to the right",   defaultKeys: [] },
-      { id: "open-terminal-down",             label: "Open terminal below",          defaultKeys: [] },
+      { id: "open-terminal",                  label: "Open terminal (default location)",     defaultKeys: [{ modifiers: ["Ctrl"], key: "t" }] },
+      { id: "open-terminal-tab",             label: "Open terminal in new tab",            defaultKeys: [] },
+      { id: "open-terminal-right",           label: "Open terminal to the right",          defaultKeys: [] },
+      { id: "open-terminal-down",            label: "Open terminal below",                 defaultKeys: [] },
+      { id: "open-terminal-sidebar-right",   label: "Open terminal in right sidebar",      defaultKeys: [] },
+      { id: "open-terminal-sidebar-left",    label: "Open terminal in left sidebar",       defaultKeys: [] },
+      { id: "open-terminal-manager",         label: "Show terminal manager",               defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
+      { id: "switch-terminal",               label: "Switch terminal",                     defaultKeys: [] },
+      { id: "rename-terminal",               label: "Rename terminal",                     defaultKeys: [] },
       { id: "augment-view-context",           label: "Open context inspector",       defaultKeys: [] },
       { id: "jump-to-next-waiting-session",   label: "Jump to next waiting session", defaultKeys: [] },
       { id: "augment-open-settings",          label: "Open settings",                defaultKeys: [] },
@@ -803,6 +807,56 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     renderTemplateList();
 
+    // "Generate templates from folder" button.
+    new Setting(templatesPane)
+      .setName("Generate templates from folder")
+      .setDesc("Scan a vault folder and generate Handlebars templates based on the content patterns found there.")
+      .addButton((btn) => {
+        btn.setButtonText("Choose folder\u2026").onClick(async () => {
+          if (!this.plugin.settings.apiKey) {
+            new Notice("Add an API key in the Overview tab first");
+            return;
+          }
+          new FolderSuggestModal(this.app, async (folder) => {
+            const notice = new Notice("Scanning folder and generating templates\u2026", 0);
+            try {
+              const templates = await generateTemplatesFromFolder(
+                this.app,
+                folder,
+                this.plugin.settings,
+                this.plugin.resolveModel()
+              );
+              notice.hide();
+              const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
+              new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
+                let created = 0;
+                for (const t of ts) {
+                  const path = `${targetFolder}/${t.name}.md`;
+                  if (!this.app.vault.getAbstractFileByPath(path)) {
+                    await this.app.vault.create(path, buildTemplateFileContent(t));
+                    created++;
+                  }
+                }
+                if (created > 0) {
+                  new Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
+                  renderTemplateList();
+                } else {
+                  new Notice("All generated templates already exist \u2014 no files created");
+                }
+              }).open();
+            } catch (err: any) {
+              notice.hide();
+              if (err?.message === "no-files") {
+                new Notice("No .md notes found in that folder");
+              } else {
+                new Notice("Template generation failed \u2014 check the console for details");
+                console.error("[Augment] template scan failed", err);
+              }
+            }
+          }).open();
+        });
+      });
+
     // "+ New template" button.
     const newTemplateBtn = templatesPane.createEl("button", {
       cls: "augment-template-new-btn",
@@ -989,6 +1043,24 @@ export class AugmentSettingTab extends PluginSettingTab {
     };
 
     void renderStatusCard();
+
+    // ── Default terminal location ────────────────────────────
+    new Setting(terminalPane)
+      .setName("Default terminal location")
+      .setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind hotkeys to specific positions.")
+      .addDropdown((drop) => {
+        drop
+          .addOption("tab", "New tab")
+          .addOption("split-right", "Split right")
+          .addOption("split-down", "Split below")
+          .addOption("sidebar-right", "Right sidebar")
+          .addOption("sidebar-left", "Left sidebar")
+          .setValue(this.plugin.settings.defaultTerminalLocation ?? "tab")
+          .onChange(async (value) => {
+            this.plugin.settings.defaultTerminalLocation = value as TerminalOpenLocation;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
 
     // ── Advanced (collapsed by default) ─────────────────────
     const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
