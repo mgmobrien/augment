@@ -1372,8 +1372,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon: settings → Augment settings
-    this.addRibbonIcon("settings", "Augment settings", () => {
+    // Ribbon: radio-tower → Augment settings
+    this.addRibbonIcon("radio-tower", "Augment settings", () => {
       (this.app as any).setting.open();
       (this.app as any).setting.openTabById("augment-terminal");
     });

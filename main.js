@@ -22620,8 +22620,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:52:14.644Z";
-    this.gitSha = "e2d2efb";
+    this.buildId = "2026-03-06T22:05:08.701Z";
+    this.gitSha = "ff48b8d";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23286,7 +23286,7 @@ ${excerpt}`,
         });
       })
     );
-    this.addRibbonIcon("settings", "Augment settings", () => {
+    this.addRibbonIcon("radio-tower", "Augment settings", () => {
       this.app.setting.open();
       this.app.setting.openTabById("augment-terminal");
     });
