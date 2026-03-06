@@ -516,12 +516,26 @@ export class TerminalView extends ItemView {
     // Always boot the terminal immediately — never block on dep checks.
     this.bootTerminal();
 
+    // Show a "Checking setup…" overlay if dep detection takes more than 300ms
+    // (avoids a flash on cache hits, but makes the wait visible otherwise).
+    let loadingEl: HTMLElement | null = null;
+    const loadTimer = window.setTimeout(() => {
+      if (!this.isSetupBypassed()) {
+        loadingEl = this.contentEl.createDiv({ cls: "augment-bootstrapper-wrapper" });
+        loadingEl.createEl("p", { cls: "augment-bootstrapper-desc", text: "Checking setup\u2026" });
+      }
+    }, 300);
+
     // Run dep detection in background; overlay bootstrapper if something is missing.
     detectDeps(this.app).then((deps) => {
+      window.clearTimeout(loadTimer);
+      if (loadingEl) { loadingEl.remove(); loadingEl = null; }
       if ((!deps.cc || !deps.authed || !deps.vaultConfigured) && !this.isSetupBypassed()) {
         this.renderBootstrapper(this.contentEl, deps);
       }
     }).catch(() => {
+      window.clearTimeout(loadTimer);
+      if (loadingEl) { loadingEl.remove(); loadingEl = null; }
       // If dep detection itself errors, don't block the terminal.
     });
   }
@@ -556,20 +570,44 @@ export class TerminalView extends ItemView {
 
     const continueBtn = actions.createEl("button", {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
-      text: "Continue anyway",
+      text: "Skip for now",
     });
     setIcon(continueBtn, "play");
     continueBtn.addEventListener("click", () => dismiss());
 
     const bypassBtn = actions.createEl("button", {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
-      text: "Don’t show setup checks",
+      text: "Disable setup checks",
     });
     setIcon(bypassBtn, "eye-off");
     bypassBtn.addEventListener("click", () => {
       this.setSetupBypassed(true);
       dismiss();
     });
+  }
+
+  // Transition the bootstrapper overlay to a "running" state after an action fires.
+  // Shows a Verify button that re-detects deps and re-renders or dismisses.
+  private renderBootstrapperRunning(wrapper: HTMLElement, title: string, desc: string): void {
+    wrapper.empty();
+    wrapper.createEl("h2", { text: title, cls: "augment-bootstrapper-title" });
+    wrapper.createEl("p", { text: desc, cls: "augment-bootstrapper-desc" });
+
+    const verifyBtn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Verify" });
+    setIcon(verifyBtn, "check");
+    verifyBtn.onclick = () => {
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = "Checking\u2026";
+      detectDeps(this.app, { forceFresh: true }).then((newDeps) => {
+        wrapper.remove();
+        if ((!newDeps.cc || !newDeps.authed || !newDeps.vaultConfigured) && !this.isSetupBypassed()) {
+          this.renderBootstrapper(this.contentEl, newDeps);
+        }
+      }).catch(() => wrapper.remove());
+    };
+
+    const dismiss = () => wrapper.remove();
+    this.createBootstrapperBypassActions(wrapper, dismiss);
   }
 
   private renderBootstrapper(container: HTMLElement, deps: CCDeps): void {
@@ -591,35 +629,73 @@ export class TerminalView extends ItemView {
     const dismiss = () => wrapper.remove();
 
     if (!deps.node) {
-      wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
+      wrapper.createEl("p", {
+        text: "Claude Code requires Node.js. Download and run the installer, then click \u2018Check again\u2019 below.",
+        cls: "augment-bootstrapper-desc",
+      });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
       setIcon(btn, "download");
       btn.onclick = () => window.open("https://nodejs.org");
+
+      // User must install externally — provide a re-check button so they don't have to reopen.
+      const checkBtn = wrapper.createEl("button", {
+        cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+        text: "Check again",
+      });
+      setIcon(checkBtn, "refresh-cw");
+      checkBtn.onclick = () => {
+        checkBtn.disabled = true;
+        checkBtn.textContent = "Checking\u2026";
+        detectDeps(this.app, { forceFresh: true }).then((newDeps) => {
+          wrapper.remove();
+          if ((!newDeps.cc || !newDeps.authed || !newDeps.vaultConfigured) && !this.isSetupBypassed()) {
+            this.renderBootstrapper(this.contentEl, newDeps);
+          }
+        }).catch(() => {
+          checkBtn.disabled = false;
+          checkBtn.textContent = "Check again";
+        });
+      };
+
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
 
     if (!deps.cc) {
-      wrapper.createEl("p", { text: "Claude Code is not installed.", cls: "augment-bootstrapper-desc" });
+      wrapper.createEl("p", {
+        text: "Claude Code is not installed. Click Install — the installer will run in the terminal below.",
+        cls: "augment-bootstrapper-desc",
+      });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
       setIcon(btn, "terminal");
       btn.onclick = () => {
         invalidateDepsCache();
-        dismiss();
         this.ptyBridge?.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
+        this.renderBootstrapperRunning(
+          wrapper,
+          "Installing Claude Code\u2026",
+          "The installer is running in the terminal below. When it completes and sign-in is done, click Verify."
+        );
       };
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
 
     if (!deps.authed) {
-      wrapper.createEl("p", { text: "Sign in to connect your Anthropic account.", cls: "augment-bootstrapper-desc" });
+      wrapper.createEl("p", {
+        text: "Sign in to connect your Anthropic account. Your browser will open to complete sign-in.",
+        cls: "augment-bootstrapper-desc",
+      });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
       setIcon(btn, "log-in");
       btn.onclick = () => {
         invalidateDepsCache();
-        dismiss();
         this.ptyBridge?.write("claude auth login\n");
+        this.renderBootstrapperRunning(
+          wrapper,
+          "Sign-in started",
+          "Complete sign-in in the terminal below or your browser. Click Verify when done."
+        );
       };
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
@@ -627,15 +703,14 @@ export class TerminalView extends ItemView {
 
     if (!deps.vaultConfigured) {
       wrapper.createEl("p", {
-        text: "Create CLAUDE.md and the starter agents/skills folder now, or open Terminal settings to review the same step there.",
+        text: "Creates CLAUDE.md and a starter agents/skills folder so Claude Code understands this vault.",
         cls: "augment-bootstrapper-desc",
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Set up vault" });
       setIcon(btn, "folder-plus");
       btn.onclick = async () => {
-        const originalLabel = btn.textContent || "Set up vault";
         btn.disabled = true;
-        btn.textContent = "Setting up…";
+        btn.textContent = "Setting up\u2026";
         try {
           const plugin = (this.app as any).plugins?.plugins?.["augment-terminal"];
           const templateFolder = plugin?.settings?.templateFolder || "Augment/templates";
@@ -647,7 +722,7 @@ export class TerminalView extends ItemView {
         } catch (error) {
           console.error("[Augment] vault scaffold failed from terminal bootstrapper", error);
           btn.disabled = false;
-          btn.textContent = originalLabel;
+          btn.textContent = "Set up vault";
           new Notice("Vault setup failed. Open Terminal settings to try again.");
         }
       };
@@ -879,6 +954,29 @@ export class TerminalView extends ItemView {
     }, 150);
   }
 
+  // Auto-rename path — works without external hooks.
+  //
+  // Two independent counting mechanisms both call triggerAutoRename() at turn 3:
+  //
+  //   1. exchangeCount (status-transition based): setStatus() increments when
+  //      transitioning from active|tool → shell|idle|waiting. Reliable when
+  //      Claude Code's status markers (⏺, tool lines, ❯) are detectable.
+  //
+  //   2. promptTurnCount (output-parsing based): detectUserPromptTurns() scans
+  //      raw PTY output for "❯ <text>" lines (Claude Code echoing user input).
+  //      Fires independently of status state — covers noisy or ambiguous transitions.
+  //
+  // triggerAutoRename() calls onAutoRenameRequest(excerpt) which:
+  //   - Derives a local keyword name from the last 3 ❯ prompt lines (no API needed).
+  //   - Enriches via Haiku API if an API key is present, falls back to local on error.
+  //
+  // Hook-dependent paths (extractPaneNameHookRename, extractTmuxRename) fire earlier
+  // if Claude Code emits pane-name.sh or tmux rename commands, but are not required.
+  // The rename works end-to-end without any shell hooks installed.
+  //
+  // Retries: autoRenameNeeded flag enables retries at exchanges/turns 4 and 5 if the
+  // name call returned null. autoRenameInFlight + 1200ms cooldown prevent both triggers
+  // from firing simultaneously.
   private setStatus(newStatus: TerminalStatus): void {
     const wasActive = this.status === "active" || this.status === "tool";
     const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";

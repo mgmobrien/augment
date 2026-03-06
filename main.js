@@ -17693,6 +17693,14 @@ function getSetupStep(deps) {
   }
   return null;
 }
+function getStepIndex(deps) {
+  const total = 4;
+  if (!deps.node) return { current: 1, total };
+  if (!deps.cc) return { current: 2, total };
+  if (!deps.authed) return { current: 3, total };
+  if (!deps.vaultConfigured) return { current: 4, total };
+  return { current: total, total };
+}
 var DEP_ROWS = [
   { label: "Node.js", done: (d) => d.node, readyText: "ready", pendingText: "\u2014" },
   { label: "Claude Code", done: (d) => d.cc, readyText: "ready", pendingText: "\u2014" },
@@ -18285,6 +18293,13 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
       const activeStep = getSetupStep(deps);
       const allReady = activeStep === null;
       wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
+      if (!allReady && activeStep) {
+        const stepIdx = getStepIndex(deps);
+        wizardBody.createEl("div", {
+          cls: "augment-cc-step-progress",
+          text: `Step ${stepIdx.current} of ${stepIdx.total}: ${activeStep.title}`
+        });
+      }
       const list = wizardBody.createEl("div", { cls: "augment-cc-dep-list" });
       let activeFound = false;
       for (const row of depRows) {
@@ -19280,11 +19295,28 @@ var TerminalView = class extends import_obsidian5.ItemView {
       document.head.appendChild(xtermStyleEl);
     }
     this.bootTerminal();
+    let loadingEl = null;
+    const loadTimer = window.setTimeout(() => {
+      if (!this.isSetupBypassed()) {
+        loadingEl = this.contentEl.createDiv({ cls: "augment-bootstrapper-wrapper" });
+        loadingEl.createEl("p", { cls: "augment-bootstrapper-desc", text: "Checking setup\u2026" });
+      }
+    }, 300);
     detectDeps(this.app).then((deps) => {
+      window.clearTimeout(loadTimer);
+      if (loadingEl) {
+        loadingEl.remove();
+        loadingEl = null;
+      }
       if ((!deps.cc || !deps.authed || !deps.vaultConfigured) && !this.isSetupBypassed()) {
         this.renderBootstrapper(this.contentEl, deps);
       }
     }).catch(() => {
+      window.clearTimeout(loadTimer);
+      if (loadingEl) {
+        loadingEl.remove();
+        loadingEl = null;
+      }
     });
   }
   isSetupBypassed() {
@@ -19316,19 +19348,40 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const actions = wrapper.createDiv({ cls: "augment-bootstrapper-actions" });
     const continueBtn = actions.createEl("button", {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
-      text: "Continue anyway"
+      text: "Skip for now"
     });
     (0, import_obsidian5.setIcon)(continueBtn, "play");
     continueBtn.addEventListener("click", () => dismiss());
     const bypassBtn = actions.createEl("button", {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
-      text: "Don\u2019t show setup checks"
+      text: "Disable setup checks"
     });
     (0, import_obsidian5.setIcon)(bypassBtn, "eye-off");
     bypassBtn.addEventListener("click", () => {
       this.setSetupBypassed(true);
       dismiss();
     });
+  }
+  // Transition the bootstrapper overlay to a "running" state after an action fires.
+  // Shows a Verify button that re-detects deps and re-renders or dismisses.
+  renderBootstrapperRunning(wrapper, title, desc) {
+    wrapper.empty();
+    wrapper.createEl("h2", { text: title, cls: "augment-bootstrapper-title" });
+    wrapper.createEl("p", { text: desc, cls: "augment-bootstrapper-desc" });
+    const verifyBtn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Verify" });
+    (0, import_obsidian5.setIcon)(verifyBtn, "check");
+    verifyBtn.onclick = () => {
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = "Checking\u2026";
+      detectDeps(this.app, { forceFresh: true }).then((newDeps) => {
+        wrapper.remove();
+        if ((!newDeps.cc || !newDeps.authed || !newDeps.vaultConfigured) && !this.isSetupBypassed()) {
+          this.renderBootstrapper(this.contentEl, newDeps);
+        }
+      }).catch(() => wrapper.remove());
+    };
+    const dismiss = () => wrapper.remove();
+    this.createBootstrapperBypassActions(wrapper, dismiss);
   }
   renderBootstrapper(container, deps) {
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
@@ -19343,49 +19396,83 @@ var TerminalView = class extends import_obsidian5.ItemView {
     });
     const dismiss = () => wrapper.remove();
     if (!deps.node) {
-      wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
+      wrapper.createEl("p", {
+        text: "Claude Code requires Node.js. Download and run the installer, then click \u2018Check again\u2019 below.",
+        cls: "augment-bootstrapper-desc"
+      });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
       (0, import_obsidian5.setIcon)(btn, "download");
       btn.onclick = () => window.open("https://nodejs.org");
+      const checkBtn = wrapper.createEl("button", {
+        cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+        text: "Check again"
+      });
+      (0, import_obsidian5.setIcon)(checkBtn, "refresh-cw");
+      checkBtn.onclick = () => {
+        checkBtn.disabled = true;
+        checkBtn.textContent = "Checking\u2026";
+        detectDeps(this.app, { forceFresh: true }).then((newDeps) => {
+          wrapper.remove();
+          if ((!newDeps.cc || !newDeps.authed || !newDeps.vaultConfigured) && !this.isSetupBypassed()) {
+            this.renderBootstrapper(this.contentEl, newDeps);
+          }
+        }).catch(() => {
+          checkBtn.disabled = false;
+          checkBtn.textContent = "Check again";
+        });
+      };
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
     if (!deps.cc) {
-      wrapper.createEl("p", { text: "Claude Code is not installed.", cls: "augment-bootstrapper-desc" });
+      wrapper.createEl("p", {
+        text: "Claude Code is not installed. Click Install \u2014 the installer will run in the terminal below.",
+        cls: "augment-bootstrapper-desc"
+      });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
       (0, import_obsidian5.setIcon)(btn, "terminal");
       btn.onclick = () => {
         var _a2;
         invalidateDepsCache();
-        dismiss();
         (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
+        this.renderBootstrapperRunning(
+          wrapper,
+          "Installing Claude Code\u2026",
+          "The installer is running in the terminal below. When it completes and sign-in is done, click Verify."
+        );
       };
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
     if (!deps.authed) {
-      wrapper.createEl("p", { text: "Sign in to connect your Anthropic account.", cls: "augment-bootstrapper-desc" });
+      wrapper.createEl("p", {
+        text: "Sign in to connect your Anthropic account. Your browser will open to complete sign-in.",
+        cls: "augment-bootstrapper-desc"
+      });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
       (0, import_obsidian5.setIcon)(btn, "log-in");
       btn.onclick = () => {
         var _a2;
         invalidateDepsCache();
-        dismiss();
         (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("claude auth login\n");
+        this.renderBootstrapperRunning(
+          wrapper,
+          "Sign-in started",
+          "Complete sign-in in the terminal below or your browser. Click Verify when done."
+        );
       };
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
     if (!deps.vaultConfigured) {
       wrapper.createEl("p", {
-        text: "Create CLAUDE.md and the starter agents/skills folder now, or open Terminal settings to review the same step there.",
+        text: "Creates CLAUDE.md and a starter agents/skills folder so Claude Code understands this vault.",
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Set up vault" });
       (0, import_obsidian5.setIcon)(btn, "folder-plus");
       btn.onclick = async () => {
         var _a2, _b, _c;
-        const originalLabel = btn.textContent || "Set up vault";
         btn.disabled = true;
         btn.textContent = "Setting up\u2026";
         try {
@@ -19399,7 +19486,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
         } catch (error) {
           console.error("[Augment] vault scaffold failed from terminal bootstrapper", error);
           btn.disabled = false;
-          btn.textContent = originalLabel;
+          btn.textContent = "Set up vault";
           new import_obsidian5.Notice("Vault setup failed. Open Terminal settings to try again.");
         }
       };
@@ -19597,6 +19684,29 @@ var TerminalView = class extends import_obsidian5.ItemView {
       this.pendingStatus = null;
     }, 150);
   }
+  // Auto-rename path — works without external hooks.
+  //
+  // Two independent counting mechanisms both call triggerAutoRename() at turn 3:
+  //
+  //   1. exchangeCount (status-transition based): setStatus() increments when
+  //      transitioning from active|tool → shell|idle|waiting. Reliable when
+  //      Claude Code's status markers (⏺, tool lines, ❯) are detectable.
+  //
+  //   2. promptTurnCount (output-parsing based): detectUserPromptTurns() scans
+  //      raw PTY output for "❯ <text>" lines (Claude Code echoing user input).
+  //      Fires independently of status state — covers noisy or ambiguous transitions.
+  //
+  // triggerAutoRename() calls onAutoRenameRequest(excerpt) which:
+  //   - Derives a local keyword name from the last 3 ❯ prompt lines (no API needed).
+  //   - Enriches via Haiku API if an API key is present, falls back to local on error.
+  //
+  // Hook-dependent paths (extractPaneNameHookRename, extractTmuxRename) fire earlier
+  // if Claude Code emits pane-name.sh or tmux rename commands, but are not required.
+  // The rename works end-to-end without any shell hooks installed.
+  //
+  // Retries: autoRenameNeeded flag enables retries at exchanges/turns 4 and 5 if the
+  // name call returned null. autoRenameInFlight + 1200ms cooldown prevent both triggers
+  // from firing simultaneously.
   setStatus(newStatus) {
     var _a2;
     const wasActive = this.status === "active" || this.status === "tool";
@@ -22257,8 +22367,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T18:56:04.084Z";
-    this.gitSha = "6f84eef";
+    this.buildId = "2026-03-06T18:59:51.925Z";
+    this.gitSha = "544ff82";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
