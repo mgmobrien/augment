@@ -510,7 +510,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
-    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Hotkeys" });
+    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
     customizeLink.href = "#";
     customizeLink.addEventListener("click", (e) => {
       e.preventDefault();
@@ -716,7 +716,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     new Setting(continuationPane)
       .setName("Show generation notice")
-      .setDesc("Show a brief notice when generation starts. Helps confirm the hotkey fired.")
+      .setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.")
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.showGenerationToast)
@@ -755,9 +755,9 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     });
 
-    // ── Hotkeys ──
+    // ── Keyboard shortcuts ──
     {
-      continuationPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
+      continuationPane.createDiv({ cls: "augment-pane-section", text: "Keyboard shortcuts" });
 
       const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
       const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
@@ -778,7 +778,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       if (this.plugin.settings.clearedLinkHotkey) {
         const desc = document.createDocumentFragment();
         desc.appendText("Displaced: Open link in new tab.  ");
-        const link = desc.createEl("a", { text: "Open hotkeys settings \u2197" });
+        const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
         link.style.cursor = "pointer";
         link.addEventListener("click", () => openHotkeysPage());
 
@@ -795,7 +795,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       } else {
         const desc2 = document.createDocumentFragment();
         desc2.appendText(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
-        const link2 = desc2.createEl("a", { text: "Open hotkeys settings \u2197" });
+        const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
         link2.style.cursor = "pointer";
         link2.addEventListener("click", () => openHotkeysPage());
 
@@ -1192,7 +1192,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     // ── Default terminal location ────────────────────────────
     new Setting(terminalPane)
       .setName("Default terminal location")
-      .setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind hotkeys to specific positions.")
+      .setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.")
       .addDropdown((drop) => {
         drop
           .addOption("tab", "New tab")

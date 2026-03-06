@@ -18357,7 +18357,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       }
     }
     const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
-    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Hotkeys" });
+    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
     customizeLink.href = "#";
     customizeLink.addEventListener("click", (e) => {
       e.preventDefault();
@@ -18514,7 +18514,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
         }
       });
     });
-    new import_obsidian4.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the hotkey fired.").addToggle((toggle) => {
+    new import_obsidian4.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showGenerationToast).onChange(async (value) => {
         this.plugin.settings.showGenerationToast = value;
         await this.plugin.saveData(this.plugin.settings);
@@ -18542,7 +18542,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       }
     });
     {
-      continuationPane.createDiv({ cls: "augment-pane-section", text: "Hotkeys" });
+      continuationPane.createDiv({ cls: "augment-pane-section", text: "Keyboard shortcuts" });
       const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
       const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
       new import_obsidian4.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc("Run continuation on the current note.");
@@ -18554,7 +18554,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       if (this.plugin.settings.clearedLinkHotkey) {
         const desc = document.createDocumentFragment();
         desc.appendText("Displaced: Open link in new tab.  ");
-        const link = desc.createEl("a", { text: "Open hotkeys settings \u2197" });
+        const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
         link.style.cursor = "pointer";
         link.addEventListener("click", () => openHotkeysPage());
         new import_obsidian4.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc(desc).addButton((btn) => {
@@ -18566,7 +18566,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       } else {
         const desc2 = document.createDocumentFragment();
         desc2.appendText(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
-        const link2 = desc2.createEl("a", { text: "Open hotkeys settings \u2197" });
+        const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
         link2.style.cursor = "pointer";
         link2.addEventListener("click", () => openHotkeysPage());
         new import_obsidian4.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(desc2).addButton((btn) => {
@@ -18882,7 +18882,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       });
     };
     void renderStatusCard();
-    new import_obsidian4.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind hotkeys to specific positions.").addDropdown((drop) => {
+    new import_obsidian4.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
       var _a3;
       drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
         this.plugin.settings.defaultTerminalLocation = value;
@@ -22871,8 +22871,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:38:12.831Z";
-    this.gitSha = "fb5bfb9";
+    this.buildId = "2026-03-06T23:39:26.231Z";
+    this.gitSha = "464c12f";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
