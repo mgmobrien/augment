@@ -137,6 +137,27 @@ export class AugmentSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /** Render a compact hotkey cheat-sheet box in the top-right of a settings pane. */
+  private renderHotkeyBox(
+    pane: HTMLElement,
+    items: { label: string; commandId: string }[]
+  ): void {
+    const wrapper = pane.createEl("div", { cls: "augment-hotkey-cheatsheet-wrapper" });
+    const box = wrapper.createEl("div", { cls: "augment-hotkey-cheatsheet" });
+    box.createEl("div", { cls: "augment-hotkey-cheatsheet-title", text: "Keyboard shortcuts" });
+    for (const { label, commandId } of items) {
+      const row = box.createEl("div", { cls: "augment-hotkey-cheatsheet-row" });
+      row.createEl("span", { cls: "augment-hotkey-cheatsheet-label", text: label });
+      row.createEl("kbd", { cls: "augment-hotkey-cheatsheet-pill", text: this.formatHotkey(commandId) });
+    }
+    const customize = box.createEl("a", { cls: "augment-hotkey-cheatsheet-customize", text: "customize ↗" });
+    customize.href = "#";
+    customize.addEventListener("click", (e) => {
+      e.preventDefault();
+      (this.app as any).setting.openTabById("hotkeys");
+    });
+  }
+
   /** Read the current hotkey binding for a command and format for display. */
   private formatHotkey(commandId: string): string {
     const hm = (this.app as any).hotkeyManager;
@@ -473,6 +494,11 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
 
     // ── Continuation pane ────────────────────────────────────
+    this.renderHotkeyBox(continuationPane, [
+      { label: "Generate",          commandId: "augment-terminal:augment-generate" },
+      { label: "Run template",      commandId: "augment-terminal:augment-generate-from-template" },
+    ]);
+
     const calloutTypes = detectCalloutTypes();
 
     const formatSetting = new Setting(continuationPane)
@@ -696,6 +722,10 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     // ── Templates pane ───────────────────────────────────────
+    this.renderHotkeyBox(templatesPane, [
+      { label: "Run template",      commandId: "augment-terminal:augment-generate-from-template" },
+    ]);
+
     templatesPane.createEl("p", {
       cls: "augment-context-intro",
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note.",
@@ -872,6 +902,12 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
 
     // ── Terminal pane ────────────────────────────────────────
+    this.renderHotkeyBox(terminalPane, [
+      { label: "Open terminal",         commandId: "augment-terminal:open-terminal" },
+      { label: "Terminal manager",      commandId: "augment-terminal:open-terminal-manager" },
+      { label: "Next waiting session",  commandId: "augment-terminal:jump-to-next-waiting-session" },
+    ]);
+
     terminalPane.createEl("p", {
       cls: "augment-context-intro",
       text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette.",

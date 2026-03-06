@@ -18037,6 +18037,23 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
   }
+  /** Render a compact hotkey cheat-sheet box in the top-right of a settings pane. */
+  renderHotkeyBox(pane, items) {
+    const wrapper = pane.createEl("div", { cls: "augment-hotkey-cheatsheet-wrapper" });
+    const box = wrapper.createEl("div", { cls: "augment-hotkey-cheatsheet" });
+    box.createEl("div", { cls: "augment-hotkey-cheatsheet-title", text: "Keyboard shortcuts" });
+    for (const { label, commandId } of items) {
+      const row = box.createEl("div", { cls: "augment-hotkey-cheatsheet-row" });
+      row.createEl("span", { cls: "augment-hotkey-cheatsheet-label", text: label });
+      row.createEl("kbd", { cls: "augment-hotkey-cheatsheet-pill", text: this.formatHotkey(commandId) });
+    }
+    const customize = box.createEl("a", { cls: "augment-hotkey-cheatsheet-customize", text: "customize \u2197" });
+    customize.href = "#";
+    customize.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.app.setting.openTabById("hotkeys");
+    });
+  }
   /** Read the current hotkey binding for a command and format for display. */
   formatHotkey(commandId) {
     var _a2, _b;
@@ -18318,6 +18335,10 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       e.preventDefault();
       this.app.setting.openTabById("hotkeys");
     });
+    this.renderHotkeyBox(continuationPane, [
+      { label: "Generate", commandId: "augment-terminal:augment-generate" },
+      { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
+    ]);
     const calloutTypes = detectCalloutTypes();
     const formatSetting = new import_obsidian4.Setting(continuationPane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
@@ -18470,6 +18491,9 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
         });
       }
     }
+    this.renderHotkeyBox(templatesPane, [
+      { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
+    ]);
     templatesPane.createEl("p", {
       cls: "augment-context-intro",
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
@@ -18605,6 +18629,11 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       cls: "augment-format-example",
       text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}"
     });
+    this.renderHotkeyBox(terminalPane, [
+      { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
+      { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
+      { label: "Next waiting session", commandId: "augment-terminal:jump-to-next-waiting-session" }
+    ]);
     terminalPane.createEl("p", {
       cls: "augment-context-intro",
       text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
@@ -22624,8 +22653,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T22:53:26.777Z";
-    this.gitSha = "6fdac57";
+    this.buildId = "2026-03-06T22:55:39.919Z";
+    this.gitSha = "a4d8f6b";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

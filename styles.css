@@ -594,6 +594,72 @@
   padding-left: 18px;
 }
 
+/* ── Per-tab hotkey cheat-sheet box ── */
+.augment-hotkey-cheatsheet-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.augment-hotkey-cheatsheet {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.augment-hotkey-cheatsheet-title {
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  color: var(--text-accent);
+  margin-bottom: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.augment-hotkey-cheatsheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.augment-hotkey-cheatsheet-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.augment-hotkey-cheatsheet-pill {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text-normal);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.augment-hotkey-cheatsheet-customize {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: right;
+  margin-top: 4px;
+  text-decoration: none;
+}
+
+.augment-hotkey-cheatsheet-customize:hover {
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
 /* ── SSO login buttons ── */
 .augment-sso-btn-row {
   display: flex;
