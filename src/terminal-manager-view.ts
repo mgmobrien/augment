@@ -506,8 +506,8 @@ export class TerminalManagerView extends ItemView {
       typeof view.getStatus === "function" ? view.getStatus() : "shell";
     dot.addClass(status);
     const dotLabel: Record<string, string> = {
-      active: "Generating", tool: "Using tool", idle: "Idle", shell: "Open in Obsidian",
-      running: "Running", crashed: "Crashed", exited: "Exited",
+      active: "Generating (yellow)", tool: "Using tool (blue)", waiting: "Waiting for input (orange)",
+      idle: "Idle", shell: "Open", running: "Running", crashed: "Crashed", exited: "Exited",
     };
     dot.setAttribute("title", dotLabel[status] ?? status);
 
@@ -905,15 +905,18 @@ export class TerminalManagerView extends ItemView {
     leaf: WorkspaceLeaf,
     view: TerminalViewLike
   ): string {
+    // getName() reads this.terminalName directly — always in sync, even before
+    // the async setViewState() call from persistNameToLeafState() resolves.
+    // Prefer it over getViewState() which may lag by one render frame.
+    if (typeof view.getName === "function") {
+      const value = view.getName();
+      if (value?.trim()) return value.trim();
+    }
+
     const leafAny = leaf as any;
     const stateName = leafAny.getViewState?.()?.state?.name;
     if (typeof stateName === "string" && stateName.trim()) {
       return stateName.trim();
-    }
-
-    if (typeof view.getName === "function") {
-      const value = view.getName();
-      if (value?.trim()) return value.trim();
     }
 
     const leafEl = leafAny?.view?.containerEl?.closest?.(".workspace-leaf");

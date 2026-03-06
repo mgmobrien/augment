@@ -986,6 +986,13 @@ export class TerminalView extends ItemView {
   private setStatus(newStatus: TerminalStatus): void {
     const wasActive = this.status === "active" || this.status === "tool";
     const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";
+    const nowActive = newStatus === "active" || newStatus === "tool";
+    // Update timestamp when a new user request begins (idle → active), so the
+    // activity timer shows the start of the current response, not the end of
+    // the previous one.
+    if (!wasActive && nowActive) {
+      this.lastActivityMs = Date.now();
+    }
     if (wasActive && nowIdle) {
       this.exchangeCount++;
       this.lastActivityMs = Date.now();

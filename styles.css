@@ -106,10 +106,9 @@
   animation: augment-pulse 1.5s ease-in-out infinite;
 }
 
-/* Claude Code tool executing — yellow pulsing (same as active) */
+/* Claude Code tool executing — blue, no pulse (brief deterministic ops) */
 .workspace-leaf[data-augment-status="tool"] .view-header-title-container .view-header-title::before {
-  background-color: var(--color-yellow);
-  animation: augment-pulse 1.5s ease-in-out infinite;
+  background-color: var(--color-blue);
 }
 
 /* CC waiting for user input — orange, static */
@@ -138,7 +137,7 @@
   }
 
   50% {
-    opacity: 0.4;
+    opacity: 0.55;
   }
 }
 
@@ -234,10 +233,9 @@
   animation: augment-pulse 1.5s ease-in-out infinite;
 }
 
-/* tool renders identically to active — both mean "leave it alone" */
+/* tool = blue, no pulse — deterministic execution (read/write/bash), brief and predictable */
 .augment-tm-dot.tool {
-  background-color: var(--color-yellow);
-  animation: augment-pulse 1.5s ease-in-out infinite;
+  background-color: var(--color-blue);
 }
 
 /* waiting = CC at its prompt, needs user input */
@@ -368,7 +366,7 @@
 }
 
 .augment-ts-dot.tool {
-  background-color: var(--color-green);
+  background-color: var(--color-blue);
 }
 
 .augment-ts-dot.running {
