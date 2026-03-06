@@ -1889,6 +1889,10 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   font-size: 10px;
   width: 14px;
   flex-shrink: 0;
+  transition: transform 100ms ease;
+}
+.augment-tm-project-row.is-expanded .augment-tm-project-chevron {
+  transform: rotate(90deg);
 }
 .augment-tm-project-name {
   font-size: 13px;

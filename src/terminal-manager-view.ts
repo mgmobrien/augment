@@ -32,6 +32,7 @@ export class TerminalManagerView extends ItemView {
   private refreshFrameId: number | null = null;
 
   private otherProjectsEnabled = false;
+  private otherProjectsExpanded = true;
 
   // Async loader state objects — owned by createAsyncLoader() closures.
   private historyState = { cached: [] as SessionMeta[], lastLoadTime: 0, inFlight: false, reloadRequested: false };
@@ -367,29 +368,35 @@ export class TerminalManagerView extends ItemView {
 
     // ── OTHER PROJECTS section ─────────────────────────────────
     if (this.otherProjectsEnabled) {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "OTHER PROJECTS",
-      });
+      const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+
+      const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
+      if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
+
       if (hasOtherProjects) {
-        this.renderOtherProjectsSection(otherGroups);
+        this.renderOtherProjectsSection(otherGroups, otherContainer);
       } else {
-        this.listEl.createDiv({
-          cls: "augment-tm-empty",
-          text: "No other projects found",
-        });
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
       }
-    } else {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "OTHER PROJECTS",
+
+      otherDivider.addEventListener("click", () => {
+        this.otherProjectsExpanded = !this.otherProjectsExpanded;
+        otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
+        otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
       });
-      const loadRow = this.listEl.createDiv({
+    } else {
+      const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      const loadRow = loadDivider.createDiv({
         cls: "augment-tm-load-more",
         text: "Load other projects",
       });
       loadRow.addEventListener("click", () => {
         this.otherProjectsEnabled = true;
+        this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;
         this.projectsState.reloadRequested = true;
         this.requestRefresh();
@@ -624,16 +631,16 @@ export class TerminalManagerView extends ItemView {
     }
   }
 
-  private renderOtherProjectsSection(groups: ProjectGroup[]): void {
+  private renderOtherProjectsSection(groups: ProjectGroup[], container: HTMLElement): void {
     for (const group of groups) {
       const isExpanded = this.expandedProjects.has(group.encodedName);
 
-      const projectRow = this.listEl!.createDiv({ cls: "augment-tm-project-row" });
+      const projectRow = container.createDiv({ cls: "augment-tm-project-row" + (isExpanded ? " is-expanded" : "") });
       const line = projectRow.createDiv({ cls: "augment-tm-line" });
 
       line.createSpan({
         cls: "augment-tm-project-chevron",
-        text: isExpanded ? "▾" : "▸",
+        text: "›",
       });
 
       // Display the last meaningful path segment.
@@ -657,7 +664,7 @@ export class TerminalManagerView extends ItemView {
       });
 
       if (isExpanded) {
-        const sessionsEl = this.listEl!.createDiv({
+        const sessionsEl = container.createDiv({
           cls: "augment-tm-project-sessions",
         });
         this.renderHistorySections(group.sessions, sessionsEl);

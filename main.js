@@ -20630,6 +20630,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.historyLoadedCount = 20;
     this.refreshFrameId = null;
     this.otherProjectsEnabled = false;
+    this.otherProjectsExpanded = true;
     // Async loader state objects — owned by createAsyncLoader() closures.
     this.historyState = { cached: [], lastLoadTime: 0, inFlight: false, reloadRequested: false };
     this.projectsState = { cached: [], lastLoadTime: 0, inFlight: false, reloadRequested: false };
@@ -20887,29 +20888,32 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       });
     }
     if (this.otherProjectsEnabled) {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "OTHER PROJECTS"
-      });
+      const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
+      const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
+      if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
       if (hasOtherProjects) {
-        this.renderOtherProjectsSection(otherGroups);
+        this.renderOtherProjectsSection(otherGroups, otherContainer);
       } else {
-        this.listEl.createDiv({
-          cls: "augment-tm-empty",
-          text: "No other projects found"
-        });
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
       }
-    } else {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "OTHER PROJECTS"
+      otherDivider.addEventListener("click", () => {
+        this.otherProjectsExpanded = !this.otherProjectsExpanded;
+        otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
+        otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
       });
-      const loadRow = this.listEl.createDiv({
+    } else {
+      const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      const loadRow = loadDivider.createDiv({
         cls: "augment-tm-load-more",
         text: "Load other projects"
       });
       loadRow.addEventListener("click", () => {
         this.otherProjectsEnabled = true;
+        this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;
         this.projectsState.reloadRequested = true;
         this.requestRefresh();
@@ -21099,14 +21103,14 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       this.tooltipEl = null;
     }
   }
-  renderOtherProjectsSection(groups) {
+  renderOtherProjectsSection(groups, container) {
     for (const group of groups) {
       const isExpanded = this.expandedProjects.has(group.encodedName);
-      const projectRow = this.listEl.createDiv({ cls: "augment-tm-project-row" });
+      const projectRow = container.createDiv({ cls: "augment-tm-project-row" + (isExpanded ? " is-expanded" : "") });
       const line = projectRow.createDiv({ cls: "augment-tm-line" });
       line.createSpan({
         cls: "augment-tm-project-chevron",
-        text: isExpanded ? "\u25BE" : "\u25B8"
+        text: "\u203A"
       });
       const segments = group.projectName.split("/").filter(Boolean);
       const displayName = segments.slice(-1)[0] || group.projectName;
@@ -21125,7 +21129,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         this.requestRefresh();
       });
       if (isExpanded) {
-        const sessionsEl = this.listEl.createDiv({
+        const sessionsEl = container.createDiv({
           cls: "augment-tm-project-sessions"
         });
         this.renderHistorySections(group.sessions, sessionsEl);
@@ -22620,8 +22624,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T22:21:51.934Z";
-    this.gitSha = "b4d3094";
+    this.buildId = "2026-03-06T22:53:26.777Z";
+    this.gitSha = "6fdac57";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
