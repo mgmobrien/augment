@@ -441,7 +441,7 @@
 .theme-dark .augment-dot-green { background: #43a047; }
 .theme-dark .augment-dot-blue  { background: #1e88e5; }
 
-/* ── Status bar generation dots — pyramid layout ── */
+/* ── Status bar generation dots — S3 pyramid layout ── */
 @keyframes augment-sb-pulse {
   0%, 100% { transform: scale(0.6);  opacity: 0.25; }
   50%       { transform: scale(1.15); opacity: 1.0;  }
@@ -450,27 +450,30 @@
 .augment-sb-spinner {
   display: inline-block;
   position: relative;
-  width: 11px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   vertical-align: middle;
   flex-shrink: 0;
 }
 
 .augment-sb-dot {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: currentColor;
-  animation: augment-sb-pulse 1.2s ease-in-out infinite;
+  animation: augment-sb-pulse 1.5s ease-in-out infinite;
 }
 
-/* top center */
-.augment-sb-dot:nth-child(1) { left: 3.5px; top: 0;   animation-delay: 0s;   }
-/* bottom left */
-.augment-sb-dot:nth-child(2) { left: 0;     top: 6px; animation-delay: 0.4s; }
-/* bottom right */
-.augment-sb-dot:nth-child(3) { left: 7px;   top: 6px; animation-delay: 0.8s; }
+/* red — top center */
+.augment-sb-dot:nth-child(1) { left: 3px; top: 0;   background: #ff3d00; animation-delay: 0s;   }
+/* blue — bottom left */
+.augment-sb-dot:nth-child(2) { left: 0;   top: 6px; background: #1565c0; animation-delay: 0.5s; }
+/* green — bottom right */
+.augment-sb-dot:nth-child(3) { left: 6px; top: 6px; background: #2e7d32; animation-delay: 1.0s; }
+
+.theme-dark .augment-sb-dot:nth-child(1) { background: #ff6e40; }
+.theme-dark .augment-sb-dot:nth-child(2) { background: #1e88e5; }
+.theme-dark .augment-sb-dot:nth-child(3) { background: #43a047; }
 
 /* ── Format row secondary + tertiary slots ── */
 .augment-format-secondary {
