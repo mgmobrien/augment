@@ -11,6 +11,27 @@ import { runGenerateTemplatesFlow } from "./template-picker";
 
 
 
+// Appends an ⓘ hover tooltip to a setting's descEl.
+function addInfoTooltip(descEl: HTMLElement, tipText: string): void {
+  descEl.appendChild(
+    createFragment((frag) => {
+      frag.appendText("\u00a0");
+      const icon = frag.createEl("span", { cls: "augment-api-key-info", text: "\u24d8" });
+      let tip: HTMLElement | null = null;
+      icon.addEventListener("mouseenter", () => {
+        tip = document.createElement("div");
+        tip.className = "augment-api-key-tip";
+        tip.textContent = tipText;
+        document.body.appendChild(tip);
+        const rect = icon.getBoundingClientRect();
+        tip.style.top = `${rect.bottom + 6}px`;
+        tip.style.left = `${rect.left}px`;
+      });
+      icon.addEventListener("mouseleave", () => { tip?.remove(); tip = null; });
+    })
+  );
+}
+
 // Shared hotkey formatting helper used by formatHotkey() and the shortcuts table.
 function formatHotkeyStr(mods: string[], key: string, isMac: boolean): string {
   const parts: string[] = [];
@@ -379,7 +400,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       ? this.plugin.availableModels
       : FALLBACK_MODELS;
 
-    new Setting(overviewPane)
+    const modelSetting = new Setting(overviewPane)
       .setName("Model")
       .setDesc("Claude model to use for generation. Auto selects the best available model.")
       .addDropdown((drop) => {
@@ -398,6 +419,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             this.plugin.refreshStatusBar();
           });
       });
+    addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
 
     const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
     howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
@@ -687,7 +709,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(continuationPane)
+    const systemPromptSetting = new Setting(continuationPane)
       .setName("System prompt")
       .setDesc("Override the default system prompt. Leave blank to use Augment's default.")
       .addTextArea((text) => {
@@ -702,6 +724,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         text.inputEl.style.width = "100%";
         text.inputEl.style.fontFamily = "var(--font-monospace)";
       });
+    addInfoTooltip(systemPromptSetting.descEl, "Augment's default prompt tells Claude your note title, frontmatter, and writing context. Override here to change how Claude approaches generation across this entire vault — useful for setting a persona, language, or domain focus.");
 
     const inspectorBtn = continuationPane.createEl("button", {
       cls: "augment-ctx-preview-btn",
