@@ -1,5 +1,5 @@
 import { Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile, WorkspaceLeaf } from "obsidian";
-import { applyOutputFormat, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
+import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
@@ -650,17 +650,26 @@ export default class AugmentTerminalPlugin extends Plugin {
     insertPos: number;
   } | null = null;
 
-  // Returns the actual model ID to use, resolving "auto" to the best available.
+  // Returns the actual model ID to use, resolving "auto" and tier aliases to the best available.
   public resolveModel(): string {
-    if (this.settings.model !== "auto") return this.settings.model;
-    return bestModelId(this.availableModels) ?? "claude-opus-4-6";
+    switch (this.settings.model) {
+      case "auto":         return bestModelId(this.availableModels) ?? "claude-opus-4-6";
+      case "auto-opus":    return bestModelByTier(this.availableModels, "opus")   ?? "claude-opus-4-6";
+      case "auto-sonnet":  return bestModelByTier(this.availableModels, "sonnet") ?? "claude-sonnet-4-6";
+      case "auto-haiku":   return bestModelByTier(this.availableModels, "haiku")  ?? "claude-haiku-4-5-20251001";
+      default:             return this.settings.model;
+    }
   }
 
   // Display name for the resolved model — used in status bar and output formats.
+  // Prefers curated local names over API-returned display_name (API may truncate, e.g. "Claude Opus 4" vs "Claude Opus 4.6").
   public resolveModelDisplayName(): string {
     const id = this.resolveModel();
+    const localName = modelDisplayName(id);
+    // modelDisplayName returns the id itself when not found — if it differs, we have a curated name.
+    if (localName !== id) return localName;
     const found = this.availableModels.find(m => m.id === id);
-    return found?.display_name ?? modelDisplayName(id);
+    return found?.display_name ?? id;
   }
 
   public refreshStatusBar(): void {

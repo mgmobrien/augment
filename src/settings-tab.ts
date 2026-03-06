@@ -356,6 +356,9 @@ export class AugmentSettingTab extends PluginSettingTab {
       .setDesc("Claude model to use for generation. Auto selects the best available model.")
       .addDropdown((drop) => {
         drop.addOption("auto", "Auto (best available)");
+        drop.addOption("auto-opus", "Latest Opus");
+        drop.addOption("auto-sonnet", "Latest Sonnet");
+        drop.addOption("auto-haiku", "Latest Haiku");
         for (const m of modelList) {
           drop.addOption(m.id, m.display_name);
         }

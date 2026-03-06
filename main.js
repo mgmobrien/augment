@@ -16981,6 +16981,13 @@ function bestModelId(models) {
     return best;
   }).id;
 }
+function bestModelByTier(models, tier) {
+  const filtered = models.filter((m) => m.id.includes(tier));
+  if (filtered.length === 0) return null;
+  return filtered.reduce(
+    (best, m) => modelVersion(m.id) > modelVersion(best.id) ? m : best
+  ).id;
+}
 async function fetchModels(apiKey) {
   try {
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
@@ -17915,6 +17922,9 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     const modelList = this.plugin.availableModels.length > 0 ? this.plugin.availableModels : FALLBACK_MODELS;
     new import_obsidian3.Setting(overviewPane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
       drop.addOption("auto", "Auto (best available)");
+      drop.addOption("auto-opus", "Latest Opus");
+      drop.addOption("auto-sonnet", "Latest Sonnet");
+      drop.addOption("auto-haiku", "Latest Haiku");
       for (const m of modelList) {
         drop.addOption(m.id, m.display_name);
       }
@@ -22234,8 +22244,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T17:40:59.595Z";
-    this.gitSha = "926ed87";
+    this.buildId = "2026-03-06T18:49:30.612Z";
+    this.gitSha = "6b5ba33";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22243,18 +22253,31 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.waitingCursor = 0;
     this.activeGeneration = null;
   }
-  // Returns the actual model ID to use, resolving "auto" to the best available.
+  // Returns the actual model ID to use, resolving "auto" and tier aliases to the best available.
   resolveModel() {
-    var _a2;
-    if (this.settings.model !== "auto") return this.settings.model;
-    return (_a2 = bestModelId(this.availableModels)) != null ? _a2 : "claude-opus-4-6";
+    var _a2, _b, _c, _d;
+    switch (this.settings.model) {
+      case "auto":
+        return (_a2 = bestModelId(this.availableModels)) != null ? _a2 : "claude-opus-4-6";
+      case "auto-opus":
+        return (_b = bestModelByTier(this.availableModels, "opus")) != null ? _b : "claude-opus-4-6";
+      case "auto-sonnet":
+        return (_c = bestModelByTier(this.availableModels, "sonnet")) != null ? _c : "claude-sonnet-4-6";
+      case "auto-haiku":
+        return (_d = bestModelByTier(this.availableModels, "haiku")) != null ? _d : "claude-haiku-4-5-20251001";
+      default:
+        return this.settings.model;
+    }
   }
   // Display name for the resolved model — used in status bar and output formats.
+  // Prefers curated local names over API-returned display_name (API may truncate, e.g. "Claude Opus 4" vs "Claude Opus 4.6").
   resolveModelDisplayName() {
     var _a2;
     const id = this.resolveModel();
+    const localName = modelDisplayName(id);
+    if (localName !== id) return localName;
     const found = this.availableModels.find((m) => m.id === id);
-    return (_a2 = found == null ? void 0 : found.display_name) != null ? _a2 : modelDisplayName(id);
+    return (_a2 = found == null ? void 0 : found.display_name) != null ? _a2 : id;
   }
   refreshStatusBar() {
     if (!this.statusBarEl) return;

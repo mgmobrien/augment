@@ -123,6 +123,15 @@ export function bestModelId(models: ModelInfo[]): string | null {
   }).id;
 }
 
+// Returns the ID of the best available model in a specific tier, or null if none found.
+export function bestModelByTier(models: ModelInfo[], tier: "opus" | "sonnet" | "haiku"): string | null {
+  const filtered = models.filter(m => m.id.includes(tier));
+  if (filtered.length === 0) return null;
+  return filtered.reduce((best, m) =>
+    modelVersion(m.id) > modelVersion(best.id) ? m : best
+  ).id;
+}
+
 // Fetch available models from the Anthropic API. Returns [] on failure.
 export async function fetchModels(apiKey: string): Promise<ModelInfo[]> {
   try {
