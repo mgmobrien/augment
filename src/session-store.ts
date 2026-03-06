@@ -89,7 +89,7 @@ export class SessionStore {
   async loadSessions(limit: number): Promise<SessionMeta[]> {
     const dir = await this.findProjectDir();
     if (!dir) return [];
-    return this.loadSessionsFromDir(dir, limit);
+    return (await this.loadSessionsFromDir(dir, limit)).sessions;
   }
 
   // Load sessions from all CC project directories, grouped by project.
@@ -98,10 +98,9 @@ export class SessionStore {
     const dirs = await this.findAllProjectDirs();
     const groups = await Promise.all(
       dirs.map(async ({ encodedName, projectDir, isVault, projectName }) => {
-        const sessions = await this.loadSessionsFromDir(projectDir, limitPerProject);
+        const { sessions, totalOnDisk } = await this.loadSessionsFromDir(projectDir, limitPerProject);
         if (sessions.length === 0) return null;
         const lastActivityMs = sessions[0]?.mtimeMs ?? 0;
-        const totalOnDisk = await this.countSessionsInDir(projectDir);
         return {
           projectName,
           projectDir,
@@ -119,19 +118,11 @@ export class SessionStore {
       .sort((a, b) => b.lastActivityMs - a.lastActivityMs);
   }
 
-  private async countSessionsInDir(dir: string): Promise<number> {
-    try {
-      const files = await fs.promises.readdir(dir);
-      return files.filter((f) => f.endsWith(".jsonl")).length;
-    } catch {
-      return 0;
-    }
-  }
-
-  private async loadSessionsFromDir(dir: string, limit: number): Promise<SessionMeta[]> {
+  private async loadSessionsFromDir(dir: string, limit: number): Promise<{ sessions: SessionMeta[]; totalOnDisk: number }> {
     try {
       const now = Date.now();
       const files = (await fs.promises.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+      const totalOnDisk = files.length;
 
       const entries = (
         await Promise.all(
@@ -166,9 +157,9 @@ export class SessionStore {
         })
       );
 
-      return sessions.filter((s): s is SessionMeta => s !== null);
+      return { sessions: sessions.filter((s): s is SessionMeta => s !== null), totalOnDisk };
     } catch {
-      return [];
+      return { sessions: [], totalOnDisk: 0 };
     }
   }
 
