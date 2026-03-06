@@ -22640,7 +22640,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:11:44.859Z";
+    this.buildId = "2026-03-06T19:11:59.754Z";
     this.gitSha = "c03982d";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
@@ -23232,6 +23232,50 @@ ${excerpt}`,
             }
             await runGenerate();
           }).open();
+        }).open();
+      }
+    });
+    this.addCommand({
+      id: "generate-templates-from-folder",
+      name: "Generate templates from folder\u2026",
+      callback: () => {
+        if (!this.settings.apiKey) {
+          new import_obsidian8.Notice("Augment: add an API key in Settings \u2192 Augment first");
+          return;
+        }
+        new FolderSuggestModal(this.app, async (folder) => {
+          const notice = new import_obsidian8.Notice("Scanning folder and generating templates\u2026", 0);
+          try {
+            const templates = await generateTemplatesFromFolder(
+              this.app,
+              folder,
+              this.settings,
+              this.resolveModel()
+            );
+            notice.hide();
+            const targetFolder = this.settings.templateFolder || "Augment/templates";
+            new GeneratedTemplatesModal(this.app, templates, targetFolder, async (ts) => {
+              let created = 0;
+              for (const t of ts) {
+                const path4 = `${targetFolder}/${t.name}.md`;
+                if (!this.app.vault.getAbstractFileByPath(path4)) {
+                  await this.app.vault.create(path4, buildTemplateFileContent(t));
+                  created++;
+                }
+              }
+              new import_obsidian8.Notice(
+                created > 0 ? `Created ${created} template${created !== 1 ? "s" : ""}` : "All generated templates already exist \u2014 no files created"
+              );
+            }).open();
+          } catch (err) {
+            notice.hide();
+            if ((err == null ? void 0 : err.message) === "no-files") {
+              new import_obsidian8.Notice("No .md notes found in that folder");
+            } else {
+              new import_obsidian8.Notice("Template generation failed \u2014 see console for details");
+              console.error("[Augment] generate-templates-from-folder failed", err);
+            }
+          }
         }).open();
       }
     });

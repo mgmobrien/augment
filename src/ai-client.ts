@@ -239,7 +239,8 @@ export async function generateText(
   userMessage: string,
   settings: AugmentSettings,
   modelOverride?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxTokens = 1024
 ): Promise<string> {
   const model = modelOverride ?? settings.model;
 
@@ -247,7 +248,7 @@ export async function generateText(
   const message = await client.messages.create(
     {
       model,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: userMessage }],
     },
