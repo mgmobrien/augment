@@ -1,0 +1,13 @@
+{
+  "name": "augment-playwright",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node tests/smoke.mjs",
+    "setup": "../scripts/setup-test.sh",
+    "start": "../scripts/start-test.sh"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}
