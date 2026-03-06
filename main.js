@@ -17928,6 +17928,17 @@ var GeneratedTemplatesModal = class extends import_obsidian3.Modal {
 };
 
 // src/settings-tab.ts
+function formatHotkeyStr(mods, key, isMac) {
+  const parts = [];
+  for (const m of mods) {
+    if (m === "Mod") parts.push(isMac ? "\u2318" : "Ctrl");
+    else if (m === "Ctrl") parts.push("Ctrl");
+    else if (m === "Shift") parts.push("\u21E7");
+    else if (m === "Alt") parts.push(isMac ? "\u2325" : "Alt");
+  }
+  parts.push(key === "Enter" ? "\u21A9" : key.toUpperCase());
+  return parts.join("+");
+}
 function getSetupStep(deps) {
   if (!deps.node) {
     return {
@@ -18031,26 +18042,18 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
     var _a2, _b;
     const hm = this.app.hotkeyManager;
     const isMac = process.platform === "darwin";
-    const fallback = (mods, key) => {
-      const parts = mods.map((m) => {
-        if (m === "Mod") return isMac ? "Cmd" : "Ctrl";
-        return m;
-      });
-      parts.push(key === "Enter" ? "\u21A9" : key);
-      return parts.join("+");
-    };
     const custom = (_a2 = hm == null ? void 0 : hm.customKeys) == null ? void 0 : _a2[commandId];
     if (Array.isArray(custom) && custom.length > 0) {
       const h = custom[0];
-      return fallback(h.modifiers || [], h.key || "?");
+      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
     }
     const defaults = (_b = hm == null ? void 0 : hm.defaultKeys) == null ? void 0 : _b[commandId];
     if (Array.isArray(defaults) && defaults.length > 0) {
       const h = defaults[0];
-      return fallback(h.modifiers || [], h.key || "?");
+      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
     }
-    if (commandId.includes("template")) return isMac ? "Cmd+Shift+\u21A9" : "Ctrl+Shift+\u21A9";
-    return isMac ? "Cmd+\u21A9" : "Ctrl+\u21A9";
+    if (commandId.includes("template")) return isMac ? "\u2318+\u21E7+\u21A9" : "Ctrl+\u21E7+\u21A9";
+    return isMac ? "\u2318+\u21A9" : "Ctrl+\u21A9";
   }
   display() {
     var _a2;
@@ -18287,17 +18290,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       { id: "jump-to-next-waiting-session", label: "Jump to next waiting session", defaultKeys: [] },
       { id: "augment-open-settings", label: "Open settings", defaultKeys: [] }
     ];
-    const renderHotkeyStr = (hk) => {
-      const parts = [];
-      for (const m of hk.modifiers) {
-        if (m === "Mod") parts.push(isMac ? "\u2318" : "Ctrl");
-        else if (m === "Ctrl") parts.push("Ctrl");
-        else if (m === "Shift") parts.push("\u21E7");
-        else if (m === "Alt") parts.push(isMac ? "\u2325" : "Alt");
-      }
-      parts.push(hk.key === "Enter" ? "\u21A9" : hk.key.toUpperCase());
-      return parts.join("+");
-    };
+    const renderHotkeyStr = (hk) => formatHotkeyStr(hk.modifiers, hk.key, isMac);
     const hm = this.app.hotkeyManager;
     const customKeys = (_a2 = hm == null ? void 0 : hm.customKeys) != null ? _a2 : {};
     const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
@@ -22636,8 +22629,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:48:57.231Z";
-    this.gitSha = "e14b49a";
+    this.buildId = "2026-03-06T21:51:07.895Z";
+    this.gitSha = "974d25e";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

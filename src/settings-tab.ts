@@ -10,6 +10,20 @@ import { runGenerateTemplatesFlow } from "./template-picker";
 
 
 
+
+// Shared hotkey formatting helper used by formatHotkey() and the shortcuts table.
+function formatHotkeyStr(mods: string[], key: string, isMac: boolean): string {
+  const parts: string[] = [];
+  for (const m of mods) {
+    if (m === "Mod")        parts.push(isMac ? "⌘" : "Ctrl");
+    else if (m === "Ctrl")  parts.push("Ctrl");
+    else if (m === "Shift") parts.push("⇧");
+    else if (m === "Alt")   parts.push(isMac ? "⌥" : "Alt");
+  }
+  parts.push(key === "Enter" ? "↩" : key.toUpperCase());
+  return parts.join("+");
+}
+
 interface WizardStep {
   title: string;
   desc: string;
@@ -127,30 +141,22 @@ export class AugmentSettingTab extends PluginSettingTab {
   private formatHotkey(commandId: string): string {
     const hm = (this.app as any).hotkeyManager;
     const isMac = process.platform === "darwin";
-    const fallback = (mods: string[], key: string) => {
-      const parts = mods.map((m) => {
-        if (m === "Mod") return isMac ? "Cmd" : "Ctrl";
-        return m;
-      });
-      parts.push(key === "Enter" ? "\u21a9" : key);
-      return parts.join("+");
-    };
 
     // Try custom hotkeys first, then defaults
     const custom = hm?.customKeys?.[commandId];
     if (Array.isArray(custom) && custom.length > 0) {
       const h = custom[0];
-      return fallback(h.modifiers || [], h.key || "?");
+      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
     }
     const defaults = hm?.defaultKeys?.[commandId];
     if (Array.isArray(defaults) && defaults.length > 0) {
       const h = defaults[0];
-      return fallback(h.modifiers || [], h.key || "?");
+      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
     }
 
     // Hardcoded fallback if hotkeyManager isn't available
-    if (commandId.includes("template")) return isMac ? "Cmd+Shift+\u21a9" : "Ctrl+Shift+\u21a9";
-    return isMac ? "Cmd+\u21a9" : "Ctrl+\u21a9";
+    if (commandId.includes("template")) return isMac ? "⌘+⇧+↩" : "Ctrl+⇧+↩";
+    return isMac ? "⌘+↩" : "Ctrl+↩";
   }
 
   display(): void {
@@ -429,17 +435,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       { id: "augment-open-settings",          label: "Open settings",                defaultKeys: [] },
     ];
 
-    const renderHotkeyStr = (hk: { modifiers: string[]; key: string }): string => {
-      const parts: string[] = [];
-      for (const m of hk.modifiers) {
-        if (m === "Mod")        parts.push(isMac ? "\u2318" : "Ctrl");
-        else if (m === "Ctrl")  parts.push("Ctrl");
-        else if (m === "Shift") parts.push("\u21e7");
-        else if (m === "Alt")   parts.push(isMac ? "\u2325" : "Alt");
-      }
-      parts.push(hk.key === "Enter" ? "\u21a9" : hk.key.toUpperCase());
-      return parts.join("+");
-    };
+    const renderHotkeyStr = (hk: { modifiers: string[]; key: string }): string =>
+      formatHotkeyStr(hk.modifiers, hk.key, isMac);
 
     const hm = (this.app as any).hotkeyManager;
     const customKeys: Record<string, { modifiers: string[]; key: string }[]> = hm?.customKeys ?? {};
