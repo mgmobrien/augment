@@ -1,7 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting, TFile, TFolder, setIcon } from "obsidian";
 import AugmentTerminalPlugin from "./main";
 import { AugmentSettings, TerminalOpenLocation } from "./vault-context";
-import { modelDisplayName } from "./ai-client";
+import { calculateCost, modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
@@ -577,6 +577,50 @@ export class AugmentSettingTab extends PluginSettingTab {
           }
         }
       }
+    }
+
+    // ── API usage ────────────────────────────────────────────
+    {
+      const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
+      spendSection.createDiv({ cls: "augment-overview-how-title", text: "API usage" });
+
+      const spend = this.plugin.spendData;
+      const models = spend ? Object.keys(spend.byModel) : [];
+
+      if (models.length === 0) {
+        spendSection.createEl("p", {
+          cls: "augment-profiler-hint",
+          text: "No generations tracked yet. Usage is recorded after each Generate call.",
+        });
+      } else {
+        let totalCost = 0;
+        let totalGens = 0;
+        for (const [modelId, entry] of Object.entries(spend!.byModel)) {
+          totalCost += calculateCost(modelId, entry.inputTokens, entry.outputTokens);
+          totalGens += entry.generations;
+        }
+
+        const summaryEl = spendSection.createDiv({ cls: "augment-profiler-summary" });
+        summaryEl.createEl("div", {
+          cls: "augment-profiler-row augment-profiler-own",
+          text: `Total cost: $${totalCost.toFixed(4)} across ${totalGens} generation${totalGens === 1 ? "" : "s"}`,
+        });
+
+        const table = spendSection.createEl("table", { cls: "augment-var-table augment-spend-table" });
+        const tbody = table.createEl("tbody");
+        for (const [modelId, entry] of Object.entries(spend!.byModel)) {
+          const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
+          const tr = tbody.createEl("tr");
+          tr.createEl("td", { text: modelDisplayName(modelId) });
+          tr.createEl("td", { cls: "augment-profiler-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
+          tr.createEl("td", { cls: "augment-profiler-ms", text: `$${cost.toFixed(4)}` });
+        }
+      }
+
+      spendSection.createEl("p", {
+        cls: "augment-spend-note",
+        text: "Tracks Generate and Run template calls only. Terminal (Claude Code) sessions are not tracked — those costs appear in your Anthropic console.",
+      });
     }
 
     // ── Continuation pane ────────────────────────────────────

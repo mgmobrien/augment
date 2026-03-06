@@ -1,10 +1,10 @@
 import { addIcon, Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile, WorkspaceLeaf } from "obsidian";
-import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
+import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, calculateCost, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
-import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord, TerminalOpenLocation } from "./vault-context";
+import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord, SpendData, TerminalOpenLocation } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -644,6 +644,8 @@ export default class AugmentTerminalPlugin extends Plugin {
   private statusBarEl: HTMLElement | null = null;
   private ribbonGenerateEl: HTMLElement | null = null;
   public startupTimings: { ownMs: number; layoutReadyMs: number; plugins: { id: string; name: string; ms: number }[] } | null = null;
+  public spendData: SpendData | null = null;
+  private readonly SPEND_PATH = "augment-spend.json";
   private waitingBadgeEl: HTMLElement | null = null;
   private waitingCursor: number = 0;
   private activeGeneration: {
@@ -753,8 +755,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const result = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || undefined), promptText, this.settings, resolvedModel, abortController.signal);
+        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || undefined), promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
+        void this.accumulateSpend(resolvedModel, genUsage);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
         const insertPosLine = editor.offsetToPos(insertPos);
@@ -1056,7 +1059,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
 
         try {
-          const raw = await generateText(
+          const { text: raw } = await generateText(
             "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2–4 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
             `Session excerpt:\n${excerpt}`,
             this.settings,
@@ -1221,8 +1224,9 @@ export default class AugmentTerminalPlugin extends Plugin {
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const result = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
+              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
+              void this.accumulateSpend(resolvedModel, genUsage);
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
 
               // Route output
@@ -1601,6 +1605,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         };
       }
 
+      void this.loadSpendData();
       // Scaffold defaults on first install — deferred so vault I/O doesn't
       // compete with Obsidian's core startup sequence.
       void this.scaffoldDefaultTemplates();
@@ -1887,6 +1892,28 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
       });
     }
+  }
+
+  async loadSpendData(): Promise<void> {
+    try {
+      const raw = await this.app.vault.adapter.read(this.SPEND_PATH);
+      this.spendData = JSON.parse(raw) as SpendData;
+      if (!this.spendData.byModel) this.spendData.byModel = {};
+    } catch {
+      this.spendData = { byModel: {} };
+    }
+  }
+
+  private async accumulateSpend(modelId: string, usage: { input_tokens: number; output_tokens: number }): Promise<void> {
+    if (!this.spendData) this.spendData = { byModel: {} };
+    const entry = this.spendData.byModel[modelId] ?? { inputTokens: 0, outputTokens: 0, generations: 0 };
+    entry.inputTokens += usage.input_tokens;
+    entry.outputTokens += usage.output_tokens;
+    entry.generations += 1;
+    this.spendData.byModel[modelId] = entry;
+    try {
+      await this.app.vault.adapter.write(this.SPEND_PATH, JSON.stringify(this.spendData, null, 2));
+    } catch { /* non-fatal */ }
   }
 
   private appendSessionRecord(name: string, status: "exited" | "crashed", startedAt: number, skillName?: string): void {

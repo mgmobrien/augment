@@ -16953,6 +16953,16 @@ function substituteVariables(templateStr, ctx) {
   const compiled = import_handlebars.default.compile(templateStr, { noEscape: true });
   return compiled(context);
 }
+var MODEL_PRICING = {
+  "claude-haiku-4-5-20251001": { inputPerMTok: 0.8, outputPerMTok: 4 },
+  "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
+  "claude-opus-4-6": { inputPerMTok: 15, outputPerMTok: 75 }
+};
+function calculateCost(modelId, inputTokens, outputTokens) {
+  const p = MODEL_PRICING[modelId];
+  if (!p) return 0;
+  return (inputTokens * p.inputPerMTok + outputTokens * p.outputPerMTok) / 1e6;
+}
 var MODEL_DISPLAY_NAMES = {
   "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
   "claude-sonnet-4-6": "Claude Sonnet 4.6",
@@ -17099,7 +17109,10 @@ async function generateText(systemPrompt, userMessage, settings, modelOverride, 
   );
   const block = message.content[0];
   if (block.type !== "text") throw new Error("Unexpected response type from Anthropic API");
-  return block.text;
+  return {
+    text: block.text,
+    usage: { input_tokens: message.usage.input_tokens, output_tokens: message.usage.output_tokens }
+  };
 }
 
 // src/agent-suggest.ts
@@ -17286,7 +17299,7 @@ function assembleVaultContext(app, editor, settings) {
 
 // src/context-inspector-view.ts
 var VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
-var MODEL_PRICING = {
+var MODEL_PRICING2 = {
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-opus-4-6": { input: 15, output: 75 }
@@ -17295,12 +17308,12 @@ var DEFAULT_PRICING = { input: 3, output: 15 };
 var MAX_TOKENS = 1024;
 function inputCost(tokens, modelId) {
   var _a2;
-  const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+  const pricing = (_a2 = MODEL_PRICING2[modelId]) != null ? _a2 : DEFAULT_PRICING;
   return tokens * pricing.input / 1e6;
 }
 function outputCost(tokens, modelId) {
   var _a2;
-  const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+  const pricing = (_a2 = MODEL_PRICING2[modelId]) != null ? _a2 : DEFAULT_PRICING;
   return tokens * pricing.output / 1e6;
 }
 function formatCost(dollars) {
@@ -17428,7 +17441,7 @@ ${key}: ${valStr}`;
     const totalTokens = sysTokens + noteTokens + linkedTokens;
     const modelId = this.plugin.resolveModel();
     const modelName = this.plugin.resolveModelDisplayName();
-    const pricing = (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+    const pricing = (_a2 = MODEL_PRICING2[modelId]) != null ? _a2 : DEFAULT_PRICING;
     const inCost = inputCost(totalTokens, modelId);
     const estOutputTokens = Math.round(MAX_TOKENS / 4);
     const outCost = outputCost(estOutputTokens, modelId);
@@ -18415,6 +18428,43 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           }
         }
       }
+    }
+    {
+      const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
+      spendSection.createDiv({ cls: "augment-overview-how-title", text: "API usage" });
+      const spend = this.plugin.spendData;
+      const models = spend ? Object.keys(spend.byModel) : [];
+      if (models.length === 0) {
+        spendSection.createEl("p", {
+          cls: "augment-profiler-hint",
+          text: "No generations tracked yet. Usage is recorded after each Generate call."
+        });
+      } else {
+        let totalCost = 0;
+        let totalGens = 0;
+        for (const [modelId, entry] of Object.entries(spend.byModel)) {
+          totalCost += calculateCost(modelId, entry.inputTokens, entry.outputTokens);
+          totalGens += entry.generations;
+        }
+        const summaryEl = spendSection.createDiv({ cls: "augment-profiler-summary" });
+        summaryEl.createEl("div", {
+          cls: "augment-profiler-row augment-profiler-own",
+          text: `Total cost: $${totalCost.toFixed(4)} across ${totalGens} generation${totalGens === 1 ? "" : "s"}`
+        });
+        const table = spendSection.createEl("table", { cls: "augment-var-table augment-spend-table" });
+        const tbody = table.createEl("tbody");
+        for (const [modelId, entry] of Object.entries(spend.byModel)) {
+          const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
+          const tr = tbody.createEl("tr");
+          tr.createEl("td", { text: modelDisplayName(modelId) });
+          tr.createEl("td", { cls: "augment-profiler-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
+          tr.createEl("td", { cls: "augment-profiler-ms", text: `$${cost.toFixed(4)}` });
+        }
+      }
+      spendSection.createEl("p", {
+        cls: "augment-spend-note",
+        text: "Tracks Generate and Run template calls only. Terminal (Claude Code) sessions are not tracked \u2014 those costs appear in your Anthropic console."
+      });
     }
     this.renderHotkeyBox(continuationPane, [
       { label: "Generate", commandId: "augment-terminal:augment-generate" },
@@ -22878,13 +22928,15 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:40:00.719Z";
-    this.gitSha = "e8dcae1";
+    this.buildId = "2026-03-06T23:47:10.156Z";
+    this.gitSha = "9768779";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
     this.ribbonGenerateEl = null;
     this.startupTimings = null;
+    this.spendData = null;
+    this.SPEND_PATH = "augment-spend.json";
     this.waitingBadgeEl = null;
     this.waitingCursor = 0;
     this.activeGeneration = null;
@@ -22986,8 +23038,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       try {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const result = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0), promptText, this.settings, resolvedModel, abortController.signal);
+        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0), promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
+        void this.accumulateSpend(resolvedModel, genUsage);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
         const insertPosLine = editor.offsetToPos(insertPos);
@@ -23186,14 +23239,14 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     var _a2;
     const _profilerT0 = performance.now();
     const _profilerPlugins = [];
-    const _ComponentProto = Object.getPrototypeOf(import_obsidian8.Plugin).prototype;
-    const _origLoad = _ComponentProto.load;
-    _ComponentProto.load = function(...args) {
+    const _PluginProto = import_obsidian8.Plugin.prototype;
+    const _origOnload = _PluginProto.onload;
+    _PluginProto.onload = function(...args) {
       var _a3;
       const pid = (_a3 = this.manifest) == null ? void 0 : _a3.id;
-      if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
+      if (!pid || pid === "augment-terminal") return _origOnload.apply(this, args);
       const t = performance.now();
-      const result = _origLoad.apply(this, args);
+      const result = _origOnload.apply(this, args);
       const finish = () => {
         var _a4, _b;
         return _profilerPlugins.push({ id: pid, name: (_b = (_a4 = this.manifest) == null ? void 0 : _a4.name) != null ? _b : pid, ms: Math.round(performance.now() - t) });
@@ -23269,7 +23322,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
           return localFallback;
         }
         try {
-          const raw2 = await generateText(
+          const { text: raw2 } = await generateText(
             "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2\u20134 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
             `Session excerpt:
 ${excerpt}`,
@@ -23419,8 +23472,9 @@ ${excerpt}`,
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const result = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
+              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
+              void this.accumulateSpend(resolvedModel, genUsage);
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               if (targetMode === "clipboard") {
                 await navigator.clipboard.writeText(result);
@@ -23748,7 +23802,7 @@ ${excerpt}`,
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
     this.app.workspace.onLayoutReady(() => {
-      _ComponentProto.load = _origLoad;
+      _PluginProto.onload = _origOnload;
       if (this.settings.enableProfiler) {
         this.startupTimings = {
           ownMs: Math.round(_augmentSyncEnd - _profilerT0),
@@ -23756,6 +23810,7 @@ ${excerpt}`,
           plugins: _profilerPlugins.slice().sort((a, b) => b.ms - a.ms)
         };
       }
+      void this.loadSpendData();
       void this.scaffoldDefaultTemplates();
       void this.scaffoldDefaultSkills();
       this.refreshAttentionBadge();
@@ -23983,6 +24038,28 @@ ${excerpt}`,
           }
         }
       });
+    }
+  }
+  async loadSpendData() {
+    try {
+      const raw = await this.app.vault.adapter.read(this.SPEND_PATH);
+      this.spendData = JSON.parse(raw);
+      if (!this.spendData.byModel) this.spendData.byModel = {};
+    } catch (e) {
+      this.spendData = { byModel: {} };
+    }
+  }
+  async accumulateSpend(modelId, usage) {
+    var _a2;
+    if (!this.spendData) this.spendData = { byModel: {} };
+    const entry = (_a2 = this.spendData.byModel[modelId]) != null ? _a2 : { inputTokens: 0, outputTokens: 0, generations: 0 };
+    entry.inputTokens += usage.input_tokens;
+    entry.outputTokens += usage.output_tokens;
+    entry.generations += 1;
+    this.spendData.byModel[modelId] = entry;
+    try {
+      await this.app.vault.adapter.write(this.SPEND_PATH, JSON.stringify(this.spendData, null, 2));
+    } catch (e) {
     }
   }
   appendSessionRecord(name, status, startedAt, skillName) {

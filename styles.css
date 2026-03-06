@@ -1009,6 +1009,19 @@
   color: var(--color-orange);
 }
 
+/* ── API usage section ── */
+.augment-spend-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.augment-spend-note {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  margin: 8px 0 0 0;
+}
+
 /* ── Context pane intro ── */
 .augment-context-intro {
   color: var(--text-muted);

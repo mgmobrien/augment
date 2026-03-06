@@ -83,6 +83,19 @@ export function substituteVariables(templateStr: string, ctx: VaultContext): str
   return compiled(context);
 }
 
+// Per-million-token pricing (input / output). Update when Anthropic changes rates.
+const MODEL_PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
+  "claude-haiku-4-5-20251001": { inputPerMTok: 0.80, outputPerMTok: 4.00 },
+  "claude-sonnet-4-6":         { inputPerMTok: 3.00, outputPerMTok: 15.00 },
+  "claude-opus-4-6":           { inputPerMTok: 15.00, outputPerMTok: 75.00 },
+};
+
+export function calculateCost(modelId: string, inputTokens: number, outputTokens: number): number {
+  const p = MODEL_PRICING[modelId];
+  if (!p) return 0;
+  return (inputTokens * p.inputPerMTok + outputTokens * p.outputPerMTok) / 1_000_000;
+}
+
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
   "claude-sonnet-4-6": "Claude Sonnet 4.6",
@@ -235,6 +248,11 @@ export function logApiDiagnostics(err: unknown, apiKey: string, model: string): 
   }
 }
 
+export interface GenerateResult {
+  text: string;
+  usage: { input_tokens: number; output_tokens: number };
+}
+
 // modelOverride: pass the resolved model ID when settings.model is "auto".
 export async function generateText(
   systemPrompt: string,
@@ -243,7 +261,7 @@ export async function generateText(
   modelOverride?: string,
   signal?: AbortSignal,
   maxTokens = 1024
-): Promise<string> {
+): Promise<GenerateResult> {
   const model = modelOverride ?? settings.model;
 
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
@@ -258,5 +276,8 @@ export async function generateText(
   );
   const block = message.content[0];
   if (block.type !== "text") throw new Error("Unexpected response type from Anthropic API");
-  return block.text;
+  return {
+    text: block.text,
+    usage: { input_tokens: message.usage.input_tokens, output_tokens: message.usage.output_tokens },
+  };
 }

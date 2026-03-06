@@ -72,6 +72,16 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   coloredRibbonIcon: false,
 };
 
+export interface SpendModelEntry {
+  inputTokens: number;
+  outputTokens: number;
+  generations: number;
+}
+
+export interface SpendData {
+  byModel: Record<string, SpendModelEntry>;
+}
+
 export interface LinkedNoteSummary {
   title: string;
   frontmatter: Record<string, unknown> | null;
