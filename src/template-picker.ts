@@ -170,7 +170,7 @@ async function analyzeFolderContents(app: App, folder: TFolder): Promise<FolderA
   const headingFreq = new Map<string, number>();
   const samples: { title: string; excerpt: string }[] = [];
 
-  for (const file of files) {
+  await Promise.all(files.map(async (file) => {
     try {
       const content = await app.vault.read(file);
       const cache = app.metadataCache.getFileCache(file);
@@ -200,7 +200,7 @@ async function analyzeFolderContents(app: App, folder: TFolder): Promise<FolderA
     } catch {
       // skip unreadable files
     }
-  }
+  }));
 
   const frontmatterKeys = [...keyFreq.entries()]
     .sort((a, b) => b[1] - a[1])

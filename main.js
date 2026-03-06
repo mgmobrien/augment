@@ -17765,12 +17765,12 @@ var FolderSuggestModal = class extends import_obsidian3.FuzzySuggestModal {
   }
 };
 async function analyzeFolderContents(app, folder) {
-  var _a2, _b;
   const files = folder.children.filter((f) => f instanceof import_obsidian3.TFile && f.extension === "md").slice(0, 15);
   const keyFreq = /* @__PURE__ */ new Map();
   const headingFreq = /* @__PURE__ */ new Map();
   const samples = [];
-  for (const file of files) {
+  await Promise.all(files.map(async (file) => {
+    var _a2, _b;
     try {
       const content = await app.vault.read(file);
       const cache = app.metadataCache.getFileCache(file);
@@ -17791,7 +17791,7 @@ async function analyzeFolderContents(app, folder) {
       if (excerpt) samples.push({ title: file.basename, excerpt });
     } catch (e) {
     }
-  }
+  }));
   const frontmatterKeys = [...keyFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k);
   const headings = [...headingFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([h]) => h);
   return { folderPath: folder.path, fileCount: files.length, frontmatterKeys, headings, samples: samples.slice(0, 5) };
@@ -22647,8 +22647,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:46:00.762Z";
-    this.gitSha = "0453ff7";
+    this.buildId = "2026-03-06T21:46:22.326Z";
+    this.gitSha = "61a3a05";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
