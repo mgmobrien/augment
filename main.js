@@ -22864,8 +22864,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:35:36.756Z";
-    this.gitSha = "7bc7b36";
+    this.buildId = "2026-03-06T23:36:19.344Z";
+    this.gitSha = "f21089e";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22942,7 +22942,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
       sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      this.statusBarEl.createEl("span", { text: " Generating" });
+      this.statusBarEl.createEl("span", { text: " Generating\u2026" });
     }
     (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.addClass("augment-ribbon-generating");
   }
