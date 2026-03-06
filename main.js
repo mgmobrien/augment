@@ -18567,9 +18567,8 @@ function stageBinary(sourcePath, binaryName) {
   let needsCopy = !(0, import_fs2.existsSync)(staged);
   if (!needsCopy) {
     try {
-      const { statSync } = require("fs");
-      const sourceStat = statSync(sourcePath);
-      const stagedStat = statSync(staged);
+      const sourceStat = (0, import_fs2.statSync)(sourcePath);
+      const stagedStat = (0, import_fs2.statSync)(staged);
       needsCopy = sourceStat.mtimeMs > stagedStat.mtimeMs;
     } catch (e) {
       needsCopy = true;
@@ -18599,6 +18598,25 @@ var PtyBridge = class {
     this.onExit = opts.onExit;
     this.onError = opts.onError;
   }
+  // Launch strategy: staged path first, source path as fallback.
+  //
+  // macOS may SIGKILL binaries executed from certain paths. Two common cases:
+  //
+  //   1. Normal local install: plugin is in ~/.obsidian/plugins/ on a local
+  //      APFS volume. macOS typically allows execution, but staging to $TMPDIR
+  //      and applying an ad-hoc codesign adds an extra layer of reliability —
+  //      the ad-hoc signature replaces the bare linker signature and satisfies
+  //      Gatekeeper's ad-hoc path checks. codesign takes ~15ms on first launch
+  //      (blocked synchronously); subsequent launches skip it via mtime check.
+  //
+  //   2. Synced vault (iCloud, Dropbox, etc.): plugin path may be under
+  //      ~/Library/Mobile Documents/ or a cloud provider directory. macOS
+  //      (and the cloud provider's file-provider daemon) may kill binaries
+  //      executed from those paths. stageBinary() copies to $TMPDIR/augment-pty/
+  //      which is always a local, non-cloud volume — execution succeeds there.
+  //
+  // On SIGKILL within 1.2s the spawn loop falls back from staged → source.
+  // On process error (ENOENT, EACCES) it also falls back.
   start() {
     this.stopping = false;
     const platform = process.platform;
@@ -18608,11 +18626,7 @@ var PtyBridge = class {
     const candidates = [];
     try {
       const stagedPath = stageBinary(sourcePath, binaryName);
-      if (platform === "darwin") {
-        candidates.push(stagedPath);
-      } else if (stagedPath !== sourcePath) {
-        candidates.push(stagedPath);
-      }
+      candidates.push(stagedPath);
     } catch (e) {
     }
     candidates.push(sourcePath);
@@ -22423,8 +22437,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:03:33.856Z";
-    this.gitSha = "d227dc2";
+    this.buildId = "2026-03-06T19:06:05.583Z";
+    this.gitSha = "8e534dd";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
