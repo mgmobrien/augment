@@ -172,7 +172,7 @@ async function analyzeFolderContents(app: App, folder: TFolder): Promise<FolderA
 
   await Promise.all(files.map(async (file) => {
     try {
-      const content = await app.vault.read(file);
+      const content = await app.vault.cachedRead(file);
       const cache = app.metadataCache.getFileCache(file);
 
       if (cache?.frontmatter) {

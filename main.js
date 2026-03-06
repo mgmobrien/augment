@@ -17772,7 +17772,7 @@ async function analyzeFolderContents(app, folder) {
   await Promise.all(files.map(async (file) => {
     var _a2, _b;
     try {
-      const content = await app.vault.read(file);
+      const content = await app.vault.cachedRead(file);
       const cache = app.metadataCache.getFileCache(file);
       if (cache == null ? void 0 : cache.frontmatter) {
         for (const key of Object.keys(cache.frontmatter)) {
@@ -22647,8 +22647,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:46:22.326Z";
-    this.gitSha = "61a3a05";
+    this.buildId = "2026-03-06T21:46:35.919Z";
+    this.gitSha = "2576ecf";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
