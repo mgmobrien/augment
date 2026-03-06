@@ -38,7 +38,7 @@ function formatHotkeyStr(mods: string[], key: string, isMac: boolean): string {
   for (const m of mods) {
     if (m === "Mod")        parts.push(isMac ? "⌘" : "Ctrl");
     else if (m === "Ctrl")  parts.push("Ctrl");
-    else if (m === "Shift") parts.push("⇧");
+    else if (m === "Shift") parts.push("Shift");
     else if (m === "Alt")   parts.push(isMac ? "⌥" : "Alt");
   }
   parts.push(key === "Enter" ? "↩" : key.toUpperCase());
@@ -197,7 +197,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     // Hardcoded fallback if hotkeyManager isn't available
-    if (commandId.includes("template")) return isMac ? "⌘+⇧+↩" : "Ctrl+⇧+↩";
+    if (commandId.includes("template")) return isMac ? "⌘+Shift+↩" : "Ctrl+Shift+↩";
     return isMac ? "⌘+↩" : "Ctrl+↩";
   }
 

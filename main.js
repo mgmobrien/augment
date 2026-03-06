@@ -17958,7 +17958,7 @@ function formatHotkeyStr(mods, key, isMac) {
   for (const m of mods) {
     if (m === "Mod") parts.push(isMac ? "\u2318" : "Ctrl");
     else if (m === "Ctrl") parts.push("Ctrl");
-    else if (m === "Shift") parts.push("\u21E7");
+    else if (m === "Shift") parts.push("Shift");
     else if (m === "Alt") parts.push(isMac ? "\u2325" : "Alt");
   }
   parts.push(key === "Enter" ? "\u21A9" : key.toUpperCase());
@@ -18094,7 +18094,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       const h = defaults[0];
       return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
     }
-    if (commandId.includes("template")) return isMac ? "\u2318+\u21E7+\u21A9" : "Ctrl+\u21E7+\u21A9";
+    if (commandId.includes("template")) return isMac ? "\u2318+Shift+\u21A9" : "Ctrl+Shift+\u21A9";
     return isMac ? "\u2318+\u21A9" : "Ctrl+\u21A9";
   }
   display() {
@@ -22871,8 +22871,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:37:27.315Z";
-    this.gitSha = "99d5acc";
+    this.buildId = "2026-03-06T23:38:12.831Z";
+    this.gitSha = "fb5bfb9";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
