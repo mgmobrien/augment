@@ -22636,8 +22636,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:48:13.010Z";
-    this.gitSha = "ffc9fb0";
+    this.buildId = "2026-03-06T21:48:57.231Z";
+    this.gitSha = "e14b49a";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23546,17 +23546,6 @@ ${excerpt}`,
     }
     return leaf.view;
   }
-  // Keep the old openTerminal() signature for internal callers that always
-  // want a specific mode (team spawn, openTerminalNamed, openFocusedTerminal).
-  async openTerminal(mode = "tab", options) {
-    var _a2;
-    const locationMap = {
-      "tab": "tab",
-      "split-vertical": "split-right",
-      "split-horizontal": "split-down"
-    };
-    return this.openTerminalAt((_a2 = locationMap[mode]) != null ? _a2 : "tab", options);
-  }
   async openTerminalSidebar() {
     const { workspace } = this.app;
     const leaf = workspace.getRightLeaf(false);
@@ -23622,7 +23611,7 @@ ${excerpt}`,
     }
     for (const member of members) {
       if (this.hasTerminalNamed(member)) continue;
-      await this.openTerminal("tab", {
+      await this.openTerminalAt("tab", {
         name: member,
         active: false,
         reveal: false
@@ -23679,7 +23668,7 @@ ${excerpt}`,
     void this.saveData(this.settings);
   }
   async openTerminalNamed(name) {
-    await this.openTerminal("tab", { name });
+    await this.openTerminalAt("tab", { name });
   }
   sanitizeTerminalName(raw) {
     const cleaned = raw.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "").slice(0, 40);
@@ -23759,7 +23748,7 @@ ${excerpt}`,
     }
   }
   async openFocusedTerminal() {
-    return this.openTerminal("tab", { active: true });
+    return this.openTerminalAt("tab", { active: true });
   }
   deleteSessionRecord(id) {
     var _a2;

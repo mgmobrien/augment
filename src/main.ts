@@ -1657,19 +1657,6 @@ export default class AugmentTerminalPlugin extends Plugin {
     return leaf.view as TerminalView;
   }
 
-  // Keep the old openTerminal() signature for internal callers that always
-  // want a specific mode (team spawn, openTerminalNamed, openFocusedTerminal).
-  private async openTerminal(
-    mode: "tab" | "split-vertical" | "split-horizontal" = "tab",
-    options?: { name?: string; active?: boolean; reveal?: boolean }
-  ): Promise<TerminalView> {
-    const locationMap: Record<string, TerminalOpenLocation> = {
-      "tab": "tab",
-      "split-vertical": "split-right",
-      "split-horizontal": "split-down",
-    };
-    return this.openTerminalAt(locationMap[mode] ?? "tab", options);
-  }
 
   private async openTerminalSidebar(): Promise<TerminalView | null> {
     const { workspace } = this.app;
@@ -1751,7 +1738,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     for (const member of members) {
       if (this.hasTerminalNamed(member)) continue;
-      await this.openTerminal("tab", {
+      await this.openTerminalAt("tab", {
         name: member,
         active: false,
         reveal: false,
@@ -1823,7 +1810,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public async openTerminalNamed(name: string): Promise<void> {
-    await this.openTerminal("tab", { name });
+    await this.openTerminalAt("tab", { name });
   }
 
   private sanitizeTerminalName(raw: string): string | null {
@@ -1889,7 +1876,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public async openFocusedTerminal(): Promise<TerminalView> {
-    return this.openTerminal("tab", { active: true });
+    return this.openTerminalAt("tab", { active: true });
   }
 
   public deleteSessionRecord(id: string): void {
