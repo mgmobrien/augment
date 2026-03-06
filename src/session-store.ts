@@ -4,6 +4,7 @@ import * as os from "os";
 
 export interface SessionMeta {
   id: string;         // JSONL filename without extension
+  resumeId: string;   // Claude sessionId used by `claude --resume`
   title: string;      // first user message, ~60 chars
   status: "stale" | "complete";
   mtimeMs: number;
@@ -20,201 +21,285 @@ export interface ProjectGroup {
   lastActivityMs: number; // mtime of most recent session
 }
 
+type SessionSummary = {
+  msgCount: number;
+  resumeId: string | null;
+  title: string;
+};
+
 export class SessionStore {
-  private titleCache = new Map<string, string>();
+  private summaryCache = new Map<string, { mtimeMs: number; summary: SessionSummary }>();
 
   constructor(private vaultBasePath: string) {}
 
   // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
   // CC encodes cwd by replacing '/' and spaces with '-'.
-  findProjectDir(): string | null {
+  async findProjectDir(): Promise<string | null> {
     const home = process.env.HOME ?? os.homedir();
     const encoded = this.vaultBasePath.replace(/[/ ]/g, "-");
     const dir = path.join(home, ".claude", "projects", encoded);
     try {
-      if (fs.statSync(dir).isDirectory()) return dir;
+      if ((await fs.promises.stat(dir)).isDirectory()) return dir;
     } catch {}
     return null;
   }
 
   // Enumerate all project directories under ~/.claude/projects/.
-  findAllProjectDirs(): Array<{
+  async findAllProjectDirs(): Promise<Array<{
     encodedName: string;
     projectDir: string;
     isVault: boolean;
     projectName: string;
-  }> {
+  }>> {
     const home = process.env.HOME ?? os.homedir();
     const projectsRoot = path.join(home, ".claude", "projects");
     const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
     const encodedHome = home.replace(/[/ ]/g, "-");
 
     try {
-      return fs
-        .readdirSync(projectsRoot)
-        .filter((name) => {
-          try {
-            return fs.statSync(path.join(projectsRoot, name)).isDirectory();
-          } catch {
-            return false;
-          }
-        })
-        .map((encodedName) => {
+      const names = await fs.promises.readdir(projectsRoot);
+      const dirs = await Promise.all(
+        names.map(async (encodedName) => {
           const projectDir = path.join(projectsRoot, encodedName);
-          const isVault = encodedName === vaultEncoded;
+          try {
+            const stat = await fs.promises.stat(projectDir);
+            if (!stat.isDirectory()) return null;
+          } catch {
+            return null;
+          }
 
+          const isVault = encodedName === vaultEncoded;
           // Decode: strip home-dir prefix, convert remaining dashes to slashes.
           // Lossy (spaces and slashes both encoded as dashes) but readable.
-          let relative = encodedName.startsWith(encodedHome)
+          const relative = encodedName.startsWith(encodedHome)
             ? encodedName.slice(encodedHome.length).replace(/^-+/, "")
             : encodedName.replace(/^-+/, "");
           const projectName = relative.replace(/-/g, "/") || encodedName;
-
           return { encodedName, projectDir, isVault, projectName };
-        });
+        })
+      );
+
+      return dirs.filter((d): d is NonNullable<typeof d> => d !== null);
     } catch {
       return [];
     }
   }
 
   // Sort session files by mtime desc, take first `limit`.
-  loadSessions(limit: number): SessionMeta[] {
-    const dir = this.findProjectDir();
+  async loadSessions(limit: number): Promise<SessionMeta[]> {
+    const dir = await this.findProjectDir();
     if (!dir) return [];
     return this.loadSessionsFromDir(dir, limit);
   }
 
   // Load sessions from all CC project directories, grouped by project.
   // Vault project is flagged with isVault=true.
-  loadAllProjectGroups(limitPerProject = 50): ProjectGroup[] {
-    const dirs = this.findAllProjectDirs();
-    const groups: ProjectGroup[] = [];
+  async loadAllProjectGroups(limitPerProject = 50): Promise<ProjectGroup[]> {
+    const dirs = await this.findAllProjectDirs();
+    const groups = await Promise.all(
+      dirs.map(async ({ encodedName, projectDir, isVault, projectName }) => {
+        const sessions = await this.loadSessionsFromDir(projectDir, limitPerProject);
+        if (sessions.length === 0) return null;
+        const lastActivityMs = sessions[0]?.mtimeMs ?? 0;
+        const totalOnDisk = await this.countSessionsInDir(projectDir);
+        return {
+          projectName,
+          projectDir,
+          encodedName,
+          isVault,
+          sessions,
+          totalOnDisk,
+          lastActivityMs,
+        };
+      })
+    );
 
-    for (const { encodedName, projectDir, isVault, projectName } of dirs) {
-      const sessions = this.loadSessionsFromDir(projectDir, limitPerProject);
-      if (sessions.length === 0) continue;
-      const lastActivityMs = sessions[0]?.mtimeMs ?? 0;
-      const totalOnDisk = this.countSessionsInDir(projectDir);
-      groups.push({
-        projectName,
-        projectDir,
-        encodedName,
-        isVault,
-        sessions,
-        totalOnDisk,
-        lastActivityMs,
-      });
-    }
-
-    // Most recent project first.
-    return groups.sort((a, b) => b.lastActivityMs - a.lastActivityMs);
+    return groups
+      .filter((g): g is ProjectGroup => g !== null)
+      .sort((a, b) => b.lastActivityMs - a.lastActivityMs);
   }
 
-  // Fast count of all session files — no stats or reads.
-  countSessions(): number {
-    const dir = this.findProjectDir();
-    if (!dir) return 0;
-    return this.countSessionsInDir(dir);
-  }
-
-  private countSessionsInDir(dir: string): number {
+  private async countSessionsInDir(dir: string): Promise<number> {
     try {
-      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+      const files = await fs.promises.readdir(dir);
+      return files.filter((f) => f.endsWith(".jsonl")).length;
     } catch {
       return 0;
     }
   }
 
-  private loadSessionsFromDir(dir: string, limit: number): SessionMeta[] {
+  private async loadSessionsFromDir(dir: string, limit: number): Promise<SessionMeta[]> {
     try {
       const now = Date.now();
-      const entries = fs
-        .readdirSync(dir)
-        .filter((f) => f.endsWith(".jsonl"))
-        .map((f) => {
-          const fullPath = path.join(dir, f);
-          try {
-            const mtimeMs = fs.statSync(fullPath).mtimeMs;
-            return { name: f, fullPath, mtimeMs };
-          } catch {
-            return null;
-          }
-        })
+      const files = (await fs.promises.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+
+      const entries = (
+        await Promise.all(
+          files.map(async (name) => {
+            const fullPath = path.join(dir, name);
+            try {
+              const st = await fs.promises.stat(fullPath);
+              return { name, fullPath, mtimeMs: st.mtimeMs };
+            } catch {
+              return null;
+            }
+          })
+        )
+      )
         .filter((e): e is NonNullable<typeof e> => e !== null)
         .sort((a, b) => b.mtimeMs - a.mtimeMs)
         .slice(0, limit);
 
-      return entries.map((e) => ({
-        id: e.name.slice(0, -6), // strip .jsonl
-        title: this.readTitle(e.fullPath),
-        status: now - e.mtimeMs < 30_000 ? "stale" : "complete",
-        mtimeMs: e.mtimeMs,
-        msgCount: this.readMsgCount(e.fullPath),
-      }));
+      const sessions = await Promise.all(
+        entries.map(async (e) => {
+          const id = e.name.slice(0, -6);
+          const summary = await this.readSessionSummary(e.fullPath, id, e.mtimeMs);
+          if (summary.msgCount <= 0) return null;
+          return {
+            id,
+            resumeId: summary.resumeId ?? id,
+            title: summary.title,
+            status: now - e.mtimeMs < 30_000 ? "stale" as const : "complete" as const,
+            mtimeMs: e.mtimeMs,
+            msgCount: summary.msgCount,
+          };
+        })
+      );
+
+      return sessions.filter((s): s is SessionMeta => s !== null);
     } catch {
       return [];
     }
   }
 
-  // Count user turns in session JSONL.
-  private readMsgCount(sessionPath: string): number {
+  private async readSessionSummary(
+    sessionPath: string,
+    fallbackTitle: string,
+    mtimeMs: number
+  ): Promise<SessionSummary> {
+    const cached = this.summaryCache.get(sessionPath);
+    if (cached && cached.mtimeMs === mtimeMs) {
+      return cached.summary;
+    }
+
     try {
-      const content = fs.readFileSync(sessionPath, "utf-8");
-      let count = 0;
-      for (const line of content.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.type === "user") count++;
-        } catch {}
-      }
-      return count;
+      const content = await fs.promises.readFile(sessionPath, "utf-8");
+      const summary = this.parseSessionContent(content, fallbackTitle);
+      this.summaryCache.set(sessionPath, { mtimeMs, summary });
+      return summary;
     } catch {
-      return 0;
+      return { msgCount: 0, resumeId: null, title: fallbackTitle };
     }
   }
 
-  // Read first user message from session JSONL for display as title.
-  private readTitle(sessionPath: string): string {
-    if (this.titleCache.has(sessionPath)) {
-      return this.titleCache.get(sessionPath)!;
-    }
+  private parseSessionContent(content: string, fallbackTitle: string): SessionSummary {
+    let firstUserTitle: string | null = null;
+    let explicitRenameTitle: string | null = null;
+    let resumeId: string | null = null;
+    let msgCount = 0;
 
-    let title = path.basename(sessionPath, ".jsonl");
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obj = JSON.parse(line);
 
-    try {
-      const content = fs.readFileSync(sessionPath, "utf-8");
-      outer: for (const line of content.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.type === "user") {
-            const msgContent = obj.message?.content;
-            let text = "";
-            if (typeof msgContent === "string") {
-              text = msgContent;
-            } else if (Array.isArray(msgContent)) {
-              for (const block of msgContent) {
-                if (block?.type === "text" && typeof block.text === "string") {
-                  text = block.text;
-                  break;
-                }
-              }
-            }
-            if (text.trim()) {
-              const cleaned = this.cleanTitle(text);
-              if (cleaned) {
-                title = cleaned;
-                break outer;
+        if (!resumeId && typeof obj?.sessionId === "string" && obj.sessionId.trim()) {
+          resumeId = obj.sessionId.trim();
+        }
+
+        const command = obj?.data?.command;
+        if (typeof command === "string" && command.trim()) {
+          const renamed = this.extractExplicitRenameTitle(command);
+          if (renamed) {
+            explicitRenameTitle = renamed;
+          }
+        }
+
+        if (obj.type === "user") {
+          const msgContent = obj.message?.content;
+          let text = "";
+          if (typeof msgContent === "string") {
+            text = msgContent;
+          } else if (Array.isArray(msgContent)) {
+            for (const block of msgContent) {
+              if (block?.type === "text" && typeof block.text === "string") {
+                text = block.text;
+                break;
               }
             }
           }
-        } catch {}
-      }
-    } catch {}
 
-    this.titleCache.set(sessionPath, title);
-    return title;
+          if (text.trim() && !this.isMetaUserText(text)) {
+            msgCount++;
+            if (!firstUserTitle) {
+              const cleaned = this.cleanTitle(text);
+              if (cleaned) firstUserTitle = cleaned;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const title = explicitRenameTitle ?? firstUserTitle ?? fallbackTitle;
+    return { msgCount, resumeId, title };
+  }
+
+  private extractExplicitRenameTitle(command: string): string | null {
+    const paneHook = command.match(
+      /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (paneHook) {
+      return this.normalizeExplicitTitle(
+        paneHook[1] ?? paneHook[2] ?? paneHook[3] ?? paneHook[4] ?? ""
+      );
+    }
+
+    const tmuxSelect = command.match(
+      /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (tmuxSelect) {
+      return this.normalizeExplicitTitle(
+        tmuxSelect[1] ?? tmuxSelect[2] ?? tmuxSelect[3] ?? tmuxSelect[4] ?? ""
+      );
+    }
+
+    const tmuxWindow = command.match(
+      /\btmux\b[\s\S]*?\brename-window\b[\s\S]*?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (tmuxWindow) {
+      return this.normalizeExplicitTitle(
+        tmuxWindow[1] ?? tmuxWindow[2] ?? tmuxWindow[3] ?? tmuxWindow[4] ?? ""
+      );
+    }
+
+    return null;
+  }
+
+  private normalizeExplicitTitle(value: string): string | null {
+    const compact = value
+      .replace(/\\n/g, " ")
+      .replace(/\\t/g, " ")
+      .replace(/\\(["'`\\])/g, "$1")
+      .trim();
+    if (!compact) return null;
+
+    // If the title is slug-style, render it as readable words in history.
+    const readable =
+      compact.includes(" ") ? compact : compact.replace(/[-_]+/g, " ");
+    const cleaned = readable.replace(/\s+/g, " ").trim();
+    return cleaned ? cleaned.slice(0, 60) : null;
+  }
+
+  private isMetaUserText(text: string): boolean {
+    const compact = text.trim();
+    if (!compact) return true;
+    if (compact.includes("<local-command-caveat>")) return true;
+    if (compact.includes("<command-name>")) return true;
+    if (compact.includes("<local-command-stdout>")) return true;
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact) && compact.length < 220) {
+      return true;
+    }
+    return false;
   }
 
   private cleanTitle(raw: string): string | null {

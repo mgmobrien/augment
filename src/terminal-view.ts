@@ -3,7 +3,8 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { PtyBridge } from "./pty-bridge";
-import { detectDeps, CCDeps } from "./deps";
+import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
+import { setupVaultForClaude } from "./vault-setup";
 // esbuild loads .css as text string via loader config
 // @ts-ignore
 import xtermCssText from "@xterm/xterm/css/xterm.css";
@@ -517,7 +518,7 @@ export class TerminalView extends ItemView {
 
     // Run dep detection in background; overlay bootstrapper if something is missing.
     detectDeps(this.app).then((deps) => {
-      if ((!deps.cc || !deps.authed) && !this.isSetupBypassed()) {
+      if ((!deps.cc || !deps.authed || !deps.vaultConfigured) && !this.isSetupBypassed()) {
         this.renderBootstrapper(this.contentEl, deps);
       }
     }).catch(() => {
@@ -536,6 +537,18 @@ export class TerminalView extends ItemView {
     plugin.settings.terminalSetupBypassed = value;
     if (value) plugin.settings.terminalSetupDone = true;
     void plugin.saveData(plugin.settings);
+  }
+
+  private markTerminalSetupDone(): void {
+    const plugin = (this.app as any).plugins?.plugins?.["augment-terminal"];
+    if (!plugin?.settings || plugin.settings.terminalSetupDone) return;
+    plugin.settings.terminalSetupDone = true;
+    void plugin.saveData(plugin.settings);
+  }
+
+  private openTerminalSettings(): void {
+    (this.app as any).setting?.open?.();
+    (this.app as any).setting?.openTabById?.("augment-terminal");
   }
 
   private createBootstrapperBypassActions(wrapper: HTMLElement, dismiss: () => void): void {
@@ -562,9 +575,18 @@ export class TerminalView extends ItemView {
   private renderBootstrapper(container: HTMLElement, deps: CCDeps): void {
     // Overlay on top of the already-running terminal.
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
+    const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
 
-    wrapper.createEl("h2", { text: "Set up Claude Code", cls: "augment-bootstrapper-title" });
-    wrapper.createEl("p", { text: "Terminal sessions in Augment run on Claude Code, Anthropic\u2019s command-line AI agent.", cls: "augment-bootstrapper-desc" });
+    wrapper.createEl("h2", {
+      text: needsRuntimeSetup ? "Set up Claude Code" : "Finish terminal setup",
+      cls: "augment-bootstrapper-title",
+    });
+    wrapper.createEl("p", {
+      text: needsRuntimeSetup
+        ? "Terminal sessions in Augment run on Claude Code, Anthropic\u2019s command-line AI agent."
+        : "Claude Code is ready. One more step lets it understand this vault.",
+      cls: "augment-bootstrapper-desc",
+    });
 
     const dismiss = () => wrapper.remove();
 
@@ -582,6 +604,7 @@ export class TerminalView extends ItemView {
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
       setIcon(btn, "terminal");
       btn.onclick = () => {
+        invalidateDepsCache();
         dismiss();
         this.ptyBridge?.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
       };
@@ -594,9 +617,48 @@ export class TerminalView extends ItemView {
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
       setIcon(btn, "log-in");
       btn.onclick = () => {
+        invalidateDepsCache();
         dismiss();
         this.ptyBridge?.write("claude auth login\n");
       };
+      this.createBootstrapperBypassActions(wrapper, dismiss);
+      return;
+    }
+
+    if (!deps.vaultConfigured) {
+      wrapper.createEl("p", {
+        text: "Create CLAUDE.md and the starter agents/skills folder now, or open Terminal settings to review the same step there.",
+        cls: "augment-bootstrapper-desc",
+      });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Set up vault" });
+      setIcon(btn, "folder-plus");
+      btn.onclick = async () => {
+        const originalLabel = btn.textContent || "Set up vault";
+        btn.disabled = true;
+        btn.textContent = "Setting up…";
+        try {
+          const plugin = (this.app as any).plugins?.plugins?.["augment-terminal"];
+          const templateFolder = plugin?.settings?.templateFolder || "Augment/templates";
+          await setupVaultForClaude(this.app, templateFolder);
+          invalidateDepsCache();
+          this.markTerminalSetupDone();
+          dismiss();
+          new Notice("Vault setup complete.");
+        } catch (error) {
+          console.error("[Augment] vault scaffold failed from terminal bootstrapper", error);
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          new Notice("Vault setup failed. Open Terminal settings to try again.");
+        }
+      };
+
+      const settingsBtn = wrapper.createEl("button", {
+        cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+        text: "Open Terminal settings",
+      });
+      setIcon(settingsBtn, "settings");
+      settingsBtn.onclick = () => this.openTerminalSettings();
+
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
@@ -751,10 +813,7 @@ export class TerminalView extends ItemView {
     });
 
     const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open Terminal settings" });
-    setupBtn.addEventListener("click", () => {
-      (this.app as any).setting?.open?.();
-      (this.app as any).setting?.openTabById?.("augment-terminal");
-    });
+    setupBtn.addEventListener("click", () => this.openTerminalSettings());
 
     if (raw) {
       let detailsVisible = false;
@@ -929,7 +988,9 @@ export class TerminalView extends ItemView {
     if (!cleanChunk) return;
 
     this.parseBuffer = (this.parseBuffer + cleanChunk).slice(-MAX_PARSE_BUFFER_CHARS);
-    const lines = this.parseBuffer.split(/\r?\n/);
+    // Claude Code is a TUI and frequently redraws with bare '\r'.
+    // Treat both '\r' and '\n' as boundaries for orchestration parsing.
+    const lines = this.parseBuffer.split(/[\r\n]+/);
     this.parseBuffer = lines.pop() ?? "";
 
     let changed = false;
@@ -939,7 +1000,7 @@ export class TerminalView extends ItemView {
 
     // If this chunk has no newline boundaries yet, still parse it for immediate tool activity.
     if (!/[\r\n]/.test(cleanChunk)) {
-      changed = this.parseOrchestrationLine(cleanChunk) || changed;
+      changed = this.parseOrchestrationLine(this.parseBuffer) || changed;
     }
 
     if (changed) {
@@ -1015,7 +1076,7 @@ export class TerminalView extends ItemView {
     if (!/\bBash\(/i.test(text) || !/pane-name\.sh/i.test(text)) return null;
 
     const topicCall = text.match(
-      /\bpane-name\.sh\b[\s\S]*?\btopic\b\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+      /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
     );
     if (!topicCall) return null;
 

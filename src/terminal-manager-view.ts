@@ -27,16 +27,21 @@ type TeamContext = { isTeamMember: boolean; isSubAgent: boolean };
 export class TerminalManagerView extends ItemView {
   private listEl: HTMLElement | null = null;
   private sessionStore: SessionStore | null = null;
-  private historyLoadedCount: number = 50;
+  private historyLoadedCount: number = 20;
   private expandedSessionId: string | null = null;
+  private refreshFrameId: number | null = null;
 
   // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
   private lastHistoryLoadTime = 0;
   private cachedSessions: SessionMeta[] = [];
-
+  private historyLoadInFlight = false;
+  private historyReloadRequested = false;
   // Other-projects scan debounce.
   private lastProjectGroupsLoadTime = 0;
   private cachedProjectGroups: ProjectGroup[] = [];
+  private projectGroupsLoadInFlight = false;
+  private projectGroupsReloadRequested = false;
+  private otherProjectsEnabled = false;
 
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
@@ -85,19 +90,19 @@ export class TerminalManagerView extends ItemView {
     const vaultPath = (this.app.vault.adapter as any).basePath as string;
     this.sessionStore = new SessionStore(vaultPath);
 
-    this.refresh();
-    window.setTimeout(() => this.refresh(), 0);
-    this.app.workspace.onLayoutReady(() => this.refresh());
+    this.requestRefresh();
+    window.setTimeout(() => this.requestRefresh(), 0);
+    this.app.workspace.onLayoutReady(() => this.requestRefresh());
 
     this.registerEvent(
-      this.app.workspace.on("layout-change", () => this.refresh())
+      this.app.workspace.on("layout-change", () => this.requestRefresh())
     );
     this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => this.refresh())
+      this.app.workspace.on("active-leaf-change", () => this.requestRefresh())
     );
     this.registerEvent(
       (this.app.workspace as any).on("augment-terminal:changed", () =>
-        this.refresh()
+        this.requestRefresh()
       )
     );
 
@@ -109,24 +114,91 @@ export class TerminalManagerView extends ItemView {
     return (this.app as any).plugins?.plugins?.["augment-terminal"];
   }
 
+  private requestRefresh(): void {
+    if (this.refreshFrameId !== null) return;
+    this.refreshFrameId = window.requestAnimationFrame(() => {
+      this.refreshFrameId = null;
+      this.refresh();
+    });
+  }
+
   private getHistorySessions(): SessionMeta[] {
-    const now = Date.now();
-    if (now - this.lastHistoryLoadTime >= 500) {
-      this.lastHistoryLoadTime = now;
-      this.cachedSessions =
-        this.sessionStore?.loadSessions(this.historyLoadedCount) ?? [];
-    }
+    this.maybeLoadHistorySessions();
     return this.cachedSessions;
   }
 
   private getOtherProjectGroups(): ProjectGroup[] {
-    const now = Date.now();
-    if (now - this.lastProjectGroupsLoadTime >= 500) {
-      this.lastProjectGroupsLoadTime = now;
-      const all = this.sessionStore?.loadAllProjectGroups(50) ?? [];
-      this.cachedProjectGroups = all.filter((g) => !g.isVault);
-    }
+    this.maybeLoadOtherProjectGroups();
     return this.cachedProjectGroups;
+  }
+
+  private maybeLoadHistorySessions(): void {
+    const now = Date.now();
+    const stale = now - this.lastHistoryLoadTime >= 1500;
+    if (!stale) return;
+    if (!this.sessionStore) return;
+
+    if (this.historyLoadInFlight) {
+      this.historyReloadRequested = true;
+      return;
+    }
+
+    this.historyLoadInFlight = true;
+    const requestedLimit = this.historyLoadedCount;
+    this.sessionStore
+      .loadSessions(requestedLimit)
+      .then((sessions) => {
+        this.cachedSessions = sessions;
+        this.lastHistoryLoadTime = Date.now();
+      })
+      .catch(() => {
+        this.lastHistoryLoadTime = Date.now();
+      })
+      .finally(() => {
+        this.historyLoadInFlight = false;
+        const needsReload =
+          this.historyReloadRequested ||
+          this.historyLoadedCount !== requestedLimit;
+        this.historyReloadRequested = false;
+        if (needsReload) {
+          this.lastHistoryLoadTime = 0;
+          this.maybeLoadHistorySessions();
+        }
+        if (this.listEl) this.requestRefresh();
+      });
+  }
+
+  private maybeLoadOtherProjectGroups(): void {
+    const now = Date.now();
+    const stale = now - this.lastProjectGroupsLoadTime >= 2000;
+    if (!stale) return;
+    if (!this.sessionStore) return;
+
+    if (this.projectGroupsLoadInFlight) {
+      this.projectGroupsReloadRequested = true;
+      return;
+    }
+
+    this.projectGroupsLoadInFlight = true;
+    this.sessionStore
+      .loadAllProjectGroups(50)
+      .then((groups) => {
+        this.cachedProjectGroups = groups.filter((g) => !g.isVault);
+        this.lastProjectGroupsLoadTime = Date.now();
+      })
+      .catch(() => {
+        this.lastProjectGroupsLoadTime = Date.now();
+      })
+      .finally(() => {
+        this.projectGroupsLoadInFlight = false;
+        const needsReload = this.projectGroupsReloadRequested;
+        this.projectGroupsReloadRequested = false;
+        if (needsReload) {
+          this.lastProjectGroupsLoadTime = 0;
+          this.maybeLoadOtherProjectGroups();
+        }
+        if (this.listEl) this.requestRefresh();
+      });
   }
 
   private getTerminalLeaves(): WorkspaceLeaf[] {
@@ -269,8 +341,7 @@ export class TerminalManagerView extends ItemView {
 
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
-    const totalOnDisk = this.sessionStore?.countSessions() ?? 0;
-    const otherGroups = this.getOtherProjectGroups();
+    const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
     const activeLeaf = this.app.workspace.activeLeaf;
 
     const hasOpen = leaves.length > 0;
@@ -301,16 +372,38 @@ export class TerminalManagerView extends ItemView {
         cls: "augment-tm-section-label",
         text: "HISTORY",
       });
-      this.renderHistorySections(sessions, totalOnDisk, this.listEl);
+      this.renderHistorySections(sessions, this.listEl);
     }
 
     // ── OTHER PROJECTS section ─────────────────────────────────
-    if (hasOtherProjects) {
+    if (this.otherProjectsEnabled) {
       this.listEl.createDiv({
         cls: "augment-tm-section-label",
         text: "OTHER PROJECTS",
       });
-      this.renderOtherProjectsSection(otherGroups);
+      if (hasOtherProjects) {
+        this.renderOtherProjectsSection(otherGroups);
+      } else {
+        this.listEl.createDiv({
+          cls: "augment-tm-empty",
+          text: "No other projects found",
+        });
+      }
+    } else {
+      this.listEl.createDiv({
+        cls: "augment-tm-section-label",
+        text: "OTHER PROJECTS",
+      });
+      const loadRow = this.listEl.createDiv({
+        cls: "augment-tm-load-more",
+        text: "Load other projects",
+      });
+      loadRow.addEventListener("click", () => {
+        this.otherProjectsEnabled = true;
+        this.lastProjectGroupsLoadTime = 0;
+        this.projectGroupsReloadRequested = true;
+        this.requestRefresh();
+      });
     }
   }
 
@@ -569,21 +662,21 @@ export class TerminalManagerView extends ItemView {
           this.expandedProjects.add(group.encodedName);
         }
         this.lastProjectGroupsLoadTime = 0; // allow fresh load
-        this.refresh();
+        this.projectGroupsReloadRequested = true;
+        this.requestRefresh();
       });
 
       if (isExpanded) {
         const sessionsEl = this.listEl!.createDiv({
           cls: "augment-tm-project-sessions",
         });
-        this.renderHistorySections(group.sessions, group.totalOnDisk, sessionsEl);
+        this.renderHistorySections(group.sessions, sessionsEl);
       }
     }
   }
 
   private renderHistorySections(
     sessions: SessionMeta[],
-    totalOnDisk: number,
     container: HTMLElement
   ): void {
     const now = new Date();
@@ -639,7 +732,7 @@ export class TerminalManagerView extends ItemView {
     }
 
     // "Load 50 more" if disk has more than currently loaded.
-    if (totalOnDisk > this.historyLoadedCount) {
+    if (sessions.length >= this.historyLoadedCount) {
       const loadMore = container.createDiv({
         cls: "augment-tm-load-more",
         text: "Load 50 more \u2193",
@@ -647,7 +740,8 @@ export class TerminalManagerView extends ItemView {
       loadMore.addEventListener("click", () => {
         this.historyLoadedCount += 50;
         this.lastHistoryLoadTime = 0; // force reload
-        this.refresh();
+        this.historyReloadRequested = true;
+        this.requestRefresh();
       });
     }
   }
@@ -694,7 +788,7 @@ export class TerminalManagerView extends ItemView {
         const termView = await plugin.openFocusedTerminal();
         if (termView) {
           setTimeout(() => {
-            termView.write(`claude --resume ${session.id}\n`);
+            termView.write(`claude --resume ${session.resumeId}\n`);
           }, 800);
         }
       });
@@ -702,7 +796,7 @@ export class TerminalManagerView extends ItemView {
 
     row.addEventListener("click", () => {
       this.expandedSessionId = isExpanded ? null : session.id;
-      this.refresh();
+      this.requestRefresh();
     });
 
     row.addEventListener("contextmenu", (evt) => {
@@ -718,7 +812,7 @@ export class TerminalManagerView extends ItemView {
             const termView = await plugin.openFocusedTerminal();
             if (termView) {
               setTimeout(() => {
-                termView.write(`claude --resume ${session.id}\n`);
+                termView.write(`claude --resume ${session.resumeId}\n`);
               }, 800);
             }
           })
@@ -755,6 +849,11 @@ export class TerminalManagerView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    if (this.refreshFrameId !== null) {
+      window.cancelAnimationFrame(this.refreshFrameId);
+      this.refreshFrameId = null;
+    }
+    this.hideActivityTooltip();
     this.listEl = null;
   }
 

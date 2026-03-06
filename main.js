@@ -17514,6 +17514,10 @@ var import_obsidian3 = require("obsidian");
 var import_child_process = require("child_process");
 var import_fs = require("fs");
 var path2 = __toESM(require("path"));
+var DETECT_DEPS_SUCCESS_TTL_MS = 6e4;
+var cachedRuntimeDeps = null;
+var runtimeDepsInFlight = null;
+var runtimeDepsEpoch = 0;
 function shellEnv() {
   const home = process.env.HOME || process.env.USERPROFILE || "";
   const extra = [
@@ -17526,37 +17530,103 @@ function shellEnv() {
   const current = process.env.PATH || "";
   return { ...process.env, PATH: [...extra, current].join(path2.delimiter) };
 }
-function execAsync(cmd) {
+function execAsync(cmd, env) {
   return new Promise((resolve, reject) => {
-    (0, import_child_process.exec)(cmd, { timeout: 1e4, env: shellEnv() }, (err, stdout, stderr) => {
+    (0, import_child_process.exec)(cmd, { timeout: 1e4, env }, (err, stdout, stderr) => {
       if (err) reject(err);
       else resolve({ stdout, stderr });
     });
   });
 }
-async function checkBool(cmd) {
+async function checkBool(cmd, env) {
   try {
-    await execAsync(cmd);
+    await execAsync(cmd, env);
     return true;
   } catch (e) {
     return false;
   }
 }
-async function checkAuth() {
+async function checkAuth(env) {
   try {
-    const r = await execAsync("claude auth status");
+    const r = await execAsync("claude auth status", env);
     const lower = r.stdout.toLowerCase();
     return !lower.includes("not logged in") && !lower.includes("not authenticated");
   } catch (e) {
     return false;
   }
 }
-async function detectDeps(app) {
+async function detectRuntimeDeps(options = {}) {
+  const { forceFresh = false } = options;
+  const now = Date.now();
+  if (!forceFresh && cachedRuntimeDeps && cachedRuntimeDeps.expiresAt > now) {
+    return cachedRuntimeDeps.value;
+  }
+  if (!forceFresh && runtimeDepsInFlight) {
+    return runtimeDepsInFlight;
+  }
+  const epoch = runtimeDepsEpoch;
+  const env = shellEnv();
+  const run = (async () => {
+    const node = await checkBool("node --version", env);
+    const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
+    const authed = cc ? await checkAuth(env) : false;
+    return { node, cc, authed };
+  })();
+  if (!forceFresh) {
+    runtimeDepsInFlight = run;
+  }
+  try {
+    const deps = await run;
+    if (epoch === runtimeDepsEpoch) {
+      if (deps.node && deps.cc && deps.authed) {
+        cachedRuntimeDeps = {
+          value: deps,
+          expiresAt: Date.now() + DETECT_DEPS_SUCCESS_TTL_MS
+        };
+      } else {
+        cachedRuntimeDeps = null;
+      }
+    }
+    return deps;
+  } finally {
+    if (!forceFresh && runtimeDepsInFlight === run) {
+      runtimeDepsInFlight = null;
+    }
+  }
+}
+function invalidateDepsCache() {
+  runtimeDepsEpoch++;
+  cachedRuntimeDeps = null;
+  runtimeDepsInFlight = null;
+}
+async function detectDeps(app, options = {}) {
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
-  const node = await checkBool("node --version");
-  const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude") : false;
-  const authed = cc ? await checkAuth() : false;
-  return { node, cc, authed, vaultConfigured };
+  const runtimeDeps = await detectRuntimeDeps(options);
+  return { ...runtimeDeps, vaultConfigured };
+}
+
+// src/vault-setup.ts
+async function setupVaultForClaude(app, templateFolder) {
+  const claudeMdPath = "CLAUDE.md";
+  if (!app.vault.getAbstractFileByPath(claudeMdPath)) {
+    const content = `# Vault
+
+This is my Obsidian vault.
+
+## Agent skills
+
+Skills live in \`agents/skills/\`. Run them with \`/[skill name]\` in any note (requires Augment).
+
+## Templates
+
+Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
+`;
+    await app.vault.create(claudeMdPath, content);
+  }
+  const skillsPath = "agents/skills";
+  if (!app.vault.getAbstractFileByPath(skillsPath)) {
+    await app.vault.createFolder(skillsPath);
+  }
 }
 
 // src/settings-tab.ts
@@ -18175,32 +18245,13 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
     const wizardBody = wizardSection.createDiv();
     const setupVault = async () => {
-      const claudeMdPath = "CLAUDE.md";
-      if (!this.app.vault.getAbstractFileByPath(claudeMdPath)) {
-        const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
-        const content = `# Vault
-
-This is my Obsidian vault.
-
-## Agent skills
-
-Skills live in \`agents/skills/\`. Run them with \`/[skill name]\` in any note (requires Augment).
-
-## Templates
-
-Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
-`;
-        await this.app.vault.create(claudeMdPath, content);
-      }
-      const skillsPath = "agents/skills";
-      if (!this.app.vault.getAbstractFileByPath(skillsPath)) {
-        await this.app.vault.createFolder(skillsPath);
-      }
+      const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
+      await setupVaultForClaude(this.app, templateFolder);
     };
     const renderStatusCard = async () => {
       wizardBody.empty();
       wizardBody.createDiv({ cls: "augment-cc-detecting", text: "Checking your setup\u2026" });
-      const deps = await detectDeps(this.app);
+      const deps = await detectDeps(this.app, { forceFresh: true });
       wizardBody.empty();
       const depRows = DEP_ROWS;
       const activeStep = getSetupStep(deps);
@@ -18237,6 +18288,7 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
           } else if (activeStep.action === "terminal") {
             const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
             btn.addEventListener("click", async () => {
+              invalidateDepsCache();
               const view = await this.plugin.openFocusedTerminal();
               setTimeout(() => view.write(activeStep.terminalCmd), 800);
             });
@@ -18416,8 +18468,10 @@ function stageBinary(sourcePath, binaryName) {
   let needsCopy = !(0, import_fs2.existsSync)(staged);
   if (!needsCopy) {
     try {
-      const { statSync: statSync2 } = require("fs");
-      needsCopy = statSync2(sourcePath).mtimeMs >= statSync2(staged).mtimeMs;
+      const { statSync } = require("fs");
+      const sourceStat = statSync(sourcePath);
+      const stagedStat = statSync(staged);
+      needsCopy = sourceStat.mtimeMs > stagedStat.mtimeMs;
     } catch (e) {
       needsCopy = true;
     }
@@ -18452,12 +18506,17 @@ var PtyBridge = class {
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
     const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
-    const candidates = [sourcePath];
+    const candidates = [];
     try {
       const stagedPath = stageBinary(sourcePath, binaryName);
-      if (stagedPath !== sourcePath) candidates.push(stagedPath);
+      if (platform === "darwin") {
+        candidates.push(stagedPath);
+      } else if (stagedPath !== sourcePath) {
+        candidates.push(stagedPath);
+      }
     } catch (e) {
     }
+    candidates.push(sourcePath);
     const env = {
       ...process.env,
       TERM: "xterm-256color",
@@ -19194,7 +19253,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.bootTerminal();
     detectDeps(this.app).then((deps) => {
-      if ((!deps.cc || !deps.authed) && !this.isSetupBypassed()) {
+      if ((!deps.cc || !deps.authed || !deps.vaultConfigured) && !this.isSetupBypassed()) {
         this.renderBootstrapper(this.contentEl, deps);
       }
     }).catch(() => {
@@ -19212,6 +19271,18 @@ var TerminalView = class extends import_obsidian5.ItemView {
     plugin.settings.terminalSetupBypassed = value;
     if (value) plugin.settings.terminalSetupDone = true;
     void plugin.saveData(plugin.settings);
+  }
+  markTerminalSetupDone() {
+    var _a2, _b;
+    const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    if (!(plugin == null ? void 0 : plugin.settings) || plugin.settings.terminalSetupDone) return;
+    plugin.settings.terminalSetupDone = true;
+    void plugin.saveData(plugin.settings);
+  }
+  openTerminalSettings() {
+    var _a2, _b, _c, _d;
+    (_b = (_a2 = this.app.setting) == null ? void 0 : _a2.open) == null ? void 0 : _b.call(_a2);
+    (_d = (_c = this.app.setting) == null ? void 0 : _c.openTabById) == null ? void 0 : _d.call(_c, "augment-terminal");
   }
   createBootstrapperBypassActions(wrapper, dismiss) {
     const actions = wrapper.createDiv({ cls: "augment-bootstrapper-actions" });
@@ -19233,8 +19304,15 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   renderBootstrapper(container, deps) {
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
-    wrapper.createEl("h2", { text: "Set up Claude Code", cls: "augment-bootstrapper-title" });
-    wrapper.createEl("p", { text: "Terminal sessions in Augment run on Claude Code, Anthropic\u2019s command-line AI agent.", cls: "augment-bootstrapper-desc" });
+    const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
+    wrapper.createEl("h2", {
+      text: needsRuntimeSetup ? "Set up Claude Code" : "Finish terminal setup",
+      cls: "augment-bootstrapper-title"
+    });
+    wrapper.createEl("p", {
+      text: needsRuntimeSetup ? "Terminal sessions in Augment run on Claude Code, Anthropic\u2019s command-line AI agent." : "Claude Code is ready. One more step lets it understand this vault.",
+      cls: "augment-bootstrapper-desc"
+    });
     const dismiss = () => wrapper.remove();
     if (!deps.node) {
       wrapper.createEl("p", { text: "Claude Code requires Node.js. Install it, then reopen this terminal to continue.", cls: "augment-bootstrapper-desc" });
@@ -19250,6 +19328,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       (0, import_obsidian5.setIcon)(btn, "terminal");
       btn.onclick = () => {
         var _a2;
+        invalidateDepsCache();
         dismiss();
         (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
       };
@@ -19262,9 +19341,46 @@ var TerminalView = class extends import_obsidian5.ItemView {
       (0, import_obsidian5.setIcon)(btn, "log-in");
       btn.onclick = () => {
         var _a2;
+        invalidateDepsCache();
         dismiss();
         (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("claude auth login\n");
       };
+      this.createBootstrapperBypassActions(wrapper, dismiss);
+      return;
+    }
+    if (!deps.vaultConfigured) {
+      wrapper.createEl("p", {
+        text: "Create CLAUDE.md and the starter agents/skills folder now, or open Terminal settings to review the same step there.",
+        cls: "augment-bootstrapper-desc"
+      });
+      const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Set up vault" });
+      (0, import_obsidian5.setIcon)(btn, "folder-plus");
+      btn.onclick = async () => {
+        var _a2, _b, _c;
+        const originalLabel = btn.textContent || "Set up vault";
+        btn.disabled = true;
+        btn.textContent = "Setting up\u2026";
+        try {
+          const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+          const templateFolder = ((_c = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _c.templateFolder) || "Augment/templates";
+          await setupVaultForClaude(this.app, templateFolder);
+          invalidateDepsCache();
+          this.markTerminalSetupDone();
+          dismiss();
+          new import_obsidian5.Notice("Vault setup complete.");
+        } catch (error) {
+          console.error("[Augment] vault scaffold failed from terminal bootstrapper", error);
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+          new import_obsidian5.Notice("Vault setup failed. Open Terminal settings to try again.");
+        }
+      };
+      const settingsBtn = wrapper.createEl("button", {
+        cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
+        text: "Open Terminal settings"
+      });
+      (0, import_obsidian5.setIcon)(settingsBtn, "settings");
+      settingsBtn.onclick = () => this.openTerminalSettings();
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
     }
@@ -19401,11 +19517,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       this.startPtyBridge();
     });
     const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open Terminal settings" });
-    setupBtn.addEventListener("click", () => {
-      var _a2, _b, _c, _d;
-      (_b = (_a2 = this.app.setting) == null ? void 0 : _a2.open) == null ? void 0 : _b.call(_a2);
-      (_d = (_c = this.app.setting) == null ? void 0 : _c.openTabById) == null ? void 0 : _d.call(_c, "augment-terminal");
-    });
+    setupBtn.addEventListener("click", () => this.openTerminalSettings());
     if (raw) {
       let detailsVisible = false;
       const detailsBtn = actions.createEl("button", { cls: "augment-terminal-error-btn augment-terminal-error-btn--ghost", text: "Show details" });
@@ -19552,14 +19664,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const cleanChunk = stripAnsi(rawData);
     if (!cleanChunk) return;
     this.parseBuffer = (this.parseBuffer + cleanChunk).slice(-MAX_PARSE_BUFFER_CHARS);
-    const lines = this.parseBuffer.split(/\r?\n/);
+    const lines = this.parseBuffer.split(/[\r\n]+/);
     this.parseBuffer = (_a2 = lines.pop()) != null ? _a2 : "";
     let changed = false;
     for (const line of lines) {
       changed = this.parseOrchestrationLine(line) || changed;
     }
     if (!/[\r\n]/.test(cleanChunk)) {
-      changed = this.parseOrchestrationLine(cleanChunk) || changed;
+      changed = this.parseOrchestrationLine(this.parseBuffer) || changed;
     }
     if (changed) {
       this.app.workspace.trigger("augment-terminal:changed");
@@ -19623,7 +19735,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     var _a2, _b, _c, _d;
     if (!/\bBash\(/i.test(text) || !/pane-name\.sh/i.test(text)) return null;
     const topicCall = text.match(
-      /\bpane-name\.sh\b[\s\S]*?\btopic\b\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+      /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
     );
     if (!topicCall) return null;
     return this.normalizeRenameCandidate(
@@ -19837,171 +19949,230 @@ var os = __toESM(require("os"));
 var SessionStore = class {
   constructor(vaultBasePath) {
     this.vaultBasePath = vaultBasePath;
-    this.titleCache = /* @__PURE__ */ new Map();
+    this.summaryCache = /* @__PURE__ */ new Map();
   }
   // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
   // CC encodes cwd by replacing '/' and spaces with '-'.
-  findProjectDir() {
+  async findProjectDir() {
     var _a2;
     const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
     const encoded = this.vaultBasePath.replace(/[/ ]/g, "-");
     const dir = path3.join(home, ".claude", "projects", encoded);
     try {
-      if (fs.statSync(dir).isDirectory()) return dir;
+      if ((await fs.promises.stat(dir)).isDirectory()) return dir;
     } catch (e) {
     }
     return null;
   }
   // Enumerate all project directories under ~/.claude/projects/.
-  findAllProjectDirs() {
+  async findAllProjectDirs() {
     var _a2;
     const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
     const projectsRoot = path3.join(home, ".claude", "projects");
     const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
     const encodedHome = home.replace(/[/ ]/g, "-");
     try {
-      return fs.readdirSync(projectsRoot).filter((name) => {
-        try {
-          return fs.statSync(path3.join(projectsRoot, name)).isDirectory();
-        } catch (e) {
-          return false;
-        }
-      }).map((encodedName) => {
-        const projectDir = path3.join(projectsRoot, encodedName);
-        const isVault = encodedName === vaultEncoded;
-        let relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
-        const projectName = relative.replace(/-/g, "/") || encodedName;
-        return { encodedName, projectDir, isVault, projectName };
-      });
+      const names = await fs.promises.readdir(projectsRoot);
+      const dirs = await Promise.all(
+        names.map(async (encodedName) => {
+          const projectDir = path3.join(projectsRoot, encodedName);
+          try {
+            const stat = await fs.promises.stat(projectDir);
+            if (!stat.isDirectory()) return null;
+          } catch (e) {
+            return null;
+          }
+          const isVault = encodedName === vaultEncoded;
+          const relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
+          const projectName = relative.replace(/-/g, "/") || encodedName;
+          return { encodedName, projectDir, isVault, projectName };
+        })
+      );
+      return dirs.filter((d) => d !== null);
     } catch (e) {
       return [];
     }
   }
   // Sort session files by mtime desc, take first `limit`.
-  loadSessions(limit) {
-    const dir = this.findProjectDir();
+  async loadSessions(limit) {
+    const dir = await this.findProjectDir();
     if (!dir) return [];
     return this.loadSessionsFromDir(dir, limit);
   }
   // Load sessions from all CC project directories, grouped by project.
   // Vault project is flagged with isVault=true.
-  loadAllProjectGroups(limitPerProject = 50) {
-    var _a2, _b;
-    const dirs = this.findAllProjectDirs();
-    const groups = [];
-    for (const { encodedName, projectDir, isVault, projectName } of dirs) {
-      const sessions = this.loadSessionsFromDir(projectDir, limitPerProject);
-      if (sessions.length === 0) continue;
-      const lastActivityMs = (_b = (_a2 = sessions[0]) == null ? void 0 : _a2.mtimeMs) != null ? _b : 0;
-      const totalOnDisk = this.countSessionsInDir(projectDir);
-      groups.push({
-        projectName,
-        projectDir,
-        encodedName,
-        isVault,
-        sessions,
-        totalOnDisk,
-        lastActivityMs
-      });
-    }
-    return groups.sort((a, b) => b.lastActivityMs - a.lastActivityMs);
+  async loadAllProjectGroups(limitPerProject = 50) {
+    const dirs = await this.findAllProjectDirs();
+    const groups = await Promise.all(
+      dirs.map(async ({ encodedName, projectDir, isVault, projectName }) => {
+        var _a2, _b;
+        const sessions = await this.loadSessionsFromDir(projectDir, limitPerProject);
+        if (sessions.length === 0) return null;
+        const lastActivityMs = (_b = (_a2 = sessions[0]) == null ? void 0 : _a2.mtimeMs) != null ? _b : 0;
+        const totalOnDisk = await this.countSessionsInDir(projectDir);
+        return {
+          projectName,
+          projectDir,
+          encodedName,
+          isVault,
+          sessions,
+          totalOnDisk,
+          lastActivityMs
+        };
+      })
+    );
+    return groups.filter((g) => g !== null).sort((a, b) => b.lastActivityMs - a.lastActivityMs);
   }
-  // Fast count of all session files — no stats or reads.
-  countSessions() {
-    const dir = this.findProjectDir();
-    if (!dir) return 0;
-    return this.countSessionsInDir(dir);
-  }
-  countSessionsInDir(dir) {
+  async countSessionsInDir(dir) {
     try {
-      return fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).length;
+      const files = await fs.promises.readdir(dir);
+      return files.filter((f) => f.endsWith(".jsonl")).length;
     } catch (e) {
       return 0;
     }
   }
-  loadSessionsFromDir(dir, limit) {
+  async loadSessionsFromDir(dir, limit) {
     try {
       const now = Date.now();
-      const entries = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => {
-        const fullPath = path3.join(dir, f);
-        try {
-          const mtimeMs = fs.statSync(fullPath).mtimeMs;
-          return { name: f, fullPath, mtimeMs };
-        } catch (e) {
-          return null;
-        }
-      }).filter((e) => e !== null).sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit);
-      return entries.map((e) => ({
-        id: e.name.slice(0, -6),
-        // strip .jsonl
-        title: this.readTitle(e.fullPath),
-        status: now - e.mtimeMs < 3e4 ? "stale" : "complete",
-        mtimeMs: e.mtimeMs,
-        msgCount: this.readMsgCount(e.fullPath)
-      }));
+      const files = (await fs.promises.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+      const entries = (await Promise.all(
+        files.map(async (name) => {
+          const fullPath = path3.join(dir, name);
+          try {
+            const st = await fs.promises.stat(fullPath);
+            return { name, fullPath, mtimeMs: st.mtimeMs };
+          } catch (e) {
+            return null;
+          }
+        })
+      )).filter((e) => e !== null).sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit);
+      const sessions = await Promise.all(
+        entries.map(async (e) => {
+          var _a2;
+          const id = e.name.slice(0, -6);
+          const summary = await this.readSessionSummary(e.fullPath, id, e.mtimeMs);
+          if (summary.msgCount <= 0) return null;
+          return {
+            id,
+            resumeId: (_a2 = summary.resumeId) != null ? _a2 : id,
+            title: summary.title,
+            status: now - e.mtimeMs < 3e4 ? "stale" : "complete",
+            mtimeMs: e.mtimeMs,
+            msgCount: summary.msgCount
+          };
+        })
+      );
+      return sessions.filter((s) => s !== null);
     } catch (e) {
       return [];
     }
   }
-  // Count user turns in session JSONL.
-  readMsgCount(sessionPath) {
+  async readSessionSummary(sessionPath, fallbackTitle, mtimeMs) {
+    const cached = this.summaryCache.get(sessionPath);
+    if (cached && cached.mtimeMs === mtimeMs) {
+      return cached.summary;
+    }
     try {
-      const content = fs.readFileSync(sessionPath, "utf-8");
-      let count = 0;
-      for (const line of content.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.type === "user") count++;
-        } catch (e) {
-        }
-      }
-      return count;
+      const content = await fs.promises.readFile(sessionPath, "utf-8");
+      const summary = this.parseSessionContent(content, fallbackTitle);
+      this.summaryCache.set(sessionPath, { mtimeMs, summary });
+      return summary;
     } catch (e) {
-      return 0;
+      return { msgCount: 0, resumeId: null, title: fallbackTitle };
     }
   }
-  // Read first user message from session JSONL for display as title.
-  readTitle(sessionPath) {
-    var _a2;
-    if (this.titleCache.has(sessionPath)) {
-      return this.titleCache.get(sessionPath);
-    }
-    let title = path3.basename(sessionPath, ".jsonl");
-    try {
-      const content = fs.readFileSync(sessionPath, "utf-8");
-      outer: for (const line of content.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.type === "user") {
-            const msgContent = (_a2 = obj.message) == null ? void 0 : _a2.content;
-            let text = "";
-            if (typeof msgContent === "string") {
-              text = msgContent;
-            } else if (Array.isArray(msgContent)) {
-              for (const block of msgContent) {
-                if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
-                  text = block.text;
-                  break;
-                }
-              }
-            }
-            if (text.trim()) {
-              const cleaned = this.cleanTitle(text);
-              if (cleaned) {
-                title = cleaned;
-                break outer;
+  parseSessionContent(content, fallbackTitle) {
+    var _a2, _b, _c;
+    let firstUserTitle = null;
+    let explicitRenameTitle = null;
+    let resumeId = null;
+    let msgCount = 0;
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (!resumeId && typeof (obj == null ? void 0 : obj.sessionId) === "string" && obj.sessionId.trim()) {
+          resumeId = obj.sessionId.trim();
+        }
+        const command = (_a2 = obj == null ? void 0 : obj.data) == null ? void 0 : _a2.command;
+        if (typeof command === "string" && command.trim()) {
+          const renamed = this.extractExplicitRenameTitle(command);
+          if (renamed) {
+            explicitRenameTitle = renamed;
+          }
+        }
+        if (obj.type === "user") {
+          const msgContent = (_b = obj.message) == null ? void 0 : _b.content;
+          let text = "";
+          if (typeof msgContent === "string") {
+            text = msgContent;
+          } else if (Array.isArray(msgContent)) {
+            for (const block of msgContent) {
+              if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
+                text = block.text;
+                break;
               }
             }
           }
-        } catch (e) {
+          if (text.trim() && !this.isMetaUserText(text)) {
+            msgCount++;
+            if (!firstUserTitle) {
+              const cleaned = this.cleanTitle(text);
+              if (cleaned) firstUserTitle = cleaned;
+            }
+          }
         }
+      } catch (e) {
       }
-    } catch (e) {
     }
-    this.titleCache.set(sessionPath, title);
-    return title;
+    const title = (_c = explicitRenameTitle != null ? explicitRenameTitle : firstUserTitle) != null ? _c : fallbackTitle;
+    return { msgCount, resumeId, title };
+  }
+  extractExplicitRenameTitle(command) {
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    const paneHook = command.match(
+      /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (paneHook) {
+      return this.normalizeExplicitTitle(
+        (_d = (_c = (_b = (_a2 = paneHook[1]) != null ? _a2 : paneHook[2]) != null ? _b : paneHook[3]) != null ? _c : paneHook[4]) != null ? _d : ""
+      );
+    }
+    const tmuxSelect = command.match(
+      /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (tmuxSelect) {
+      return this.normalizeExplicitTitle(
+        (_h = (_g = (_f = (_e = tmuxSelect[1]) != null ? _e : tmuxSelect[2]) != null ? _f : tmuxSelect[3]) != null ? _g : tmuxSelect[4]) != null ? _h : ""
+      );
+    }
+    const tmuxWindow = command.match(
+      /\btmux\b[\s\S]*?\brename-window\b[\s\S]*?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (tmuxWindow) {
+      return this.normalizeExplicitTitle(
+        (_l = (_k = (_j = (_i = tmuxWindow[1]) != null ? _i : tmuxWindow[2]) != null ? _j : tmuxWindow[3]) != null ? _k : tmuxWindow[4]) != null ? _l : ""
+      );
+    }
+    return null;
+  }
+  normalizeExplicitTitle(value) {
+    const compact = value.replace(/\\n/g, " ").replace(/\\t/g, " ").replace(/\\(["'`\\])/g, "$1").trim();
+    if (!compact) return null;
+    const readable = compact.includes(" ") ? compact : compact.replace(/[-_]+/g, " ");
+    const cleaned = readable.replace(/\s+/g, " ").trim();
+    return cleaned ? cleaned.slice(0, 60) : null;
+  }
+  isMetaUserText(text) {
+    const compact = text.trim();
+    if (!compact) return true;
+    if (compact.includes("<local-command-caveat>")) return true;
+    if (compact.includes("<command-name>")) return true;
+    if (compact.includes("<local-command-stdout>")) return true;
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact) && compact.length < 220) {
+      return true;
+    }
+    return false;
   }
   cleanTitle(raw) {
     var _a2, _b;
@@ -20051,14 +20222,20 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     super(leaf);
     this.listEl = null;
     this.sessionStore = null;
-    this.historyLoadedCount = 50;
+    this.historyLoadedCount = 20;
     this.expandedSessionId = null;
+    this.refreshFrameId = null;
     // History scan debounce — avoid stat'ing 1000+ files on rapid layout events.
     this.lastHistoryLoadTime = 0;
     this.cachedSessions = [];
+    this.historyLoadInFlight = false;
+    this.historyReloadRequested = false;
     // Other-projects scan debounce.
     this.lastProjectGroupsLoadTime = 0;
     this.cachedProjectGroups = [];
+    this.projectGroupsLoadInFlight = false;
+    this.projectGroupsReloadRequested = false;
+    this.otherProjectsEnabled = false;
     // Which other-project groups are expanded (collapsed by default).
     this.expandedProjects = /* @__PURE__ */ new Set();
     // Hover tooltip for session activity.
@@ -20091,19 +20268,19 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.listEl = container.createDiv({ cls: "augment-tm-list" });
     const vaultPath = this.app.vault.adapter.basePath;
     this.sessionStore = new SessionStore(vaultPath);
-    this.refresh();
-    window.setTimeout(() => this.refresh(), 0);
-    this.app.workspace.onLayoutReady(() => this.refresh());
+    this.requestRefresh();
+    window.setTimeout(() => this.requestRefresh(), 0);
+    this.app.workspace.onLayoutReady(() => this.requestRefresh());
     this.registerEvent(
-      this.app.workspace.on("layout-change", () => this.refresh())
+      this.app.workspace.on("layout-change", () => this.requestRefresh())
     );
     this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => this.refresh())
+      this.app.workspace.on("active-leaf-change", () => this.requestRefresh())
     );
     this.registerEvent(
       this.app.workspace.on(
         "augment-terminal:changed",
-        () => this.refresh()
+        () => this.requestRefresh()
       )
     );
     this.registerInterval(window.setInterval(() => this.refreshTimestamps(), 3e4));
@@ -20112,24 +20289,73 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     var _a2, _b;
     return (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
   }
+  requestRefresh() {
+    if (this.refreshFrameId !== null) return;
+    this.refreshFrameId = window.requestAnimationFrame(() => {
+      this.refreshFrameId = null;
+      this.refresh();
+    });
+  }
   getHistorySessions() {
-    var _a2, _b;
-    const now = Date.now();
-    if (now - this.lastHistoryLoadTime >= 500) {
-      this.lastHistoryLoadTime = now;
-      this.cachedSessions = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.loadSessions(this.historyLoadedCount)) != null ? _b : [];
-    }
+    this.maybeLoadHistorySessions();
     return this.cachedSessions;
   }
   getOtherProjectGroups() {
-    var _a2, _b;
-    const now = Date.now();
-    if (now - this.lastProjectGroupsLoadTime >= 500) {
-      this.lastProjectGroupsLoadTime = now;
-      const all = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.loadAllProjectGroups(50)) != null ? _b : [];
-      this.cachedProjectGroups = all.filter((g) => !g.isVault);
-    }
+    this.maybeLoadOtherProjectGroups();
     return this.cachedProjectGroups;
+  }
+  maybeLoadHistorySessions() {
+    const now = Date.now();
+    const stale = now - this.lastHistoryLoadTime >= 1500;
+    if (!stale) return;
+    if (!this.sessionStore) return;
+    if (this.historyLoadInFlight) {
+      this.historyReloadRequested = true;
+      return;
+    }
+    this.historyLoadInFlight = true;
+    const requestedLimit = this.historyLoadedCount;
+    this.sessionStore.loadSessions(requestedLimit).then((sessions) => {
+      this.cachedSessions = sessions;
+      this.lastHistoryLoadTime = Date.now();
+    }).catch(() => {
+      this.lastHistoryLoadTime = Date.now();
+    }).finally(() => {
+      this.historyLoadInFlight = false;
+      const needsReload = this.historyReloadRequested || this.historyLoadedCount !== requestedLimit;
+      this.historyReloadRequested = false;
+      if (needsReload) {
+        this.lastHistoryLoadTime = 0;
+        this.maybeLoadHistorySessions();
+      }
+      if (this.listEl) this.requestRefresh();
+    });
+  }
+  maybeLoadOtherProjectGroups() {
+    const now = Date.now();
+    const stale = now - this.lastProjectGroupsLoadTime >= 2e3;
+    if (!stale) return;
+    if (!this.sessionStore) return;
+    if (this.projectGroupsLoadInFlight) {
+      this.projectGroupsReloadRequested = true;
+      return;
+    }
+    this.projectGroupsLoadInFlight = true;
+    this.sessionStore.loadAllProjectGroups(50).then((groups) => {
+      this.cachedProjectGroups = groups.filter((g) => !g.isVault);
+      this.lastProjectGroupsLoadTime = Date.now();
+    }).catch(() => {
+      this.lastProjectGroupsLoadTime = Date.now();
+    }).finally(() => {
+      this.projectGroupsLoadInFlight = false;
+      const needsReload = this.projectGroupsReloadRequested;
+      this.projectGroupsReloadRequested = false;
+      if (needsReload) {
+        this.lastProjectGroupsLoadTime = 0;
+        this.maybeLoadOtherProjectGroups();
+      }
+      if (this.listEl) this.requestRefresh();
+    });
   }
   getTerminalLeaves() {
     const byType = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -20226,13 +20452,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return result;
   }
   refresh() {
-    var _a2, _b;
     if (!this.listEl) return;
     this.listEl.empty();
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
-    const totalOnDisk = (_b = (_a2 = this.sessionStore) == null ? void 0 : _a2.countSessions()) != null ? _b : 0;
-    const otherGroups = this.getOtherProjectGroups();
+    const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
     const activeLeaf = this.app.workspace.activeLeaf;
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
@@ -20257,14 +20481,36 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         cls: "augment-tm-section-label",
         text: "HISTORY"
       });
-      this.renderHistorySections(sessions, totalOnDisk, this.listEl);
+      this.renderHistorySections(sessions, this.listEl);
     }
-    if (hasOtherProjects) {
+    if (this.otherProjectsEnabled) {
       this.listEl.createDiv({
         cls: "augment-tm-section-label",
         text: "OTHER PROJECTS"
       });
-      this.renderOtherProjectsSection(otherGroups);
+      if (hasOtherProjects) {
+        this.renderOtherProjectsSection(otherGroups);
+      } else {
+        this.listEl.createDiv({
+          cls: "augment-tm-empty",
+          text: "No other projects found"
+        });
+      }
+    } else {
+      this.listEl.createDiv({
+        cls: "augment-tm-section-label",
+        text: "OTHER PROJECTS"
+      });
+      const loadRow = this.listEl.createDiv({
+        cls: "augment-tm-load-more",
+        text: "Load other projects"
+      });
+      loadRow.addEventListener("click", () => {
+        this.otherProjectsEnabled = true;
+        this.lastProjectGroupsLoadTime = 0;
+        this.projectGroupsReloadRequested = true;
+        this.requestRefresh();
+      });
     }
   }
   renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf) {
@@ -20472,17 +20718,18 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
           this.expandedProjects.add(group.encodedName);
         }
         this.lastProjectGroupsLoadTime = 0;
-        this.refresh();
+        this.projectGroupsReloadRequested = true;
+        this.requestRefresh();
       });
       if (isExpanded) {
         const sessionsEl = this.listEl.createDiv({
           cls: "augment-tm-project-sessions"
         });
-        this.renderHistorySections(group.sessions, group.totalOnDisk, sessionsEl);
+        this.renderHistorySections(group.sessions, sessionsEl);
       }
     }
   }
-  renderHistorySections(sessions, totalOnDisk, container) {
+  renderHistorySections(sessions, container) {
     const now = /* @__PURE__ */ new Date();
     const todayStr = this.dateStr(now);
     const yesterday = new Date(now);
@@ -20525,7 +20772,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         this.renderHistoryRow(session, container);
       }
     }
-    if (totalOnDisk > this.historyLoadedCount) {
+    if (sessions.length >= this.historyLoadedCount) {
       const loadMore = container.createDiv({
         cls: "augment-tm-load-more",
         text: "Load 50 more \u2193"
@@ -20533,7 +20780,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       loadMore.addEventListener("click", () => {
         this.historyLoadedCount += 50;
         this.lastHistoryLoadTime = 0;
-        this.refresh();
+        this.historyReloadRequested = true;
+        this.requestRefresh();
       });
     }
   }
@@ -20570,7 +20818,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         const termView = await plugin.openFocusedTerminal();
         if (termView) {
           setTimeout(() => {
-            termView.write(`claude --resume ${session.id}
+            termView.write(`claude --resume ${session.resumeId}
 `);
           }, 800);
         }
@@ -20578,7 +20826,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     }
     row.addEventListener("click", () => {
       this.expandedSessionId = isExpanded ? null : session.id;
-      this.refresh();
+      this.requestRefresh();
     });
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
@@ -20590,7 +20838,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
           const termView = await plugin.openFocusedTerminal();
           if (termView) {
             setTimeout(() => {
-              termView.write(`claude --resume ${session.id}
+              termView.write(`claude --resume ${session.resumeId}
 `);
             }, 800);
           }
@@ -20623,6 +20871,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
   async onClose() {
+    if (this.refreshFrameId !== null) {
+      window.cancelAnimationFrame(this.refreshFrameId);
+      this.refreshFrameId = null;
+    }
+    this.hideActivityTooltip();
     this.listEl = null;
   }
   getLeafTerminalName(leaf, view) {
@@ -21981,8 +22234,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-05T19:50:17.534Z";
-    this.gitSha = "04fc2ad";
+    this.buildId = "2026-03-06T17:40:59.595Z";
+    this.gitSha = "926ed87";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

@@ -25,9 +25,11 @@ function stageBinary(sourcePath: string, binaryName: string): string {
   if (!needsCopy) {
     try {
       const { statSync } = require("fs");
-      // Use >= so a freshly copied plugin binary with equal mtime still refreshes
-      // the staged executable after app reload (avoids stale bridge binaries).
-      needsCopy = statSync(sourcePath).mtimeMs >= statSync(staged).mtimeMs;
+      const sourceStat = statSync(sourcePath);
+      const stagedStat = statSync(staged);
+      // Compare mtime only. macOS ad-hoc signing mutates staged binary size.
+      // Size-based invalidation would force a re-sign on every launch.
+      needsCopy = sourceStat.mtimeMs > stagedStat.mtimeMs;
     } catch { needsCopy = true; }
   }
   if (needsCopy) {
@@ -72,13 +74,19 @@ export class PtyBridge {
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
     const sourcePath = join(this.pluginDir, "scripts", binaryName);
-    const candidates: string[] = [sourcePath];
+    const candidates: string[] = [];
     try {
       const stagedPath = stageBinary(sourcePath, binaryName);
-      if (stagedPath !== sourcePath) candidates.push(stagedPath);
+      if (platform === "darwin") {
+        // On macOS, prefer staged launch first.
+        candidates.push(stagedPath);
+      } else if (stagedPath !== sourcePath) {
+        candidates.push(stagedPath);
+      }
     } catch {
-      // Keep direct path candidate only.
+      // Fall through to source-path candidate.
     }
+    candidates.push(sourcePath);
 
     const env: Record<string, string | undefined> = {
       ...process.env,

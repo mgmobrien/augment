@@ -3,7 +3,8 @@ import AugmentTerminalPlugin from "./main";
 import { AugmentSettings } from "./vault-context";
 import { modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
-import { detectDeps, CCDeps } from "./deps";
+import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
+import { setupVaultForClaude } from "./vault-setup";
 
 
 
@@ -799,26 +800,15 @@ export class AugmentSettingTab extends PluginSettingTab {
     const wizardBody = wizardSection.createDiv();
 
     const setupVault = async () => {
-      // Create CLAUDE.md at vault root if absent
-      const claudeMdPath = "CLAUDE.md";
-      if (!this.app.vault.getAbstractFileByPath(claudeMdPath)) {
-        const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
-        const content = `# Vault\n\nThis is my Obsidian vault.\n\n## Agent skills\n\nSkills live in \`agents/skills/\`. Run them with \`/[skill name]\` in any note (requires Augment).\n\n## Templates\n\nPrompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.\n`;
-        await this.app.vault.create(claudeMdPath, content);
-      }
-
-      // Create agents/skills/ folder if absent
-      const skillsPath = "agents/skills";
-      if (!this.app.vault.getAbstractFileByPath(skillsPath)) {
-        await this.app.vault.createFolder(skillsPath);
-      }
+      const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
+      await setupVaultForClaude(this.app, templateFolder);
     };
 
     const renderStatusCard = async () => {
       wizardBody.empty();
       wizardBody.createDiv({ cls: "augment-cc-detecting", text: "Checking your setup\u2026" });
 
-      const deps = await detectDeps(this.app);
+      const deps = await detectDeps(this.app, { forceFresh: true });
       wizardBody.empty();
 
       const depRows = DEP_ROWS;
@@ -865,6 +855,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           } else if (activeStep.action === "terminal") {
             const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
             btn.addEventListener("click", async () => {
+              invalidateDepsCache();
               const view = await this.plugin.openFocusedTerminal();
               setTimeout(() => view.write(activeStep.terminalCmd!), 800);
             });
