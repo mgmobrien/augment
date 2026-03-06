@@ -22800,8 +22800,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:16:28.960Z";
-    this.gitSha = "14b14c2";
+    this.buildId = "2026-03-06T23:17:36.365Z";
+    this.gitSha = "83b6bf6";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23769,13 +23769,13 @@ ${excerpt}`,
     } else if (location === "split-down") {
       leaf = workspace.getLeaf("split", "horizontal");
     } else if (location === "sidebar-right" || location === "sidebar-right-bottom") {
-      leaf = (_d = workspace.getRightLeaf(false)) != null ? _d : workspace.getLeaf("tab");
+      leaf = (_d = workspace.getRightLeaf(true)) != null ? _d : workspace.getLeaf("tab");
     } else if (location === "sidebar-right-top") {
-      leaf = (_e = workspace.getRightLeaf(true)) != null ? _e : workspace.getLeaf("tab");
+      leaf = (_e = workspace.getRightLeaf(false)) != null ? _e : workspace.getLeaf("tab");
     } else if (location === "sidebar-left" || location === "sidebar-left-bottom") {
-      leaf = (_f = workspace.getLeftLeaf(false)) != null ? _f : workspace.getLeaf("tab");
+      leaf = (_f = workspace.getLeftLeaf(true)) != null ? _f : workspace.getLeaf("tab");
     } else if (location === "sidebar-left-top") {
-      leaf = (_g = workspace.getLeftLeaf(true)) != null ? _g : workspace.getLeaf("tab");
+      leaf = (_g = workspace.getLeftLeaf(false)) != null ? _g : workspace.getLeaf("tab");
     } else {
       leaf = workspace.getLeaf("tab");
     }

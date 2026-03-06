@@ -1708,13 +1708,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     } else if (location === "split-down") {
       leaf = workspace.getLeaf("split", "horizontal");
     } else if (location === "sidebar-right" || location === "sidebar-right-bottom") {
-      leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
-    } else if (location === "sidebar-right-top") {
+      // getRightLeaf(true) splits the sidebar, placing the new leaf below the existing one.
+      // getRightLeaf(false) reuses/returns the existing top leaf — wrong for "bottom".
       leaf = workspace.getRightLeaf(true) ?? workspace.getLeaf("tab");
+    } else if (location === "sidebar-right-top") {
+      leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
     } else if (location === "sidebar-left" || location === "sidebar-left-bottom") {
-      leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf("tab");
-    } else if (location === "sidebar-left-top") {
       leaf = workspace.getLeftLeaf(true) ?? workspace.getLeaf("tab");
+    } else if (location === "sidebar-left-top") {
+      leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf("tab");
     } else {
       leaf = workspace.getLeaf("tab");
     }

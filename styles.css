@@ -628,8 +628,8 @@
 
 /* ── Per-tab hotkey cheat-sheet box ── */
 .augment-hotkey-cheatsheet-wrapper {
-  display: flex;
-  justify-content: flex-end;
+  float: right;
+  margin-left: 16px;
   margin-bottom: 8px;
 }
 
