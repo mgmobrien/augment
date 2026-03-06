@@ -188,6 +188,7 @@ export class SessionStore {
 
   private parseSessionContent(content: string, fallbackTitle: string): SessionSummary {
     let firstUserTitle: string | null = null;
+    let firstAssistantText: string | null = null;
     let explicitRenameTitle: string | null = null;
     let resumeId: string | null = null;
     let msgCount = 0;
@@ -231,10 +232,35 @@ export class SessionStore {
             }
           }
         }
+
+        if (!firstAssistantText && obj.type === "assistant") {
+          const msgContent = obj.message?.content;
+          if (Array.isArray(msgContent)) {
+            for (const block of msgContent) {
+              if (block?.type === "text" && typeof block.text === "string") {
+                const text = block.text.trim();
+                if (text.length > 40) {
+                  // Take up to the first sentence boundary, capped at 60 chars.
+                  const sentence = text.replace(/\n[\s\S]*/m, "").replace(/[.!?].*/, "").trim();
+                  const candidate = (sentence.length > 10 ? sentence : text.replace(/\s+/g, " ")).slice(0, 60);
+                  if (candidate) firstAssistantText = candidate;
+                }
+                break;
+              }
+            }
+          }
+        }
       } catch {}
     }
 
-    const title = explicitRenameTitle ?? firstUserTitle ?? fallbackTitle;
+    // Priority: explicit rename > meaningful user title (>10 chars, not slash-command)
+    // > first assistant text > short/slash user title > UUID fallback.
+    const userTitleIsWeak = !firstUserTitle || firstUserTitle.length <= 10 || firstUserTitle.startsWith("/");
+    const title = explicitRenameTitle
+      ?? (!userTitleIsWeak ? firstUserTitle : null)
+      ?? firstAssistantText
+      ?? firstUserTitle
+      ?? fallbackTitle;
     return { msgCount, resumeId, title };
   }
 

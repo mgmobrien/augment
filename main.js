@@ -20620,8 +20620,9 @@ var SessionStore = class {
     }
   }
   parseSessionContent(content, fallbackTitle) {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d, _e, _f;
     let firstUserTitle = null;
+    let firstAssistantText = null;
     let explicitRenameTitle = null;
     let resumeId = null;
     let msgCount = 0;
@@ -20660,10 +20661,27 @@ var SessionStore = class {
             }
           }
         }
+        if (!firstAssistantText && obj.type === "assistant") {
+          const msgContent = (_c = obj.message) == null ? void 0 : _c.content;
+          if (Array.isArray(msgContent)) {
+            for (const block of msgContent) {
+              if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
+                const text = block.text.trim();
+                if (text.length > 40) {
+                  const sentence = text.replace(/\n[\s\S]*/m, "").replace(/[.!?].*/, "").trim();
+                  const candidate = (sentence.length > 10 ? sentence : text.replace(/\s+/g, " ")).slice(0, 60);
+                  if (candidate) firstAssistantText = candidate;
+                }
+                break;
+              }
+            }
+          }
+        }
       } catch (e) {
       }
     }
-    const title = (_c = explicitRenameTitle != null ? explicitRenameTitle : firstUserTitle) != null ? _c : fallbackTitle;
+    const userTitleIsWeak = !firstUserTitle || firstUserTitle.length <= 10 || firstUserTitle.startsWith("/");
+    const title = (_f = (_e = (_d = explicitRenameTitle != null ? explicitRenameTitle : !userTitleIsWeak ? firstUserTitle : null) != null ? _d : firstAssistantText) != null ? _e : firstUserTitle) != null ? _f : fallbackTitle;
     return { msgCount, resumeId, title };
   }
   extractExplicitRenameTitle(command) {
@@ -22782,8 +22800,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:13:58.653Z";
-    this.gitSha = "b92b574";
+    this.buildId = "2026-03-06T23:16:28.960Z";
+    this.gitSha = "14b14c2";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
