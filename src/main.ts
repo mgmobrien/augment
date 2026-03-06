@@ -1528,10 +1528,16 @@ export default class AugmentTerminalPlugin extends Plugin {
         }
       }
       // Auto-open Context Inspector in right sidebar on first install.
-      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR).length === 0) {
+      // Also clean up duplicate leaves that may have been saved from prior sessions.
+      const inspectorLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
+      if (inspectorLeaves.length === 0) {
         const leaf = this.app.workspace.getRightLeaf(false);
         if (leaf) {
           leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: false });
+        }
+      } else if (inspectorLeaves.length > 1) {
+        for (let i = 1; i < inspectorLeaves.length; i++) {
+          inspectorLeaves[i].detach();
         }
       }
     });

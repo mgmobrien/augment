@@ -22620,8 +22620,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T22:05:08.701Z";
-    this.gitSha = "ff48b8d";
+    this.buildId = "2026-03-06T22:21:51.934Z";
+    this.gitSha = "b4d3094";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23422,10 +23422,15 @@ ${excerpt}`,
           leaf.setViewState({ type: VIEW_TYPE_TERMINAL_MANAGER, active: false });
         }
       }
-      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR).length === 0) {
+      const inspectorLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
+      if (inspectorLeaves.length === 0) {
         const leaf = this.app.workspace.getRightLeaf(false);
         if (leaf) {
           leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: false });
+        }
+      } else if (inspectorLeaves.length > 1) {
+        for (let i = 1; i < inspectorLeaves.length; i++) {
+          inspectorLeaves[i].detach();
         }
       }
     });
