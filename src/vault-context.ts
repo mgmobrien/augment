@@ -39,6 +39,7 @@ export interface AugmentSettings {
   showOtherProjects: boolean;
   sessionHistory: SessionRecord[];
   enableProfiler: boolean;
+  coloredRibbonIcon: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -68,6 +69,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   showOtherProjects: false,
   sessionHistory: [],
   enableProfiler: false,
+  coloredRibbonIcon: false,
 };
 
 export interface LinkedNoteSummary {

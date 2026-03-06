@@ -674,6 +674,16 @@ export default class AugmentTerminalPlugin extends Plugin {
     return found?.display_name ?? id;
   }
 
+  /** Sync the `.augment-ribbon-colored` class with the current setting value. */
+  public applyRibbonColoredClass(): void {
+    if (!this.ribbonGenerateEl) return;
+    if (this.settings.coloredRibbonIcon) {
+      this.ribbonGenerateEl.addClass("augment-ribbon-colored");
+    } else {
+      this.ribbonGenerateEl.removeClass("augment-ribbon-colored");
+    }
+  }
+
   public refreshStatusBar(): void {
     this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
     if (!this.statusBarEl) return;
@@ -1425,6 +1435,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       }
       this.triggerGenerate(view.editor);
     });
+    this.applyRibbonColoredClass();
 
     // Default open command — uses defaultTerminalLocation setting.
     this.addCommand({

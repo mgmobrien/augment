@@ -517,6 +517,18 @@ export class AugmentSettingTab extends PluginSettingTab {
       (this.app as any).setting.openTabById("hotkeys");
     });
 
+    // ── Colored ribbon icon ────────────────────────────────────
+    new Setting(overviewPane)
+      .setName("Colored pyramid icon")
+      .setDesc("Show the ribbon pyramid in S3 colors (red/green/blue). When off, the icon stays monochrome.")
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
+          this.plugin.settings.coloredRibbonIcon = val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.applyRibbonColoredClass();
+        });
+      });
+
     // ── Startup profiler ─────────────────────────────────────
     {
       const timings = this.plugin.startupTimings;

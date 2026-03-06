@@ -17239,7 +17239,8 @@ var DEFAULT_SETTINGS = {
   defaultTerminalLocation: "tab",
   showOtherProjects: false,
   sessionHistory: [],
-  enableProfiler: false
+  enableProfiler: false,
+  coloredRibbonIcon: false
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -18361,6 +18362,13 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
     customizeLink.addEventListener("click", (e) => {
       e.preventDefault();
       this.app.setting.openTabById("hotkeys");
+    });
+    new import_obsidian4.Setting(overviewPane).setName("Colored pyramid icon").setDesc("Show the ribbon pyramid in S3 colors (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
+        this.plugin.settings.coloredRibbonIcon = val;
+        await this.plugin.saveData(this.plugin.settings);
+        this.plugin.applyRibbonColoredClass();
+      });
     });
     {
       const timings = this.plugin.startupTimings;
@@ -19575,6 +19583,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.messageFilter = null;
     this.ptyStartedAtMs = 0;
     this.startupRetryCount = 0;
+    this.resolvedCwd = "";
     this.promptTurnCount = 0;
     this.lastPromptText = "";
     this.lastPromptAtMs = 0;
@@ -19599,6 +19608,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   getIsExited() {
     return this.isExited;
+  }
+  getWorkingDirectory() {
+    return this.resolvedCwd;
   }
   getStatus() {
     return this.status;
@@ -19980,6 +19992,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     var _a2, _b;
     const vaultPath = this.app.vault.adapter.basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
+    this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath != null ? forcedShellPath : this.getShellPath();
     this.ptyStartedAtMs = Date.now();
     (_a2 = this.ptyBridge) == null ? void 0 : _a2.kill();
@@ -21177,6 +21190,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
     if (identity && identity.toLowerCase() !== name.toLowerCase()) {
       line.createSpan({ cls: "augment-tm-role", text: identity });
+    }
+    const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
+    if (cwd) {
+      const cwdBasename = cwd.split("/").filter(Boolean).pop() || cwd;
+      line.createSpan({ cls: "augment-tm-cwd", text: cwdBasename });
     }
     line.createDiv({ cls: "augment-tm-spacer" });
     const unread = typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0;
@@ -22842,8 +22860,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:20:35.606Z";
-    this.gitSha = "a5bc97e";
+    this.buildId = "2026-03-06T23:25:45.156Z";
+    this.gitSha = "35eefa0";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22878,6 +22896,15 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     if (localName !== id) return localName;
     const found = this.availableModels.find((m) => m.id === id);
     return (_a2 = found == null ? void 0 : found.display_name) != null ? _a2 : id;
+  }
+  /** Sync the `.augment-ribbon-colored` class with the current setting value. */
+  applyRibbonColoredClass() {
+    if (!this.ribbonGenerateEl) return;
+    if (this.settings.coloredRibbonIcon) {
+      this.ribbonGenerateEl.addClass("augment-ribbon-colored");
+    } else {
+      this.ribbonGenerateEl.removeClass("augment-ribbon-colored");
+    }
   }
   refreshStatusBar() {
     var _a2;
@@ -23561,6 +23588,7 @@ ${excerpt}`,
       }
       this.triggerGenerate(view.editor);
     });
+    this.applyRibbonColoredClass();
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
