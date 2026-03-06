@@ -20413,7 +20413,7 @@ var SessionStore = class {
   async loadSessions(limit) {
     const dir = await this.findProjectDir();
     if (!dir) return [];
-    return this.loadSessionsFromDir(dir, limit);
+    return (await this.loadSessionsFromDir(dir, limit)).sessions;
   }
   // Load sessions from all CC project directories, grouped by project.
   // Vault project is flagged with isVault=true.
@@ -20422,10 +20422,9 @@ var SessionStore = class {
     const groups = await Promise.all(
       dirs.map(async ({ encodedName, projectDir, isVault, projectName }) => {
         var _a2, _b;
-        const sessions = await this.loadSessionsFromDir(projectDir, limitPerProject);
+        const { sessions, totalOnDisk } = await this.loadSessionsFromDir(projectDir, limitPerProject);
         if (sessions.length === 0) return null;
         const lastActivityMs = (_b = (_a2 = sessions[0]) == null ? void 0 : _a2.mtimeMs) != null ? _b : 0;
-        const totalOnDisk = await this.countSessionsInDir(projectDir);
         return {
           projectName,
           projectDir,
@@ -20439,18 +20438,11 @@ var SessionStore = class {
     );
     return groups.filter((g) => g !== null).sort((a, b) => b.lastActivityMs - a.lastActivityMs);
   }
-  async countSessionsInDir(dir) {
-    try {
-      const files = await fs.promises.readdir(dir);
-      return files.filter((f) => f.endsWith(".jsonl")).length;
-    } catch (e) {
-      return 0;
-    }
-  }
   async loadSessionsFromDir(dir, limit) {
     try {
       const now = Date.now();
       const files = (await fs.promises.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+      const totalOnDisk = files.length;
       const entries = (await Promise.all(
         files.map(async (name) => {
           const fullPath = path3.join(dir, name);
@@ -20478,9 +20470,9 @@ var SessionStore = class {
           };
         })
       );
-      return sessions.filter((s) => s !== null);
+      return { sessions: sessions.filter((s) => s !== null), totalOnDisk };
     } catch (e) {
-      return [];
+      return { sessions: [], totalOnDisk: 0 };
     }
   }
   async readSessionSummary(sessionPath, fallbackTitle, mtimeMs) {
@@ -21266,11 +21258,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.listEl.querySelectorAll(".augment-tm-timestamp[data-mtime]").forEach((el) => {
       el.textContent = this.relativeTime(Number(el.dataset.mtime));
     });
-    this.listEl.querySelectorAll(".augment-tm-reltime[data-ms]").forEach((el) => {
-      el.textContent = this.relativeTime(Number(el.dataset.ms));
-    });
-    this.listEl.querySelectorAll(".augment-tm-age[data-ms]").forEach((el) => {
-      el.textContent = formatAge(Number(el.dataset.ms));
+    this.listEl.querySelectorAll(".augment-tm-reltime[data-ms], .augment-tm-age[data-ms]").forEach((el) => {
+      const ms = Number(el.dataset.ms);
+      el.textContent = el.classList.contains("augment-tm-age") ? formatAge(ms) : this.relativeTime(ms);
     });
   }
   relativeTime(mtimeMs) {
@@ -22651,8 +22641,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:46:55.770Z";
-    this.gitSha = "9d13b17";
+    this.buildId = "2026-03-06T21:47:09.440Z";
+    this.gitSha = "c321b30";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

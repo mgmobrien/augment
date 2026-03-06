@@ -824,11 +824,11 @@ export class TerminalManagerView extends ItemView {
     this.listEl.querySelectorAll<HTMLElement>(".augment-tm-timestamp[data-mtime]").forEach(el => {
       el.textContent = this.relativeTime(Number(el.dataset.mtime));
     });
-    this.listEl.querySelectorAll<HTMLElement>(".augment-tm-reltime[data-ms]").forEach(el => {
-      el.textContent = this.relativeTime(Number(el.dataset.ms));
-    });
-    this.listEl.querySelectorAll<HTMLElement>(".augment-tm-age[data-ms]").forEach(el => {
-      el.textContent = formatAge(Number(el.dataset.ms));
+    this.listEl.querySelectorAll<HTMLElement>(".augment-tm-reltime[data-ms], .augment-tm-age[data-ms]").forEach(el => {
+      const ms = Number(el.dataset.ms);
+      el.textContent = el.classList.contains("augment-tm-age")
+        ? formatAge(ms)
+        : this.relativeTime(ms);
     });
   }
 
