@@ -36,7 +36,9 @@ export interface AugmentSettings {
   terminalSetupDone: boolean;
   terminalSetupBypassed: boolean;
   defaultTerminalLocation: TerminalOpenLocation;
+  showOtherProjects: boolean;
   sessionHistory: SessionRecord[];
+  enableProfiler: boolean;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -63,7 +65,9 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   terminalSetupDone: false,
   terminalSetupBypassed: false,
   defaultTerminalLocation: "tab",
+  showOtherProjects: false,
   sessionHistory: [],
+  enableProfiler: false,
 };
 
 export interface LinkedNoteSummary {

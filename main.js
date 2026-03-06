@@ -17237,7 +17237,9 @@ var DEFAULT_SETTINGS = {
   terminalSetupDone: false,
   terminalSetupBypassed: false,
   defaultTerminalLocation: "tab",
-  sessionHistory: []
+  showOtherProjects: false,
+  sessionHistory: [],
+  enableProfiler: false
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -18802,6 +18804,12 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       var _a3;
       drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
         this.plugin.settings.defaultTerminalLocation = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    new import_obsidian4.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other directories on this machine in the Terminal Manager. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
+        this.plugin.settings.showOtherProjects = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
@@ -20737,6 +20745,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return "square-terminal";
   }
   async onOpen() {
+    var _a2, _b;
     const container = this.contentEl;
     container.empty();
     container.addClass("augment-terminal-manager");
@@ -20754,6 +20763,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.listEl = container.createDiv({ cls: "augment-tm-list" });
     const vaultPath = this.app.vault.adapter.basePath;
     this.sessionStore = new SessionStore(vaultPath);
+    if ((_b = (_a2 = this.getPlugin()) == null ? void 0 : _a2.settings) == null ? void 0 : _b.showOtherProjects) {
+      this.otherProjectsEnabled = true;
+    }
     let historyRequestedLimit = 0;
     this.maybeLoadHistory = this.createAsyncLoader(
       this.historyState,
@@ -20987,6 +20999,21 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     } else {
       const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
       loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24D8" });
+      let tip = null;
+      infoIcon.addEventListener("mouseenter", () => {
+        tip = document.createElement("div");
+        tip.className = "augment-api-key-tip";
+        tip.textContent = "Shows Claude Code sessions from other directories on this machine. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.";
+        document.body.appendChild(tip);
+        const rect = infoIcon.getBoundingClientRect();
+        tip.style.top = `${rect.bottom + 6}px`;
+        tip.style.left = `${rect.left}px`;
+      });
+      infoIcon.addEventListener("mouseleave", () => {
+        tip == null ? void 0 : tip.remove();
+        tip = null;
+      });
       const loadRow = loadDivider.createDiv({
         cls: "augment-tm-load-more",
         text: "Load other projects"
@@ -20996,6 +21023,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;
         this.projectsState.reloadRequested = true;
+        const plugin = this.getPlugin();
+        if (plugin == null ? void 0 : plugin.settings) {
+          plugin.settings.showOtherProjects = true;
+          void plugin.saveData(plugin.settings);
+        }
         this.requestRefresh();
       });
     }
@@ -22704,11 +22736,12 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:06:20.009Z";
-    this.gitSha = "3360576";
+    this.buildId = "2026-03-06T23:10:29.647Z";
+    this.gitSha = "94558c5";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
+    this.startupTimings = null;
     this.waitingBadgeEl = null;
     this.waitingCursor = 0;
     this.activeGeneration = null;
@@ -22994,6 +23027,32 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     var _a2;
+    const _profilerT0 = performance.now();
+    const _profilerPlugins = [];
+    const _ComponentProto = Object.getPrototypeOf(import_obsidian8.Plugin).prototype;
+    const _origLoad = _ComponentProto.load;
+    _ComponentProto.load = function(...args) {
+      var _a3;
+      const pid = (_a3 = this.manifest) == null ? void 0 : _a3.id;
+      if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
+      const t = performance.now();
+      const result = _origLoad.apply(this, args);
+      const finish = () => {
+        var _a4, _b;
+        return _profilerPlugins.push({ id: pid, name: (_b = (_a4 = this.manifest) == null ? void 0 : _a4.name) != null ? _b : pid, ms: Math.round(performance.now() - t) });
+      };
+      if (result && typeof result.then === "function") {
+        return result.then((v) => {
+          finish();
+          return v;
+        }, (e) => {
+          finish();
+          return Promise.reject(e);
+        });
+      }
+      finish();
+      return result;
+    };
     (0, import_obsidian8.addIcon)("augment-pyramid", `
       <circle cx="50" cy="18" r="16" fill="#ff3d00"/>
       <circle cx="18" cy="72" r="16" fill="#1565c0"/>
@@ -23532,6 +23591,14 @@ ${excerpt}`,
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
     this.app.workspace.onLayoutReady(() => {
+      _ComponentProto.load = _origLoad;
+      if (this.settings.enableProfiler) {
+        this.startupTimings = {
+          ownMs: Math.round(performance.now() - _profilerT0),
+          layoutReadyMs: Math.round(performance.now() - _profilerT0),
+          plugins: _profilerPlugins.slice().sort((a, b) => b.ms - a.ms)
+        };
+      }
       void this.scaffoldDefaultTemplates();
       void this.scaffoldDefaultSkills();
       this.refreshAttentionBadge();

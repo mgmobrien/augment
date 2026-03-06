@@ -495,6 +495,56 @@ export class AugmentSettingTab extends PluginSettingTab {
       (this.app as any).setting.openTabById("hotkeys");
     });
 
+    // ── Startup profiler ─────────────────────────────────────
+    {
+      const timings = this.plugin.startupTimings;
+      const profilerSection = overviewPane.createDiv({ cls: "augment-profiler-section" });
+
+      new Setting(profilerSection)
+        .setName("Startup profiler")
+        .setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.")
+        .addToggle((toggle) => {
+          toggle.setValue(this.plugin.settings.enableProfiler).onChange(async (val) => {
+            this.plugin.settings.enableProfiler = val;
+            await this.plugin.saveData(this.plugin.settings);
+            this.display();
+          });
+        });
+
+      if (this.plugin.settings.enableProfiler) {
+        if (!timings) {
+          profilerSection.createEl("p", {
+            cls: "augment-profiler-hint",
+            text: "Restart Obsidian to capture startup timing.",
+          });
+        } else {
+          const summaryEl = profilerSection.createDiv({ cls: "augment-profiler-summary" });
+          summaryEl.createEl("div", { cls: "augment-profiler-row augment-profiler-own",
+            text: `Augment (this plugin): ${timings.ownMs}ms` });
+          summaryEl.createEl("div", { cls: "augment-profiler-row",
+            text: `Total window (load \u2192 layout ready): ${timings.layoutReadyMs}ms` });
+
+          if (timings.plugins.length > 0) {
+            profilerSection.createDiv({ cls: "augment-pane-section augment-profiler-plugins-label", text: "Other plugins" });
+            const table = profilerSection.createEl("table", { cls: "augment-var-table augment-profiler-table" });
+            const tbody = table.createEl("tbody");
+            for (const p of timings.plugins) {
+              const tr = tbody.createEl("tr");
+              tr.createEl("td", { text: p.name });
+              const msEl = tr.createEl("td", { cls: "augment-profiler-ms", text: `${p.ms}ms` });
+              if (p.ms > 500) msEl.addClass("augment-profiler-slow");
+              else if (p.ms > 200) msEl.addClass("augment-profiler-med");
+            }
+          } else {
+            profilerSection.createEl("p", {
+              cls: "augment-profiler-hint",
+              text: "No other plugin timings captured. Augment may not have loaded first — restart Obsidian to retry.",
+            });
+          }
+        }
+      }
+    }
+
     // ── Continuation pane ────────────────────────────────────
     this.renderHotkeyBox(continuationPane, [
       { label: "Generate",          commandId: "augment-terminal:augment-generate" },
@@ -1115,6 +1165,18 @@ export class AugmentSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultTerminalLocation ?? "tab")
           .onChange(async (value) => {
             this.plugin.settings.defaultTerminalLocation = value as TerminalOpenLocation;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
+    new Setting(terminalPane)
+      .setName("Show other projects")
+      .setDesc("Display Claude Code sessions from other directories on this machine in the Terminal Manager. Reads ~/.claude/projects/ — only Claude Code data, nothing else.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showOtherProjects)
+          .onChange(async (value) => {
+            this.plugin.settings.showOtherProjects = value;
             await this.plugin.saveData(this.plugin.settings);
           });
       });

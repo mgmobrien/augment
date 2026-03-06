@@ -93,6 +93,11 @@ export class TerminalManagerView extends ItemView {
     const vaultPath = (this.app.vault.adapter as any).basePath as string;
     this.sessionStore = new SessionStore(vaultPath);
 
+    // Respect persisted "show other projects" preference.
+    if (this.getPlugin()?.settings?.showOtherProjects) {
+      this.otherProjectsEnabled = true;
+    }
+
     // Wire up async loaders. historyRequestedLimit is captured per-call to
     // detect mid-load limit changes (user clicked "Load 50 more").
     let historyRequestedLimit = 0;
@@ -390,6 +395,24 @@ export class TerminalManagerView extends ItemView {
     } else {
       const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
       loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+
+      // Info icon explaining what "other projects" reads.
+      const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24d8" });
+      let tip: HTMLElement | null = null;
+      infoIcon.addEventListener("mouseenter", () => {
+        tip = document.createElement("div");
+        tip.className = "augment-api-key-tip";
+        tip.textContent = "Shows Claude Code sessions from other directories on this machine. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.";
+        document.body.appendChild(tip);
+        const rect = infoIcon.getBoundingClientRect();
+        tip.style.top = `${rect.bottom + 6}px`;
+        tip.style.left = `${rect.left}px`;
+      });
+      infoIcon.addEventListener("mouseleave", () => {
+        tip?.remove();
+        tip = null;
+      });
+
       const loadRow = loadDivider.createDiv({
         cls: "augment-tm-load-more",
         text: "Load other projects",
@@ -399,6 +422,12 @@ export class TerminalManagerView extends ItemView {
         this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;
         this.projectsState.reloadRequested = true;
+        // Persist the preference so it survives reloads.
+        const plugin = this.getPlugin();
+        if (plugin?.settings) {
+          plugin.settings.showOtherProjects = true;
+          void plugin.saveData(plugin.settings);
+        }
         this.requestRefresh();
       });
     }
