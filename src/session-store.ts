@@ -186,6 +186,9 @@ export class SessionStore {
       const content = await fs.promises.readFile(sessionPath, "utf-8");
       const summary = this.parseSessionContent(content, fallbackTitle);
       this.summaryCache.set(sessionPath, { mtimeMs, summary });
+      if (this.summaryCache.size > 200) {
+        this.summaryCache.delete(this.summaryCache.keys().next().value!);
+      }
       return summary;
     } catch {
       return { msgCount: 0, resumeId: null, title: fallbackTitle };

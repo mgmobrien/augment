@@ -17738,6 +17738,7 @@ var TemplatePreviewModal = class extends import_obsidian3.Modal {
     this.contentEl.empty();
   }
 };
+var NO_FILES_ERROR = "no-files";
 var FolderSuggestModal = class extends import_obsidian3.FuzzySuggestModal {
   constructor(app, onChoose) {
     super(app);
@@ -17798,7 +17799,7 @@ async function analyzeFolderContents(app, folder) {
 }
 async function generateTemplatesFromFolder(app, folder, settings, resolvedModel) {
   const analysis = await analyzeFolderContents(app, folder);
-  if (analysis.fileCount === 0) throw new Error("no-files");
+  if (analysis.fileCount === 0) throw new Error(NO_FILES_ERROR);
   const lines = [
     `Folder: "${analysis.folderPath}" (${analysis.fileCount} notes scanned)`
   ];
@@ -20491,6 +20492,9 @@ var SessionStore = class {
       const content = await fs.promises.readFile(sessionPath, "utf-8");
       const summary = this.parseSessionContent(content, fallbackTitle);
       this.summaryCache.set(sessionPath, { mtimeMs, summary });
+      if (this.summaryCache.size > 200) {
+        this.summaryCache.delete(this.summaryCache.keys().next().value);
+      }
       return summary;
     } catch (e) {
       return { msgCount: 0, resumeId: null, title: fallbackTitle };
@@ -22647,8 +22651,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T21:46:35.919Z";
-    this.gitSha = "2576ecf";
+    this.buildId = "2026-03-06T21:46:49.013Z";
+    this.gitSha = "3b57988";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
