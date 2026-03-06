@@ -84,15 +84,19 @@ export function substituteVariables(templateStr: string, ctx: VaultContext): str
 }
 
 // Per-million-token pricing (input / output). Update when Anthropic changes rates.
-const MODEL_PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
+export const MODEL_PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
   "claude-haiku-4-5-20251001": { inputPerMTok: 0.80, outputPerMTok: 4.00 },
   "claude-sonnet-4-6":         { inputPerMTok: 3.00, outputPerMTok: 15.00 },
   "claude-opus-4-6":           { inputPerMTok: 15.00, outputPerMTok: 75.00 },
 };
+const DEFAULT_PRICING = { inputPerMTok: 3.00, outputPerMTok: 15.00 }; // sonnet fallback
+
+export function modelPricing(modelId: string): { inputPerMTok: number; outputPerMTok: number } {
+  return MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
+}
 
 export function calculateCost(modelId: string, inputTokens: number, outputTokens: number): number {
-  const p = MODEL_PRICING[modelId];
-  if (!p) return 0;
+  const p = modelPricing(modelId);
   return (inputTokens * p.inputPerMTok + outputTokens * p.outputPerMTok) / 1_000_000;
 }
 

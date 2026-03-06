@@ -16958,9 +16958,13 @@ var MODEL_PRICING = {
   "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-opus-4-6": { inputPerMTok: 15, outputPerMTok: 75 }
 };
+var DEFAULT_PRICING = { inputPerMTok: 3, outputPerMTok: 15 };
+function modelPricing(modelId) {
+  var _a2;
+  return (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+}
 function calculateCost(modelId, inputTokens, outputTokens) {
-  const p = MODEL_PRICING[modelId];
-  if (!p) return 0;
+  const p = modelPricing(modelId);
   return (inputTokens * p.inputPerMTok + outputTokens * p.outputPerMTok) / 1e6;
 }
 var MODEL_DISPLAY_NAMES = {
@@ -17299,23 +17303,7 @@ function assembleVaultContext(app, editor, settings) {
 
 // src/context-inspector-view.ts
 var VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
-var MODEL_PRICING2 = {
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 },
-  "claude-sonnet-4-6": { input: 3, output: 15 },
-  "claude-opus-4-6": { input: 15, output: 75 }
-};
-var DEFAULT_PRICING = { input: 3, output: 15 };
 var MAX_TOKENS = 1024;
-function inputCost(tokens, modelId) {
-  var _a2;
-  const pricing = (_a2 = MODEL_PRICING2[modelId]) != null ? _a2 : DEFAULT_PRICING;
-  return tokens * pricing.input / 1e6;
-}
-function outputCost(tokens, modelId) {
-  var _a2;
-  const pricing = (_a2 = MODEL_PRICING2[modelId]) != null ? _a2 : DEFAULT_PRICING;
-  return tokens * pricing.output / 1e6;
-}
 function formatCost(dollars) {
   if (dollars < 1e-4) return `$${dollars.toFixed(6)}`;
   if (dollars < 1e-3) return `$${dollars.toFixed(5)}`;
@@ -17399,7 +17387,7 @@ var ContextInspectorView = class extends import_obsidian2.ItemView {
     this.render(ctx, this.lastEditorView);
   }
   render(ctx, activeView) {
-    var _a2, _b, _c;
+    var _a2, _b;
     const el = this.contentDiv;
     const headerEl = el.createEl("div", { cls: "augment-ctx-panel-header" });
     const headerLeft = headerEl.createEl("span", { cls: "augment-ctx-panel-header-left" });
@@ -17441,10 +17429,10 @@ ${key}: ${valStr}`;
     const totalTokens = sysTokens + noteTokens + linkedTokens;
     const modelId = this.plugin.resolveModel();
     const modelName = this.plugin.resolveModelDisplayName();
-    const pricing = (_a2 = MODEL_PRICING2[modelId]) != null ? _a2 : DEFAULT_PRICING;
-    const inCost = inputCost(totalTokens, modelId);
+    const pricing = modelPricing(modelId);
+    const inCost = calculateCost(modelId, totalTokens, 0);
     const estOutputTokens = Math.round(MAX_TOKENS / 4);
-    const outCost = outputCost(estOutputTokens, modelId);
+    const outCost = calculateCost(modelId, 0, estOutputTokens);
     const totalCost = inCost + outCost;
     const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
     const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
@@ -17463,8 +17451,8 @@ ${key}: ${valStr}`;
       row.createEl("span", { cls: "augment-ctx-token-bar-value", text: value });
     };
     addRow("Model", modelName);
-    addRow("Input", `${totalTokens.toLocaleString()} tok  \xB7  ~${formatCost(inCost)}  ($${pricing.input}/Mtok)`);
-    addRow("Output", `~${estOutputTokens.toLocaleString()} tok  \xB7  ~${formatCost(outCost)}  ($${pricing.output}/Mtok, est.)`);
+    addRow("Input", `${totalTokens.toLocaleString()} tok  \xB7  ~${formatCost(inCost)}  ($${pricing.inputPerMTok}/Mtok)`);
+    addRow("Output", `~${estOutputTokens.toLocaleString()} tok  \xB7  ~${formatCost(outCost)}  ($${pricing.outputPerMTok}/Mtok, est.)`);
     addRow("Total", `~${formatCost(totalCost)}`);
     const scroll = el.createEl("div", { cls: "augment-ctx-panel-body" });
     const sysSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible" });
@@ -17515,7 +17503,7 @@ ${key}: ${valStr}`;
     if (linkedData.length > 0) {
       const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible is-open" });
       const activeFile = activeView.file;
-      const totalLinks = activeFile ? ((_c = (_b = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _b.links) != null ? _c : []).length : linkedData.length;
+      const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : linkedData.length;
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
       const linkedChevron = linkedHdr.createEl("span", { cls: "augment-ctx-chevron" });
       (0, import_obsidian2.setIcon)(linkedChevron, "chevron-right");
@@ -18423,7 +18411,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           } else {
             profilerSection.createEl("p", {
               cls: "augment-profiler-hint",
-              text: "No other plugin timings captured. Augment may not have loaded first \u2014 restart Obsidian to retry."
+              text: "No other plugin timings captured. Augment must load before other plugins for timing to work \u2014 check that it appears first in community-plugins.json, then restart Obsidian."
             });
           }
         }
@@ -18950,6 +18938,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
         this.plugin.settings.showOtherProjects = value;
         await this.plugin.saveData(this.plugin.settings);
+        this.plugin.app.workspace.trigger("augment-terminal:changed");
       });
     });
     const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
@@ -20214,6 +20203,10 @@ var TerminalView = class extends import_obsidian5.ItemView {
     var _a2;
     const wasActive = this.status === "active" || this.status === "tool";
     const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";
+    const nowActive = newStatus === "active" || newStatus === "tool";
+    if (!wasActive && nowActive) {
+      this.lastActivityMs = Date.now();
+    }
     if (wasActive && nowIdle) {
       this.exchangeCount++;
       this.lastActivityMs = Date.now();
@@ -20820,13 +20813,9 @@ var SessionStore = class {
     return cleaned ? cleaned.slice(0, 60) : null;
   }
   isMetaUserText(text) {
-    const compact = text.trim();
-    if (!compact) return true;
-    if (compact.includes("<local-command-caveat>")) return true;
-    if (compact.includes("<command-name>")) return true;
-    if (compact.includes("<local-command-stdout>")) return true;
-    if (compact.includes("<user-prompt-submit-hook>")) return true;
-    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(compact)) return true;
+    const stripped = text.replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, "").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "").replace(/<command-name>[\s\S]*?<\/command-name>/gi, "").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, "").replace(/\s+/g, " ").trim();
+    if (!stripped) return true;
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(stripped)) return true;
     return false;
   }
   cleanTitle(raw) {
@@ -20835,7 +20824,7 @@ var SessionStore = class {
     if (!compact) return null;
     const teammate = this.cleanTeammateXmlTitle(compact);
     if (teammate) return teammate.slice(0, 60);
-    const deSystemed = compact.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ").replace(/<env>[\s\S]*?<\/env>/gi, " ").replace(/\s+/g, " ").trim();
+    const deSystemed = compact.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ").replace(/<env>[\s\S]*?<\/env>/gi, " ").replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, " ").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, " ").replace(/<command-name>[\s\S]*?<\/command-name>/gi, " ").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, " ").replace(/\s+/g, " ").trim();
     if (!deSystemed) return null;
     const stripped = deSystemed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (!stripped) return null;
@@ -21110,6 +21099,10 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
   refresh() {
     if (!this.listEl) return;
     this.listEl.empty();
+    const plugin = this.getPlugin();
+    if (plugin == null ? void 0 : plugin.settings) {
+      this.otherProjectsEnabled = plugin.settings.showOtherProjects;
+    }
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
@@ -21192,10 +21185,10 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;
         this.projectsState.reloadRequested = true;
-        const plugin = this.getPlugin();
-        if (plugin == null ? void 0 : plugin.settings) {
-          plugin.settings.showOtherProjects = true;
-          void plugin.saveData(plugin.settings);
+        const plugin2 = this.getPlugin();
+        if (plugin2 == null ? void 0 : plugin2.settings) {
+          plugin2.settings.showOtherProjects = true;
+          void plugin2.saveData(plugin2.settings);
         }
         this.requestRefresh();
       });
@@ -21242,10 +21235,11 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
     dot.addClass(status);
     const dotLabel = {
-      active: "Generating",
-      tool: "Using tool",
+      active: "Generating (yellow)",
+      tool: "Using tool (blue)",
+      waiting: "Waiting for input (orange)",
       idle: "Idle",
-      shell: "Open in Obsidian",
+      shell: "Open",
       running: "Running",
       crashed: "Crashed",
       exited: "Exited"
@@ -21574,14 +21568,14 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
   }
   getLeafTerminalName(leaf, view) {
     var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    if (typeof view.getName === "function") {
+      const value = view.getName();
+      if (value == null ? void 0 : value.trim()) return value.trim();
+    }
     const leafAny = leaf;
     const stateName = (_c = (_b = (_a2 = leafAny.getViewState) == null ? void 0 : _a2.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
     if (typeof stateName === "string" && stateName.trim()) {
       return stateName.trim();
-    }
-    if (typeof view.getName === "function") {
-      const value = view.getName();
-      if (value == null ? void 0 : value.trim()) return value.trim();
     }
     const leafEl = (_f = (_e = (_d = leafAny == null ? void 0 : leafAny.view) == null ? void 0 : _d.containerEl) == null ? void 0 : _e.closest) == null ? void 0 : _f.call(_e, ".workspace-leaf");
     const headerName = (_i = (_h = (_g = leafEl == null ? void 0 : leafEl.querySelector) == null ? void 0 : _g.call(leafEl, ".view-header-title")) == null ? void 0 : _h.textContent) == null ? void 0 : _i.trim();
@@ -22928,8 +22922,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:47:10.156Z";
-    this.gitSha = "9768779";
+    this.buildId = "2026-03-06T23:59:12.407Z";
+    this.gitSha = "7b2c81a";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23239,30 +23233,35 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     var _a2;
     const _profilerT0 = performance.now();
     const _profilerPlugins = [];
-    const _PluginProto = import_obsidian8.Plugin.prototype;
-    const _origOnload = _PluginProto.onload;
-    _PluginProto.onload = function(...args) {
-      var _a3;
-      const pid = (_a3 = this.manifest) == null ? void 0 : _a3.id;
-      if (!pid || pid === "augment-terminal") return _origOnload.apply(this, args);
-      const t = performance.now();
-      const result = _origOnload.apply(this, args);
-      const finish = () => {
-        var _a4, _b;
-        return _profilerPlugins.push({ id: pid, name: (_b = (_a4 = this.manifest) == null ? void 0 : _a4.name) != null ? _b : pid, ms: Math.round(performance.now() - t) });
+    let _loadProto = import_obsidian8.Plugin.prototype;
+    while (_loadProto && !Object.prototype.hasOwnProperty.call(_loadProto, "load")) {
+      _loadProto = Object.getPrototypeOf(_loadProto);
+    }
+    const _origLoad = _loadProto == null ? void 0 : _loadProto.load;
+    if (_origLoad) {
+      _loadProto.load = function(...args) {
+        var _a3;
+        const pid = (_a3 = this.manifest) == null ? void 0 : _a3.id;
+        if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
+        const t = performance.now();
+        const result = _origLoad.apply(this, args);
+        const finish = () => {
+          var _a4, _b;
+          return _profilerPlugins.push({ id: pid, name: (_b = (_a4 = this.manifest) == null ? void 0 : _a4.name) != null ? _b : pid, ms: Math.round(performance.now() - t) });
+        };
+        if (result && typeof result.then === "function") {
+          return result.then((v) => {
+            finish();
+            return v;
+          }, (e) => {
+            finish();
+            return Promise.reject(e);
+          });
+        }
+        finish();
+        return result;
       };
-      if (result && typeof result.then === "function") {
-        return result.then((v) => {
-          finish();
-          return v;
-        }, (e) => {
-          finish();
-          return Promise.reject(e);
-        });
-      }
-      finish();
-      return result;
-    };
+    }
     (0, import_obsidian8.addIcon)("augment-pyramid", `
       <circle cx="50" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
@@ -23802,7 +23801,7 @@ ${excerpt}`,
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
     this.app.workspace.onLayoutReady(() => {
-      _PluginProto.onload = _origOnload;
+      if (_loadProto && _origLoad) _loadProto.load = _origLoad;
       if (this.settings.enableProfiler) {
         this.startupTimings = {
           ownMs: Math.round(_augmentSyncEnd - _profilerT0),

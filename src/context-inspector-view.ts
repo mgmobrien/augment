@@ -1,29 +1,11 @@
 import { ItemView, MarkdownView, setIcon, WorkspaceLeaf } from "obsidian";
-import { buildSystemPrompt } from "./ai-client";
+import { buildSystemPrompt, calculateCost, modelPricing } from "./ai-client";
 import AugmentTerminalPlugin from "./main";
 import { assembleVaultContext, VaultContext } from "./vault-context";
 
 export const VIEW_TYPE_CONTEXT_INSPECTOR = "augment-context-inspector";
 
-// Input/output price in USD per million tokens.
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-haiku-4-5-20251001": { input: 0.80,  output: 4.00  },
-  "claude-sonnet-4-6":         { input: 3.00,  output: 15.00 },
-  "claude-opus-4-6":           { input: 15.00, output: 75.00 },
-};
-const DEFAULT_PRICING = { input: 3.00, output: 15.00 }; // sonnet as fallback
-
 const MAX_TOKENS = 1024; // matches max_tokens in generateText
-
-function inputCost(tokens: number, modelId: string): number {
-  const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
-  return (tokens * pricing.input) / 1_000_000;
-}
-
-function outputCost(tokens: number, modelId: string): number {
-  const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
-  return (tokens * pricing.output) / 1_000_000;
-}
 
 function formatCost(dollars: number): string {
   if (dollars < 0.0001) return `$${dollars.toFixed(6)}`;
@@ -170,10 +152,10 @@ export class ContextInspectorView extends ItemView {
     // ── Pinned token bar (collapsible) ──
     const modelId = this.plugin.resolveModel();
     const modelName = this.plugin.resolveModelDisplayName();
-    const pricing = MODEL_PRICING[modelId] ?? DEFAULT_PRICING;
-    const inCost = inputCost(totalTokens, modelId);
+    const pricing = modelPricing(modelId);
+    const inCost = calculateCost(modelId, totalTokens, 0);
     const estOutputTokens = Math.round(MAX_TOKENS / 4);
-    const outCost = outputCost(estOutputTokens, modelId);
+    const outCost = calculateCost(modelId, 0, estOutputTokens);
     const totalCost = inCost + outCost;
 
     const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
@@ -196,8 +178,8 @@ export class ContextInspectorView extends ItemView {
     };
 
     addRow("Model", modelName);
-    addRow("Input", `${totalTokens.toLocaleString()} tok  \u00b7  ~${formatCost(inCost)}  ($${pricing.input}/Mtok)`);
-    addRow("Output", `~${estOutputTokens.toLocaleString()} tok  \u00b7  ~${formatCost(outCost)}  ($${pricing.output}/Mtok, est.)`);
+    addRow("Input", `${totalTokens.toLocaleString()} tok  \u00b7  ~${formatCost(inCost)}  ($${pricing.inputPerMTok}/Mtok)`);
+    addRow("Output", `~${estOutputTokens.toLocaleString()} tok  \u00b7  ~${formatCost(outCost)}  ($${pricing.outputPerMTok}/Mtok, est.)`);
     addRow("Total", `~${formatCost(totalCost)}`);
 
     // ── Scrollable content ──
