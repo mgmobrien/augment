@@ -1379,6 +1379,16 @@
   margin-top: 14px;
 }
 
+.augment-hbs-docs-link {
+  display: block;
+  margin-top: 10px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.augment-hbs-docs-link:hover {
+  color: var(--text-normal);
+}
+
 /* ── Terminal manager: section labels and history ── */
 .augment-tm-section-label {
   font-size: var(--font-smallest);

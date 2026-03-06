@@ -1049,6 +1049,14 @@ export class AugmentSettingTab extends PluginSettingTab {
       text: "Summarise the following:\n\n{{#if selection}}{{{selection}}}{{else}}{{{note_content}}}{{/if}}",
     });
 
+    const hbsLink = hbsBody.createEl("a", {
+      cls: "augment-hbs-docs-link",
+      text: "See the full Handlebars guide \u2192",
+      href: "https://handlebarsjs.com/guide/",
+    });
+    hbsLink.target = "_blank";
+    hbsLink.rel = "noopener";
+
     // ── Terminal pane ────────────────────────────────────────
     this.renderHotkeyBox(terminalPane, [
       { label: "Open terminal",         commandId: "augment-terminal:open-terminal" },

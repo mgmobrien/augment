@@ -18764,6 +18764,13 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       cls: "augment-format-example",
       text: "Summarise the following:\n\n{{#if selection}}{{{selection}}}{{else}}{{{note_content}}}{{/if}}"
     });
+    const hbsLink = hbsBody.createEl("a", {
+      cls: "augment-hbs-docs-link",
+      text: "See the full Handlebars guide \u2192",
+      href: "https://handlebarsjs.com/guide/"
+    });
+    hbsLink.target = "_blank";
+    hbsLink.rel = "noopener";
     this.renderHotkeyBox(terminalPane, [
       { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
       { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
@@ -22871,8 +22878,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:39:26.231Z";
-    this.gitSha = "464c12f";
+    this.buildId = "2026-03-06T23:40:00.719Z";
+    this.gitSha = "e8dcae1";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
