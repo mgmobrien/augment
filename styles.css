@@ -1246,6 +1246,51 @@
   overflow-x: auto;
 }
 
+/* ── Handlebars syntax guide (collapsible) ── */
+.augment-hbs-details {
+  margin-top: 16px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.augment-hbs-summary {
+  padding: 8px 12px;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.augment-hbs-summary::-webkit-details-marker { display: none; }
+
+.augment-hbs-summary::before {
+  content: "▶ ";
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+
+.augment-hbs-details[open] .augment-hbs-summary::before {
+  content: "▼ ";
+}
+
+.augment-hbs-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.augment-hbs-intro {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin: 8px 0 10px;
+}
+
+.augment-hbs-example-label {
+  margin-top: 14px;
+}
+
 /* ── Terminal manager: section labels and history ── */
 .augment-tm-section-label {
   font-size: var(--font-smallest);

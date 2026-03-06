@@ -18654,6 +18654,32 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       cls: "augment-format-example",
       text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}"
     });
+    const hbsDetails = templatesPane.createEl("details", { cls: "augment-hbs-details" });
+    hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Handlebars syntax" });
+    const hbsBody = hbsDetails.createDiv({ cls: "augment-hbs-body" });
+    hbsBody.createEl("p", {
+      cls: "augment-hbs-intro",
+      text: "Templates use Handlebars. Beyond variable insertion you can use conditionals and helpers."
+    });
+    const syntaxRows = [
+      { syntax: "{{variable}}", desc: "Insert variable value" },
+      { syntax: "{{#if selection}}\u2026{{/if}}", desc: "Include block only when non-empty" },
+      { syntax: "{{#if selection}}\u2026{{else}}\u2026{{/if}}", desc: "Conditional with fallback" },
+      { syntax: "{{#unless selection}}\u2026{{/unless}}", desc: "Include when empty / falsy" },
+      { syntax: "{{{variable}}}", desc: "Skip HTML escaping (safe for note content)" }
+    ];
+    const hbsTable = hbsBody.createEl("table", { cls: "augment-var-table" });
+    const hbsTbody = hbsTable.createEl("tbody");
+    for (const row of syntaxRows) {
+      const tr = hbsTbody.createEl("tr");
+      tr.createEl("td").createEl("code", { text: row.syntax });
+      tr.createEl("td", { text: row.desc });
+    }
+    hbsBody.createDiv({ cls: "augment-section-label augment-hbs-example-label", text: "Example \u2014 use selection when present, fall back to full note" });
+    hbsBody.createEl("pre", {
+      cls: "augment-format-example",
+      text: "Summarise the following:\n\n{{#if selection}}{{{selection}}}{{else}}{{{note_content}}}{{/if}}"
+    });
     this.renderHotkeyBox(terminalPane, [
       { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
       { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
@@ -22678,8 +22704,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:05:07.126Z";
-    this.gitSha = "8736baf";
+    this.buildId = "2026-03-06T23:05:57.949Z";
+    this.gitSha = "9690c2d";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
