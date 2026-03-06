@@ -137,10 +137,12 @@ export async function fetchModels(apiKey: string): Promise<ModelInfo[]> {
   try {
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const result = await client.models.list();
-    return result.data.map((m: any) => ({
-      id: m.id,
-      display_name: m.display_name ?? modelDisplayName(m.id),
-    }));
+    return result.data
+      .filter((m: any) => !m.id.startsWith("claude-3"))
+      .map((m: any) => ({
+        id: m.id,
+        display_name: m.display_name ?? modelDisplayName(m.id),
+      }));
   } catch {
     return [];
   }

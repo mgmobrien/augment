@@ -16992,7 +16992,7 @@ async function fetchModels(apiKey) {
   try {
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const result = await client.models.list();
-    return result.data.map((m) => {
+    return result.data.filter((m) => !m.id.startsWith("claude-3")).map((m) => {
       var _a2;
       return {
         id: m.id,
@@ -22704,8 +22704,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:05:57.949Z";
-    this.gitSha = "9690c2d";
+    this.buildId = "2026-03-06T23:06:20.009Z";
+    this.gitSha = "3360576";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
