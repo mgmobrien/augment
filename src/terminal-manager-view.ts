@@ -4,6 +4,13 @@ import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
+function formatAge(ms: number): string {
+  const seconds = Math.floor((Date.now() - ms) / 1000);
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
 type ActivityState = "thinking" | "bash" | "read" | "write" | "mcp" | "waiting" | "idle" | null;
 type CurrentActivity = { state: ActivityState; detail: string | null } | null;
 
@@ -45,6 +52,9 @@ export class TerminalManagerView extends ItemView {
 
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
+
+  // Whether the RECENT history section is expanded.
+  private isHistoryExpanded: boolean = false;
 
   // Hover tooltip for session activity.
   private tooltipEl: HTMLDivElement | null = null;
@@ -349,30 +359,40 @@ export class TerminalManagerView extends ItemView {
     const hasOtherProjects = otherGroups.length > 0;
 
     if (!hasOpen && !hasHistory && !hasOtherProjects) {
-      this.listEl.createDiv({
-        cls: "augment-tm-empty",
-        text: "No terminals open",
-      });
+      const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
+      emptyEl.createDiv({ text: "No terminals yet." });
+      emptyEl.createDiv({ text: "Press + to open one." });
       return;
     }
 
-    // ── OPEN section with team grouping ───────────────────────
+    // ── Live sessions (no section label — header already says TERMINALS) ──
     if (hasOpen) {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "OPEN",
-      });
       const teamGroups = this.computeTeamGroups(leaves);
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
 
-    // ── HISTORY section (vault) ────────────────────────────────
+    // ── RECENT section with collapse ──────────────────────────
     if (hasHistory) {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "HISTORY",
+      // Auto-expand when no live sessions so user isn't looking at an empty panel.
+      if (!hasOpen && !this.isHistoryExpanded) {
+        this.isHistoryExpanded = true;
+      }
+
+      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (this.isHistoryExpanded) divider.addClass("is-open");
+      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
+      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
+      divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+
+      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+      if (!this.isHistoryExpanded) historyContainer.style.display = "none";
+      this.renderHistorySections(sessions, historyContainer);
+
+      divider.addEventListener("click", () => {
+        this.isHistoryExpanded = !this.isHistoryExpanded;
+        divider.toggleClass("is-open", this.isHistoryExpanded);
+        historyContainer.style.display = this.isHistoryExpanded ? "" : "none";
       });
-      this.renderHistorySections(sessions, this.listEl);
     }
 
     // ── OTHER PROJECTS section ─────────────────────────────────
@@ -747,56 +767,30 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderHistoryRow(session: SessionMeta, container: HTMLElement): void {
-    const isExpanded = this.expandedSessionId === session.id;
-    const row = container.createDiv({ cls: "augment-tm-item is-history" });
+    const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
 
     const line = row.createDiv({ cls: "augment-tm-line" });
 
-    const dot = line.createDiv({ cls: "augment-tm-dot" });
-    dot.addClass(session.status === "stale" ? "stale" : "exited");
-    dot.setAttribute("title", session.status === "stale" ? "Active recently — may still be running" : "Session ended");
+    // Dim circle — styling applied via CSS .is-archived .augment-tm-dot
+    line.createDiv({ cls: "augment-tm-dot" });
 
     line.createSpan({ cls: "augment-tm-name", text: session.title });
     line.createDiv({ cls: "augment-tm-spacer" });
-    const tsEl = line.createSpan({ cls: "augment-tm-timestamp" });
-    tsEl.dataset.mtime = String(session.mtimeMs);
-    tsEl.textContent = this.relativeTime(session.mtimeMs);
 
-    if (session.msgCount > 0) {
-      const secEl = row.createDiv({ cls: "augment-tm-summary" });
-      secEl.textContent = `${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`;
-    }
+    const ageEl = line.createSpan({ cls: "augment-tm-age" });
+    ageEl.dataset.ms = String(session.mtimeMs);
+    ageEl.textContent = formatAge(session.mtimeMs);
 
-    if (isExpanded) {
-      const expand = row.createDiv({ cls: "augment-tm-expand" });
-      const label =
-        session.status === "stale"
-          ? `Last active ${this.relativeTime(session.mtimeMs)} \u2014 may still be running`
-          : `Closed ${this.relativeTime(session.mtimeMs)}`;
-      expand.createSpan({ cls: "augment-tm-expand-label", text: label });
-
-      const actions = expand.createDiv({ cls: "augment-tm-expand-actions" });
-      const resumeBtn = actions.createEl("button", {
-        cls: "augment-tm-resume",
-        text: "Resume in terminal",
-        attr: { type: "button" },
-      });
-      resumeBtn.addEventListener("click", async (evt) => {
-        evt.stopPropagation();
-        const plugin = this.getPlugin();
-        if (!plugin) return;
-        const termView = await plugin.openFocusedTerminal();
-        if (termView) {
-          setTimeout(() => {
-            termView.write(`claude --resume ${session.resumeId}\n`);
-          }, 800);
-        }
-      });
-    }
-
-    row.addEventListener("click", () => {
-      this.expandedSessionId = isExpanded ? null : session.id;
-      this.requestRefresh();
+    // Click directly resumes the session — no expand drawer.
+    row.addEventListener("click", async () => {
+      const plugin = this.getPlugin();
+      if (!plugin) return;
+      const termView = await plugin.openFocusedTerminal();
+      if (termView) {
+        setTimeout(() => {
+          termView.write(`claude --resume ${session.resumeId}\n`);
+        }, 800);
+      }
     });
 
     row.addEventListener("contextmenu", (evt) => {
@@ -828,6 +822,9 @@ export class TerminalManagerView extends ItemView {
     });
     this.listEl.querySelectorAll<HTMLElement>(".augment-tm-reltime[data-ms]").forEach(el => {
       el.textContent = this.relativeTime(Number(el.dataset.ms));
+    });
+    this.listEl.querySelectorAll<HTMLElement>(".augment-tm-age[data-ms]").forEach(el => {
+      el.textContent = formatAge(Number(el.dataset.ms));
     });
   }
 

@@ -20245,6 +20245,12 @@ var SessionStore = class {
 
 // src/terminal-manager-view.ts
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
+function formatAge(ms) {
+  const seconds = Math.floor((Date.now() - ms) / 1e3);
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
 var TerminalManagerView = class extends import_obsidian6.ItemView {
   constructor(leaf) {
     super(leaf);
@@ -20266,6 +20272,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     this.otherProjectsEnabled = false;
     // Which other-project groups are expanded (collapsed by default).
     this.expandedProjects = /* @__PURE__ */ new Set();
+    // Whether the RECENT history section is expanded.
+    this.isHistoryExpanded = false;
     // Hover tooltip for session activity.
     this.tooltipEl = null;
   }
@@ -20490,26 +20498,32 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const hasHistory = sessions.length > 0;
     const hasOtherProjects = otherGroups.length > 0;
     if (!hasOpen && !hasHistory && !hasOtherProjects) {
-      this.listEl.createDiv({
-        cls: "augment-tm-empty",
-        text: "No terminals open"
-      });
+      const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
+      emptyEl.createDiv({ text: "No terminals yet." });
+      emptyEl.createDiv({ text: "Press + to open one." });
       return;
     }
     if (hasOpen) {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "OPEN"
-      });
       const teamGroups = this.computeTeamGroups(leaves);
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
     if (hasHistory) {
-      this.listEl.createDiv({
-        cls: "augment-tm-section-label",
-        text: "HISTORY"
+      if (!hasOpen && !this.isHistoryExpanded) {
+        this.isHistoryExpanded = true;
+      }
+      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (this.isHistoryExpanded) divider.addClass("is-open");
+      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
+      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
+      divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
+      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+      if (!this.isHistoryExpanded) historyContainer.style.display = "none";
+      this.renderHistorySections(sessions, historyContainer);
+      divider.addEventListener("click", () => {
+        this.isHistoryExpanded = !this.isHistoryExpanded;
+        divider.toggleClass("is-open", this.isHistoryExpanded);
+        historyContainer.style.display = this.isHistoryExpanded ? "" : "none";
       });
-      this.renderHistorySections(sessions, this.listEl);
     }
     if (this.otherProjectsEnabled) {
       this.listEl.createDiv({
@@ -20814,47 +20828,24 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     }
   }
   renderHistoryRow(session, container) {
-    const isExpanded = this.expandedSessionId === session.id;
-    const row = container.createDiv({ cls: "augment-tm-item is-history" });
+    const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
     const line = row.createDiv({ cls: "augment-tm-line" });
-    const dot = line.createDiv({ cls: "augment-tm-dot" });
-    dot.addClass(session.status === "stale" ? "stale" : "exited");
-    dot.setAttribute("title", session.status === "stale" ? "Active recently \u2014 may still be running" : "Session ended");
+    line.createDiv({ cls: "augment-tm-dot" });
     line.createSpan({ cls: "augment-tm-name", text: session.title });
     line.createDiv({ cls: "augment-tm-spacer" });
-    const tsEl = line.createSpan({ cls: "augment-tm-timestamp" });
-    tsEl.dataset.mtime = String(session.mtimeMs);
-    tsEl.textContent = this.relativeTime(session.mtimeMs);
-    if (session.msgCount > 0) {
-      const secEl = row.createDiv({ cls: "augment-tm-summary" });
-      secEl.textContent = `${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`;
-    }
-    if (isExpanded) {
-      const expand = row.createDiv({ cls: "augment-tm-expand" });
-      const label = session.status === "stale" ? `Last active ${this.relativeTime(session.mtimeMs)} \u2014 may still be running` : `Closed ${this.relativeTime(session.mtimeMs)}`;
-      expand.createSpan({ cls: "augment-tm-expand-label", text: label });
-      const actions = expand.createDiv({ cls: "augment-tm-expand-actions" });
-      const resumeBtn = actions.createEl("button", {
-        cls: "augment-tm-resume",
-        text: "Resume in terminal",
-        attr: { type: "button" }
-      });
-      resumeBtn.addEventListener("click", async (evt) => {
-        evt.stopPropagation();
-        const plugin = this.getPlugin();
-        if (!plugin) return;
-        const termView = await plugin.openFocusedTerminal();
-        if (termView) {
-          setTimeout(() => {
-            termView.write(`claude --resume ${session.resumeId}
+    const ageEl = line.createSpan({ cls: "augment-tm-age" });
+    ageEl.dataset.ms = String(session.mtimeMs);
+    ageEl.textContent = formatAge(session.mtimeMs);
+    row.addEventListener("click", async () => {
+      const plugin = this.getPlugin();
+      if (!plugin) return;
+      const termView = await plugin.openFocusedTerminal();
+      if (termView) {
+        setTimeout(() => {
+          termView.write(`claude --resume ${session.resumeId}
 `);
-          }, 800);
-        }
-      });
-    }
-    row.addEventListener("click", () => {
-      this.expandedSessionId = isExpanded ? null : session.id;
-      this.requestRefresh();
+        }, 800);
+      }
     });
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
@@ -20882,6 +20873,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     });
     this.listEl.querySelectorAll(".augment-tm-reltime[data-ms]").forEach((el) => {
       el.textContent = this.relativeTime(Number(el.dataset.ms));
+    });
+    this.listEl.querySelectorAll(".augment-tm-age[data-ms]").forEach((el) => {
+      el.textContent = formatAge(Number(el.dataset.ms));
     });
   }
   relativeTime(mtimeMs) {
@@ -22262,8 +22256,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T18:52:25.824Z";
-    this.gitSha = "9d83c1a";
+    this.buildId = "2026-03-06T18:53:56.895Z";
+    this.gitSha = "9eff5be";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
