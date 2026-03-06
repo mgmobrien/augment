@@ -811,6 +811,41 @@
   text-decoration: underline;
 }
 
+/* ── Keyboard shortcuts table (Overview pane) ── */
+.augment-overview-shortcuts {
+  margin-top: 20px;
+}
+
+.augment-shortcuts-label {
+  font-size: var(--font-smaller);
+  color: var(--text-normal);
+  padding-right: 12px;
+}
+
+.augment-shortcuts-keys {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.augment-shortcuts-unset {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.augment-shortcuts-customize {
+  margin-top: 8px;
+  font-size: var(--font-smaller);
+}
+
+.augment-shortcuts-customize a {
+  color: var(--text-muted);
+}
+
+.augment-shortcuts-customize a:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
 /* ── Context pane intro ── */
 .augment-context-intro {
   color: var(--text-muted);

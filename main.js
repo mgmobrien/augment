@@ -17780,6 +17780,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     return isMac ? "Cmd+\u21A9" : "Ctrl+\u21A9";
   }
   display() {
+    var _a2;
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("augment-settings-container");
@@ -17996,6 +17997,58 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         jumpToTab(tab, pane);
       });
     }
+    const isMac = process.platform === "darwin";
+    const AUGMENT_CMDS = [
+      { id: "augment-generate", label: "Generate", defaultKeys: [{ modifiers: ["Mod"], key: "Enter" }] },
+      { id: "augment-generate-from-template", label: "Generate from template", defaultKeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }] },
+      { id: "open-terminal", label: "Open terminal", defaultKeys: [{ modifiers: ["Ctrl"], key: "t" }] },
+      { id: "open-terminal-manager", label: "Show terminal manager", defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
+      { id: "switch-terminal", label: "Switch terminal", defaultKeys: [] },
+      { id: "rename-terminal", label: "Rename terminal", defaultKeys: [] },
+      { id: "open-terminal-right", label: "Open terminal to the right", defaultKeys: [] },
+      { id: "open-terminal-down", label: "Open terminal below", defaultKeys: [] },
+      { id: "augment-view-context", label: "Open context inspector", defaultKeys: [] },
+      { id: "jump-to-next-waiting-session", label: "Jump to next waiting session", defaultKeys: [] },
+      { id: "augment-open-settings", label: "Open settings", defaultKeys: [] }
+    ];
+    const renderHotkeyStr = (hk) => {
+      const parts = [];
+      for (const m of hk.modifiers) {
+        if (m === "Mod") parts.push(isMac ? "\u2318" : "Ctrl");
+        else if (m === "Ctrl") parts.push("Ctrl");
+        else if (m === "Shift") parts.push("\u21E7");
+        else if (m === "Alt") parts.push(isMac ? "\u2325" : "Alt");
+      }
+      parts.push(hk.key === "Enter" ? "\u21A9" : hk.key.toUpperCase());
+      return parts.join("+");
+    };
+    const hm = this.app.hotkeyManager;
+    const customKeys = (_a2 = hm == null ? void 0 : hm.customKeys) != null ? _a2 : {};
+    const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
+    shortcutsEl.createEl("div", { cls: "augment-overview-how-title", text: "Keyboard shortcuts" });
+    const kbTable = shortcutsEl.createEl("table", { cls: "augment-var-table" });
+    const kbTbody = kbTable.createEl("tbody");
+    for (const cmd of AUGMENT_CMDS) {
+      const fullId = "augment-terminal:" + cmd.id;
+      const effectiveKeys = fullId in customKeys ? customKeys[fullId] : cmd.defaultKeys;
+      const tr = kbTbody.createEl("tr");
+      tr.createEl("td", { cls: "augment-shortcuts-label", text: cmd.label });
+      const keyTd = tr.createEl("td", { cls: "augment-shortcuts-keys" });
+      if (effectiveKeys.length > 0) {
+        for (const hk of effectiveKeys) {
+          keyTd.createEl("kbd", { cls: "augment-onboarding-hotkey", text: renderHotkeyStr(hk) });
+        }
+      } else {
+        keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
+      }
+    }
+    const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
+    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Hotkeys" });
+    customizeLink.href = "#";
+    customizeLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.app.setting.openTabById("hotkeys");
+    });
     const calloutTypes = detectCalloutTypes();
     const formatSetting = new import_obsidian3.Setting(continuationPane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
@@ -18167,12 +18220,12 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
     openFolderEl.href = "#";
     openFolderEl.addEventListener("click", (e) => {
-      var _a2, _b, _c;
+      var _a3, _b, _c;
       e.preventDefault();
       const folderPath = this.plugin.settings.templateFolder;
       const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
       if (folder) {
-        const fe = (_b = (_a2 = this.plugin.app.internalPlugins) == null ? void 0 : _a2.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
+        const fe = (_b = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
         (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
       } else {
         console.log(`[Augment] folder not found: "${folderPath}"`);
@@ -18188,7 +18241,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
     templatesPane.createDiv({ cls: "augment-pane-section", text: "Your templates" });
     const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
     const renderTemplateList = () => {
-      var _a2;
+      var _a3;
       templateListEl.empty();
       const folderPath = this.plugin.settings.templateFolder;
       const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
@@ -18208,7 +18261,7 @@ var AugmentSettingTab = class extends import_obsidian3.PluginSettingTab {
         return;
       }
       for (const file of files) {
-        const meta = (_a2 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter;
+        const meta = (_a3 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a3.frontmatter;
         const name = (meta == null ? void 0 : meta.name) || file.basename;
         const desc = (meta == null ? void 0 : meta.description) || "";
         const row = templateListEl.createDiv({ cls: "augment-template-row" });
@@ -22370,8 +22423,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:00:21.112Z";
-    this.gitSha = "eaa6d30";
+    this.buildId = "2026-03-06T19:02:09.015Z";
+    this.gitSha = "fb9e302";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
