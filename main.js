@@ -21119,11 +21119,16 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         tip == null ? void 0 : tip.remove();
         tip = null;
       });
-      const loadRow = loadDivider.createDiv({
-        cls: "augment-tm-load-more",
-        text: "Load other projects"
+      const loadBtn = loadDivider.createEl("button", {
+        cls: "augment-tm-load-projects-btn",
+        text: "Load"
       });
-      loadRow.addEventListener("click", () => {
+      loadBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        loadBtn.disabled = true;
+        loadBtn.textContent = "";
+        loadBtn.addClass("is-loading");
+        const spinner = loadBtn.createSpan({ cls: "augment-tm-spinner" });
         this.otherProjectsEnabled = true;
         this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;
@@ -22864,8 +22869,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:36:19.344Z";
-    this.gitSha = "f21089e";
+    this.buildId = "2026-03-06T23:37:02.821Z";
+    this.gitSha = "4b706a1";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

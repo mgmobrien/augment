@@ -414,11 +414,18 @@ export class TerminalManagerView extends ItemView {
         tip = null;
       });
 
-      const loadRow = loadDivider.createDiv({
-        cls: "augment-tm-load-more",
-        text: "Load other projects",
+      const loadBtn = loadDivider.createEl("button", {
+        cls: "augment-tm-load-projects-btn",
+        text: "Load",
       });
-      loadRow.addEventListener("click", () => {
+      loadBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        // Show loading state.
+        loadBtn.disabled = true;
+        loadBtn.textContent = "";
+        loadBtn.addClass("is-loading");
+        const spinner = loadBtn.createSpan({ cls: "augment-tm-spinner" });
+
         this.otherProjectsEnabled = true;
         this.otherProjectsExpanded = true;
         this.projectsState.lastLoadTime = 0;

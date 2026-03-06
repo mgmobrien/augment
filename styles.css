@@ -2212,6 +2212,45 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   transform: rotate(90deg);
 }
 
+/* ── Terminal Manager: "Load" button for other projects ────────────────── */
+.augment-tm-load-projects-btn {
+  margin-left: auto;
+  font-size: 0.7em;
+  padding: 1px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1.4;
+  transition: color 100ms ease, border-color 100ms ease;
+}
+.augment-tm-load-projects-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-faint);
+}
+.augment-tm-load-projects-btn.is-loading {
+  pointer-events: none;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Spinner for loading state */
+.augment-tm-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-faint);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: augment-tm-spin 600ms linear infinite;
+}
+@keyframes augment-tm-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Terminal Manager: archived session rows ────────────────────────────── */
 .augment-tm-row.is-archived .augment-ts-name,
 .augment-tm-row.is-archived .augment-tm-name,
