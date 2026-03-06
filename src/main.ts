@@ -961,13 +961,16 @@ export default class AugmentTerminalPlugin extends Plugin {
     // wrap Component.prototype.load before Obsidian loads subsequent plugins.
     const _profilerT0 = performance.now();
     const _profilerPlugins: { id: string; name: string; ms: number }[] = [];
-    const _ComponentProto = Object.getPrototypeOf(Plugin).prototype as any;
-    const _origLoad = _ComponentProto.load;
-    _ComponentProto.load = function(this: any, ...args: any[]) {
+    // Wrap Plugin.prototype.onload — this is what Obsidian calls for each plugin.
+    // Component.prototype.load calls this.onload() internally, so wrapping onload
+    // catches all plugins regardless of prototype chain shadowing.
+    const _PluginProto = Plugin.prototype as any;
+    const _origOnload = _PluginProto.onload;
+    _PluginProto.onload = function(this: any, ...args: any[]) {
       const pid = this.manifest?.id as string | undefined;
-      if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
+      if (!pid || pid === "augment-terminal") return _origOnload.apply(this, args);
       const t = performance.now();
-      const result = _origLoad.apply(this, args);
+      const result = _origOnload.apply(this, args);
       const finish = () => _profilerPlugins.push({ id: pid, name: this.manifest?.name ?? pid, ms: Math.round(performance.now() - t) });
       if (result && typeof (result as any).then === "function") {
         return (result as Promise<any>).then((v: any) => { finish(); return v; }, (e: any) => { finish(); return Promise.reject(e); });
@@ -1588,8 +1591,8 @@ export default class AugmentTerminalPlugin extends Plugin {
     );
 
     this.app.workspace.onLayoutReady(() => {
-      // Restore Component.prototype.load and store profiler results.
-      _ComponentProto.load = _origLoad;
+      // Restore Plugin.prototype.onload and store profiler results.
+      _PluginProto.onload = _origOnload;
       if (this.settings.enableProfiler) {
         this.startupTimings = {
           ownMs: Math.round(_augmentSyncEnd - _profilerT0),
