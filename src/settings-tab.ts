@@ -446,8 +446,10 @@ export class AugmentSettingTab extends PluginSettingTab {
       { id: "open-terminal-tab",             label: "Open terminal in new tab",            defaultKeys: [] },
       { id: "open-terminal-right",           label: "Open terminal to the right",          defaultKeys: [] },
       { id: "open-terminal-down",            label: "Open terminal below",                 defaultKeys: [] },
-      { id: "open-terminal-sidebar-right",   label: "Open terminal in right sidebar",      defaultKeys: [] },
-      { id: "open-terminal-sidebar-left",    label: "Open terminal in left sidebar",       defaultKeys: [] },
+      { id: "open-terminal-sidebar-right-top",    label: "Open terminal in right sidebar (top)",    defaultKeys: [] },
+      { id: "open-terminal-sidebar-right-bottom", label: "Open terminal in right sidebar (bottom)", defaultKeys: [] },
+      { id: "open-terminal-sidebar-left-top",     label: "Open terminal in left sidebar (top)",     defaultKeys: [] },
+      { id: "open-terminal-sidebar-left-bottom",  label: "Open terminal in left sidebar (bottom)",  defaultKeys: [] },
       { id: "open-terminal-manager",         label: "Show terminal manager",               defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
       { id: "switch-terminal",               label: "Switch terminal",                     defaultKeys: [] },
       { id: "rename-terminal",               label: "Rename terminal",                     defaultKeys: [] },
@@ -1050,8 +1052,10 @@ export class AugmentSettingTab extends PluginSettingTab {
           .addOption("tab", "New tab")
           .addOption("split-right", "Split right")
           .addOption("split-down", "Split below")
-          .addOption("sidebar-right", "Right sidebar")
-          .addOption("sidebar-left", "Left sidebar")
+          .addOption("sidebar-right-top", "Right sidebar (top)")
+          .addOption("sidebar-right-bottom", "Right sidebar (bottom)")
+          .addOption("sidebar-left-top", "Left sidebar (top)")
+          .addOption("sidebar-left-bottom", "Left sidebar (bottom)")
           .setValue(this.plugin.settings.defaultTerminalLocation ?? "tab")
           .onChange(async (value) => {
             this.plugin.settings.defaultTerminalLocation = value as TerminalOpenLocation;

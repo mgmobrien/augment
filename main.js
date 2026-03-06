@@ -18298,8 +18298,10 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       { id: "open-terminal-tab", label: "Open terminal in new tab", defaultKeys: [] },
       { id: "open-terminal-right", label: "Open terminal to the right", defaultKeys: [] },
       { id: "open-terminal-down", label: "Open terminal below", defaultKeys: [] },
-      { id: "open-terminal-sidebar-right", label: "Open terminal in right sidebar", defaultKeys: [] },
-      { id: "open-terminal-sidebar-left", label: "Open terminal in left sidebar", defaultKeys: [] },
+      { id: "open-terminal-sidebar-right-top", label: "Open terminal in right sidebar (top)", defaultKeys: [] },
+      { id: "open-terminal-sidebar-right-bottom", label: "Open terminal in right sidebar (bottom)", defaultKeys: [] },
+      { id: "open-terminal-sidebar-left-top", label: "Open terminal in left sidebar (top)", defaultKeys: [] },
+      { id: "open-terminal-sidebar-left-bottom", label: "Open terminal in left sidebar (bottom)", defaultKeys: [] },
       { id: "open-terminal-manager", label: "Show terminal manager", defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
       { id: "switch-terminal", label: "Switch terminal", defaultKeys: [] },
       { id: "rename-terminal", label: "Rename terminal", defaultKeys: [] },
@@ -18749,7 +18751,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
     void renderStatusCard();
     new import_obsidian4.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind hotkeys to specific positions.").addDropdown((drop) => {
       var _a3;
-      drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right", "Right sidebar").addOption("sidebar-left", "Left sidebar").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
+      drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
         this.plugin.settings.defaultTerminalLocation = value;
         await this.plugin.saveData(this.plugin.settings);
       });
@@ -22653,8 +22655,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T22:55:39.919Z";
-    this.gitSha = "a4d8f6b";
+    this.buildId = "2026-03-06T23:00:56.159Z";
+    this.gitSha = "fc4b2b9";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23364,17 +23366,45 @@ ${excerpt}`,
       }
     });
     this.addCommand({
-      id: "open-terminal-sidebar-right",
-      name: "Open terminal in right sidebar",
+      id: "open-terminal-sidebar-right-top",
+      name: "Open terminal in right sidebar (top)",
       callback: () => {
-        this.openTerminalAt("sidebar-right");
+        this.openTerminalAt("sidebar-right-top");
+      }
+    });
+    this.addCommand({
+      id: "open-terminal-sidebar-right-bottom",
+      name: "Open terminal in right sidebar (bottom)",
+      callback: () => {
+        this.openTerminalAt("sidebar-right-bottom");
+      }
+    });
+    this.addCommand({
+      id: "open-terminal-sidebar-left-top",
+      name: "Open terminal in left sidebar (top)",
+      callback: () => {
+        this.openTerminalAt("sidebar-left-top");
+      }
+    });
+    this.addCommand({
+      id: "open-terminal-sidebar-left-bottom",
+      name: "Open terminal in left sidebar (bottom)",
+      callback: () => {
+        this.openTerminalAt("sidebar-left-bottom");
+      }
+    });
+    this.addCommand({
+      id: "open-terminal-sidebar-right",
+      name: "Open terminal in right sidebar (bottom, legacy)",
+      callback: () => {
+        this.openTerminalAt("sidebar-right-bottom");
       }
     });
     this.addCommand({
       id: "open-terminal-sidebar-left",
-      name: "Open terminal in left sidebar",
+      name: "Open terminal in left sidebar (bottom, legacy)",
       callback: () => {
-        this.openTerminalAt("sidebar-left");
+        this.openTerminalAt("sidebar-left-bottom");
       }
     });
     this.addCommand({
@@ -23535,7 +23565,7 @@ ${excerpt}`,
   // for explicit-location commands). Sidebar locations fall back to a new tab if
   // the workspace API returns null for the sidebar leaf.
   async openTerminalAt(location = "tab", options) {
-    var _a2, _b, _c, _d, _e;
+    var _a2, _b, _c, _d, _e, _f, _g;
     const { workspace } = this.app;
     const desiredName = (_a2 = options == null ? void 0 : options.name) == null ? void 0 : _a2.trim();
     const active = (_b = options == null ? void 0 : options.active) != null ? _b : true;
@@ -23545,10 +23575,14 @@ ${excerpt}`,
       leaf = workspace.getLeaf("split", "vertical");
     } else if (location === "split-down") {
       leaf = workspace.getLeaf("split", "horizontal");
-    } else if (location === "sidebar-right") {
+    } else if (location === "sidebar-right" || location === "sidebar-right-bottom") {
       leaf = (_d = workspace.getRightLeaf(false)) != null ? _d : workspace.getLeaf("tab");
-    } else if (location === "sidebar-left") {
-      leaf = (_e = workspace.getLeftLeaf(false)) != null ? _e : workspace.getLeaf("tab");
+    } else if (location === "sidebar-right-top") {
+      leaf = (_e = workspace.getRightLeaf(true)) != null ? _e : workspace.getLeaf("tab");
+    } else if (location === "sidebar-left" || location === "sidebar-left-bottom") {
+      leaf = (_f = workspace.getLeftLeaf(false)) != null ? _f : workspace.getLeaf("tab");
+    } else if (location === "sidebar-left-top") {
+      leaf = (_g = workspace.getLeftLeaf(true)) != null ? _g : workspace.getLeaf("tab");
     } else {
       leaf = workspace.getLeaf("tab");
     }

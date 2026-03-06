@@ -1,4 +1,4 @@
-import { Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile, WorkspaceLeaf } from "obsidian";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
@@ -938,6 +938,13 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    // Register the System 3 pyramid icon: three dots (red top, blue bottom-left, green bottom-right).
+    addIcon("augment-pyramid", `
+      <circle cx="50" cy="18" r="16" fill="#ff3d00"/>
+      <circle cx="18" cy="72" r="16" fill="#1565c0"/>
+      <circle cx="82" cy="72" r="16" fill="#2e7d32"/>
+    `);
+
     console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData() as Record<string, unknown> | null;
     // Schema migration: strip keys removed in prior versions.
@@ -1423,15 +1430,40 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "open-terminal-sidebar-right-top",
+      name: "Open terminal in right sidebar (top)",
+      callback: () => { this.openTerminalAt("sidebar-right-top"); },
+    });
+
+    this.addCommand({
+      id: "open-terminal-sidebar-right-bottom",
+      name: "Open terminal in right sidebar (bottom)",
+      callback: () => { this.openTerminalAt("sidebar-right-bottom"); },
+    });
+
+    this.addCommand({
+      id: "open-terminal-sidebar-left-top",
+      name: "Open terminal in left sidebar (top)",
+      callback: () => { this.openTerminalAt("sidebar-left-top"); },
+    });
+
+    this.addCommand({
+      id: "open-terminal-sidebar-left-bottom",
+      name: "Open terminal in left sidebar (bottom)",
+      callback: () => { this.openTerminalAt("sidebar-left-bottom"); },
+    });
+
+    // Keep old sidebar command IDs for backwards compat with any saved hotkeys.
+    this.addCommand({
       id: "open-terminal-sidebar-right",
-      name: "Open terminal in right sidebar",
-      callback: () => { this.openTerminalAt("sidebar-right"); },
+      name: "Open terminal in right sidebar (bottom, legacy)",
+      callback: () => { this.openTerminalAt("sidebar-right-bottom"); },
     });
 
     this.addCommand({
       id: "open-terminal-sidebar-left",
-      name: "Open terminal in left sidebar",
-      callback: () => { this.openTerminalAt("sidebar-left"); },
+      name: "Open terminal in left sidebar (bottom, legacy)",
+      callback: () => { this.openTerminalAt("sidebar-left-bottom"); },
     });
 
     this.addCommand({
@@ -1635,10 +1667,14 @@ export default class AugmentTerminalPlugin extends Plugin {
       leaf = workspace.getLeaf("split", "vertical");
     } else if (location === "split-down") {
       leaf = workspace.getLeaf("split", "horizontal");
-    } else if (location === "sidebar-right") {
+    } else if (location === "sidebar-right" || location === "sidebar-right-bottom") {
       leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
-    } else if (location === "sidebar-left") {
+    } else if (location === "sidebar-right-top") {
+      leaf = workspace.getRightLeaf(true) ?? workspace.getLeaf("tab");
+    } else if (location === "sidebar-left" || location === "sidebar-left-bottom") {
       leaf = workspace.getLeftLeaf(false) ?? workspace.getLeaf("tab");
+    } else if (location === "sidebar-left-top") {
+      leaf = workspace.getLeftLeaf(true) ?? workspace.getLeaf("tab");
     } else {
       leaf = workspace.getLeaf("tab");
     }

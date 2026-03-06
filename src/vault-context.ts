@@ -1,6 +1,6 @@
 import { App, Editor, TFile } from "obsidian";
 
-export type TerminalOpenLocation = "tab" | "split-right" | "split-down" | "sidebar-right" | "sidebar-left";
+export type TerminalOpenLocation = "tab" | "split-right" | "split-down" | "sidebar-right" | "sidebar-left" | "sidebar-right-top" | "sidebar-right-bottom" | "sidebar-left-top" | "sidebar-left-bottom";
 
 export interface SessionRecord {
   id: string;
