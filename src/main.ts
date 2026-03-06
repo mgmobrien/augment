@@ -1360,25 +1360,25 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon — generate if configured, otherwise open settings
-    this.addRibbonIcon("radio-tower", "Augment: generate AI text in current note", () => {
-      if (!this.settings.apiKey) {
-        (this.app as any).setting.open();
-        (this.app as any).setting.openTabById("augment-terminal");
-        return;
-      }
+    // Ribbon: antenna → Augment settings
+    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+      (this.app as any).setting.open();
+      (this.app as any).setting.openTabById("augment-terminal");
+    });
+
+    // Ribbon: terminal → open terminal
+    this.addRibbonIcon("terminal", "Open terminal", () => {
+      this.openTerminal();
+    });
+
+    // Ribbon: ellipsis (three dots) → generate AI text
+    this.addRibbonIcon("ellipsis", "Augment: generate AI text in current note", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
-        console.log("[Augment] no active note for generate");
         new Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);
-    });
-
-    // Add ribbon icon
-    this.addRibbonIcon("terminal", "Open terminal", () => {
-      this.openTerminal();
     });
 
     // Add command

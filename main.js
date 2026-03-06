@@ -22423,8 +22423,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T19:02:09.015Z";
-    this.gitSha = "fb9e302";
+    this.buildId = "2026-03-06T19:03:33.856Z";
+    this.gitSha = "d227dc2";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23078,22 +23078,20 @@ ${excerpt}`,
         });
       })
     );
-    this.addRibbonIcon("radio-tower", "Augment: generate AI text in current note", () => {
-      if (!this.settings.apiKey) {
-        this.app.setting.open();
-        this.app.setting.openTabById("augment-terminal");
-        return;
-      }
+    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+      this.app.setting.open();
+      this.app.setting.openTabById("augment-terminal");
+    });
+    this.addRibbonIcon("terminal", "Open terminal", () => {
+      this.openTerminal();
+    });
+    this.addRibbonIcon("ellipsis", "Augment: generate AI text in current note", () => {
       const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
       if (!view) {
-        console.log("[Augment] no active note for generate");
         new import_obsidian8.Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);
-    });
-    this.addRibbonIcon("terminal", "Open terminal", () => {
-      this.openTerminal();
     });
     this.addCommand({
       id: "open-terminal",
