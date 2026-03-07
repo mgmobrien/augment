@@ -439,53 +439,6 @@ export class AugmentSettingTab extends PluginSettingTab {
         (this.app as any).setting.openTabById("hotkeys");
       });
 
-      // Ribbon icon picker (advanced)
-      const RIBBON_ICONS: Record<string, string> = {
-        "augment-pyramid": "Augment pyramid (default)",
-        "wand-2": "Wand",
-        "sparkles": "Sparkles",
-        "brain": "Brain",
-        "zap": "Zap",
-        "bot": "Bot",
-        "pencil": "Pencil",
-        "type": "Type",
-        "message-square": "Message square",
-        "cpu": "CPU",
-        "code-2": "Code",
-        "terminal": "Terminal",
-      };
-
-      const ribbonIconSetting = new Setting(overviewPane)
-        .setName("Generate ribbon icon")
-        .setDesc("Choose the icon shown on the Generate ribbon button. Obsidian's full Lucide icon set is available.")
-        .addDropdown((dd) => {
-          for (const [id, label] of Object.entries(RIBBON_ICONS)) {
-            dd.addOption(id, label);
-          }
-          dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
-          dd.onChange(async (val) => {
-            this.plugin.settings.ribbonIcon = val;
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.applyRibbonIcon();
-            if (previewEl) setIcon(previewEl, val);
-          });
-        });
-
-      const previewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
-      previewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-      setIcon(previewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
-
-      // Colored ribbon icon (advanced)
-      new Setting(overviewPane)
-        .setName("Colored Generate icon")
-        .setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.")
-        .addToggle((toggle) => {
-          toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
-            this.plugin.settings.coloredRibbonIcon = val;
-            await this.plugin.saveData(this.plugin.settings);
-            this.plugin.applyRibbonColoredClass();
-          });
-        });
     }
 
     // ── API usage (visible after first generation) ────────────
@@ -572,6 +525,55 @@ export class AugmentSettingTab extends PluginSettingTab {
       cls: "augment-context-intro",
       text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it — the AI sees your note title, frontmatter, surrounding context, and linked notes.",
     });
+
+    // ── Ribbon icon ──────────────────────────────────────────
+    continuationPane.createDiv({ cls: "augment-pane-section", text: "Ribbon icon" });
+
+    const RIBBON_ICONS: Record<string, string> = {
+      "augment-pyramid": "Augment pyramid (default)",
+      "wand-2": "Wand",
+      "sparkles": "Sparkles",
+      "brain": "Brain",
+      "zap": "Zap",
+      "bot": "Bot",
+      "pencil": "Pencil",
+      "type": "Type",
+      "message-square": "Message square",
+      "cpu": "CPU",
+      "code-2": "Code",
+      "terminal": "Terminal",
+    };
+
+    const ribbonIconSetting = new Setting(continuationPane)
+      .setName("Generate ribbon icon")
+      .setDesc("Icon shown on the Generate ribbon button.")
+      .addDropdown((dd) => {
+        for (const [id, label] of Object.entries(RIBBON_ICONS)) {
+          dd.addOption(id, label);
+        }
+        dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
+        dd.onChange(async (val) => {
+          this.plugin.settings.ribbonIcon = val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.applyRibbonIcon();
+          if (ribbonPreviewEl) setIcon(ribbonPreviewEl, val);
+        });
+      });
+
+    const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
+    ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
+    setIcon(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+
+    new Setting(continuationPane)
+      .setName("Colored Generate icon")
+      .setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.")
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
+          this.plugin.settings.coloredRibbonIcon = val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.applyRibbonColoredClass();
+        });
+      });
 
     const calloutTypes = detectCalloutTypes();
 
