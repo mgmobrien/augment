@@ -4,7 +4,7 @@ import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
-import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, SessionRecord, SpendData, TerminalOpenLocation } from "./vault-context";
+import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, populateLinkedNoteContent, SessionRecord, SpendData, TerminalOpenLocation } from "./vault-context";
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
@@ -755,6 +755,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     void (async () => {
       try {
+        await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
         const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || undefined), promptText, this.settings, resolvedModel, abortController.signal);

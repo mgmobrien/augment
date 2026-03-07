@@ -16918,7 +16918,7 @@ function buildUserMessage(ctx, instruction) {
   if (ctx.frontmatter) {
     parts.push("", "Frontmatter:", formatFrontmatter(ctx.frontmatter));
   }
-  const linkedBlock = formatLinkedNotes(ctx.linkedNotes);
+  const linkedBlock = formatLinkedNotesFull(ctx.linkedNotes);
   if (linkedBlock) {
     parts.push("", linkedBlock);
   }
@@ -17299,6 +17299,17 @@ function assembleVaultContext(app, editor, settings) {
     }
   }
   return { title, frontmatter, selection, surroundingContext, linkedNotes };
+}
+async function populateLinkedNoteContent(app, ctx, maxCharsPerNote = 3e3) {
+  for (const note of ctx.linkedNotes) {
+    const file = app.vault.getFiles().find((f) => f.basename === note.title);
+    if (!file) continue;
+    try {
+      const raw = await app.vault.cachedRead(file);
+      note.content = raw.length > maxCharsPerNote ? raw.slice(0, maxCharsPerNote) + "\u2026" : raw;
+    } catch (e) {
+    }
+  }
 }
 
 // src/context-inspector-view.ts
@@ -22955,8 +22966,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:16:40.828Z";
-    this.gitSha = "5f79d74";
+    this.buildId = "2026-03-07T01:17:55.493Z";
+    this.gitSha = "d612ee4";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23065,6 +23076,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     void (async () => {
       var _a2, _b;
       try {
+        await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
         const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0), promptText, this.settings, resolvedModel, abortController.signal);

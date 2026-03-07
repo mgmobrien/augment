@@ -156,6 +156,26 @@ export function assembleVaultContext(
   return { title, frontmatter, selection, surroundingContext, linkedNotes };
 }
 
+// Populate LinkedNoteSummary.content for each linked note via vault read.
+// Call inside an async context after assembleVaultContext(); caps per-note content to avoid
+// blowing the context budget (default 3 000 chars ≈ ~750 tokens per note).
+export async function populateLinkedNoteContent(
+  app: App,
+  ctx: VaultContext,
+  maxCharsPerNote = 3_000
+): Promise<void> {
+  for (const note of ctx.linkedNotes) {
+    const file = app.vault.getFiles().find((f) => f.basename === note.title);
+    if (!file) continue;
+    try {
+      const raw = await app.vault.cachedRead(file);
+      note.content = raw.length > maxCharsPerNote ? raw.slice(0, maxCharsPerNote) + "\u2026" : raw;
+    } catch {
+      // skip unreadable files
+    }
+  }
+}
+
 // Editor-free context assembly for skill invocation — reads file content from vault cache.
 export async function assembleNoteContext(
   app: App,

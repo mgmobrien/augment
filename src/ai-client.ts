@@ -43,7 +43,7 @@ export function buildUserMessage(ctx: VaultContext, instruction: string): string
     parts.push("", "Frontmatter:", formatFrontmatter(ctx.frontmatter));
   }
 
-  const linkedBlock = formatLinkedNotes(ctx.linkedNotes);
+  const linkedBlock = formatLinkedNotesFull(ctx.linkedNotes);
   if (linkedBlock) {
     parts.push("", linkedBlock);
   }
