@@ -223,7 +223,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // Continuation + Templates tabs appear after first generation (tier 1).
     const continuationTab = this.plugin.settings.hasGenerated
-      ? tabNav.createEl("button", { cls: "augment-tab", text: "Continuation" })
+      ? tabNav.createEl("button", { cls: "augment-tab", text: "Generate" })
       : null;
     const templatesTab = this.plugin.settings.hasGenerated
       ? tabNav.createEl("button", { cls: "augment-tab", text: "Templates" })
