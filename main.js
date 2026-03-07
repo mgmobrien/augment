@@ -16292,8 +16292,7 @@ var DEFAULT_SETTINGS = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "augment-pyramid",
-  showAdvancedSettings: false
+  ribbonIcon: "augment-pyramid"
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -17410,7 +17409,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
     wordmark.createEl("div", {
       cls: "augment-settings-tagline",
-      text: "In-editor continuation and a terminal system for Claude Code."
+      text: "In-editor AI generation and a terminal system for Claude Code."
     });
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
     const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
@@ -17522,7 +17521,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: h.shortcut });
       }
     }
-    if (this.plugin.settings.showAdvancedSettings) {
+    {
       const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
       howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
       const howSteps = [
@@ -17636,13 +17635,6 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
       infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
     }
-    new import_obsidian7.Setting(overviewPane).setName("Show advanced settings").setDesc("Reveal additional settings across all tabs.").addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.showAdvancedSettings).onChange(async (val) => {
-        this.plugin.settings.showAdvancedSettings = val;
-        await this.plugin.saveData(this.plugin.settings);
-        this.display();
-      });
-    });
     this.renderHotkeyBox(continuationPane, [
       { label: "Generate", commandId: "augment-terminal:augment-generate" },
       { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
@@ -17775,7 +17767,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         await this.plugin.saveData(this.plugin.settings);
       });
     });
-    if (this.plugin.settings.showAdvancedSettings) {
+    {
       const contextLimitSetting = new import_obsidian7.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
         text.inputEl.type = "number";
         text.inputEl.min = "1";
@@ -18036,7 +18028,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       const fmRows = [
         { key: "name", desc: "Required. Shown in the template picker." },
         { key: "description", desc: "Optional. Shown below the name in the picker." },
-        { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Overview tab \u2192 Advanced settings)." }
+        { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Generate tab \u2192 System prompt)." }
       ];
       for (const r of fmRows) {
         const tr = fmTbody.createEl("tr");
@@ -22337,7 +22329,7 @@ var InitTeamModal = class extends import_obsidian11.Modal {
 function buildWelcomeNoteContent(mod) {
   return `# Get started with Augment
 
-Augment adds AI-powered writing continuation and Claude Code terminal sessions to Obsidian. This note walks you through everything.
+Augment adds AI-powered text generation and Claude Code terminal sessions to Obsidian. This note walks you through everything.
 
 ---
 
@@ -22352,7 +22344,7 @@ Open settings: **${mod}+,** \u2192 Augment in the left sidebar \u2192 Overview t
 
 ---
 
-## 2. Continuation (${mod}+Enter)
+## 2. Generate (${mod}+Enter)
 
 Augment reads your note title, frontmatter, the text above your cursor, and any linked notes \u2014 then continues from where your cursor is. Output goes directly below your cursor.
 
@@ -22364,7 +22356,7 @@ The most interesting thing about writing in plain text is
 
 ## 3. Template picker (${mod}+Shift+Enter)
 
-Instead of free continuation, templates run a specific prompt on your current note \u2014 useful for recurring tasks: summarise, extract action items, rewrite in a different register.
+Instead of free-form generation, templates run a specific prompt on your current note \u2014 useful for recurring tasks: summarise, extract action items, rewrite in a different register.
 
 **Try it:** Press **${mod}+Shift+Enter** to open the template picker.
 
@@ -22407,8 +22399,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:24:10.035Z";
-    this.gitSha = "7315f8b";
+    this.buildId = "2026-03-07T02:25:52.889Z";
+    this.gitSha = "83128dc";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

@@ -24,7 +24,7 @@ declare const __AUGMENT_GIT_SHA__: string;
 function buildWelcomeNoteContent(mod: string): string {
   return `# Get started with Augment
 
-Augment adds AI-powered writing continuation and Claude Code terminal sessions to Obsidian. This note walks you through everything.
+Augment adds AI-powered text generation and Claude Code terminal sessions to Obsidian. This note walks you through everything.
 
 ---
 
@@ -39,7 +39,7 @@ Open settings: **${mod}+,** → Augment in the left sidebar → Overview tab. Ad
 
 ---
 
-## 2. Continuation (${mod}+Enter)
+## 2. Generate (${mod}+Enter)
 
 Augment reads your note title, frontmatter, the text above your cursor, and any linked notes — then continues from where your cursor is. Output goes directly below your cursor.
 
@@ -51,7 +51,7 @@ The most interesting thing about writing in plain text is
 
 ## 3. Template picker (${mod}+Shift+Enter)
 
-Instead of free continuation, templates run a specific prompt on your current note — useful for recurring tasks: summarise, extract action items, rewrite in a different register.
+Instead of free-form generation, templates run a specific prompt on your current note — useful for recurring tasks: summarise, extract action items, rewrite in a different register.
 
 **Try it:** Press **${mod}+Shift+Enter** to open the template picker.
 
