@@ -20421,6 +20421,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
       if (hasOtherProjects) {
         this.renderOtherProjectsSection(otherGroups, otherContainer);
+      } else if (this.projectsState.inFlight) {
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading\u2026" });
       } else {
         otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
       }
@@ -22215,8 +22217,8 @@ var AugmentTerminalPlugin = class extends import_obsidian9.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:53:02.582Z";
-    this.gitSha = "ea685b5";
+    this.buildId = "2026-03-07T01:54:38.739Z";
+    this.gitSha = "388acb1";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22313,10 +22315,7 @@ var AugmentTerminalPlugin = class extends import_obsidian9.Plugin {
     const ctx = assembleVaultContext(this.app, editor, this.settings);
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      const genNotice = new import_obsidian9.Notice("", 3e3);
-      const iconEl = genNotice.noticeEl.createEl("span", { cls: "augment-notice-pyramid" });
-      (0, import_obsidian9.setIcon)(iconEl, "augment-pyramid");
-      genNotice.noticeEl.createEl("span", { text: "\xA0Generating\u2026" });
+      const genNotice = new import_obsidian9.Notice("Generating\u2026", 3e3);
     }
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;

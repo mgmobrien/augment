@@ -30,13 +30,11 @@ echo "Running rename-sync smoke check..."
 
 # Create plugin dir
 mkdir -p "$VAULT_PLUGIN_DIR"
-mkdir -p "$VAULT_PLUGIN_DIR/scripts"
 
 # Copy files
 cp "$PLUGIN_DIR/main.js" "$VAULT_PLUGIN_DIR/"
 cp "$PLUGIN_DIR/manifest.json" "$VAULT_PLUGIN_DIR/"
 cp "$PLUGIN_DIR/styles.css" "$VAULT_PLUGIN_DIR/"
-cp "$PLUGIN_DIR/scripts/terminal_pty.py" "$VAULT_PLUGIN_DIR/scripts/"
 
 echo "Deployed to $VAULT_PLUGIN_DIR"
 echo "Reload Obsidian or the plugin to pick up changes."
