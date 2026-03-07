@@ -17405,8 +17405,8 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     });
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
     const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
-    const continuationTab = tabNav.createEl("button", { cls: "augment-tab", text: "Continuation" });
-    const templatesTab = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
+    const continuationTab = this.plugin.settings.hasGenerated ? tabNav.createEl("button", { cls: "augment-tab", text: "Continuation" }) : null;
+    const templatesTab = this.plugin.settings.hasGenerated ? tabNav.createEl("button", { cls: "augment-tab", text: "Templates" }) : null;
     const terminalTab = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
     const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
     const continuationPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
@@ -17417,8 +17417,8 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     terminalPane.style.display = "none";
     const tabs = [
       { btn: overviewTab, pane: overviewPane },
-      { btn: continuationTab, pane: continuationPane },
-      { btn: templatesTab, pane: templatesPane },
+      ...continuationTab ? [{ btn: continuationTab, pane: continuationPane }] : [],
+      ...templatesTab ? [{ btn: templatesTab, pane: templatesPane }] : [],
       { btn: terminalTab, pane: terminalPane }
     ];
     tabs.forEach(({ btn, pane }) => {
@@ -20731,51 +20731,56 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     });
   }
   showActivityTooltip(evt, view) {
-    var _a2, _b, _c, _d;
+    var _a2, _b, _c;
     const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
     const status = typeof view.getStatus === "function" ? view.getStatus() : null;
     const lastMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
-    let label = "";
-    let detail = "";
-    if ((activity == null ? void 0 : activity.state) === "thinking") {
-      label = "Thinking";
-    } else if ((activity == null ? void 0 : activity.state) === "bash") {
-      label = "Running Bash";
-      detail = (_a2 = activity.detail) != null ? _a2 : "";
-    } else if ((activity == null ? void 0 : activity.state) === "read") {
-      label = "Reading file";
-      detail = (_b = activity.detail) != null ? _b : "";
-    } else if ((activity == null ? void 0 : activity.state) === "write") {
-      label = "Writing file";
-      detail = (_c = activity.detail) != null ? _c : "";
-    } else if ((activity == null ? void 0 : activity.state) === "mcp") {
-      label = "Using tool";
-      detail = (_d = activity.detail) != null ? _d : "";
+    const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
+    if (activity == null ? void 0 : activity.detail) {
+      const stateLabel = {
+        bash: "Running Bash",
+        read: "Reading file",
+        write: "Writing file",
+        mcp: "Using tool"
+      };
+      const label = (_c = stateLabel[(_a2 = activity.state) != null ? _a2 : ""]) != null ? _c : (_b = activity.state) != null ? _b : "Active";
+      this.hideActivityTooltip();
+      const tip2 = document.body.createDiv({ cls: "augment-tm-activity-tip" });
+      this.tooltipEl = tip2;
+      tip2.createDiv({ cls: "augment-tm-activity-tip-label", text: label });
+      tip2.createDiv({ cls: "augment-tm-activity-tip-detail", text: activity.detail });
+      if (summary) tip2.createDiv({ cls: "augment-tm-activity-tip-detail", text: summary });
+      this.positionTooltip(tip2, evt);
+      return;
+    }
+    if ((activity == null ? void 0 : activity.state) === "thinking") return;
+    const timeStr = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    let stateLine = "";
+    if (status === "idle" || status === "shell") {
+      if (lastMs > 0) {
+        stateLine = "Idle \xB7 " + timeStr(lastMs);
+      } else {
+        return;
+      }
     } else if ((activity == null ? void 0 : activity.state) === "waiting" || status === "waiting") {
-      label = "Waiting for input";
-    } else if (status === "idle" || status === "shell") {
-      label = "Idle";
-      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+      stateLine = "Waiting for input";
     } else if (status === "exited") {
-      label = "Exited";
-      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+      stateLine = "Exited" + (lastMs > 0 ? " \xB7 " + timeStr(lastMs) : "");
     } else if (status === "crashed") {
-      label = "Crashed";
+      stateLine = "Crashed" + (lastMs > 0 ? " \xB7 " + timeStr(lastMs) : "");
     } else {
       return;
     }
     this.hideActivityTooltip();
     const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
     this.tooltipEl = tip;
-    const labelEl = tip.createDiv({ cls: "augment-tm-activity-tip-label", text: label });
-    if (detail) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: detail });
-    const reposition = () => {
-      const x = evt.clientX + 12;
-      const y = evt.clientY + 14;
-      tip.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
-      tip.style.top = `${y}px`;
-    };
-    reposition();
+    tip.createDiv({ cls: "augment-tm-activity-tip-label", text: stateLine });
+    if (summary) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: summary });
+    this.positionTooltip(tip, evt);
+  }
+  positionTooltip(tip, evt) {
+    tip.style.left = `${Math.min(evt.clientX + 12, window.innerWidth - 440)}px`;
+    tip.style.top = `${evt.clientY + 14}px`;
   }
   hideActivityTooltip() {
     if (this.tooltipEl) {
@@ -20870,22 +20875,6 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       });
     }
   }
-  showSessionTooltip(evt, session) {
-    const excerpt = session.titleFull || session.title;
-    if (!excerpt) return;
-    this.hideActivityTooltip();
-    const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
-    this.tooltipEl = tip;
-    tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: excerpt });
-    const meta = [];
-    if (session.msgCount > 0) meta.push(`${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`);
-    meta.push(this.relativeTime(session.mtimeMs));
-    tip.createDiv({ cls: "augment-tm-activity-tip-label", text: meta.join(" \xB7 ") });
-    const x = evt.clientX + 12;
-    const y = evt.clientY + 14;
-    tip.style.left = `${Math.min(x, window.innerWidth - 340)}px`;
-    tip.style.top = `${y}px`;
-  }
   renderHistoryRow(session, container) {
     const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
     const line = row.createDiv({ cls: "augment-tm-line" });
@@ -20899,8 +20888,6 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     if (session.titleFull && session.titleFull !== session.title) {
       row.createDiv({ cls: "augment-tm-subtext", text: session.titleFull });
     }
-    row.addEventListener("mouseenter", (evt) => this.showSessionTooltip(evt, session));
-    row.addEventListener("mouseleave", () => this.hideActivityTooltip());
     row.addEventListener("click", async () => {
       const plugin = this.getPlugin();
       if (!plugin) return;
@@ -22349,8 +22336,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:58:56.984Z";
-    this.gitSha = "64f2c18";
+    this.buildId = "2026-03-07T02:00:45.015Z";
+    this.gitSha = "68a1798";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22477,7 +22464,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
         const insertPosLine = editor.offsetToPos(insertPos);
         if (isBlock) {
-          const withTrail = formatted + "\n";
+          const withTrail = formatted + "\n\n";
           editor.replaceRange(withTrail, insertPosLine);
           const lines = withTrail.split("\n");
           editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
@@ -22918,7 +22905,7 @@ ${excerpt}`,
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
                 const insertPosLine = editor.offsetToPos(insertPos);
                 if (isBlock) {
-                  const withTrail = formatted + "\n";
+                  const withTrail = formatted + "\n\n";
                   editor.replaceRange(withTrail, insertPosLine);
                   const lines = withTrail.split("\n");
                   editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });

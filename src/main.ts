@@ -230,7 +230,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
         const insertPosLine = editor.offsetToPos(insertPos);
         if (isBlock) {
-          const withTrail = formatted + "\n";
+          const withTrail = formatted + "\n\n";
           editor.replaceRange(withTrail, insertPosLine);
           const lines = withTrail.split("\n");
           editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
@@ -711,7 +711,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
                 const insertPosLine = editor.offsetToPos(insertPos);
                 if (isBlock) {
-                  const withTrail = formatted + "\n";
+                  const withTrail = formatted + "\n\n";
                   editor.replaceRange(withTrail, insertPosLine);
                   const lines = withTrail.split("\n");
                   editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
