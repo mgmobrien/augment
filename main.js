@@ -16661,7 +16661,8 @@ async function checkBool(cmd, env) {
   } catch (e) {
     if (process.platform === "win32") {
       try {
-        await execAsync(`wsl ${cmd}`, env);
+        const wslCmd = cmd.startsWith("where ") ? "which " + cmd.slice(6) : cmd;
+        await execAsync(`wsl ${wslCmd}`, env);
         return true;
       } catch (e2) {
       }
@@ -18297,8 +18298,13 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
           });
         });
       } else {
-        const shellName = process.platform === "darwin" ? "zsh" : "bash";
-        new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc(`Using system default (${shellName}). Change your login shell to use a different one.`).setDisabled(true);
+        const defaultShell = process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
+        new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Custom shell path. Leave blank to use the system default.").addText((text) => {
+          text.setPlaceholder(defaultShell).setValue(this.plugin.settings.shellPath).onChange(async (value) => {
+            this.plugin.settings.shellPath = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+        });
       }
       new import_obsidian7.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
         text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
@@ -22447,8 +22453,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T16:34:03.390Z";
-    this.gitSha = "662a568";
+    this.buildId = "2026-03-07T16:56:43.372Z";
+    this.gitSha = "d8ec8f8";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
