@@ -1370,6 +1370,13 @@
   font-style: italic;
 }
 
+/* ── Generating toast pyramid icon ── */
+.augment-notice-pyramid .svg-icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+}
+
 /* ── Post-generation notice action ── */
 .augment-notice-sep {
   opacity: 0.45;
