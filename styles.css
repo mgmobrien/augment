@@ -304,7 +304,8 @@
 .augment-tm-item.status-idle,
 .augment-tm-item.status-shell   { border-left-color: var(--text-faint); }
 .augment-tm-item.status-crashed { border-left-color: var(--color-red); }
-.augment-tm-item.status-exited  { border-left-color: var(--background-modifier-border); }
+.augment-tm-item.status-exited   { border-left-color: var(--background-modifier-border); }
+.augment-tm-item.status-running  { border-left-color: var(--color-green); }
 
 /* Dual-name subtext line. */
 .augment-tm-subtext {

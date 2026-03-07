@@ -11,4 +11,33 @@ export async function setupVaultForClaude(app: App, templateFolder: string): Pro
   if (!app.vault.getAbstractFileByPath(skillsPath)) {
     await app.vault.createFolder(skillsPath);
   }
+
+  // Seed an example template that demonstrates linked_notes_array and Liquid loops.
+  if (!app.vault.getAbstractFileByPath(templateFolder)) {
+    try { await app.vault.createFolder(templateFolder); } catch { /* already exists */ }
+  }
+  const exampleTemplatePath = `${templateFolder}/Linked notes summary.md`;
+  if (!app.vault.getAbstractFileByPath(exampleTemplatePath)) {
+    const exampleContent = [
+      "---",
+      "name: Linked notes summary",
+      "description: Summarize this note and its linked notes as structured bullet points",
+      "---",
+      'Summarize "{{ title }}" and its linked notes as structured bullet points.',
+      "",
+      "Note content:",
+      "{{ note_content | truncate: 2000 }}",
+      "",
+      "{% if linked_notes_array.size > 0 %}",
+      "Linked notes ({{ linked_notes_array | map: \"title\" | join: \", \" }}):",
+      "{% for note in linked_notes_array %}",
+      "### {{ note.title }}",
+      "{{ note.content | truncate: 500 }}",
+      "{% endfor %}",
+      "{% endif %}",
+      "",
+      "Provide a concise summary with the main themes and key points across all notes.",
+    ].join("\n");
+    await app.vault.create(exampleTemplatePath, exampleContent);
+  }
 }

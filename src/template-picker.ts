@@ -480,6 +480,7 @@ export class TemplateAssistantModal extends Modal {
     this.templateEditorEl = previewSection.createEl("textarea", { cls: "augment-tpl-editor" });
     this.templateEditorEl.rows = 6;
     this.templateEditorEl.placeholder = "Generated template will appear here\u2026";
+    this.templateEditorEl.addEventListener("input", () => void this.renderPreview());
 
     previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Rendered output (against active note)" });
     this.previewEl = previewSection.createDiv({ cls: "augment-tpl-rendered-preview" });
