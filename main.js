@@ -18271,15 +18271,6 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
           await this.plugin.saveData(this.plugin.settings);
         });
       });
-      new import_obsidian7.Setting(advancedDetails).setName("Project scan paths").setDesc("Folders to scan for git repos in the workspace switcher. One path per line. Supports ~ for home directory (e.g. ~/Development).").addTextArea((text) => {
-        var _a3;
-        text.setPlaceholder("~/Development").setValue(((_a3 = this.plugin.settings.projectRoots) != null ? _a3 : []).join("\n")).onChange(async (value) => {
-          this.plugin.settings.projectRoots = value.split("\n").map((l) => l.trim()).filter(Boolean);
-          await this.plugin.saveData(this.plugin.settings);
-        });
-        text.inputEl.rows = 4;
-        text.inputEl.style.width = "100%";
-      });
     }
     terminalPane.createEl("p", {
       cls: "augment-terminal-notice",
@@ -22421,8 +22412,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T03:15:24.137Z";
-    this.gitSha = "912e2c2";
+    this.buildId = "2026-03-07T03:17:27.855Z";
+    this.gitSha = "4305421";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

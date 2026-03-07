@@ -1342,24 +1342,6 @@ export class AugmentSettingTab extends PluginSettingTab {
               await this.plugin.saveData(this.plugin.settings);
             });
         });
-
-      new Setting(advancedDetails)
-        .setName("Project scan paths")
-        .setDesc("Folders to scan for git repos in the workspace switcher. One path per line. Supports ~ for home directory (e.g. ~/Development).")
-        .addTextArea((text) => {
-          text
-            .setPlaceholder("~/Development")
-            .setValue((this.plugin.settings.projectRoots ?? []).join("\n"))
-            .onChange(async (value) => {
-              this.plugin.settings.projectRoots = value
-                .split("\n")
-                .map((l) => l.trim())
-                .filter(Boolean);
-              await this.plugin.saveData(this.plugin.settings);
-            });
-          text.inputEl.rows = 4;
-          text.inputEl.style.width = "100%";
-        });
     }
 
     // Filesystem rename notice
