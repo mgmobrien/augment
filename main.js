@@ -21409,20 +21409,20 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       line.createDiv({ cls: "augment-tm-spacer" });
       const metaEl = line.createSpan({ cls: "augment-tm-project-meta" });
       metaEl.textContent = `${group.totalOnDisk} \xB7 ${this.relativeTime(group.lastActivityMs)}`;
+      const sessionsEl = container.createDiv({ cls: "augment-tm-project-sessions" });
+      if (!isExpanded) sessionsEl.style.display = "none";
+      this.renderHistorySections(group.sessions, sessionsEl);
       projectRow.addEventListener("click", () => {
-        if (isExpanded) {
+        if (this.expandedProjects.has(group.encodedName)) {
           this.expandedProjects.delete(group.encodedName);
+          projectRow.removeClass("is-expanded");
+          sessionsEl.style.display = "none";
         } else {
           this.expandedProjects.add(group.encodedName);
+          projectRow.addClass("is-expanded");
+          sessionsEl.style.display = "";
         }
-        this.requestRefresh();
       });
-      if (isExpanded) {
-        const sessionsEl = container.createDiv({
-          cls: "augment-tm-project-sessions"
-        });
-        this.renderHistorySections(group.sessions, sessionsEl);
-      }
     }
   }
   renderHistorySections(sessions, container) {
@@ -22927,8 +22927,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:33:16.740Z";
-    this.gitSha = "8bbff30";
+    this.buildId = "2026-03-07T00:42:16.267Z";
+    this.gitSha = "35e7edc";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

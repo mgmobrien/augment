@@ -711,21 +711,26 @@ export class TerminalManagerView extends ItemView {
       const metaEl = line.createSpan({ cls: "augment-tm-project-meta" });
       metaEl.textContent = `${group.totalOnDisk} · ${this.relativeTime(group.lastActivityMs)}`;
 
+      // Pre-render sessions so the toggle can be handled via direct DOM
+      // manipulation. Using requestRefresh() here causes a full DOM rebuild
+      // before the click event fires (triggered by active-leaf-change when the
+      // TM sidebar gains focus on first interaction), which detaches the row
+      // element and swallows the click.
+      const sessionsEl = container.createDiv({ cls: "augment-tm-project-sessions" });
+      if (!isExpanded) sessionsEl.style.display = "none";
+      this.renderHistorySections(group.sessions, sessionsEl);
+
       projectRow.addEventListener("click", () => {
-        if (isExpanded) {
+        if (this.expandedProjects.has(group.encodedName)) {
           this.expandedProjects.delete(group.encodedName);
+          projectRow.removeClass("is-expanded");
+          sessionsEl.style.display = "none";
         } else {
           this.expandedProjects.add(group.encodedName);
+          projectRow.addClass("is-expanded");
+          sessionsEl.style.display = "";
         }
-        this.requestRefresh();
       });
-
-      if (isExpanded) {
-        const sessionsEl = container.createDiv({
-          cls: "augment-tm-project-sessions",
-        });
-        this.renderHistorySections(group.sessions, sessionsEl);
-      }
     }
   }
 
