@@ -701,10 +701,10 @@ export class AugmentSettingTab extends PluginSettingTab {
 
       const systemPromptSetting = new Setting(continuationPane)
         .setName("System prompt")
-        .setDesc("Override the default system prompt. Leave blank to use Augment's default.")
+        .setDesc("Sent to Claude before every generation. Supports LiquidJS variables — {{ now }} inserts the current date and time.")
         .addTextArea((text) => {
           text
-            .setPlaceholder("You are assisting with writing in an Obsidian vault.")
+            .setPlaceholder("The current date and time is {{ now }}.")
             .setValue(this.plugin.settings.systemPrompt)
             .onChange(async (value) => {
               this.plugin.settings.systemPrompt = value;
@@ -714,7 +714,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           text.inputEl.style.width = "100%";
           text.inputEl.style.fontFamily = "var(--font-monospace)";
         });
-      addInfoTooltip(systemPromptSetting.descEl, "Augment's default prompt tells Claude your note title, frontmatter, and writing context. Override here to change how Claude approaches generation across this entire vault — useful for setting a persona, language, or domain focus.");
+      addInfoTooltip(systemPromptSetting.descEl, "Sent to Claude before every generation. Supports LiquidJS: {{ now }} → current date and time. Use to set a persona, language, or domain focus for the entire vault. Individual templates can override this via system_prompt: in their frontmatter.");
 
       const inspectorBtn = continuationPane.createEl("button", {
         cls: "augment-ctx-preview-btn",

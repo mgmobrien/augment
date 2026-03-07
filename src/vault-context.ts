@@ -61,7 +61,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   hasGenerated: false,
   hasUsedTemplate: false,
   hasSeenWelcome: false,
-  systemPrompt: "",
+  systemPrompt: "The current date and time is {{ now }}.",
   showGenerationToast: true,
   clearedLinkHotkey: false,
   clearedHotkeyOriginals: {},
@@ -71,7 +71,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "radio-tower",
+  ribbonIcon: "augment-pyramid",
   projectRoots: [],
   workspaceScope: "open",
 };

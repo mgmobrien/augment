@@ -32,14 +32,21 @@ function formatLinkedNotesFull(notes: LinkedNoteSummary[]): string {
     .join("\n\n");
 }
 
-export function buildSystemPrompt(
+export async function buildSystemPrompt(
   _ctx: VaultContext,
   systemPromptOverride?: string,
   workspaceScope?: "open" | "focused" | "restricted",
   workspacePath?: string
-): string {
+): Promise<string> {
   const parts: string[] = [];
-  if (systemPromptOverride?.trim()) parts.push(systemPromptOverride.trim());
+  if (systemPromptOverride?.trim()) {
+    const now = new Date().toLocaleString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+    const rendered = await liquidEngine.parseAndRender(systemPromptOverride.trim(), { now });
+    parts.push(rendered);
+  }
   if (workspacePath && workspaceScope === "focused") {
     parts.push(`Focus on files within ${workspacePath}. Treat other workspaces as out of scope unless the task requires it.`);
   } else if (workspacePath && workspaceScope === "restricted") {
