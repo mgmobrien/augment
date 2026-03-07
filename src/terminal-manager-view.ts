@@ -410,7 +410,7 @@ export class TerminalManagerView extends ItemView {
       infoIcon.addEventListener("mouseenter", () => {
         tip = document.createElement("div");
         tip.className = "augment-api-key-tip";
-        tip.textContent = "Shows Claude Code sessions from other directories on this machine. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.";
+        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
         document.body.appendChild(tip);
         const rect = infoIcon.getBoundingClientRect();
         tip.style.top = `${rect.bottom + 6}px`;

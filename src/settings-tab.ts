@@ -1262,7 +1262,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     new Setting(terminalPane)
       .setName("Show other projects")
-      .setDesc("Display Claude Code sessions from other directories on this machine in the Terminal Manager. Reads ~/.claude/projects/ — only Claude Code data, nothing else.")
+      .setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in — this reads that index. Your filesystem is not scanned directly.")
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.showOtherProjects)
