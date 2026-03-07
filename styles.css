@@ -2160,7 +2160,7 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 .augment-tm-activity-tip {
   position: fixed;
   z-index: 9999;
-  max-width: 280px;
+  max-width: 420px;
   padding: 8px 10px;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);

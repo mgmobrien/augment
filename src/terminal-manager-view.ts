@@ -651,52 +651,58 @@ export class TerminalManagerView extends ItemView {
     const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
     const status = typeof view.getStatus === "function" ? view.getStatus() : null;
     const lastMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
+    const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
 
-    let label = "";
-    let detail = "";
+    // Priority 1: activity.detail exists → state label + full untruncated path.
+    if (activity?.detail) {
+      const stateLabel: Record<string, string> = {
+        bash: "Running Bash", read: "Reading file", write: "Writing file", mcp: "Using tool",
+      };
+      const label = stateLabel[activity.state ?? ""] ?? (activity.state ?? "Active");
+      this.hideActivityTooltip();
+      const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
+      this.tooltipEl = tip;
+      tip.createDiv({ cls: "augment-tm-activity-tip-label", text: label });
+      tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: activity.detail });
+      if (summary) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: summary });
+      this.positionTooltip(tip, evt);
+      return;
+    }
 
-    if (activity?.state === "thinking") {
-      label = "Thinking";
-    } else if (activity?.state === "bash") {
-      label = "Running Bash";
-      detail = activity.detail ?? "";
-    } else if (activity?.state === "read") {
-      label = "Reading file";
-      detail = activity.detail ?? "";
-    } else if (activity?.state === "write") {
-      label = "Writing file";
-      detail = activity.detail ?? "";
-    } else if (activity?.state === "mcp") {
-      label = "Using tool";
-      detail = activity.detail ?? "";
+    // Priority 2: Thinking with no detail → show nothing.
+    if (activity?.state === "thinking") return;
+
+    const timeStr = (ms: number) =>
+      new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+    let stateLine = "";
+    if (status === "idle" || status === "shell") {
+      if (lastMs > 0) {
+        stateLine = "Idle · " + timeStr(lastMs);
+      } else {
+        return;
+      }
     } else if (activity?.state === "waiting" || status === "waiting") {
-      label = "Waiting for input";
-    } else if (status === "idle" || status === "shell") {
-      label = "Idle";
-      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+      stateLine = "Waiting for input";
     } else if (status === "exited") {
-      label = "Exited";
-      if (lastMs > 0) detail = `Last active ${this.relativeTime(lastMs)}`;
+      stateLine = "Exited" + (lastMs > 0 ? " · " + timeStr(lastMs) : "");
     } else if (status === "crashed") {
-      label = "Crashed";
+      stateLine = "Crashed" + (lastMs > 0 ? " · " + timeStr(lastMs) : "");
     } else {
-      return; // nothing useful to show
+      return;
     }
 
     this.hideActivityTooltip();
     const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
     this.tooltipEl = tip;
+    tip.createDiv({ cls: "augment-tm-activity-tip-label", text: stateLine });
+    if (summary) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: summary });
+    this.positionTooltip(tip, evt);
+  }
 
-    const labelEl = tip.createDiv({ cls: "augment-tm-activity-tip-label", text: label });
-    if (detail) tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: detail });
-
-    const reposition = () => {
-      const x = evt.clientX + 12;
-      const y = evt.clientY + 14;
-      tip.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
-      tip.style.top = `${y}px`;
-    };
-    reposition();
+  private positionTooltip(tip: HTMLElement, evt: MouseEvent): void {
+    tip.style.left = `${Math.min(evt.clientX + 12, window.innerWidth - 440)}px`;
+    tip.style.top = `${evt.clientY + 14}px`;
   }
 
   private hideActivityTooltip(): void {
@@ -821,27 +827,6 @@ export class TerminalManagerView extends ItemView {
     }
   }
 
-  private showSessionTooltip(evt: MouseEvent, session: SessionMeta): void {
-    const excerpt = session.titleFull || session.title;
-    if (!excerpt) return;
-
-    this.hideActivityTooltip();
-    const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
-    this.tooltipEl = tip;
-
-    tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: excerpt });
-
-    const meta: string[] = [];
-    if (session.msgCount > 0) meta.push(`${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`);
-    meta.push(this.relativeTime(session.mtimeMs));
-    tip.createDiv({ cls: "augment-tm-activity-tip-label", text: meta.join(" · ") });
-
-    const x = evt.clientX + 12;
-    const y = evt.clientY + 14;
-    tip.style.left = `${Math.min(x, window.innerWidth - 340)}px`;
-    tip.style.top = `${y}px`;
-  }
-
   private renderHistoryRow(session: SessionMeta, container: HTMLElement): void {
     const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
 
@@ -863,9 +848,6 @@ export class TerminalManagerView extends ItemView {
     if (session.titleFull && session.titleFull !== session.title) {
       row.createDiv({ cls: "augment-tm-subtext", text: session.titleFull });
     }
-
-    row.addEventListener("mouseenter", (evt) => this.showSessionTooltip(evt, session));
-    row.addEventListener("mouseleave", () => this.hideActivityTooltip());
 
     // Click directly resumes the session — no expand drawer.
     row.addEventListener("click", async () => {
