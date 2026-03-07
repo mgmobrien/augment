@@ -20113,7 +20113,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       });
       const loadBtn = loadDivider.createEl("button", {
         cls: "augment-tm-load-projects-btn",
-        text: "Load"
+        text: "Show other projects"
       });
       loadBtn.addEventListener("click", (evt) => {
         evt.stopPropagation();
@@ -21879,8 +21879,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:19:17.450Z";
-    this.gitSha = "e35b48b";
+    this.buildId = "2026-03-07T01:21:57.192Z";
+    this.gitSha = "f103058";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

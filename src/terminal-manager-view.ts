@@ -429,7 +429,7 @@ export class TerminalManagerView extends ItemView {
 
       const loadBtn = loadDivider.createEl("button", {
         cls: "augment-tm-load-projects-btn",
-        text: "Load",
+        text: "Show other projects",
       });
       loadBtn.addEventListener("click", (evt) => {
         evt.stopPropagation();
