@@ -146,7 +146,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     if (!this.ribbonGenerateEl) return;
     // Call setIcon on the container element, not the inner .svg-icon span.
     // Calling it on the span causes the icon to revert when Obsidian refreshes the ribbon.
-    setIcon(this.ribbonGenerateEl, this.settings.ribbonIcon || "radio-tower");
+    setIcon(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
 
   public refreshStatusBar(): void {
@@ -154,12 +154,11 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.ribbonGenerateEl?.removeClass("is-generating");
     if (!this.statusBarEl) return;
     this.statusBarEl.empty();
-    const sbIconEl = this.statusBarEl.createEl("span", { cls: "augment-sb-icon" });
-    setIcon(sbIconEl, this.settings.ribbonIcon || "radio-tower");
+    // No icon in status bar when idle — icon appears only during generation.
     if (!this.settings.apiKey) {
-      this.statusBarEl.createEl("span", { text: " Augment: API key needed" });
+      this.statusBarEl.createEl("span", { text: "Augment: API key needed" });
     } else {
-      this.statusBarEl.createEl("span", { text: ` Augment: ${this.resolveModelDisplayName()}` });
+      this.statusBarEl.createEl("span", { text: `Augment: ${this.resolveModelDisplayName()}` });
     }
   }
 
@@ -456,18 +455,13 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.settings.defaultTerminalLocation = "sidebar-left-bottom";
     }
 
-    // Migrate invalid ribbonIcon values. "settings" leaked from an old settings-ribbon button
-    // that was removed. Any unrecognised value resets to the default sensor tower.
+    // Migrate invalid ribbonIcon values. Any unrecognised value resets to the default pyramid.
     const VALID_RIBBON_ICONS = new Set([
       "radio-tower", "augment-pyramid", "wand-2", "sparkles", "brain", "zap", "bot",
       "pencil", "type", "message-square", "cpu", "code-2", "terminal",
     ]);
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
-      this.settings.ribbonIcon = "radio-tower";
-    }
-    // Migrate old default pyramid → sensor tower (radio-tower is the Augment identity icon).
-    if (this.settings.ribbonIcon === "augment-pyramid") {
-      this.settings.ribbonIcon = "radio-tower";
+      this.settings.ribbonIcon = "augment-pyramid";
     }
 
     // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
@@ -830,7 +824,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     // Right-click context menu
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
-        const menuIcon = this.settings.ribbonIcon || "radio-tower";
+        const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
             item
@@ -862,11 +856,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon: terminal — added only after terminal setup completes (tier 3).
-    this.addTerminalRibbonIfNeeded();
-
-    // Ribbon: configurable icon → generate AI text
-    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "radio-tower", "Generate", () => {
+    // Ribbon: configurable icon → generate AI text (always first)
+    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to generate");
@@ -876,6 +867,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
     this.ribbonGenerateEl.addClass("augment-ribbon-generate");
     this.applyRibbonColoredClass();
+
+    // Ribbon: sensor tower (Augment logo) → opens settings (always second)
+    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+      (this.app as any).setting.open();
+      (this.app as any).setting.openTabById("augment-terminal");
+    });
+
+    // Ribbon: terminal — added only after terminal setup completes (tier 3, always third)
+    this.addTerminalRibbonIfNeeded();
 
     // Default open command — uses defaultTerminalLocation setting.
     this.addCommand({

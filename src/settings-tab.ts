@@ -277,43 +277,17 @@ export class AugmentSettingTab extends PluginSettingTab {
       const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
       const overviewIntro  = overviewHeader.createDiv({ cls: "augment-tab-intro" });
 
-      // Welcome block — state-driven copy, pyramid icon left
+      // Welcome block — orientation copy, no icon
       const welcomeEl = overviewIntro.createDiv({ cls: "augment-welcome" });
-      const iconEl = welcomeEl.createDiv({ cls: "augment-welcome-icon" });
-      setIcon(iconEl, "augment-pyramid");
       const copyEl = welcomeEl.createDiv({ cls: "augment-welcome-copy" });
-
-      const { hasGenerated, terminalSetupDone, model } = this.plugin.settings;
-      const spend = this.plugin.spendData;
-      const totalGens = spend
-        ? Object.values(spend.byModel).reduce((sum, e) => sum + e.generations, 0)
-        : 0;
-
-      if (terminalSetupDone) {
-        copyEl.createDiv({ cls: "augment-welcome-line1", text: "Augment is fully configured." });
-      } else if (hasGenerated) {
-        let modelName = "Claude";
-        if (!model.startsWith("auto") && model.length > 0) {
-          modelName = modelDisplayName(model);
-        } else if (spend && Object.keys(spend.byModel).length > 0) {
-          const topModel = Object.entries(spend.byModel)
-            .sort(([, a], [, b]) => b.generations - a.generations)[0][0];
-          modelName = modelDisplayName(topModel);
-        }
-        copyEl.createDiv({
-          cls: "augment-welcome-line1",
-          text: `Generating with ${modelName}. ${totalGens} generation${totalGens === 1 ? "" : "s"} so far.`,
-        });
-      } else {
-        copyEl.createDiv({
-          cls: "augment-welcome-line1",
-          text: "Augment — AI generation and Claude Code terminals for Obsidian.",
-        });
-        copyEl.createDiv({
-          cls: "augment-welcome-line2",
-          text: `Press ${isMac ? "Cmd" : "Ctrl"}+Enter to generate text, or Ctrl+T to open a terminal.`,
-        });
-      }
+      copyEl.createDiv({
+        cls: "augment-welcome-line1",
+        text: "Augment — AI generation and Claude Code terminals for Obsidian.",
+      });
+      copyEl.createDiv({
+        cls: "augment-welcome-line2",
+        text: `Press ${isMac ? "Cmd" : "Ctrl"}+Enter to generate text, or Ctrl+T to open a terminal.`,
+      });
 
       // Hotkey box — pinned right
       this.renderHotkeyBox(overviewHeader, [
@@ -537,12 +511,9 @@ export class AugmentSettingTab extends PluginSettingTab {
         { label: "Run template",  commandId: "augment-terminal:augment-generate-from-template" },
       ]);
     }
-    // ── Ribbon icon ──────────────────────────────────────────
-    continuationPane.createDiv({ cls: "augment-pane-section", text: "Ribbon icon" });
-
     const RIBBON_ICONS: Record<string, string> = {
-      "radio-tower": "Sensor tower (default)",
-      "augment-pyramid": "Augment pyramid",
+      "augment-pyramid": "Augment pyramid (default)",
+      "radio-tower": "Sensor tower",
       "wand-2": "Wand",
       "sparkles": "Sparkles",
       "brain": "Brain",
@@ -563,7 +534,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         for (const [id, label] of Object.entries(RIBBON_ICONS)) {
           dd.addOption(id, label);
         }
-        dd.setValue(this.plugin.settings.ribbonIcon || "radio-tower");
+        dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
         dd.onChange(async (val) => {
           this.plugin.settings.ribbonIcon = val;
           await this.plugin.saveData(this.plugin.settings);
@@ -574,7 +545,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
     ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    setIcon(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "radio-tower");
+    setIcon(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
 
     new Setting(continuationPane)
       .setName("Colored Generate icon")
