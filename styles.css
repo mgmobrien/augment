@@ -771,7 +771,7 @@
 
 .augment-hotkey-cheatsheet-pill {
   font-family: var(--font-monospace);
-  font-size: var(--font-ui-smaller);
+  font-size: var(--font-ui-medium);
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-bottom-width: 2px;
