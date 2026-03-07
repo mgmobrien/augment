@@ -77,6 +77,7 @@ export function substituteVariables(templateStr: string, ctx: VaultContext): str
     note_content: ctx.content ?? ctx.surroundingContext,
     linked_notes: formatLinkedNotes(ctx.linkedNotes),
     linked_notes_full: formatLinkedNotesFull(ctx.linkedNotes),
+    linked_notes_array: ctx.linkedNotes,
     frontmatter: flattenFrontmatter(ctx.frontmatter),
   };
   const compiled = Handlebars.compile(templateStr, { noEscape: true });
