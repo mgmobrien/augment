@@ -18374,13 +18374,14 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
     {
       const timings = this.plugin.startupTimings;
       const profilerSection = overviewPane.createDiv({ cls: "augment-profiler-section" });
-      new import_obsidian4.Setting(profilerSection).setName("Startup profiler").setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.").addToggle((toggle) => {
+      const profilerSetting = new import_obsidian4.Setting(profilerSection).setName("Startup profiler").setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.").addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.enableProfiler).onChange(async (val) => {
           this.plugin.settings.enableProfiler = val;
           await this.plugin.saveData(this.plugin.settings);
           this.display();
         });
       });
+      addInfoTooltip(profilerSetting.descEl, "Augment wraps the plugin loader at startup to time each plugin. It must load before any other plugin for this to work \u2014 Obsidian loads plugins in the order they appear in .obsidian/community-plugins.json. If you see 'No other plugin timings captured', move augment-terminal to the top of that list, then restart.");
       if (this.plugin.settings.enableProfiler) {
         if (!timings) {
           profilerSection.createEl("p", {
@@ -18463,13 +18464,14 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it \u2014 the AI sees your note title, frontmatter, surrounding context, and linked notes."
     });
     const calloutTypes = detectCalloutTypes();
-    const formatSetting = new import_obsidian4.Setting(continuationPane).setName("Output format").setDesc("How generated text is inserted into the editor.").addDropdown((drop) => {
+    const formatSetting = new import_obsidian4.Setting(continuationPane).setName("Output format").setDesc("How generated text is wrapped when inserted.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
         this.plugin.settings.outputFormat = value;
         await this.plugin.saveData(this.plugin.settings);
         updateSecondarySlot(value);
       });
     });
+    addInfoTooltip(formatSetting.descEl, "Plain: text appears inline. Callout: wrapped in an Obsidian callout box (e.g. > [!ai]+). Blockquote: indented with >. Heading: text follows a new heading. Code block: text inside a fenced code block. The secondary dropdown sets the heading level or callout type.");
     const secondaryWrapper = formatSetting.controlEl.createEl("div", {
       cls: "dropdown augment-format-secondary"
     });
@@ -18529,7 +18531,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
       await this.plugin.saveData(this.plugin.settings);
     });
-    new import_obsidian4.Setting(continuationPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
+    const linkedNotesSetting = new import_obsidian4.Setting(continuationPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text.inputEl.max = "10";
@@ -18541,7 +18543,8 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
         }
       });
     });
-    new import_obsidian4.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
+    addInfoTooltip(linkedNotesSetting.descEl, "Outgoing wikilinks only \u2014 notes the current note links to, not notes that link back to it. Frontmatter (tags, aliases, custom properties) is included; note body is not. Use {{linked_notes_full}} in a template if you need the full body content.");
+    const contextLimitSetting = new import_obsidian4.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "1";
       text.setPlaceholder("2000").setValue(String(this.plugin.settings.maxContextTokens)).onChange(async (value) => {
@@ -18552,6 +18555,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
         }
       });
     });
+    addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
     new import_obsidian4.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showGenerationToast).onChange(async (value) => {
         this.plugin.settings.showGenerationToast = value;
@@ -18580,11 +18584,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       }
     });
     {
-      continuationPane.createDiv({ cls: "augment-pane-section", text: "Keyboard shortcuts" });
       const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
-      const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
-      new import_obsidian4.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc("Run continuation on the current note.");
-      new import_obsidian4.Setting(continuationPane).setName(`Template: ${templateHotkey}`).setDesc("Pick and run a template on the current note.");
       const openHotkeysPage = () => {
         this.app.setting.open();
         this.app.setting.openTabById("hotkeys");
@@ -18622,7 +18622,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       cls: "augment-context-intro",
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
     });
-    new import_obsidian4.Setting(templatesPane).setName("Template folder").setDesc("Vault path to folder containing .md prompt templates").addText((text) => {
+    const templateFolderSetting = new import_obsidian4.Setting(templatesPane).setName("Template folder").setDesc("Vault path to the folder containing .md prompt templates.").addText((text) => {
       templateFolderInputEl = text.inputEl;
       text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
         this.plugin.settings.templateFolder = value;
@@ -18630,6 +18630,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
         renderTemplateList();
       });
     });
+    addInfoTooltip(templateFolderSetting.descEl, "Path relative to your vault root (e.g. 'Augment/templates'). Each .md file in this folder appears as a template in the picker. Use the frontmatter fields name and description to control how templates are displayed.");
     const folderLinkEl = templatesPane.createDiv({ cls: "augment-folder-link" });
     const openFolderEl = folderLinkEl.createEl("a", {
       cls: "augment-folder-open",
@@ -18927,13 +18928,14 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       });
     };
     void renderStatusCard();
-    new import_obsidian4.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
+    const terminalLocationSetting = new import_obsidian4.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
       var _a3;
       drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
         this.plugin.settings.defaultTerminalLocation = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
+    addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
     new import_obsidian4.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other directories on this machine in the Terminal Manager. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
         this.plugin.settings.showOtherProjects = value;
@@ -22922,8 +22924,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-06T23:59:12.407Z";
-    this.gitSha = "7b2c81a";
+    this.buildId = "2026-03-07T00:13:44.410Z";
+    this.gitSha = "3fae2a9";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23999,13 +24001,26 @@ ${excerpt}`,
         }
       }
     }
-    for (const member of members) {
-      if (this.hasTerminalNamed(member)) continue;
-      await this.openTerminalAt("tab", {
-        name: member,
+    const toSpawn = members.filter((name) => !this.hasTerminalNamed(name));
+    if (toSpawn.length === 0) return;
+    let columnLeaf = null;
+    for (const member of toSpawn) {
+      let leaf;
+      if (columnLeaf === null) {
+        leaf = this.app.workspace.getLeaf("split", "vertical");
+        columnLeaf = leaf;
+      } else {
+        leaf = this.app.workspace.createLeafBySplit(columnLeaf, "horizontal");
+      }
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
         active: false,
-        reveal: false
+        state: { name: member }
       });
+      const view = leaf.view;
+      if (typeof view.setName === "function") {
+        view.setName(member);
+      }
     }
   }
   insertAgentWidget(editor, pos, name) {

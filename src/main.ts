@@ -1850,13 +1850,33 @@ export default class AugmentTerminalPlugin extends Plugin {
       }
     }
 
-    for (const member of members) {
-      if (this.hasTerminalNamed(member)) continue;
-      await this.openTerminalAt("tab", {
-        name: member,
+    // Filter out members that already have a terminal.
+    const toSpawn = members.filter((name) => !this.hasTerminalNamed(name));
+    if (toSpawn.length === 0) return;
+
+    // Layout: first subagent opens in a vertical split (right column),
+    // subsequent subagents stack below it via createLeafBySplit.
+    // This mirrors the tmux split-pane layout: leader left, subagents right.
+    let columnLeaf: WorkspaceLeaf | null = null;
+    for (const member of toSpawn) {
+      let leaf: WorkspaceLeaf;
+      if (columnLeaf === null) {
+        leaf = this.app.workspace.getLeaf("split", "vertical");
+        columnLeaf = leaf;
+      } else {
+        leaf = (this.app.workspace as any).createLeafBySplit(columnLeaf, "horizontal");
+      }
+
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
         active: false,
-        reveal: false,
+        state: { name: member },
       });
+
+      const view = leaf.view as Partial<TerminalView>;
+      if (typeof view.setName === "function") {
+        view.setName(member);
+      }
     }
   }
 
