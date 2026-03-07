@@ -21577,6 +21577,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const hours = Math.floor(diff / 36e5);
     const days = Math.floor(diff / 864e5);
     if (abbreviated) {
+      if (diff < 6e4) return "just now";
       if (diff < 36e5) return `${mins}m`;
       if (diff < 864e5) return `${hours}h`;
       return `${days}d`;
@@ -22954,8 +22955,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:53:28.391Z";
-    this.gitSha = "2bc20bc";
+    this.buildId = "2026-03-07T01:16:40.828Z";
+    this.gitSha = "5f79d74";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23044,7 +23045,10 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     const ctx = assembleVaultContext(this.app, editor, this.settings);
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      new import_obsidian8.Notice("Generating\u2026", 3e3);
+      const genNotice = new import_obsidian8.Notice("", 3e3);
+      const iconEl = genNotice.noticeEl.createEl("span", { cls: "augment-notice-pyramid" });
+      (0, import_obsidian8.setIcon)(iconEl, "augment-pyramid");
+      genNotice.noticeEl.createEl("span", { text: "\xA0Generating\u2026" });
     }
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;
@@ -23642,7 +23646,7 @@ ${excerpt}`,
         });
       })
     );
-    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+    this.addRibbonIcon("settings", "Augment settings", () => {
       this.app.setting.open();
       this.app.setting.openTabById("augment-terminal");
     });

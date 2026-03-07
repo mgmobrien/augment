@@ -1,4 +1,4 @@
-import { addIcon, Editor, MarkdownView, Modal, Notice, Plugin, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, Editor, MarkdownView, Modal, Notice, Plugin, Setting, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, calculateCost, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
@@ -732,7 +732,10 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      new Notice("Generating\u2026", 3000);
+      const genNotice = new Notice("", 3000);
+      const iconEl = genNotice.noticeEl.createEl("span", { cls: "augment-notice-pyramid" });
+      setIcon(iconEl, "augment-pyramid");
+      genNotice.noticeEl.createEl("span", { text: "\u00a0Generating\u2026" });
     }
 
     const isBlock = this.settings.outputFormat !== "plain";
@@ -1397,8 +1400,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon: radio-tower → Augment settings
-    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+    // Ribbon: settings → Augment settings
+    this.addRibbonIcon("settings", "Augment settings", () => {
       (this.app as any).setting.open();
       (this.app as any).setting.openTabById("augment-terminal");
     });

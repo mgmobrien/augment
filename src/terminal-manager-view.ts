@@ -916,6 +916,7 @@ export class TerminalManagerView extends ItemView {
     const days = Math.floor(diff / 86_400_000);
 
     if (abbreviated) {
+      if (diff < 60_000) return "just now";
       if (diff < 3_600_000) return `${mins}m`;
       if (diff < 86_400_000) return `${hours}h`;
       return `${days}d`;
