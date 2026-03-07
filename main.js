@@ -20177,6 +20177,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const dot = line.createDiv({ cls: "augment-tm-dot" });
     const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
     dot.addClass(status);
+    if (!teamContext.isTeamMember) row.addClass("status-" + status);
     const dotLabel = {
       active: "Generating (yellow)",
       tool: "Using tool (blue)",
@@ -20212,6 +20213,10 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     const exchangeCount = typeof view.getExchangeCount === "function" ? view.getExchangeCount() : 0;
     const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
     const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
+    const subtextStr = summary || (cwd ? cwd.split("/").filter(Boolean).pop() || "" : "");
+    if (subtextStr) {
+      row.createDiv({ cls: "augment-tm-subtext", text: subtextStr });
+    }
     if (exchangeCount > 0 || lastActivityMs > 0 || summary) {
       const secEl = row.createDiv({ cls: "augment-tm-summary" });
       if (exchangeCount > 0) {
@@ -20446,6 +20451,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     ageEl.dataset.ms = String(session.mtimeMs);
     ageEl.dataset.msgCount = String(session.msgCount);
     ageEl.textContent = this.formatHistoryMeta(session.msgCount, session.mtimeMs);
+    if (session.titleFull && session.titleFull !== session.title) {
+      row.createDiv({ cls: "augment-tm-subtext", text: session.titleFull });
+    }
     row.addEventListener("mouseenter", (evt) => this.showSessionTooltip(evt, session));
     row.addEventListener("mouseleave", () => this.hideActivityTooltip());
     row.addEventListener("click", async () => {
@@ -21882,8 +21890,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:22:45.292Z";
-    this.gitSha = "ac2e6a2";
+    this.buildId = "2026-03-07T01:23:42.481Z";
+    this.gitSha = "ee025b4";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

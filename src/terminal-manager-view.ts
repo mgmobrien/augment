@@ -518,6 +518,8 @@ export class TerminalManagerView extends ItemView {
     const status =
       typeof view.getStatus === "function" ? view.getStatus() : "shell";
     dot.addClass(status);
+    // Left-accent border keyed to status — suppressed on team member rows (they use their own border).
+    if (!teamContext.isTeamMember) row.addClass("status-" + status);
     const dotLabel: Record<string, string> = {
       active: "Generating (yellow)", tool: "Using tool (blue)", waiting: "Waiting for input (orange)",
       idle: "Idle", shell: "Open", running: "Running", crashed: "Crashed", exited: "Exited",
@@ -556,6 +558,12 @@ export class TerminalManagerView extends ItemView {
     const exchangeCount = typeof view.getExchangeCount === "function" ? view.getExchangeCount() : 0;
     const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
     const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
+
+    // Dual-name subtext: last team event summary, or CWD basename as fallback.
+    const subtextStr = summary || (cwd ? (cwd.split("/").filter(Boolean).pop() || "") : "");
+    if (subtextStr) {
+      row.createDiv({ cls: "augment-tm-subtext", text: subtextStr });
+    }
 
     if (exchangeCount > 0 || lastActivityMs > 0 || summary) {
       const secEl = row.createDiv({ cls: "augment-tm-summary" });
@@ -844,9 +852,15 @@ export class TerminalManagerView extends ItemView {
     line.createDiv({ cls: "augment-tm-spacer" });
 
     const ageEl = line.createSpan({ cls: "augment-tm-age" });
+
     ageEl.dataset.ms = String(session.mtimeMs);
     ageEl.dataset.msgCount = String(session.msgCount);
     ageEl.textContent = this.formatHistoryMeta(session.msgCount, session.mtimeMs);
+
+    // Dual-name subtext: full excerpt if different from the truncated title.
+    if (session.titleFull && session.titleFull !== session.title) {
+      row.createDiv({ cls: "augment-tm-subtext", text: session.titleFull });
+    }
 
     row.addEventListener("mouseenter", (evt) => this.showSessionTooltip(evt, session));
     row.addEventListener("mouseleave", () => this.hideActivityTooltip());

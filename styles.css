@@ -292,6 +292,35 @@
   cursor: pointer;
   border-radius: var(--radius-s);
   margin: 0 4px;
+  border-left: 3px solid transparent;
+  transition: border-color 200ms ease;
+}
+
+/* Left-accent border keyed to session status (Option C card design). */
+/* Suppressed on .augment-tm-team-member rows — they use their own accent border. */
+.augment-tm-item.status-active  { border-left-color: var(--color-yellow); }
+.augment-tm-item.status-tool    { border-left-color: var(--color-blue); }
+.augment-tm-item.status-waiting { border-left-color: var(--color-orange); }
+.augment-tm-item.status-idle,
+.augment-tm-item.status-shell   { border-left-color: var(--text-faint); }
+.augment-tm-item.status-crashed { border-left-color: var(--color-red); }
+.augment-tm-item.status-exited  { border-left-color: var(--background-modifier-border); }
+
+/* Dual-name subtext line. */
+.augment-tm-subtext {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  padding-left: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  margin-top: 1px;
+}
+
+.augment-tm-item.is-archived .augment-tm-subtext {
+  font-size: var(--font-ui-smaller);
+  font-family: var(--font-text);
 }
 
 .augment-tm-item:hover {
