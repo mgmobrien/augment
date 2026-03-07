@@ -1,6 +1,7 @@
 import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
+import { discoverVaultParts, unreadCount } from "./inbox-bus";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
@@ -48,6 +49,7 @@ export class TerminalManagerView extends ItemView {
   // "auto": expand when no live sessions, collapse otherwise.
   // "open" / "closed": explicit user preference.
   private historyCollapseState: "auto" | "open" | "closed" = "auto";
+  private partsCollapseState: "open" | "closed" = "open";
 
 
   // Hover tooltip for session activity.
@@ -360,6 +362,12 @@ export class TerminalManagerView extends ItemView {
     if (hasOpen) {
       const teamGroups = this.computeTeamGroups(leaves);
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
+    }
+
+    // ── PARTS section ─────────────────────────────────────────
+    const parts = discoverVaultParts(this.app);
+    if (parts.length > 0) {
+      this.renderPartsSection(parts);
     }
 
     // ── RECENT section with collapse ──────────────────────────
@@ -710,6 +718,58 @@ export class TerminalManagerView extends ItemView {
       this.tooltipEl.remove();
       this.tooltipEl = null;
     }
+  }
+
+  private renderPartsSection(parts: string[]): void {
+    const totalUnread = parts.reduce((sum, p) => sum + unreadCount(this.app, p), 0);
+    const isExpanded = this.partsCollapseState !== "closed";
+
+    const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
+    if (isExpanded) divider.addClass("is-open");
+    divider.createSpan({ cls: "augment-tm-section-label", text: "PARTS" });
+    if (totalUnread > 0) {
+      divider.createSpan({ cls: "augment-tm-part-unread-total", text: String(totalUnread) });
+    }
+    divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+
+    const partsContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
+    if (!isExpanded) partsContainer.style.display = "none";
+
+    for (const partName of parts) {
+      this.renderPartRow(partName, partsContainer);
+    }
+
+    divider.addEventListener("click", () => {
+      this.partsCollapseState = isExpanded ? "closed" : "open";
+      divider.toggleClass("is-open", !isExpanded);
+      partsContainer.style.display = isExpanded ? "none" : "";
+    });
+  }
+
+  private renderPartRow(partName: string, container: HTMLElement): void {
+    const count = unreadCount(this.app, partName);
+    const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
+    if (count > 0) row.addClass("has-unread");
+
+    const line = row.createDiv({ cls: "augment-tm-line" });
+    line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
+    line.createSpan({ cls: "augment-tm-name", text: partName });
+    line.createDiv({ cls: "augment-tm-spacer" });
+
+    if (count > 0) {
+      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
+    }
+
+    row.addEventListener("click", async () => {
+      const plugin = this.getPlugin();
+      if (!plugin) return;
+      const termView = await plugin.openFocusedTerminal();
+      if (termView) {
+        setTimeout(() => {
+          termView.write(`claude "/${partName}"\n`);
+        }, 1500);
+      }
+    });
   }
 
   private renderOtherProjectsSection(groups: ProjectGroup[], container: HTMLElement): void {

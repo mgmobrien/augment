@@ -2604,6 +2604,41 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   white-space: nowrap;
 }
 
+/* Parts sidebar section */
+.augment-tm-part-dot {
+  background-color: var(--interactive-accent);
+  opacity: 0.5;
+}
+
+.augment-tm-part-row.has-unread .augment-tm-part-dot {
+  opacity: 1;
+}
+
+.augment-tm-part-badge {
+  font-size: 0.7em;
+  font-weight: 600;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 8px;
+  padding: 0 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+
+.augment-tm-part-unread-total {
+  font-size: 0.7em;
+  font-weight: 600;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 8px;
+  padding: 0 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 16px;
+}
+
 /* @-mention inbox dispatch suggest */
 .augment-inbox-part-name {
   font-weight: 500;
