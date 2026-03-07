@@ -3,7 +3,7 @@
   "name": "Augment",
   "version": "0.0.8",
   "minAppVersion": "0.15.0",
-  "description": "Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code.",
+  "description": "Run Claude Code terminal sessions and generate inline text within your notes using the Anthropic API.",
   "author": "System 3",
   "authorUrl": "https://system3.md",
   "isDesktopOnly": true
