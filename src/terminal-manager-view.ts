@@ -602,10 +602,9 @@ export class TerminalManagerView extends ItemView {
     const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
     const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
 
-    // Dual-name subtext: last team event summary, or CWD basename as fallback.
-    const subtextStr = summary || (cwd ? (cwd.split("/").filter(Boolean).pop() || "") : "");
-    if (subtextStr) {
-      row.createDiv({ cls: "augment-tm-subtext", text: subtextStr });
+    // Subtext: last team event summary only (CWD is already shown as the right-side badge).
+    if (summary) {
+      row.createDiv({ cls: "augment-tm-subtext", text: summary });
     }
 
     if (exchangeCount > 0 || lastActivityMs > 0 || summary) {

@@ -20655,9 +20655,8 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     const exchangeCount = typeof view.getExchangeCount === "function" ? view.getExchangeCount() : 0;
     const lastActivityMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
     const summary = typeof view.getLastTeamEventSummary === "function" ? view.getLastTeamEventSummary() : null;
-    const subtextStr = summary || (cwd ? cwd.split("/").filter(Boolean).pop() || "" : "");
-    if (subtextStr) {
-      row.createDiv({ cls: "augment-tm-subtext", text: subtextStr });
+    if (summary) {
+      row.createDiv({ cls: "augment-tm-subtext", text: summary });
     }
     if (exchangeCount > 0 || lastActivityMs > 0 || summary) {
       const secEl = row.createDiv({ cls: "augment-tm-summary" });
@@ -22377,8 +22376,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:20:02.136Z";
-    this.gitSha = "29c255f";
+    this.buildId = "2026-03-07T02:21:50.522Z";
+    this.gitSha = "e7314b8";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
