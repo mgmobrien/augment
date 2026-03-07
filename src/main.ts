@@ -156,10 +156,13 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
     this.ribbonGenerateEl?.removeClass("is-generating");
     if (!this.statusBarEl) return;
+    this.statusBarEl.empty();
+    const sbIconEl = this.statusBarEl.createEl("span", { cls: "augment-sb-icon" });
+    setIcon(sbIconEl, this.settings.ribbonIcon || "augment-pyramid");
     if (!this.settings.apiKey) {
-      this.statusBarEl.setText("Augment: API key needed");
+      this.statusBarEl.createEl("span", { text: " Augment: API key needed" });
     } else {
-      this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
+      this.statusBarEl.createEl("span", { text: ` Augment: ${this.resolveModelDisplayName()}` });
     }
   }
 
@@ -829,11 +832,12 @@ export default class AugmentTerminalPlugin extends Plugin {
     // Right-click context menu
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
+        const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
             item
               .setTitle("Augment: add API key to get started \u2192")
-              .setIcon("wand-2")
+              .setIcon(menuIcon)
               .onClick(() => {
                 (this.app as any).setting.open();
                 (this.app as any).setting.openTabById("augment-terminal");
@@ -844,7 +848,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         menu.addItem((item) => {
           item
             .setTitle("Augment: Generate")
-            .setIcon("wand-2")
+            .setIcon(menuIcon)
             .onClick(() => {
               (this.app as any).commands.executeCommandById("augment-terminal:augment-generate");
             });
@@ -852,7 +856,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         menu.addItem((item) => {
           item
             .setTitle("Augment: Generate from template\u2026")
-            .setIcon("wand-2")
+            .setIcon(menuIcon)
             .onClick(() => {
               (this.app as any).commands.executeCommandById("augment-terminal:augment-generate-from-template");
             });

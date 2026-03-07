@@ -565,6 +565,7 @@
 .theme-dark .augment-dot-blue  { background: #1e88e5; }
 
 /* ── Ribbon Generate icon — static colored mode (user toggle) ── */
+/* Pyramid icon (circles): keep custom RGB fills */
 .augment-ribbon-colored svg circle:nth-child(1) { fill: #ff3d00; stroke: none; }
 .augment-ribbon-colored svg circle:nth-child(2) { fill: #1565c0; stroke: none; }
 .augment-ribbon-colored svg circle:nth-child(3) { fill: #2e7d32; stroke: none; }
@@ -572,6 +573,14 @@
 .theme-dark .augment-ribbon-colored svg circle:nth-child(1) { fill: #ff6e40; }
 .theme-dark .augment-ribbon-colored svg circle:nth-child(2) { fill: #1e88e5; }
 .theme-dark .augment-ribbon-colored svg circle:nth-child(3) { fill: #43a047; }
+
+/* Lucide icons (path/polyline/line): apply accent color when colored mode is on */
+.augment-ribbon-colored svg path,
+.augment-ribbon-colored svg polyline,
+.augment-ribbon-colored svg line,
+.augment-ribbon-colored svg rect {
+  stroke: var(--interactive-accent);
+}
 
 /* ── Ribbon Generate icon — active state during generation ── */
 @keyframes augment-ribbon-pulse {

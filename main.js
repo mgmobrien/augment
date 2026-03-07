@@ -15832,7 +15832,7 @@ function buildSystemPrompt(_ctx, systemPromptOverride, workspaceScope, workspace
   if (workspacePath && workspaceScope === "focused") {
     parts.push(`Focus on files within ${workspacePath}. Treat other workspaces as out of scope unless the task requires it.`);
   } else if (workspacePath && workspaceScope === "restricted") {
-    parts.push(`Avoid files outside ${workspacePath} unless explicitly asked by the user.`);
+    parts.push(`Do not reference or surface content from ${workspacePath} in outputs or summaries outside that workspace.`);
   }
   return parts.join("\n\n");
 }
@@ -17407,7 +17407,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     return isMac ? "Cmd+Enter" : "Ctrl+Enter";
   }
   display() {
-    var _a2, _b;
+    var _a2;
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("augment-settings-container");
@@ -17883,12 +17883,12 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     });
     openFolderEl.href = "#";
     openFolderEl.addEventListener("click", (e) => {
-      var _a3, _b2, _c;
+      var _a3, _b, _c;
       e.preventDefault();
       const folderPath = this.plugin.settings.templateFolder;
       const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
       if (folder) {
-        const fe = (_b2 = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b2.instance;
+        const fe = (_b = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
         (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
       } else {
         console.log(`[Augment] folder not found: "${folderPath}"`);
@@ -18223,26 +18223,43 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
           this.plugin.app.workspace.trigger("augment-terminal:changed");
         });
       });
-      const scopeSetting = new import_obsidian7.Setting(terminalPane).setName("Agent scope").setDesc("How the agent should treat files outside the configured workspace. Advisory only \u2014 the agent is instructed, not technically restricted.").addDropdown((drop) => {
+      new import_obsidian7.Setting(terminalPane).setName("Workspace scope").setDesc("Controls how the agent treats this workspace's paths relative to other workspaces.").addDropdown((drop) => {
         var _a3;
-        drop.addOption("open", "No restrictions").addOption("focused", "Works within this workspace").addOption("restricted", "Stays within this workspace").setValue((_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open").onChange(async (value) => {
+        drop.addOption("open", "No restrictions").addOption("focused", "Focus on this workspace").addOption("restricted", "Treat as private workspace").setValue((_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open").onChange(async (value) => {
           this.plugin.settings.workspaceScope = value;
           await this.plugin.saveData(this.plugin.settings);
-          this.display();
+          renderScopeExtras();
         });
       });
-      addInfoTooltip(scopeSetting.descEl, "Workspace scope works through agent instructions. The agent is told to stay within configured paths \u2014 it isn\u2019t technically prevented from accessing other files.");
-      const scope = (_b = this.plugin.settings.workspaceScope) != null ? _b : "open";
-      if (scope !== "open") {
-        const scopeInfoEl = terminalPane.createDiv({ cls: "augment-scope-info" });
-        const wspath = this.plugin.settings.defaultWorkingDirectory;
-        if (wspath) {
-          scopeInfoEl.createEl("p", { cls: "augment-scope-path", text: `The agent will focus on ${wspath}.` });
-        } else {
-          scopeInfoEl.createEl("p", { cls: "augment-scope-warning", text: "Add a workspace path (Advanced \u2192 Default working directory) to make this effective." });
+      const scopeExtrasEl = terminalPane.createDiv({ cls: "augment-scope-extras" });
+      const renderScopeExtras = () => {
+        var _a3;
+        scopeExtrasEl.empty();
+        const scope = (_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open";
+        const path4 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
+        const descMap = {
+          open: "The agent works across your full vault without scope guidance.",
+          focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
+          restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it."
+        };
+        scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
+        if (path4 && scope !== "open") {
+          const verb = scope === "focused" ? "focus on" : "treat as private";
+          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path4}` });
         }
-        scopeInfoEl.createEl("p", { cls: "augment-scope-advisory", text: "Workspace scope works through agent instructions. The agent is told to stay within configured paths \u2014 it isn\u2019t technically prevented from accessing other files." });
-      }
+        if (scope !== "open") {
+          const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
+          box.createSpan({ cls: "augment-scope-infobox-icon", text: "\u2139" });
+          box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions \u2014 the agent is told to apply this, not technically prevented from other access." });
+        }
+        if (scope !== "open" && !path4) {
+          scopeExtrasEl.createDiv({
+            cls: "augment-scope-validation",
+            text: "Set a working directory (Terminal \u2192 Advanced \u2192 Working directory) to apply scope guidance."
+          });
+        }
+      };
+      renderScopeExtras();
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
       new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals. Leave blank to use the system default.").addText((text) => {
@@ -22437,8 +22454,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:58:15.478Z";
-    this.gitSha = "aba54ad";
+    this.buildId = "2026-03-07T03:07:10.341Z";
+    this.gitSha = "cbb1048";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22497,10 +22514,13 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.removeClass("augment-ribbon-generating");
     (_b = this.ribbonGenerateEl) == null ? void 0 : _b.removeClass("is-generating");
     if (!this.statusBarEl) return;
+    this.statusBarEl.empty();
+    const sbIconEl = this.statusBarEl.createEl("span", { cls: "augment-sb-icon" });
+    (0, import_obsidian12.setIcon)(sbIconEl, this.settings.ribbonIcon || "augment-pyramid");
     if (!this.settings.apiKey) {
-      this.statusBarEl.setText("Augment: API key needed");
+      this.statusBarEl.createEl("span", { text: " Augment: API key needed" });
     } else {
-      this.statusBarEl.setText(`Augment: ${this.resolveModelDisplayName()}`);
+      this.statusBarEl.createEl("span", { text: ` Augment: ${this.resolveModelDisplayName()}` });
     }
   }
   getBuildFingerprint() {
@@ -23114,9 +23134,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
+        const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
-            item.setTitle("Augment: add API key to get started \u2192").setIcon("wand-2").onClick(() => {
+            item.setTitle("Augment: add API key to get started \u2192").setIcon(menuIcon).onClick(() => {
               this.app.setting.open();
               this.app.setting.openTabById("augment-terminal");
             });
@@ -23124,12 +23145,12 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           return;
         }
         menu.addItem((item) => {
-          item.setTitle("Augment: Generate").setIcon("wand-2").onClick(() => {
+          item.setTitle("Augment: Generate").setIcon(menuIcon).onClick(() => {
             this.app.commands.executeCommandById("augment-terminal:augment-generate");
           });
         });
         menu.addItem((item) => {
-          item.setTitle("Augment: Generate from template\u2026").setIcon("wand-2").onClick(() => {
+          item.setTitle("Augment: Generate from template\u2026").setIcon(menuIcon).onClick(() => {
             this.app.commands.executeCommandById("augment-terminal:augment-generate-from-template");
           });
         });
