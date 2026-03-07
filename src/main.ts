@@ -464,6 +464,10 @@ export default class AugmentTerminalPlugin extends Plugin {
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
       this.settings.ribbonIcon = "augment-pyramid";
     }
+    // Migrate empty systemPrompt to the new default (date/time injection).
+    if (!this.settings.systemPrompt) {
+      this.settings.systemPrompt = "The current date and time is {{ now }}.";
+    }
 
     // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
     // Two mechanisms: (1) removeDefaultHotkeys on the runtime hotkey manager (immediate),
