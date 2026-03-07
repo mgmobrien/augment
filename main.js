@@ -16948,6 +16948,7 @@ function substituteVariables(templateStr, ctx) {
     note_content: (_a2 = ctx.content) != null ? _a2 : ctx.surroundingContext,
     linked_notes: formatLinkedNotes(ctx.linkedNotes),
     linked_notes_full: formatLinkedNotesFull(ctx.linkedNotes),
+    linked_notes_array: ctx.linkedNotes,
     frontmatter: flattenFrontmatter(ctx.frontmatter)
   };
   const compiled = import_handlebars.default.compile(templateStr, { noEscape: true });
@@ -17959,7 +17960,7 @@ function formatHotkeyStr(mods, key, isMac) {
   for (const m of mods) {
     if (m === "Mod") parts.push(isMac ? "\u2318" : "Ctrl");
     else if (m === "Ctrl") parts.push("Ctrl");
-    else if (m === "Shift") parts.push("Shift");
+    else if (m === "Shift") parts.push("\u21E7");
     else if (m === "Alt") parts.push(isMac ? "\u2325" : "Alt");
   }
   parts.push(key === "Enter" ? "\u21A9" : key.toUpperCase());
@@ -18936,7 +18937,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       });
     });
     addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
-    new import_obsidian4.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other directories on this machine in the Terminal Manager. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.").addToggle((toggle) => {
+    new import_obsidian4.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
         this.plugin.settings.showOtherProjects = value;
         await this.plugin.saveData(this.plugin.settings);
@@ -20711,6 +20712,7 @@ var SessionStore = class {
             id,
             resumeId: (_a2 = summary.resumeId) != null ? _a2 : id,
             title: summary.title,
+            titleFull: summary.titleFull,
             status: now - e.mtimeMs < 3e4 ? "stale" : "complete",
             mtimeMs: e.mtimeMs,
             msgCount: summary.msgCount
@@ -20742,7 +20744,9 @@ var SessionStore = class {
   parseSessionContent(content, fallbackTitle) {
     var _a2, _b, _c;
     let firstUserTitle = null;
+    let firstUserRaw = null;
     let firstAssistantText = null;
+    let firstAssistantRaw = null;
     let explicitRenameTitle = null;
     let resumeId = null;
     let msgCount = 0;
@@ -20777,7 +20781,10 @@ var SessionStore = class {
             msgCount++;
             if (!firstUserTitle) {
               const cleaned = this.cleanTitle(text);
-              if (cleaned) firstUserTitle = cleaned;
+              if (cleaned) {
+                firstUserTitle = cleaned;
+                firstUserRaw = text;
+              }
             }
           }
         }
@@ -20790,7 +20797,10 @@ var SessionStore = class {
                 const firstLine = text.replace(/\n[\s\S]*/m, "").trim();
                 const sentence = firstLine.replace(/[.!?].*/, "").trim();
                 const candidate = (sentence.length > 5 ? sentence : firstLine).slice(0, 55);
-                if (candidate.length > 3) firstAssistantText = candidate;
+                if (candidate.length > 3) {
+                  firstAssistantText = candidate;
+                  firstAssistantRaw = firstLine.slice(0, 200);
+                }
                 break;
               }
             }
@@ -20804,7 +20814,20 @@ var SessionStore = class {
     if (firstAssistantText) parts.push(firstAssistantText);
     const combined = parts.join(" \u2014 ").slice(0, 60) || fallbackTitle;
     const title = explicitRenameTitle != null ? explicitRenameTitle : combined;
-    return { msgCount, resumeId, title };
+    const longParts = [];
+    if (firstUserRaw) {
+      const userLong = this.cleanTitle(firstUserRaw, 180);
+      if (userLong) longParts.push(userLong);
+    } else if (firstUserTitle) {
+      longParts.push(firstUserTitle);
+    }
+    if (firstAssistantRaw) {
+      longParts.push(firstAssistantRaw);
+    } else if (firstAssistantText) {
+      longParts.push(firstAssistantText);
+    }
+    const titleFull = explicitRenameTitle != null ? explicitRenameTitle : longParts.join(" \u2014 ").slice(0, 280) || fallbackTitle;
+    return { msgCount, resumeId, title, titleFull };
   }
   extractExplicitRenameTitle(command) {
     var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
@@ -20847,12 +20870,12 @@ var SessionStore = class {
     if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(stripped)) return true;
     return false;
   }
-  cleanTitle(raw) {
+  cleanTitle(raw, limit = 60) {
     var _a2, _b;
     const compact = raw.replace(/\s+/g, " ").trim();
     if (!compact) return null;
-    const teammate = this.cleanTeammateXmlTitle(compact);
-    if (teammate) return teammate.slice(0, 60);
+    const teammate = this.cleanTeammateXmlTitle(compact, limit);
+    if (teammate) return teammate.slice(0, limit);
     const deSystemed = compact.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ").replace(/<env>[\s\S]*?<\/env>/gi, " ").replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, " ").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, " ").replace(/<command-name>[\s\S]*?<\/command-name>/gi, " ").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, " ").replace(/\s+/g, " ").trim();
     if (!deSystemed) return null;
     const stripped = deSystemed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -20864,11 +20887,11 @@ var SessionStore = class {
       const role = roleForwarded[1].replace(/\s+part$/i, "").trim();
       const project = (_b = (_a2 = stripped.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
       const label = project ? `${role} - ${project}` : role;
-      return label.slice(0, 60);
+      return label.slice(0, limit);
     }
-    return stripped.slice(0, 60);
+    return stripped.slice(0, limit);
   }
-  cleanTeammateXmlTitle(text) {
+  cleanTeammateXmlTitle(text, limit = 60) {
     var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
     const xml = text.match(
       /<teammate-message\b([^>]*)>([\s\S]*?)<\/teammate-message>/i
@@ -20885,7 +20908,7 @@ var SessionStore = class {
     if (role && project) return `${role} - ${project}`;
     if (role) return role;
     if (teammateId) return teammateId;
-    if (body) return body.slice(0, 60);
+    if (body) return body.slice(0, limit);
     return null;
   }
 };
@@ -21190,7 +21213,7 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       infoIcon.addEventListener("mouseenter", () => {
         tip = document.createElement("div");
         tip.className = "augment-api-key-tip";
-        tip.textContent = "Shows Claude Code sessions from other directories on this machine. Reads ~/.claude/projects/ \u2014 only Claude Code data, nothing else.";
+        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
         document.body.appendChild(tip);
         const rect = infoIcon.getBoundingClientRect();
         tip.style.top = `${rect.bottom + 6}px`;
@@ -21440,8 +21463,6 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
         } else {
           this.expandedProjects.add(group.encodedName);
         }
-        this.projectsState.lastLoadTime = 0;
-        this.projectsState.reloadRequested = true;
         this.requestRefresh();
       });
       if (isExpanded) {
@@ -21510,6 +21531,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
   }
   renderHistoryRow(session, container) {
     const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
+    if (session.titleFull && session.titleFull !== session.title) {
+      row.setAttribute("title", session.titleFull);
+    }
     const line = row.createDiv({ cls: "augment-tm-line" });
     line.createDiv({ cls: "augment-tm-dot" });
     line.createSpan({ cls: "augment-tm-name", text: session.title });
@@ -22951,8 +22975,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:21:02.183Z";
-    this.gitSha = "a0094df";
+    this.buildId = "2026-03-07T00:29:48.021Z";
+    this.gitSha = "bb98381";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

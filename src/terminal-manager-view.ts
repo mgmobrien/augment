@@ -802,6 +802,9 @@ export class TerminalManagerView extends ItemView {
 
   private renderHistoryRow(session: SessionMeta, container: HTMLElement): void {
     const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
+    if (session.titleFull && session.titleFull !== session.title) {
+      row.setAttribute("title", session.titleFull);
+    }
 
     const line = row.createDiv({ cls: "augment-tm-line" });
 

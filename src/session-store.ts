@@ -6,6 +6,7 @@ export interface SessionMeta {
   id: string;         // JSONL filename without extension
   resumeId: string;   // Claude sessionId used by `claude --resume`
   title: string;      // first user message, ~60 chars
+  titleFull: string;  // longer excerpt for tooltip, ~250 chars
   status: "stale" | "complete";
   mtimeMs: number;
   msgCount: number;   // number of user turns in the session
@@ -25,6 +26,7 @@ type SessionSummary = {
   msgCount: number;
   resumeId: string | null;
   title: string;
+  titleFull: string;
 };
 
 export class SessionStore {
@@ -150,6 +152,7 @@ export class SessionStore {
             id,
             resumeId: summary.resumeId ?? id,
             title: summary.title,
+            titleFull: summary.titleFull,
             status: now - e.mtimeMs < 30_000 ? "stale" as const : "complete" as const,
             mtimeMs: e.mtimeMs,
             msgCount: summary.msgCount,
@@ -188,7 +191,9 @@ export class SessionStore {
 
   private parseSessionContent(content: string, fallbackTitle: string): SessionSummary {
     let firstUserTitle: string | null = null;
+    let firstUserRaw: string | null = null;
     let firstAssistantText: string | null = null;
+    let firstAssistantRaw: string | null = null;
     let explicitRenameTitle: string | null = null;
     let resumeId: string | null = null;
     let msgCount = 0;
@@ -228,7 +233,10 @@ export class SessionStore {
             msgCount++;
             if (!firstUserTitle) {
               const cleaned = this.cleanTitle(text);
-              if (cleaned) firstUserTitle = cleaned;
+              if (cleaned) {
+                firstUserTitle = cleaned;
+                firstUserRaw = text;
+              }
             }
           }
         }
@@ -243,7 +251,10 @@ export class SessionStore {
                 const firstLine = text.replace(/\n[\s\S]*/m, "").trim();
                 const sentence = firstLine.replace(/[.!?].*/, "").trim();
                 const candidate = (sentence.length > 5 ? sentence : firstLine).slice(0, 55);
-                if (candidate.length > 3) firstAssistantText = candidate;
+                if (candidate.length > 3) {
+                  firstAssistantText = candidate;
+                  firstAssistantRaw = firstLine.slice(0, 200);
+                }
                 break;
               }
             }
@@ -259,7 +270,23 @@ export class SessionStore {
     if (firstAssistantText) parts.push(firstAssistantText);
     const combined = parts.join(" — ").slice(0, 60) || fallbackTitle;
     const title = explicitRenameTitle ?? combined;
-    return { msgCount, resumeId, title };
+
+    // Longer version for hover tooltip (~250 chars).
+    const longParts: string[] = [];
+    if (firstUserRaw) {
+      const userLong = this.cleanTitle(firstUserRaw, 180);
+      if (userLong) longParts.push(userLong);
+    } else if (firstUserTitle) {
+      longParts.push(firstUserTitle);
+    }
+    if (firstAssistantRaw) {
+      longParts.push(firstAssistantRaw);
+    } else if (firstAssistantText) {
+      longParts.push(firstAssistantText);
+    }
+    const titleFull = explicitRenameTitle ?? (longParts.join(" — ").slice(0, 280) || fallbackTitle);
+
+    return { msgCount, resumeId, title, titleFull };
   }
 
   private extractExplicitRenameTitle(command: string): string | null {
@@ -324,12 +351,12 @@ export class SessionStore {
     return false;
   }
 
-  private cleanTitle(raw: string): string | null {
+  private cleanTitle(raw: string, limit = 60): string | null {
     const compact = raw.replace(/\s+/g, " ").trim();
     if (!compact) return null;
 
-    const teammate = this.cleanTeammateXmlTitle(compact);
-    if (teammate) return teammate.slice(0, 60);
+    const teammate = this.cleanTeammateXmlTitle(compact, limit);
+    if (teammate) return teammate.slice(0, limit);
 
     // Remove system-injected tag blocks entirely (tag + content) before stripping.
     // Stripping just the tags would leave the injected content as the title text.
@@ -356,13 +383,13 @@ export class SessionStore {
       const role = roleForwarded[1].replace(/\s+part$/i, "").trim();
       const project = stripped.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)?.[1]?.trim();
       const label = project ? `${role} - ${project}` : role;
-      return label.slice(0, 60);
+      return label.slice(0, limit);
     }
 
-    return stripped.slice(0, 60);
+    return stripped.slice(0, limit);
   }
 
-  private cleanTeammateXmlTitle(text: string): string | null {
+  private cleanTeammateXmlTitle(text: string, limit = 60): string | null {
     const xml = text.match(
       /<teammate-message\b([^>]*)>([\s\S]*?)<\/teammate-message>/i
     );
@@ -384,7 +411,7 @@ export class SessionStore {
     if (role && project) return `${role} - ${project}`;
     if (role) return role;
     if (teammateId) return teammateId;
-    if (body) return body.slice(0, 60);
+    if (body) return body.slice(0, limit);
     return null;
   }
 }
