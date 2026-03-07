@@ -2694,3 +2694,17 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   font-size: var(--font-ui-smaller);
   color: var(--text-faint);
 }
+
+/* Inline rename input in TM sidebar */
+.augment-tm-name-input {
+  font-size: var(--font-ui-small);
+  font-family: inherit;
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 3px;
+  color: var(--text-normal);
+  padding: 0 4px;
+  height: 18px;
+  width: 120px;
+  outline: none;
+}

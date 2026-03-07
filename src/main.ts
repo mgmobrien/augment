@@ -147,10 +147,9 @@ export default class AugmentTerminalPlugin extends Plugin {
   /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
   public applyRibbonIcon(): void {
     if (!this.ribbonGenerateEl) return;
-    const iconEl = this.ribbonGenerateEl.querySelector(".svg-icon") as HTMLElement | null;
-    if (iconEl) {
-      setIcon(iconEl, this.settings.ribbonIcon || "augment-pyramid");
-    }
+    // Call setIcon on the container element, not the inner .svg-icon span.
+    // Calling it on the span causes the icon to revert when Obsidian refreshes the ribbon.
+    setIcon(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
 
   public refreshStatusBar(): void {
@@ -455,6 +454,16 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.settings.defaultTerminalLocation = "sidebar-left-bottom";
     }
 
+    // Migrate invalid ribbonIcon values. "settings" leaked from an old settings-ribbon button
+    // that was removed. Any unrecognised value resets to the default pyramid.
+    const VALID_RIBBON_ICONS = new Set([
+      "augment-pyramid", "wand-2", "sparkles", "brain", "zap", "bot",
+      "pencil", "type", "message-square", "cpu", "code-2", "terminal",
+    ]);
+    if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
+      this.settings.ribbonIcon = "augment-pyramid";
+    }
+
     // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
     // Two mechanisms: (1) removeDefaultHotkeys on the runtime hotkey manager (immediate),
     // (2) write [] to hotkeys.json (persists across reloads for non-plugin built-ins).
@@ -496,24 +505,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       view.onSessionExit = (name, status, startedAt, skillName) => {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };
-      view.onAutoRenameRequest = async (excerpt: string) => {
-        const localFallback = this.deriveTerminalNameFromExcerpt(excerpt);
-        if (!this.settings.apiKey?.trim()) {
-          return localFallback;
-        }
-
-        try {
-          const { text: raw } = await generateText(
-            "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2–4 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
-            `Session excerpt:\n${excerpt}`,
-            this.settings,
-            "claude-haiku-4-5-20251001"
-          );
-          const cleaned = this.sanitizeTerminalName(raw);
-          return cleaned ?? localFallback;
-        } catch {
-          return localFallback;
-        }
+      view.onAutoRenameRequest = (excerpt: string) => {
+        return Promise.resolve(this.deriveTerminalNameFromExcerpt(excerpt));
       };
       view.onSwitchWorkspaceRequest = (v: TerminalView) => {
         new WorkspaceSwitcherModal(this.app, v).open();

@@ -23,6 +23,7 @@ type TerminalViewLike = {
   getLastActivityMs?: () => number;
   getAutoNamed?: () => boolean;
   getWorkingDirectory?: () => string;
+  setName?: (name: string) => void;
 };
 
 type TeamContext = { isTeamMember: boolean; isSubAgent: boolean };
@@ -540,6 +541,38 @@ export class TerminalManagerView extends ItemView {
     const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
     const nameEl = line.createSpan({ cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""), text: name });
     if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
+
+    // Click-to-rename: clicking the name span opens an inline text input.
+    if (typeof view.setName === "function") {
+      nameEl.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        const currentName = nameEl.textContent ?? "";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = currentName;
+        input.className = "augment-tm-name-input";
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const commit = () => {
+          const newName = input.value.trim();
+          if (newName && newName !== currentName) {
+            (view.setName as (n: string) => void)(newName);
+          }
+          input.replaceWith(nameEl);
+          nameEl.textContent = newName || currentName;
+        };
+        const cancel = () => { input.replaceWith(nameEl); };
+
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+        });
+        input.addEventListener("blur", commit);
+      });
+    }
     const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
     if (identity && identity.toLowerCase() !== name.toLowerCase()) {
       line.createSpan({ cls: "augment-tm-role", text: identity });
