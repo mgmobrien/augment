@@ -271,6 +271,57 @@ export class AugmentSettingTab extends PluginSettingTab {
     };
 
 
+    // ── Tab header: welcome block + hotkeys ──────────────────
+    const isMac = process.platform === "darwin";
+    {
+      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
+      const overviewIntro  = overviewHeader.createDiv({ cls: "augment-tab-intro" });
+
+      // Welcome block — state-driven copy, pyramid icon left
+      const welcomeEl = overviewIntro.createDiv({ cls: "augment-welcome" });
+      const iconEl = welcomeEl.createDiv({ cls: "augment-welcome-icon" });
+      setIcon(iconEl, "augment-pyramid");
+      const copyEl = welcomeEl.createDiv({ cls: "augment-welcome-copy" });
+
+      const { hasGenerated, terminalSetupDone, model } = this.plugin.settings;
+      const spend = this.plugin.spendData;
+      const totalGens = spend
+        ? Object.values(spend.byModel).reduce((sum, e) => sum + e.generations, 0)
+        : 0;
+
+      if (terminalSetupDone) {
+        copyEl.createDiv({ cls: "augment-welcome-line1", text: "Augment is fully configured." });
+      } else if (hasGenerated) {
+        let modelName = "Claude";
+        if (!model.startsWith("auto") && model.length > 0) {
+          modelName = modelDisplayName(model);
+        } else if (spend && Object.keys(spend.byModel).length > 0) {
+          const topModel = Object.entries(spend.byModel)
+            .sort(([, a], [, b]) => b.generations - a.generations)[0][0];
+          modelName = modelDisplayName(topModel);
+        }
+        copyEl.createDiv({
+          cls: "augment-welcome-line1",
+          text: `Generating with ${modelName}. ${totalGens} generation${totalGens === 1 ? "" : "s"} so far.`,
+        });
+      } else {
+        copyEl.createDiv({
+          cls: "augment-welcome-line1",
+          text: "Augment — AI generation and Claude Code terminals for Obsidian.",
+        });
+        copyEl.createDiv({
+          cls: "augment-welcome-line2",
+          text: `Press ${isMac ? "Cmd" : "Ctrl"}+Enter to generate text, or Ctrl+T to open a terminal.`,
+        });
+      }
+
+      // Hotkey box — pinned right
+      this.renderHotkeyBox(overviewHeader, [
+        { label: "Generate",      commandId: "augment-terminal:augment-generate" },
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
+      ]);
+    }
+
     // API key (on Overview pane)
     const apiKeySetting = new Setting(overviewPane)
       .setName("API key")
@@ -352,32 +403,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
 
-    // ── Tab header (hotkey box + intro) ──────────────────────
-    const isMac = process.platform === "darwin";
-    {
-      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
-      const overviewIntro  = overviewHeader.createDiv({ cls: "augment-tab-intro" });
-
-      // "How it works"
-      const howEl = overviewIntro.createEl("div", { cls: "augment-overview-how" });
-      howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
-      const howSteps = [
-        "Position your cursor where you want output to appear.",
-        `Press ${isMac ? "Cmd" : "Ctrl"}+Enter (or right-click \u2192 Augment: Generate).`,
-        "A loading indicator appears while Claude generates.",
-        "The result is inserted at your cursor in the chosen format.",
-      ];
-      const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
-      for (const step of howSteps) {
-        ol.createEl("li", { text: step });
-      }
-
-      // Hotkey box — pinned right
-      this.renderHotkeyBox(overviewHeader, [
-        { label: "Generate",      commandId: "augment-terminal:augment-generate" },
-        { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
-      ]);
-    }
 
     // ── Keyboard shortcuts (Advanced) ─────────────────────────
     {

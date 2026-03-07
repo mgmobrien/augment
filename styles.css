@@ -791,6 +791,46 @@
   min-width: 0;
 }
 
+/* ── Overview welcome block ── */
+.augment-welcome {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.augment-welcome-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  opacity: 0.65;
+  margin-top: 1px;
+}
+
+.augment-welcome-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.augment-welcome-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.augment-welcome-line1 {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.augment-welcome-line2 {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+
 
 /* ── Per-tab hotkey cheat-sheet box ── */
 .augment-hotkey-cheatsheet-wrapper {
