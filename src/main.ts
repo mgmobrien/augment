@@ -146,7 +146,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     if (!this.ribbonGenerateEl) return;
     // Call setIcon on the container element, not the inner .svg-icon span.
     // Calling it on the span causes the icon to revert when Obsidian refreshes the ribbon.
-    setIcon(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
+    setIcon(this.ribbonGenerateEl, this.settings.ribbonIcon || "radio-tower");
   }
 
   public refreshStatusBar(): void {
@@ -155,7 +155,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     if (!this.statusBarEl) return;
     this.statusBarEl.empty();
     const sbIconEl = this.statusBarEl.createEl("span", { cls: "augment-sb-icon" });
-    setIcon(sbIconEl, this.settings.ribbonIcon || "augment-pyramid");
+    setIcon(sbIconEl, this.settings.ribbonIcon || "radio-tower");
     if (!this.settings.apiKey) {
       this.statusBarEl.createEl("span", { text: " Augment: API key needed" });
     } else {
@@ -457,13 +457,17 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
 
     // Migrate invalid ribbonIcon values. "settings" leaked from an old settings-ribbon button
-    // that was removed. Any unrecognised value resets to the default pyramid.
+    // that was removed. Any unrecognised value resets to the default sensor tower.
     const VALID_RIBBON_ICONS = new Set([
-      "augment-pyramid", "wand-2", "sparkles", "brain", "zap", "bot",
+      "radio-tower", "augment-pyramid", "wand-2", "sparkles", "brain", "zap", "bot",
       "pencil", "type", "message-square", "cpu", "code-2", "terminal",
     ]);
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
-      this.settings.ribbonIcon = "augment-pyramid";
+      this.settings.ribbonIcon = "radio-tower";
+    }
+    // Migrate old default pyramid → sensor tower (radio-tower is the Augment identity icon).
+    if (this.settings.ribbonIcon === "augment-pyramid") {
+      this.settings.ribbonIcon = "radio-tower";
     }
 
     // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
@@ -826,7 +830,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     // Right-click context menu
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
-        const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
+        const menuIcon = this.settings.ribbonIcon || "radio-tower";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
             item
@@ -862,7 +866,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.addTerminalRibbonIfNeeded();
 
     // Ribbon: configurable icon → generate AI text
-    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
+    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "radio-tower", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to generate");

@@ -16296,7 +16296,7 @@ var DEFAULT_SETTINGS = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "augment-pyramid",
+  ribbonIcon: "radio-tower",
   projectRoots: [],
   workspaceScope: "open"
 };
@@ -17516,19 +17516,9 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
     const isMac = process.platform === "darwin";
     {
-      const hintsEl = overviewPane.createEl("div", { cls: "augment-overview-hints" });
-      const hintRows = [
-        { label: "Generate text", shortcut: isMac ? "\u2318+\u21A9" : "Ctrl+\u21A9" },
-        { label: "Open terminal", shortcut: "Ctrl+T" }
-      ];
-      for (const h of hintRows) {
-        const row = hintsEl.createEl("div", { cls: "augment-hint-row" });
-        row.createEl("span", { cls: "augment-hint-label", text: h.label });
-        row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: h.shortcut });
-      }
-    }
-    {
-      const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
+      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
+      const overviewIntro = overviewHeader.createDiv({ cls: "augment-tab-intro" });
+      const howEl = overviewIntro.createEl("div", { cls: "augment-overview-how" });
       howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
       const howSteps = [
         "Position your cursor where you want output to appear.",
@@ -17540,6 +17530,14 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       for (const step of howSteps) {
         ol.createEl("li", { text: step });
       }
+      this.renderHotkeyBox(overviewHeader, [
+        { label: "Generate", commandId: "augment-terminal:augment-generate" },
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" }
+      ]);
+    }
+    {
+      const shortcutsDetails = overviewPane.createEl("details", { cls: "augment-advanced-details" });
+      shortcutsDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Keyboard shortcuts" });
       const AUGMENT_CMDS = [
         { id: "augment-generate", label: "Generate", defaultKeys: [{ modifiers: ["Mod"], key: "Enter" }] },
         { id: "augment-generate-from-template", label: "Generate from template", defaultKeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }] },
@@ -17561,9 +17559,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       const renderHotkeyStr = (hk) => formatHotkeyStr(hk.modifiers, hk.key, isMac);
       const hm = this.app.hotkeyManager;
       const customKeys = (_a2 = hm == null ? void 0 : hm.customKeys) != null ? _a2 : {};
-      const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
-      shortcutsEl.createEl("div", { cls: "augment-overview-how-title", text: "Keyboard shortcuts" });
-      const kbTable = shortcutsEl.createEl("table", { cls: "augment-var-table" });
+      const kbTable = shortcutsDetails.createEl("table", { cls: "augment-var-table" });
       const kbTbody = kbTable.createEl("tbody");
       for (const cmd of AUGMENT_CMDS) {
         const fullId = "augment-terminal:" + cmd.id;
@@ -17579,7 +17575,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
           keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
         }
       }
-      const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
+      const customizeEl = shortcutsDetails.createEl("div", { cls: "augment-shortcuts-customize" });
       const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
       customizeLink.href = "#";
       customizeLink.addEventListener("click", (e) => {
@@ -17641,17 +17637,22 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
       infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
     }
-    this.renderHotkeyBox(continuationPane, [
-      { label: "Generate", commandId: "augment-terminal:augment-generate" },
-      { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
-    ]);
-    continuationPane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it \u2014 the AI sees your note title, frontmatter, surrounding context, and linked notes."
-    });
+    {
+      const contHeader = continuationPane.createDiv({ cls: "augment-tab-header" });
+      const contIntro = contHeader.createDiv({ cls: "augment-tab-intro" });
+      contIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it \u2014 the AI sees your note title, frontmatter, surrounding context, and linked notes."
+      });
+      this.renderHotkeyBox(contHeader, [
+        { label: "Generate", commandId: "augment-terminal:augment-generate" },
+        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
+      ]);
+    }
     continuationPane.createDiv({ cls: "augment-pane-section", text: "Ribbon icon" });
     const RIBBON_ICONS = {
-      "augment-pyramid": "Augment pyramid (default)",
+      "radio-tower": "Sensor tower (default)",
+      "augment-pyramid": "Augment pyramid",
       "wand-2": "Wand",
       "sparkles": "Sparkles",
       "brain": "Brain",
@@ -17668,7 +17669,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       for (const [id, label] of Object.entries(RIBBON_ICONS)) {
         dd.addOption(id, label);
       }
-      dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
+      dd.setValue(this.plugin.settings.ribbonIcon || "radio-tower");
       dd.onChange(async (val) => {
         this.plugin.settings.ribbonIcon = val;
         await this.plugin.saveData(this.plugin.settings);
@@ -17678,7 +17679,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     });
     const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
     ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    (0, import_obsidian7.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+    (0, import_obsidian7.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "radio-tower");
     new import_obsidian7.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
         this.plugin.settings.coloredRibbonIcon = val;
@@ -17840,13 +17841,17 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         }
       }
     }
-    this.renderHotkeyBox(templatesPane, [
-      { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
-    ]);
-    templatesPane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
-    });
+    {
+      const tplHeader = templatesPane.createDiv({ cls: "augment-tab-header" });
+      const tplIntro = tplHeader.createDiv({ cls: "augment-tab-intro" });
+      tplIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
+      });
+      this.renderHotkeyBox(tplHeader, [
+        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
+      ]);
+    }
     const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
     eli5Details.createEl("summary", { cls: "augment-hbs-summary", text: "What is a template?" });
     const eli5Body = eli5Details.createDiv({ cls: "augment-hbs-body augment-eli5-body" });
@@ -18085,15 +18090,20 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       hbsLink.target = "_blank";
       hbsLink.rel = "noopener";
     }
-    this.renderHotkeyBox(terminalPane, [
-      { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
-      { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
-      { label: "Next waiting session", commandId: "augment-terminal:jump-to-next-waiting-session" }
-    ]);
-    terminalPane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
-    });
+    {
+      const termHeader = terminalPane.createDiv({ cls: "augment-tab-header" });
+      const termIntro = termHeader.createDiv({ cls: "augment-tab-intro" });
+      termIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
+      });
+      this.renderHotkeyBox(termHeader, [
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
+        { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
+        { label: "Next waiting", commandId: "augment-terminal:jump-to-next-waiting-session" }
+      ]);
+    }
+    terminalPane.createEl("hr", { cls: "augment-tab-divider" });
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
     const wizardBody = wizardSection.createDiv();
     const setupVault = async () => {
@@ -22412,8 +22422,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T03:17:27.855Z";
-    this.gitSha = "4305421";
+    this.buildId = "2026-03-07T05:21:42.251Z";
+    this.gitSha = "867b984";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22465,7 +22475,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
   applyRibbonIcon() {
     if (!this.ribbonGenerateEl) return;
-    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
+    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "radio-tower");
   }
   refreshStatusBar() {
     var _a2, _b;
@@ -22474,7 +22484,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     if (!this.statusBarEl) return;
     this.statusBarEl.empty();
     const sbIconEl = this.statusBarEl.createEl("span", { cls: "augment-sb-icon" });
-    (0, import_obsidian12.setIcon)(sbIconEl, this.settings.ribbonIcon || "augment-pyramid");
+    (0, import_obsidian12.setIcon)(sbIconEl, this.settings.ribbonIcon || "radio-tower");
     if (!this.settings.apiKey) {
       this.statusBarEl.createEl("span", { text: " Augment: API key needed" });
     } else {
@@ -22755,6 +22765,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       this.settings.defaultTerminalLocation = "sidebar-left-bottom";
     }
     const VALID_RIBBON_ICONS = /* @__PURE__ */ new Set([
+      "radio-tower",
       "augment-pyramid",
       "wand-2",
       "sparkles",
@@ -22769,7 +22780,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       "terminal"
     ]);
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
-      this.settings.ribbonIcon = "augment-pyramid";
+      this.settings.ribbonIcon = "radio-tower";
+    }
+    if (this.settings.ribbonIcon === "augment-pyramid") {
+      this.settings.ribbonIcon = "radio-tower";
     }
     {
       const hm = this.app.hotkeyManager;
@@ -23089,7 +23103,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
-        const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
+        const menuIcon = this.settings.ribbonIcon || "radio-tower";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
             item.setTitle("Augment: add API key to get started \u2192").setIcon(menuIcon).onClick(() => {
@@ -23112,7 +23126,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       })
     );
     this.addTerminalRibbonIfNeeded();
-    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
+    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "radio-tower", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
       if (!view) {
         new import_obsidian12.Notice("Open a note to generate");

@@ -71,7 +71,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "augment-pyramid",
+  ribbonIcon: "radio-tower",
   projectRoots: [],
   workspaceScope: "open",
 };

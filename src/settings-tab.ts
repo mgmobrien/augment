@@ -379,8 +379,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       ]);
     }
 
-    overviewPane.createEl("hr", { cls: "augment-tab-divider" });
-
     // ── Keyboard shortcuts (Advanced) ─────────────────────────
     {
       const shortcutsDetails = overviewPane.createEl("details", { cls: "augment-advanced-details" });
@@ -514,13 +512,12 @@ export class AugmentSettingTab extends PluginSettingTab {
         { label: "Run template",  commandId: "augment-terminal:augment-generate-from-template" },
       ]);
     }
-    continuationPane.createEl("hr", { cls: "augment-tab-divider" });
-
     // ── Ribbon icon ──────────────────────────────────────────
     continuationPane.createDiv({ cls: "augment-pane-section", text: "Ribbon icon" });
 
     const RIBBON_ICONS: Record<string, string> = {
-      "augment-pyramid": "Augment pyramid (default)",
+      "radio-tower": "Sensor tower (default)",
+      "augment-pyramid": "Augment pyramid",
       "wand-2": "Wand",
       "sparkles": "Sparkles",
       "brain": "Brain",
@@ -541,7 +538,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         for (const [id, label] of Object.entries(RIBBON_ICONS)) {
           dd.addOption(id, label);
         }
-        dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
+        dd.setValue(this.plugin.settings.ribbonIcon || "radio-tower");
         dd.onChange(async (val) => {
           this.plugin.settings.ribbonIcon = val;
           await this.plugin.saveData(this.plugin.settings);
@@ -552,7 +549,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
     ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    setIcon(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+    setIcon(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "radio-tower");
 
     new Setting(continuationPane)
       .setName("Colored Generate icon")
@@ -795,8 +792,6 @@ export class AugmentSettingTab extends PluginSettingTab {
         { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" },
       ]);
     }
-    templatesPane.createEl("hr", { cls: "augment-tab-divider" });
-
     // ELI5 — collapsed by default, visible to all tiers.
     const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
     eli5Details.createEl("summary", { cls: "augment-hbs-summary", text: "What is a template?" });
@@ -1106,8 +1101,6 @@ export class AugmentSettingTab extends PluginSettingTab {
         { label: "Next waiting",     commandId: "augment-terminal:jump-to-next-waiting-session" },
       ]);
     }
-    terminalPane.createEl("hr", { cls: "augment-tab-divider" });
-
     // Setup wizard section
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
     const wizardBody = wizardSection.createDiv();
