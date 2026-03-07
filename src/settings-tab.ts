@@ -962,7 +962,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     // "Generate templates from folder" button.
     const genTplSetting = new Setting(templatesPane)
       .setName("Generate templates from folder")
-      .setDesc("Scan a vault folder and generate Handlebars templates based on the content patterns found there.")
+      .setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.")
       .addButton((btn) => {
         btn.setButtonText("Choose folder\u2026").onClick(async () => {
           if (!this.plugin.settings.apiKey) {
@@ -1051,22 +1051,27 @@ export class AugmentSettingTab extends PluginSettingTab {
       text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}",
     });
 
-    // Handlebars syntax guide — collapsible for progressive disclosure.
+    // LiquidJS syntax guide — collapsible for progressive disclosure.
     const hbsDetails = templatesPane.createEl("details", { cls: "augment-hbs-details" });
-    hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Handlebars syntax" });
+    hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Template syntax (LiquidJS)" });
 
     const hbsBody = hbsDetails.createDiv({ cls: "augment-hbs-body" });
     hbsBody.createEl("p", {
       cls: "augment-hbs-intro",
-      text: "Templates use Handlebars. Beyond variable insertion you can use conditionals and helpers.",
+      text: "Templates use LiquidJS. Use {{ }} for variables, {% %} for logic, and | filters to transform values.",
     });
 
     const syntaxRows: { syntax: string; desc: string }[] = [
-      { syntax: "{{variable}}",                                  desc: "Insert variable value" },
-      { syntax: "{{#if selection}}\u2026{{/if}}",                desc: "Include block only when non-empty" },
-      { syntax: "{{#if selection}}\u2026{{else}}\u2026{{/if}}", desc: "Conditional with fallback" },
-      { syntax: "{{#unless selection}}\u2026{{/unless}}",        desc: "Include when empty / falsy" },
-      { syntax: "{{{variable}}}",                                desc: "Skip HTML escaping (safe for note content)" },
+      { syntax: "{{ variable }}",                                           desc: "Insert variable value" },
+      { syntax: "{% if selection %}…{% endif %}",                           desc: "Include block only when non-empty" },
+      { syntax: "{% if selection %}…{% else %}…{% endif %}",               desc: "Conditional with fallback" },
+      { syntax: "{% unless selection %}…{% endunless %}",                   desc: "Include when empty / falsy" },
+      { syntax: "{% for tag in tags %}{{ tag }}{% endfor %}",               desc: "Loop over an array" },
+      { syntax: "{{ note_content | truncate: 500 }}",                       desc: "Trim to 500 characters" },
+      { syntax: "{{ note_content | truncatewords: 100 }}",                  desc: "Trim to 100 words" },
+      { syntax: "{{ tags | join: ', ' }}",                                  desc: "Join array with separator" },
+      { syntax: "{{ variable | upcase }}",                                  desc: "Upper-case a string" },
+      { syntax: "{{ variable | default: 'fallback' }}",                     desc: "Use fallback when empty" },
     ];
     const hbsTable = hbsBody.createEl("table", { cls: "augment-var-table" });
     const hbsTbody = hbsTable.createEl("tbody");
@@ -1079,13 +1084,13 @@ export class AugmentSettingTab extends PluginSettingTab {
     hbsBody.createDiv({ cls: "augment-section-label augment-hbs-example-label", text: "Example \u2014 use selection when present, fall back to full note" });
     hbsBody.createEl("pre", {
       cls: "augment-format-example",
-      text: "Summarise the following:\n\n{{#if selection}}{{{selection}}}{{else}}{{{note_content}}}{{/if}}",
+      text: "Summarise the following:\n\n{% if selection %}{{ selection }}{% else %}{{ note_content }}{% endif %}",
     });
 
     const hbsLink = hbsBody.createEl("a", {
       cls: "augment-hbs-docs-link",
-      text: "See the full Handlebars guide \u2192",
-      href: "https://handlebarsjs.com/guide/",
+      text: "See the full LiquidJS guide \u2192",
+      href: "https://liquidjs.com/tags/overview.html",
     });
     hbsLink.target = "_blank";
     hbsLink.rel = "noopener";
