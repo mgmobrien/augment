@@ -801,7 +801,7 @@
 
 .augment-hotkey-cheatsheet-pill {
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: var(--font-ui-smaller);
+  font-size: var(--font-ui-small);
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-bottom-width: 2px;
@@ -1368,13 +1368,6 @@
   font-size: 12px;
   color: var(--text-faint);
   font-style: italic;
-}
-
-/* ── Generating toast pyramid icon ── */
-.augment-notice-pyramid .svg-icon {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.15em;
 }
 
 /* ── Post-generation notice action ── */
@@ -2169,14 +2162,14 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   z-index: 9999;
   max-width: 280px;
   padding: 8px 10px;
-  background: var(--background-modifier-hover);
+  background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
   font-size: 0.8em;
   line-height: 1.5;
   color: var(--text-normal);
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 .augment-tm-activity-tip-label {
   font-weight: 600;
@@ -2571,4 +2564,42 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   margin-top: 18px;
   padding-top: 12px;
   border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Habitat / workspace CWD bar */
+.augment-cwd-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  min-height: 22px;
+  flex-shrink: 0;
+}
+
+.augment-cwd-bar:hover {
+  background: var(--background-modifier-hover);
+}
+
+.augment-cwd-icon {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.augment-cwd-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.augment-cwd-badge {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

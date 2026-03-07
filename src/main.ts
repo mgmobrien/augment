@@ -196,10 +196,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      const genNotice = new Notice("", 3000);
-      const iconEl = genNotice.noticeEl.createEl("span", { cls: "augment-notice-pyramid" });
-      setIcon(iconEl, "augment-pyramid");
-      genNotice.noticeEl.createEl("span", { text: "\u00a0Generating\u2026" });
+      const genNotice = new Notice("Generating…", 3000);
     }
 
     const isBlock = this.settings.outputFormat !== "plain";
@@ -512,6 +509,9 @@ export default class AugmentTerminalPlugin extends Plugin {
         } catch {
           return localFallback;
         }
+      };
+      view.onSwitchWorkspaceRequest = (v: TerminalView) => {
+        new WorkspaceSwitcherModal(this.app, v).open();
       };
       return view;
     });
@@ -994,6 +994,18 @@ export default class AugmentTerminalPlugin extends Plugin {
       name: "Switch terminal",
       callback: () => {
         new TerminalSwitcherModal(this.app).open();
+      },
+    });
+
+    // Workspace switcher (Habitats Phase 1)
+    this.addCommand({
+      id: "switch-workspace",
+      name: "Switch workspace",
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(TerminalView);
+        if (view) {
+          new WorkspaceSwitcherModal(this.app, view).open();
+        }
       },
     });
 
@@ -1483,5 +1495,64 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
 
     return false;
+  }
+}
+
+// ── Habitats: workspace discovery ────────────────────────────────────────────
+
+interface WorkspaceEntry {
+  label: string;
+  path: string;
+}
+
+function discoverWorkspaces(app: App): WorkspaceEntry[] {
+  const entries: WorkspaceEntry[] = [];
+
+  // Vault root always first
+  const vaultPath = (app.vault.adapter as any).basePath as string | undefined;
+  if (vaultPath) {
+    const vaultName = vaultPath.split("/").filter(Boolean).pop() ?? "vault";
+    entries.push({ label: `vault — ${vaultName}`, path: vaultPath });
+  }
+
+  // Scan ~/Development/ for git repos
+  const devDir = join(homedir(), "Development");
+  if (existsSync(devDir)) {
+    try {
+      const dirs = readdirSync(devDir, { withFileTypes: true });
+      for (const d of dirs) {
+        if (!d.isDirectory()) continue;
+        const fullPath = join(devDir, d.name);
+        if (existsSync(join(fullPath, ".git"))) {
+          entries.push({ label: d.name, path: fullPath });
+        }
+      }
+    } catch {
+      // ignore unreadable directories
+    }
+  }
+
+  return entries;
+}
+
+class WorkspaceSwitcherModal extends FuzzySuggestModal<WorkspaceEntry> {
+  private targetView: TerminalView;
+
+  constructor(app: App, targetView: TerminalView) {
+    super(app);
+    this.targetView = targetView;
+    this.setPlaceholder("Type to filter workspaces…");
+  }
+
+  getItems(): WorkspaceEntry[] {
+    return discoverWorkspaces(this.app);
+  }
+
+  getItemText(item: WorkspaceEntry): string {
+    return item.label;
+  }
+
+  onChooseItem(item: WorkspaceEntry): void {
+    this.targetView.setCwd(item.path);
   }
 }

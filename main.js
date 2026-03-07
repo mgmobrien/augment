@@ -6328,7 +6328,10 @@ __export(main_exports, {
   default: () => AugmentTerminalPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
+var import_fs3 = require("fs");
+var import_os2 = require("os");
+var import_path10 = require("path");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f) {
@@ -16171,7 +16174,8 @@ var DEFAULT_SETTINGS = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "augment-pyramid"
+  ribbonIcon: "augment-pyramid",
+  showAdvancedSettings: false
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -18820,6 +18824,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.lastPromptAtMs = 0;
     this.autoRenameInFlight = false;
     this.lastAutoRenameAttemptAtMs = 0;
+    this.forcedCwd = "";
+    this.cwdBadgeEl = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -19212,6 +19218,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const errorBanner = container.createDiv({ cls: "augment-terminal-error-banner" });
     errorBanner.style.display = "none";
     this.errorBannerEl = errorBanner;
+    const cwdBar = container.createDiv({ cls: "augment-cwd-bar" });
+    const cwdIcon = cwdBar.createSpan({ cls: "augment-cwd-icon" });
+    (0, import_obsidian5.setIcon)(cwdIcon, "folder");
+    this.cwdBadgeEl = cwdBar.createSpan({ cls: "augment-cwd-badge" });
+    cwdBar.addEventListener("click", () => {
+      var _a2;
+      (_a2 = this.onSwitchWorkspaceRequest) == null ? void 0 : _a2.call(this, this);
+    });
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
     if (this.restoredSnapshot) {
@@ -19221,6 +19235,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       );
     }
     this.startPtyBridge();
+    this.updateCwdBadge();
     this.terminal.onData((data) => {
       var _a2;
       (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
@@ -19240,11 +19255,30 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.resizeObserver.observe(container);
   }
+  /** Respawn the shell in a new working directory. */
+  setCwd(newPath) {
+    var _a2, _b;
+    this.forcedCwd = newPath;
+    const basename = (_a2 = newPath.split("/").filter(Boolean).pop()) != null ? _a2 : newPath;
+    (_b = this.terminal) == null ? void 0 : _b.write(`\r
+\x1B[2m[Switching workspace \u2192 ${basename}]\x1B[0m\r
+`);
+    this.startPtyBridge();
+    this.updateCwdBadge();
+  }
+  updateCwdBadge() {
+    var _a2;
+    if (!this.cwdBadgeEl) return;
+    const cwd = this.resolvedCwd;
+    const basename = (_a2 = cwd.split("/").filter(Boolean).pop()) != null ? _a2 : cwd;
+    this.cwdBadgeEl.textContent = basename;
+    this.cwdBadgeEl.title = cwd;
+  }
   startPtyBridge(forcedShellPath) {
     var _a2, _b;
     const vaultPath = this.app.vault.adapter.basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
-    this.resolvedCwd = customCwd || vaultPath;
+    this.resolvedCwd = this.forcedCwd || customCwd || vaultPath;
     const shellPath = forcedShellPath != null ? forcedShellPath : this.getShellPath();
     this.ptyStartedAtMs = Date.now();
     (_a2 = this.ptyBridge) == null ? void 0 : _a2.kill();
@@ -19256,7 +19290,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     });
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
-      cwd: customCwd || vaultPath,
+      cwd: this.resolvedCwd,
       shellPath,
       onData: (data) => {
         this.messageFilter.feed(data);
@@ -20887,6 +20921,389 @@ var TerminalSwitcherModal = class extends import_obsidian7.FuzzySuggestModal {
   }
 };
 
+// src/main.ts
+var import_view2 = require("@codemirror/view");
+var import_state2 = require("@codemirror/state");
+
+// src/scaffold-data.ts
+var SCAFFOLD_FOLDER = "Augment/templates";
+var SCAFFOLD_TEMPLATES = [
+  [
+    "Generate summary block",
+    `---
+name: Generate summary block
+description: Write a concise summary of this note
+---
+Summarize the following note. Identify the core claim, key supporting ideas, and any open questions. Write 3\u20135 sentences.
+
+Note: {{title}}
+
+{{note_content}}
+`
+  ],
+  [
+    "Synthesis from linked notes",
+    `---
+name: Synthesis from linked notes
+description: Draw connections across notes linked from this one
+---
+The following notes are all linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
+
+{{linked_notes_full}}
+`
+  ],
+  [
+    "Name this concept",
+    `---
+name: Name this concept
+description: Suggest candidate names for the concept in this note
+---
+Read the following note. Suggest 3\u20135 candidate names for the concept it describes. Each name should be concise (2\u20134 words), memorable, and capture the essential idea.
+
+Note: {{title}}
+
+{{note_content}}
+`
+  ]
+];
+var SCAFFOLD_SKILLS_FOLDER = "agents/skills";
+var SCAFFOLD_SKILLS = [
+  [
+    "meeting-summary",
+    `---
+name: meeting-summary
+description: Summarise a meeting transcript or rough notes into structured output
+---
+
+# Meeting summary
+
+Read the note provided. It contains a meeting transcript, rough meeting notes, or a recording dump.
+
+Produce a structured summary with these sections:
+
+- **Attendees** (if identifiable)
+- **Key points** \u2014 the main topics discussed, 1\u20132 sentences each
+- **Decisions** \u2014 anything that was decided or agreed on
+- **Action items** \u2014 who committed to what, with deadlines if mentioned
+- **Open questions** \u2014 anything raised but not resolved
+
+Write the summary as markdown. Be concise \u2014 the summary should be shorter than the source. Preserve specific names, dates, and numbers exactly as stated.
+
+If the note is not a meeting transcript, say so and skip.
+`
+  ],
+  [
+    "vault-search",
+    `---
+name: vault-search
+description: Search the vault for notes relevant to a question and synthesise an answer
+---
+
+# Vault search
+
+The user will ask a question or give a topic. Your job:
+
+1. Use Grep and Glob to search the vault for relevant notes.
+2. Read the most relevant hits (up to 10 notes).
+3. Synthesise what you found into a clear answer, citing note titles as \`[[wikilinks]]\`.
+
+If you find nothing relevant, say so. Do not fabricate content that isn't in the vault.
+
+Keep the answer concise. Link to source notes so the user can read further.
+`
+  ],
+  [
+    "clean-up",
+    `---
+name: clean-up
+description: Tidy a rough note \u2014 fix formatting, add frontmatter, organise sections
+---
+
+# Clean up
+
+Read the note provided. Clean it up:
+
+- Fix markdown formatting (headings, lists, code blocks)
+- Add or complete frontmatter if missing (at minimum: a descriptive title)
+- Organise content into logical sections with headings
+- Fix obvious typos and grammatical errors
+- Remove redundant whitespace or broken formatting
+
+Preserve the original meaning and voice. Do not add new content or opinions. Do not delete substantive content \u2014 only remove formatting artifacts.
+
+Edit the file directly. Show what you changed.
+`
+  ],
+  [
+    "stack-setup",
+    `---
+name: stack-setup
+description: Vault architect \u2014 assesses vault against S3 reference model, closes gaps
+---
+
+# Stack setup
+
+You are the System 3 vault architect. You know the target vault structure (the S3 reference model below) and your job is to: (1) scan the current vault, (2) compare it against the reference model, (3) close gaps by creating missing structure, and (4) report what you did.
+
+This skill is idempotent. Running it twice produces the same result. It never deletes or overwrites existing content.
+
+## S3 reference model
+
+This is the target state for a System 3 vault. Not every vault needs every piece \u2014 adapt to the user's scale and domain. But this is what "fully configured" looks like.
+
+### Folder structure
+
+\`\`\`
+agents/                    # Canonical home for skills and parts
+  skills/                  # Agent skills (each skill = folder with SKILL.md)
+  parts/                   # Part workspaces (state + sessions)
+claude/                    # Claude Code config (CLAUDE.md, settings)
+  skills/ -> ../agents/skills/   # Symlink for CC working directory
+.claude/ -> claude/        # Symlink (CC expects .claude/)
+Daily Notes/               # Daily planning and reflection
+  YYYY Daily Notes/        # Year subfolders
+    YYYY-MM Daily Notes/   # Month subfolders within year
+Inbox/                     # Quick capture and processing
+z.Templates/               # Note templates
+  v2 templates/            # Current template generation
+Augment/                   # Augment plugin workspace
+  templates/               # Prompt templates for Augment
+\`\`\`
+
+Optional domain folders (create based on user's needs):
+- Projects/ \u2014 project tracking
+- Meetings/ \u2014 meeting notes
+- Research/ \u2014 reference material and research
+
+### CLAUDE.md
+
+The vault root must have a CLAUDE.md (or claude/CLAUDE.md with .claude/ symlink). This is the AI instruction file. It should contain:
+
+1. **Vault description**: what this vault is for
+2. **Folder map**: key directories and their purpose
+3. **Convention guidance**: wikilinks for internal links, frontmatter on all notes, sentence case for headings
+4. **Skills reference**: skills live at agents/skills/{name}/SKILL.md
+5. **Templates reference**: prompt templates location
+6. **Writing style**: any user-specific writing preferences
+
+### Frontmatter conventions
+
+Every note should have frontmatter. The S3 standard fields:
+
+\`\`\`yaml
+---
+note created: YYYY-MM-DD Day        # Creation date with day-of-week
+note creators: []                    # Who created it (user name, [[Gus|model]])
+type: note                           # Note type (note, meeting, project, etc.)
+tags: []                             # Categorization tags
+aliases: []                          # Alternative names for wikilink resolution
+relatives: []                        # Structural links to related notes
+---
+\`\`\`
+
+Minimal starter convention (for vaults without existing frontmatter):
+\`\`\`yaml
+---
+type: note
+tags: []
+---
+\`\`\`
+
+### Skills
+
+Each skill is a folder under agents/skills/ containing a SKILL.md file:
+
+\`\`\`
+agents/skills/{skill-name}/SKILL.md
+\`\`\`
+
+SKILL.md frontmatter:
+\`\`\`yaml
+---
+name: skill-name
+description: What the skill does (one line)
+user_invocable: true                 # Shows in slash command picker
+---
+\`\`\`
+
+Body contains instructions for Claude Code when the skill is invoked.
+
+### Symlink strategy
+
+The vault uses symlinks so that Claude Code's expected paths (.claude/) and the vault's canonical paths (agents/, claude/) both work:
+
+- \`.claude/\` \u2192 \`claude/\` (CC config)
+- \`claude/skills/\` \u2192 \`../agents/skills/\` (skills accessible from CC working dir)
+
+Create these symlinks if missing. On Windows, skip symlinks and document the paths in CLAUDE.md instead.
+
+### Daily notes
+
+Daily notes use the format: \`YYYY-MM-DD Day.md\` (e.g., \`2026-03-04 Tue.md\`)
+Stored in: \`Daily Notes/YYYY Daily Notes/YYYY-MM Daily Notes/\`
+
+If the user has a different daily note convention, document it in CLAUDE.md rather than changing it.
+
+### Linking conventions
+
+- **Internal links**: wikilinks (\`[[Note name]]\`), not markdown links
+- **Heading style**: sentence case, not Title Case
+- **Log entries in daily notes**: collapsed callouts (\`> [!ai]- Summary\`)
+- **Log entries in other notes**: H3 headings with timestamp
+
+## Execution
+
+### Phase 1: Vault scan
+
+Scan the vault root. List the top-level folders and files. Identify:
+- Which S3 folders exist vs. are missing
+- Whether CLAUDE.md exists (root or claude/)
+- Whether symlinks exist (.claude/, claude/skills/)
+- The daily note convention (format and nesting)
+- Whether frontmatter is present on a sample of notes
+
+### Phase 2: Gap analysis
+
+Compare scan results against the S3 reference model. List gaps:
+- Missing folders
+- Missing CLAUDE.md
+- Missing symlinks
+- Missing frontmatter on sampled notes
+- Non-standard daily note convention (document, don't change)
+
+### Phase 3: Close gaps
+
+For each gap, take action:
+- Create missing folders (agents/, agents/skills/, agents/parts/, claude/, Daily Notes/, Inbox/, z.Templates/, Augment/, Augment/templates/)
+- Create CLAUDE.md if missing (at vault root). Minimal version: vault description + folder map + skills reference
+- Create symlinks if missing: \`.claude/ -> claude/\`, \`claude/skills/ -> ../agents/skills/\`
+- Add frontmatter to notes that are missing it (sample only \u2014 don't bulk-process the entire vault)
+
+### Phase 4: Report
+
+Report what you did:
+- What existed already
+- What you created
+- What you skipped (already correct)
+- Any divergences from S3 that you documented rather than changed
+
+## Principles
+
+- **Idempotent**: running twice produces the same result. Never duplicate.
+- **Non-destructive**: never delete or overwrite existing files or content.
+- **Respect divergence**: if the user's convention differs from S3, document it \u2014 don't fight it.
+- **Fast**: under 30 seconds. Do not do unnecessary work.
+`
+  ]
+];
+
+// src/editor-extensions.ts
+var import_view = require("@codemirror/view");
+var import_state = require("@codemirror/state");
+var addSpinnerEffect = import_state.StateEffect.define();
+var removeSpinnerEffect = import_state.StateEffect.define();
+var SpinnerWidget = class extends import_view.WidgetType {
+  toDOM() {
+    const wrap = document.createElement("span");
+    wrap.className = "augment-spinner";
+    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
+      const dot = document.createElement("span");
+      dot.className = "augment-spinner-dot " + cls;
+      wrap.appendChild(dot);
+    }
+    return wrap;
+  }
+  ignoreEvent() {
+    return true;
+  }
+};
+var spinnerField = import_state.StateField.define({
+  create() {
+    return import_view.Decoration.none;
+  },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(addSpinnerEffect)) {
+        decos = decos.update({ add: [import_view.Decoration.widget({ widget: new SpinnerWidget(), side: -1 }).range(e.value)] });
+      } else if (e.is(removeSpinnerEffect)) {
+        decos = import_view.Decoration.none;
+      }
+    }
+    if (decos !== import_view.Decoration.none && tr.docChanged) {
+      let spinnerPos = -1;
+      const cursor = decos.iter();
+      if (cursor.value) spinnerPos = cursor.from;
+      if (spinnerPos >= 0) {
+        let deleted = false;
+        tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+          const removedLen = toA - fromA;
+          const insertedLen = toB - fromB;
+          if (removedLen > 0 && insertedLen < removedLen && toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
+        });
+        if (deleted) {
+          Promise.resolve().then(() => {
+            var _a2;
+            try {
+              (_a2 = globalThis.__augmentCancelGeneration) == null ? void 0 : _a2.call(globalThis);
+            } catch (e) {
+            }
+          });
+        }
+      }
+    }
+    return decos;
+  },
+  provide: (f) => import_view.EditorView.decorations.from(f)
+});
+var addAgentWidgetEffect = import_state.StateEffect.define();
+var removeAgentWidgetEffect = import_state.StateEffect.define();
+var AgentWidget = class extends import_view.WidgetType {
+  constructor(name) {
+    super();
+    this.name = name;
+  }
+  toDOM() {
+    const wrap = document.createElement("span");
+    wrap.className = "augment-agent-widget";
+    const spinner = document.createElement("span");
+    spinner.className = "augment-spinner";
+    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
+      const dot = document.createElement("span");
+      dot.className = "augment-spinner-dot " + cls;
+      spinner.appendChild(dot);
+    }
+    wrap.appendChild(spinner);
+    wrap.appendChild(document.createTextNode("\xA0" + this.name));
+    return wrap;
+  }
+  ignoreEvent() {
+    return true;
+  }
+};
+var agentWidgetField = import_state.StateField.define({
+  create() {
+    return import_view.Decoration.none;
+  },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(addAgentWidgetEffect)) {
+        decos = decos.update({
+          add: [import_view.Decoration.widget({ widget: new AgentWidget(e.value.name), side: 1 }).range(e.value.pos)]
+        });
+      } else if (e.is(removeAgentWidgetEffect)) {
+        decos = import_view.Decoration.none;
+      }
+    }
+    return decos;
+  },
+  provide: (f) => import_view.EditorView.decorations.from(f)
+});
+
+// src/terminal-modals.ts
+var import_obsidian8 = require("obsidian");
+
 // src/team-scaffold.ts
 var fs3 = __toESM(require("fs"));
 var import_path9 = require("path");
@@ -21617,400 +22034,7 @@ function refreshTeamSkills(projectRoot) {
   return { created: updated, skipped: [] };
 }
 
-// src/main.ts
-var import_view = require("@codemirror/view");
-var import_state = require("@codemirror/state");
-var SCAFFOLD_FOLDER = "Augment/templates";
-var SCAFFOLD_TEMPLATES = [
-  [
-    "Generate summary block",
-    `---
-name: Generate summary block
-description: Write a concise summary of this note
----
-Summarize the following note. Identify the core claim, key supporting ideas, and any open questions. Write 3\u20135 sentences.
-
-Note: {{title}}
-
-{{note_content}}
-`
-  ],
-  [
-    "Synthesis from linked notes",
-    `---
-name: Synthesis from linked notes
-description: Draw connections across notes linked from this one
----
-The following notes are all linked from "{{title}}". Identify patterns, tensions, and connections across them. What do they add up to together?
-
-{{linked_notes_full}}
-`
-  ],
-  [
-    "Name this concept",
-    `---
-name: Name this concept
-description: Suggest candidate names for the concept in this note
----
-Read the following note. Suggest 3\u20135 candidate names for the concept it describes. Each name should be concise (2\u20134 words), memorable, and capture the essential idea.
-
-Note: {{title}}
-
-{{note_content}}
-`
-  ]
-];
-var SCAFFOLD_SKILLS_FOLDER = "agents/skills";
-var SCAFFOLD_SKILLS = [
-  [
-    "meeting-summary",
-    `---
-name: meeting-summary
-description: Summarise a meeting transcript or rough notes into structured output
----
-
-# Meeting summary
-
-Read the note provided. It contains a meeting transcript, rough meeting notes, or a recording dump.
-
-Produce a structured summary with these sections:
-
-- **Attendees** (if identifiable)
-- **Key points** \u2014 the main topics discussed, 1\u20132 sentences each
-- **Decisions** \u2014 anything that was decided or agreed on
-- **Action items** \u2014 who committed to what, with deadlines if mentioned
-- **Open questions** \u2014 anything raised but not resolved
-
-Write the summary as markdown. Be concise \u2014 the summary should be shorter than the source. Preserve specific names, dates, and numbers exactly as stated.
-
-If the note is not a meeting transcript, say so and skip.
-`
-  ],
-  [
-    "vault-search",
-    `---
-name: vault-search
-description: Search the vault for notes relevant to a question and synthesise an answer
----
-
-# Vault search
-
-The user will ask a question or give a topic. Your job:
-
-1. Use Grep and Glob to search the vault for relevant notes.
-2. Read the most relevant hits (up to 10 notes).
-3. Synthesise what you found into a clear answer, citing note titles as \`[[wikilinks]]\`.
-
-If you find nothing relevant, say so. Do not fabricate content that isn't in the vault.
-
-Keep the answer concise. Link to source notes so the user can read further.
-`
-  ],
-  [
-    "clean-up",
-    `---
-name: clean-up
-description: Tidy a rough note \u2014 fix formatting, add frontmatter, organise sections
----
-
-# Clean up
-
-Read the note provided. Clean it up:
-
-- Fix markdown formatting (headings, lists, code blocks)
-- Add or complete frontmatter if missing (at minimum: a descriptive title)
-- Organise content into logical sections with headings
-- Fix obvious typos and grammatical errors
-- Remove redundant whitespace or broken formatting
-
-Preserve the original meaning and voice. Do not add new content or opinions. Do not delete substantive content \u2014 only remove formatting artifacts.
-
-Edit the file directly. Show what you changed.
-`
-  ],
-  [
-    "stack-setup",
-    `---
-name: stack-setup
-description: Vault architect \u2014 assesses vault against S3 reference model, closes gaps
----
-
-# Stack setup
-
-You are the System 3 vault architect. You know the target vault structure (the S3 reference model below) and your job is to: (1) scan the current vault, (2) compare it against the reference model, (3) close gaps by creating missing structure, and (4) report what you did.
-
-This skill is idempotent. Running it twice produces the same result. It never deletes or overwrites existing content.
-
-## S3 reference model
-
-This is the target state for a System 3 vault. Not every vault needs every piece \u2014 adapt to the user's scale and domain. But this is what "fully configured" looks like.
-
-### Folder structure
-
-\`\`\`
-agents/                    # Canonical home for skills and parts
-  skills/                  # Agent skills (each skill = folder with SKILL.md)
-  parts/                   # Part workspaces (state + sessions)
-claude/                    # Claude Code config (CLAUDE.md, settings)
-  skills/ -> ../agents/skills/   # Symlink for CC working directory
-.claude/ -> claude/        # Symlink (CC expects .claude/)
-Daily Notes/               # Daily planning and reflection
-  YYYY Daily Notes/        # Year subfolders
-    YYYY-MM Daily Notes/   # Month subfolders within year
-Inbox/                     # Quick capture and processing
-z.Templates/               # Note templates
-  v2 templates/            # Current template generation
-Augment/                   # Augment plugin workspace
-  templates/               # Prompt templates for Augment
-\`\`\`
-
-Optional domain folders (create based on user's needs):
-- Projects/ \u2014 project tracking
-- Meetings/ \u2014 meeting notes
-- Research/ \u2014 reference material and research
-
-### CLAUDE.md
-
-The vault root must have a CLAUDE.md (or claude/CLAUDE.md with .claude/ symlink). This is the AI instruction file. It should contain:
-
-1. **Vault description**: what this vault is for
-2. **Folder map**: key directories and their purpose
-3. **Convention guidance**: wikilinks for internal links, frontmatter on all notes, sentence case for headings
-4. **Skills reference**: skills live at agents/skills/{name}/SKILL.md
-5. **Templates reference**: prompt templates location
-6. **Writing style**: any user-specific writing preferences
-
-### Frontmatter conventions
-
-Every note should have frontmatter. The S3 standard fields:
-
-\`\`\`yaml
----
-note created: YYYY-MM-DD Day        # Creation date with day-of-week
-note creators: []                    # Who created it (user name, [[Gus|model]])
-type: note                           # Note type (note, meeting, project, etc.)
-tags: []                             # Categorization tags
-aliases: []                          # Alternative names for wikilink resolution
-relatives: []                        # Structural links to related notes
----
-\`\`\`
-
-Minimal starter convention (for vaults without existing frontmatter):
-\`\`\`yaml
----
-type: note
-tags: []
----
-\`\`\`
-
-### Skills
-
-Each skill is a folder under agents/skills/ containing a SKILL.md file:
-
-\`\`\`
-agents/skills/{skill-name}/SKILL.md
-\`\`\`
-
-SKILL.md frontmatter:
-\`\`\`yaml
----
-name: skill-name
-description: What the skill does (one line)
-user_invocable: true                 # Shows in slash command picker
----
-\`\`\`
-
-Body contains instructions for Claude Code when the skill is invoked.
-
-### Symlink strategy
-
-The vault uses symlinks so that Claude Code's expected paths (.claude/) and the vault's canonical paths (agents/, claude/) both work:
-
-- \`.claude/\` \u2192 \`claude/\` (CC config)
-- \`claude/skills/\` \u2192 \`../agents/skills/\` (skills accessible from CC working dir)
-
-Create these symlinks if missing. On Windows, skip symlinks and document the paths in CLAUDE.md instead.
-
-### Daily notes
-
-Daily notes use the format: \`YYYY-MM-DD Day.md\` (e.g., \`2026-03-04 Tue.md\`)
-Stored in: \`Daily Notes/YYYY Daily Notes/YYYY-MM Daily Notes/\`
-
-If the user has a different daily note convention, document it in CLAUDE.md rather than changing it.
-
-### Linking conventions
-
-- **Internal links**: wikilinks (\`[[Note name]]\`), not markdown links
-- **Heading style**: sentence case, not Title Case
-- **Log entries in daily notes**: collapsed callouts (\`> [!ai]- Summary\`)
-- **Log entries in other notes**: H3 headings with timestamp
-
-## Execution
-
-### Phase 1: Vault scan
-
-Scan the vault to understand its current state. Collect:
-
-1. **Top-level folders** (skip .obsidian, .trash, .git)
-2. **Frontmatter survey**: sample 15\u201320 recent .md files. Collect type values, common tags, recurring keys, consistency level
-3. **Note count and type distribution**: top 5 types by count
-4. **Linking style**: wikilinks vs markdown links vs mixed
-5. **Existing config**: does CLAUDE.md exist? agents/ folder? symlinks? daily notes pattern?
-
-### Phase 2: Gap assessment
-
-Compare the scan results against the S3 reference model. For each component, classify as:
-- **Present**: matches reference model
-- **Partial**: exists but incomplete
-- **Missing**: not present
-- **Divergent**: exists but follows a different convention (do not change \u2014 document)
-
-Print the gap assessment as a checklist.
-
-### Phase 3: Close gaps
-
-For each missing or partial item, take action:
-
-1. **CLAUDE.md**: create if missing, or append missing sections to existing file. Never modify existing content.
-2. **Folder structure**: create missing folders (agents/skills/, Augment/templates/, Inbox/, etc.)
-3. **Symlinks**: create .claude/ \u2192 claude/ and claude/skills/ \u2192 ../agents/skills/ if missing
-4. **Frontmatter guidance**: if fewer than half of sampled notes have frontmatter, add a "Frontmatter conventions" section to CLAUDE.md with the recommended pattern. Do not modify existing notes.
-5. **Starter skills**: if agents/skills/ is empty, the Augment plugin will scaffold default skills on next reload. Note this in the report.
-
-For divergent items: do not change them. Document the user's convention in CLAUDE.md so the AI respects it.
-
-### Phase 4: Template generation (System 3 account required)
-
-Check \`.obsidian/plugins/augment-terminal/data.json\` for a non-empty \`s3Token\` field.
-
-**If S3 login exists**: generate 2\u20133 prompt templates tailored to the vault profile. Each template:
-- Addresses a pattern found in the scan (e.g., many meeting notes \u2192 meeting template)
-- Uses Handlebars variables: \`{{title}}\`, \`{{note_content}}\`, \`{{frontmatter.KEY}}\`, \`{{linked_notes}}\`
-- Has frontmatter: \`name:\`, \`description:\` (append " (generated)"), optionally \`system_prompt:\`
-- Written to the templates folder. Skip if same-name file exists.
-
-**If no S3 login**: suggest 2\u20133 template ideas the user could create. Explain purpose and variables.
-
-### Phase 5: Status report
-
-Print a summary with four sections:
-1. **Created**: what was added
-2. **Skipped**: what was already configured
-3. **Documented**: divergent conventions recorded in CLAUDE.md
-4. **Next steps**: actionable suggestions (e.g., "Try Cmd/Ctrl+Enter in any note", "Run /meeting-summary on a transcript", "Add frontmatter to your most-used notes")
-
-## Principles
-
-- **Idempotent**: running twice produces the same result. Never duplicate.
-- **Non-destructive**: never delete or overwrite existing files or content.
-- **Respect divergence**: if the user's convention differs from S3, document it \u2014 don't fight it.
-- **Fast**: under 30 seconds. Do not do unnecessary work.
-`
-  ]
-];
-var addSpinnerEffect = import_state.StateEffect.define();
-var removeSpinnerEffect = import_state.StateEffect.define();
-var SpinnerWidget = class extends import_view.WidgetType {
-  toDOM() {
-    const wrap = document.createElement("span");
-    wrap.className = "augment-spinner";
-    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
-      const dot = document.createElement("span");
-      dot.className = "augment-spinner-dot " + cls;
-      wrap.appendChild(dot);
-    }
-    return wrap;
-  }
-  ignoreEvent() {
-    return true;
-  }
-};
-var cancelGenerationEffect = import_state.StateEffect.define();
-var spinnerField = import_state.StateField.define({
-  create() {
-    return import_view.Decoration.none;
-  },
-  update(decos, tr) {
-    var _a2, _b;
-    decos = decos.map(tr.changes);
-    for (const e of tr.effects) {
-      if (e.is(addSpinnerEffect)) {
-        decos = decos.update({ add: [import_view.Decoration.widget({ widget: new SpinnerWidget(), side: -1 }).range(e.value)] });
-      } else if (e.is(removeSpinnerEffect)) {
-        decos = import_view.Decoration.none;
-      }
-    }
-    if (decos !== import_view.Decoration.none && tr.docChanged) {
-      let spinnerPos = -1;
-      const cursor = decos.iter();
-      if (cursor.value) spinnerPos = cursor.from;
-      if (spinnerPos >= 0) {
-        let deleted = false;
-        tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-          const removedLen = toA - fromA;
-          const insertedLen = toB - fromB;
-          if (removedLen > 0 && insertedLen < removedLen && toA >= spinnerPos && fromA <= spinnerPos) deleted = true;
-        });
-        if (deleted) {
-          const view = (_b = tr.view) != null ? _b : (_a2 = tr.state.field) == null ? void 0 : _a2._view;
-          Promise.resolve().then(() => {
-            var _a3;
-            try {
-              (_a3 = globalThis.__augmentCancelGeneration) == null ? void 0 : _a3.call(globalThis);
-            } catch (e) {
-            }
-          });
-        }
-      }
-    }
-    return decos;
-  },
-  provide: (f) => import_view.EditorView.decorations.from(f)
-});
-var addAgentWidgetEffect = import_state.StateEffect.define();
-var removeAgentWidgetEffect = import_state.StateEffect.define();
-var AgentWidget = class extends import_view.WidgetType {
-  constructor(name) {
-    super();
-    this.name = name;
-  }
-  toDOM() {
-    const wrap = document.createElement("span");
-    wrap.className = "augment-agent-widget";
-    const spinner = document.createElement("span");
-    spinner.className = "augment-spinner";
-    for (const cls of ["augment-dot-red", "augment-dot-green", "augment-dot-blue"]) {
-      const dot = document.createElement("span");
-      dot.className = "augment-spinner-dot " + cls;
-      spinner.appendChild(dot);
-    }
-    wrap.appendChild(spinner);
-    wrap.appendChild(document.createTextNode("\xA0" + this.name));
-    return wrap;
-  }
-  ignoreEvent() {
-    return true;
-  }
-};
-var agentWidgetField = import_state.StateField.define({
-  create() {
-    return import_view.Decoration.none;
-  },
-  update(decos, tr) {
-    decos = decos.map(tr.changes);
-    for (const e of tr.effects) {
-      if (e.is(addAgentWidgetEffect)) {
-        decos = decos.update({
-          add: [import_view.Decoration.widget({ widget: new AgentWidget(e.value.name), side: 1 }).range(e.value.pos)]
-        });
-      } else if (e.is(removeAgentWidgetEffect)) {
-        decos = import_view.Decoration.none;
-      }
-    }
-    return decos;
-  },
-  provide: (f) => import_view.EditorView.decorations.from(f)
-});
+// src/terminal-modals.ts
 var RenameModal = class extends import_obsidian8.Modal {
   constructor(app, view) {
     super(app);
@@ -22116,6 +22140,8 @@ var InitTeamModal = class extends import_obsidian8.Modal {
     this.contentEl.empty();
   }
 };
+
+// src/main.ts
 function buildWelcomeNoteContent(mod) {
   return `# Get started with Augment
 
@@ -22183,14 +22209,14 @@ Augment hosts Claude Code agent sessions in a panel alongside your notes. Each s
 *This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette \u2192 \`Augment: Open welcome\`.*
 `;
 }
-var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
+var AugmentTerminalPlugin = class extends import_obsidian9.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:45:04.728Z";
-    this.gitSha = "8e92c2a";
+    this.buildId = "2026-03-07T01:53:02.582Z";
+    this.gitSha = "ea685b5";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22241,7 +22267,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     if (!this.ribbonGenerateEl) return;
     const iconEl = this.ribbonGenerateEl.querySelector(".svg-icon");
     if (iconEl) {
-      (0, import_obsidian8.setIcon)(iconEl, this.settings.ribbonIcon || "augment-pyramid");
+      (0, import_obsidian9.setIcon)(iconEl, this.settings.ribbonIcon || "augment-pyramid");
     }
   }
   refreshStatusBar() {
@@ -22262,11 +22288,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     if (!gen) return;
     gen.abortController.abort();
     gen.cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-    gen.cmView.dispatch({ selection: import_state.EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
+    gen.cmView.dispatch({ selection: import_state2.EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
     this.activeGeneration = null;
     this.refreshStatusBar();
     console.log("[Augment] generation cancelled");
-    new import_obsidian8.Notice("Augment: generation cancelled");
+    new import_obsidian9.Notice("Augment: generation cancelled");
   }
   showStatusBarGenerating() {
     var _a2;
@@ -22287,9 +22313,9 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     const ctx = assembleVaultContext(this.app, editor, this.settings);
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      const genNotice = new import_obsidian8.Notice("", 3e3);
+      const genNotice = new import_obsidian9.Notice("", 3e3);
       const iconEl = genNotice.noticeEl.createEl("span", { cls: "augment-notice-pyramid" });
-      (0, import_obsidian8.setIcon)(iconEl, "augment-pyramid");
+      (0, import_obsidian9.setIcon)(iconEl, "augment-pyramid");
       genNotice.noticeEl.createEl("span", { text: "\xA0Generating\u2026" });
     }
     const isBlock = this.settings.outputFormat !== "plain";
@@ -22301,7 +22327,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
       insertPos = editor.posToOffset(cursor);
     }
     const cmView = editor.cm;
-    cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+    cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state2.EditorSelection.cursor(insertPos, 1) });
     const abortController = new AbortController();
     this.activeGeneration = { abortController, cmView, insertPos };
     void (async () => {
@@ -22333,7 +22359,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         };
         this.pushContextHistory(entry);
         console.log("[Augment] generation done");
-        const notice = new import_obsidian8.Notice("", 5e3);
+        const notice = new import_obsidian9.Notice("", 5e3);
         notice.noticeEl.empty();
         notice.noticeEl.createEl("span", { text: "Augment: done" });
         notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -22358,7 +22384,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
         logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
-        new import_obsidian8.Notice(`Augment: ${errMsg}`);
+        new import_obsidian9.Notice(`Augment: ${errMsg}`);
       } finally {
         this.refreshStatusBar();
       }
@@ -22445,7 +22471,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     }
   }
   showHotkeyClaimedNotice() {
-    const notice = new import_obsidian8.Notice("", 0);
+    const notice = new import_obsidian9.Notice("", 0);
     notice.noticeEl.empty();
     notice.noticeEl.createEl("span", { text: "Augment claimed Ctrl+Enter \u2014 " });
     const link = notice.noticeEl.createEl("a", { text: "Restore Obsidian\u2019s default", href: "#" });
@@ -22509,7 +22535,7 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     var _a2;
-    (0, import_obsidian8.addIcon)("augment-pyramid", `
+    (0, import_obsidian9.addIcon)("augment-pyramid", `
       <circle cx="50" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
@@ -22580,6 +22606,9 @@ ${excerpt}`,
           return localFallback;
         }
       };
+      view.onSwitchWorkspaceRequest = (v) => {
+        new WorkspaceSwitcherModal(this.app, v).open();
+      };
       return view;
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
@@ -22588,7 +22617,7 @@ ${excerpt}`,
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
     });
-    const escapeKeymap = import_view.keymap.of([{
+    const escapeKeymap = import_view2.keymap.of([{
       key: "Escape",
       run: () => {
         if (this.activeGeneration) {
@@ -22610,15 +22639,15 @@ ${excerpt}`,
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate");
-          new import_obsidian8.Notice("Open a note to generate");
+          new import_obsidian9.Notice("Open a note to generate");
           return;
         }
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian9.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -22635,16 +22664,16 @@ ${excerpt}`,
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate-from-template");
-          new import_obsidian8.Notice("Open a note to generate");
+          new import_obsidian9.Notice("Open a note to generate");
           return;
         }
         const editor = view.editor;
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian8.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian9.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -22655,7 +22684,7 @@ ${excerpt}`,
         }
         if (!this.settings.templateFolder) {
           console.log("[Augment] no template folder set");
-          const notice = new import_obsidian8.Notice("Augment: no template folder set \u2014 click to configure", 0);
+          const notice = new import_obsidian9.Notice("Augment: no template folder set \u2014 click to configure", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -22667,7 +22696,7 @@ ${excerpt}`,
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
           console.log("[Augment] no templates found in", this.settings.templateFolder);
-          new import_obsidian8.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
+          new import_obsidian9.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
         const cursor = editor.getCursor();
@@ -22710,7 +22739,7 @@ ${excerpt}`,
               } else {
                 insertPos = editor.posToOffset(cursor);
               }
-              cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state.EditorSelection.cursor(insertPos, 1) });
+              cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state2.EditorSelection.cursor(insertPos, 1) });
             }
             const abortController = new AbortController();
             this.activeGeneration = { abortController, cmView, insertPos };
@@ -22723,10 +22752,10 @@ ${excerpt}`,
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               if (targetMode === "clipboard") {
                 await navigator.clipboard.writeText(result);
-                new import_obsidian8.Notice("Augment: copied to clipboard", 5e3);
+                new import_obsidian9.Notice("Augment: copied to clipboard", 5e3);
               } else if (targetMode === "file" && targetFilePath) {
                 const destFile = this.app.vault.getAbstractFileByPath(targetFilePath);
-                if (destFile instanceof import_obsidian8.TFile) {
+                if (destFile instanceof import_obsidian9.TFile) {
                   const prev = await this.app.vault.read(destFile);
                   await this.app.vault.modify(destFile, prev + "\n\n" + result);
                 } else {
@@ -22740,7 +22769,7 @@ ${excerpt}`,
                   await this.app.vault.create(targetFilePath, result);
                 }
                 const shortName = (_a4 = targetFilePath.split("/").pop()) != null ? _a4 : targetFilePath;
-                new import_obsidian8.Notice(`Augment: appended to ${shortName}`, 5e3);
+                new import_obsidian9.Notice(`Augment: appended to ${shortName}`, 5e3);
               } else if (targetMode === "frontmatter" && targetField) {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) {
@@ -22748,7 +22777,7 @@ ${excerpt}`,
                     fm[targetField] = result;
                   });
                 }
-                new import_obsidian8.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
+                new import_obsidian9.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
               } else {
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
                 const insertPosLine = editor.offsetToPos(insertPos);
@@ -22761,7 +22790,7 @@ ${excerpt}`,
                   editor.replaceRange(formatted, insertPosLine);
                 }
                 console.log("[Augment] template generation done");
-                const notice = new import_obsidian8.Notice("", 5e3);
+                const notice = new import_obsidian9.Notice("", 5e3);
                 notice.noticeEl.empty();
                 notice.noticeEl.createEl("span", { text: "Augment: done" });
                 notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -22799,7 +22828,7 @@ ${excerpt}`,
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const errMsg = (_c = friendlyApiError(err)) != null ? _c : err instanceof Error ? err.message : String(err);
-              new import_obsidian8.Notice(`Augment: ${errMsg}`);
+              new import_obsidian9.Notice(`Augment: ${errMsg}`);
             } finally {
               this.refreshStatusBar();
             }
@@ -22823,7 +22852,7 @@ ${excerpt}`,
       name: "Generate templates from folder\u2026",
       callback: () => {
         if (!this.settings.apiKey) {
-          new import_obsidian8.Notice("Augment: add an API key in Settings \u2192 Augment first");
+          new import_obsidian9.Notice("Augment: add an API key in Settings \u2192 Augment first");
           return;
         }
         runGenerateTemplatesFlow(this.app, this.settings, this.resolveModel());
@@ -22897,9 +22926,9 @@ ${excerpt}`,
       this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
     this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
       if (!view) {
-        new import_obsidian8.Notice("Open a note to generate");
+        new import_obsidian9.Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);
@@ -23013,6 +23042,16 @@ ${excerpt}`,
       name: "Switch terminal",
       callback: () => {
         new TerminalSwitcherModal(this.app).open();
+      }
+    });
+    this.addCommand({
+      id: "switch-workspace",
+      name: "Switch workspace",
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(TerminalView);
+        if (view) {
+          new WorkspaceSwitcherModal(this.app, view).open();
+        }
       }
     });
     this.addCommand({
@@ -23437,5 +23476,45 @@ ${excerpt}`,
       }
     }
     return false;
+  }
+};
+function discoverWorkspaces(app) {
+  var _a2;
+  const entries = [];
+  const vaultPath = app.vault.adapter.basePath;
+  if (vaultPath) {
+    const vaultName = (_a2 = vaultPath.split("/").filter(Boolean).pop()) != null ? _a2 : "vault";
+    entries.push({ label: `vault \u2014 ${vaultName}`, path: vaultPath });
+  }
+  const devDir = (0, import_path10.join)((0, import_os2.homedir)(), "Development");
+  if ((0, import_fs3.existsSync)(devDir)) {
+    try {
+      const dirs = (0, import_fs3.readdirSync)(devDir, { withFileTypes: true });
+      for (const d of dirs) {
+        if (!d.isDirectory()) continue;
+        const fullPath = (0, import_path10.join)(devDir, d.name);
+        if ((0, import_fs3.existsSync)((0, import_path10.join)(fullPath, ".git"))) {
+          entries.push({ label: d.name, path: fullPath });
+        }
+      }
+    } catch (e) {
+    }
+  }
+  return entries;
+}
+var WorkspaceSwitcherModal = class extends import_obsidian9.FuzzySuggestModal {
+  constructor(app, targetView) {
+    super(app);
+    this.targetView = targetView;
+    this.setPlaceholder("Type to filter workspaces\u2026");
+  }
+  getItems() {
+    return discoverWorkspaces(this.app);
+  }
+  getItemText(item) {
+    return item.label;
+  }
+  onChooseItem(item) {
+    this.targetView.setCwd(item.path);
   }
 };
