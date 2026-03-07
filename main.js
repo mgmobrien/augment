@@ -20966,6 +20966,28 @@ Note: {{title}}
 
 {{note_content}}
 `
+  ],
+  [
+    "Linked notes summary",
+    `---
+name: Linked notes summary
+description: Summarize this note and its linked notes as structured bullet points
+---
+Summarize "{{ title }}" and its linked notes as structured bullet points.
+
+Note content:
+{{ note_content | truncate: 2000 }}
+
+{% if linked_notes_array.size > 0 %}
+Linked notes ({{ linked_notes_array | map: "title" | join: ", " }}):
+{% for note in linked_notes_array %}
+### {{ note.title }}
+{{ note.content | truncate: 500 }}
+{% endfor %}
+{% endif %}
+
+Provide a concise summary with the main themes and key points across all notes.
+`
   ]
 ];
 var SCAFFOLD_SKILLS_FOLDER = "agents/skills";
@@ -22217,12 +22239,15 @@ var AugmentTerminalPlugin = class extends import_obsidian9.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:54:38.739Z";
-    this.gitSha = "388acb1";
+    this.buildId = "2026-03-07T01:56:51.474Z";
+    this.gitSha = "268eb88";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
     this.ribbonGenerateEl = null;
+    this.ribbonTerminalEl = null;
+    this._tier1Registered = false;
+    this._tier3Registered = false;
     this.spendData = null;
     this.SPEND_PATH = "augment-spend.json";
     this.waitingBadgeEl = null;

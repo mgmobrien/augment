@@ -38,6 +38,28 @@ Note: {{title}}
 {{note_content}}
 `,
   ],
+  [
+    "Linked notes summary",
+    `---
+name: Linked notes summary
+description: Summarize this note and its linked notes as structured bullet points
+---
+Summarize "{{ title }}" and its linked notes as structured bullet points.
+
+Note content:
+{{ note_content | truncate: 2000 }}
+
+{% if linked_notes_array.size > 0 %}
+Linked notes ({{ linked_notes_array | map: "title" | join: ", " }}):
+{% for note in linked_notes_array %}
+### {{ note.title }}
+{{ note.content | truncate: 500 }}
+{% endfor %}
+{% endif %}
+
+Provide a concise summary with the main themes and key points across all notes.
+`,
+  ],
 ];
 
 // Default skills written to vault on first install.
