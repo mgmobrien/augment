@@ -20395,9 +20395,19 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.persistNameToLeafState();
     this.autoNamedThisTurn = true;
     this.app.workspace.trigger("augment-terminal:changed");
+    this.app.workspace.getLeavesOfType("augment-terminal-manager").forEach((leaf) => {
+      var _a2, _b;
+      (_b = (_a2 = leaf.view).requestRefresh) == null ? void 0 : _b.call(_a2);
+    });
     setTimeout(() => {
+      if (this.terminalName === trimmed) {
+        this.app.workspace.getLeavesOfType("augment-terminal-manager").forEach((leaf) => {
+          var _a2, _b;
+          (_b = (_a2 = leaf.view).requestRefresh) == null ? void 0 : _b.call(_a2);
+        });
+      }
       this.autoNamedThisTurn = false;
-    }, 1500);
+    }, 150);
     return true;
   }
   recordTeamEvent(event) {
@@ -20960,7 +20970,9 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     return (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
   }
   requestRefresh() {
-    if (this.refreshFrameId !== null) return;
+    if (this.refreshFrameId !== null) {
+      window.cancelAnimationFrame(this.refreshFrameId);
+    }
     this.refreshFrameId = window.requestAnimationFrame(() => {
       this.refreshFrameId = null;
       this.refresh();
@@ -22942,8 +22954,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:42:44.182Z";
-    this.gitSha = "3a97a6e";
+    this.buildId = "2026-03-07T00:53:28.391Z";
+    this.gitSha = "2bc20bc";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

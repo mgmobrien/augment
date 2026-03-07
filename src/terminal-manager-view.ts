@@ -142,7 +142,13 @@ export class TerminalManagerView extends ItemView {
   }
 
   requestRefresh(): void {
-    if (this.refreshFrameId !== null) return;
+    // Cancel any pending RAF so the latest state is always read. Without this,
+    // an in-flight RAF from a status-change event can swallow the rename event:
+    // requestRefresh() early-returns, the stale RAF fires with the old name, and
+    // the TM never shows the auto-renamed session until the next layout-change.
+    if (this.refreshFrameId !== null) {
+      window.cancelAnimationFrame(this.refreshFrameId);
+    }
     this.refreshFrameId = window.requestAnimationFrame(() => {
       this.refreshFrameId = null;
       this.refresh();
