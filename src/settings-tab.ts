@@ -534,7 +534,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       const timings = this.plugin.startupTimings;
       const profilerSection = overviewPane.createDiv({ cls: "augment-profiler-section" });
 
-      new Setting(profilerSection)
+      const profilerSetting = new Setting(profilerSection)
         .setName("Startup profiler")
         .setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.")
         .addToggle((toggle) => {
@@ -544,6 +544,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             this.display();
           });
         });
+      addInfoTooltip(profilerSetting.descEl, "Augment wraps the plugin loader at startup to time each plugin. It must load before any other plugin for this to work — Obsidian loads plugins in the order they appear in .obsidian/community-plugins.json. If you see 'No other plugin timings captured', move augment-terminal to the top of that list, then restart.");
 
       if (this.plugin.settings.enableProfiler) {
         if (!timings) {
@@ -638,7 +639,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     const formatSetting = new Setting(continuationPane)
       .setName("Output format")
-      .setDesc("How generated text is inserted into the editor.")
+      .setDesc("How generated text is wrapped when inserted.")
       .addDropdown((drop) => {
         drop
           .addOption("plain", "Plain text")
@@ -653,6 +654,8 @@ export class AugmentSettingTab extends PluginSettingTab {
             updateSecondarySlot(value);
           });
       });
+
+    addInfoTooltip(formatSetting.descEl, "Plain: text appears inline. Callout: wrapped in an Obsidian callout box (e.g. > [!ai]+). Blockquote: indented with >. Heading: text follows a new heading. Code block: text inside a fenced code block. The secondary dropdown sets the heading level or callout type.");
 
     const secondaryWrapper = formatSetting.controlEl.createEl("div", {
       cls: "dropdown augment-format-secondary",
@@ -721,7 +724,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       await this.plugin.saveData(this.plugin.settings);
     });
 
-    new Setting(continuationPane)
+    const linkedNotesSetting = new Setting(continuationPane)
       .setName("Linked notes in context")
       .setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.")
       .addText((text) => {
@@ -739,8 +742,9 @@ export class AugmentSettingTab extends PluginSettingTab {
             }
           });
       });
+    addInfoTooltip(linkedNotesSetting.descEl, "Outgoing wikilinks only — notes the current note links to, not notes that link back to it. Frontmatter (tags, aliases, custom properties) is included; note body is not. Use {{linked_notes_full}} in a template if you need the full body content.");
 
-    new Setting(continuationPane)
+    const contextLimitSetting = new Setting(continuationPane)
       .setName("Context limit")
       .setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.")
       .addText((text) => {
@@ -757,6 +761,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             }
           });
       });
+    addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
 
     new Setting(continuationPane)
       .setName("Show generation notice")
@@ -868,9 +873,9 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
 
     // Template folder setting.
-    new Setting(templatesPane)
+    const templateFolderSetting = new Setting(templatesPane)
       .setName("Template folder")
-      .setDesc("Vault path to folder containing .md prompt templates")
+      .setDesc("Vault path to the folder containing .md prompt templates.")
       .addText((text) => {
         templateFolderInputEl = text.inputEl;
         text
@@ -882,6 +887,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             renderTemplateList();
           });
       });
+    addInfoTooltip(templateFolderSetting.descEl, "Path relative to your vault root (e.g. 'Augment/templates'). Each .md file in this folder appears as a template in the picker. Use the frontmatter fields name and description to control how templates are displayed.");
 
     // "Reveal in file explorer" link.
     const folderLinkEl = templatesPane.createDiv({ cls: "augment-folder-link" });
@@ -1242,7 +1248,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     void renderStatusCard();
 
     // ── Default terminal location ────────────────────────────
-    new Setting(terminalPane)
+    const terminalLocationSetting = new Setting(terminalPane)
       .setName("Default terminal location")
       .setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.")
       .addDropdown((drop) => {
@@ -1260,6 +1266,7 @@ export class AugmentSettingTab extends PluginSettingTab {
             await this.plugin.saveData(this.plugin.settings);
           });
       });
+    addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
 
     new Setting(terminalPane)
       .setName("Show other projects")
