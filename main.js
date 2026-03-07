@@ -17257,7 +17257,6 @@ var DEFAULT_SETTINGS = {
   defaultTerminalLocation: "tab",
   showOtherProjects: false,
   sessionHistory: [],
-  enableProfiler: false,
   coloredRibbonIcon: false
 };
 function stripObsidianMeta(fm) {
@@ -18365,7 +18364,7 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       e.preventDefault();
       this.app.setting.openTabById("hotkeys");
     });
-    new import_obsidian4.Setting(overviewPane).setName("Colored pyramid icon").setDesc("Show the ribbon pyramid in S3 colors (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
+    new import_obsidian4.Setting(overviewPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
         this.plugin.settings.coloredRibbonIcon = val;
         await this.plugin.saveData(this.plugin.settings);
@@ -18373,60 +18372,13 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
       });
     });
     {
-      const timings = this.plugin.startupTimings;
-      const profilerSection = overviewPane.createDiv({ cls: "augment-profiler-section" });
-      const profilerSetting = new import_obsidian4.Setting(profilerSection).setName("Startup profiler").setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.").addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.enableProfiler).onChange(async (val) => {
-          this.plugin.settings.enableProfiler = val;
-          await this.plugin.saveData(this.plugin.settings);
-          this.display();
-        });
-      });
-      addInfoTooltip(profilerSetting.descEl, "Augment wraps the plugin loader at startup to time each plugin. It must load before any other plugin for this to work \u2014 Obsidian loads plugins in the order they appear in .obsidian/community-plugins.json. If you see 'No other plugin timings captured', move augment-terminal to the top of that list, then restart.");
-      if (this.plugin.settings.enableProfiler) {
-        if (!timings) {
-          profilerSection.createEl("p", {
-            cls: "augment-profiler-hint",
-            text: "Restart Obsidian to capture startup timing."
-          });
-        } else {
-          const summaryEl = profilerSection.createDiv({ cls: "augment-profiler-summary" });
-          summaryEl.createEl("div", {
-            cls: "augment-profiler-row augment-profiler-own",
-            text: `Augment (this plugin): ${timings.ownMs}ms`
-          });
-          summaryEl.createEl("div", {
-            cls: "augment-profiler-row",
-            text: `Total window (load \u2192 layout ready): ${timings.layoutReadyMs}ms`
-          });
-          if (timings.plugins.length > 0) {
-            profilerSection.createDiv({ cls: "augment-pane-section augment-profiler-plugins-label", text: "Other plugins" });
-            const table = profilerSection.createEl("table", { cls: "augment-var-table augment-profiler-table" });
-            const tbody = table.createEl("tbody");
-            for (const p of timings.plugins) {
-              const tr = tbody.createEl("tr");
-              tr.createEl("td", { text: p.name });
-              const msEl = tr.createEl("td", { cls: "augment-profiler-ms", text: `${p.ms}ms` });
-              if (p.ms > 500) msEl.addClass("augment-profiler-slow");
-              else if (p.ms > 200) msEl.addClass("augment-profiler-med");
-            }
-          } else {
-            profilerSection.createEl("p", {
-              cls: "augment-profiler-hint",
-              text: "No other plugin timings captured. Augment must load before other plugins for timing to work \u2014 check that it appears first in community-plugins.json, then restart Obsidian."
-            });
-          }
-        }
-      }
-    }
-    {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
       spendSection.createDiv({ cls: "augment-overview-how-title", text: "API usage" });
       const spend = this.plugin.spendData;
       const models = spend ? Object.keys(spend.byModel) : [];
       if (models.length === 0) {
         spendSection.createEl("p", {
-          cls: "augment-profiler-hint",
+          cls: "augment-spend-hint",
           text: "No generations tracked yet. Usage is recorded after each Generate call."
         });
       } else {
@@ -18436,9 +18388,9 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           totalCost += calculateCost(modelId, entry.inputTokens, entry.outputTokens);
           totalGens += entry.generations;
         }
-        const summaryEl = spendSection.createDiv({ cls: "augment-profiler-summary" });
+        const summaryEl = spendSection.createDiv({ cls: "augment-spend-summary" });
         summaryEl.createEl("div", {
-          cls: "augment-profiler-row augment-profiler-own",
+          cls: "augment-spend-row augment-spend-own",
           text: `Total cost: $${totalCost.toFixed(4)} across ${totalGens} generation${totalGens === 1 ? "" : "s"}`
         });
         const table = spendSection.createEl("table", { cls: "augment-var-table augment-spend-table" });
@@ -18447,8 +18399,8 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
           const tr = tbody.createEl("tr");
           tr.createEl("td", { text: modelDisplayName(modelId) });
-          tr.createEl("td", { cls: "augment-profiler-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
-          tr.createEl("td", { cls: "augment-profiler-ms", text: `$${cost.toFixed(4)}` });
+          tr.createEl("td", { cls: "augment-spend-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
+          tr.createEl("td", { cls: "augment-spend-ms", text: `$${cost.toFixed(4)}` });
         }
       }
       spendSection.createEl("p", {
@@ -22975,13 +22927,12 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:29:48.021Z";
-    this.gitSha = "bb98381";
+    this.buildId = "2026-03-07T00:33:16.740Z";
+    this.gitSha = "8bbff30";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
     this.ribbonGenerateEl = null;
-    this.startupTimings = null;
     this.spendData = null;
     this.SPEND_PATH = "augment-spend.json";
     this.waitingBadgeEl = null;
@@ -23284,43 +23235,11 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   async onload() {
     var _a2;
-    const _profilerT0 = performance.now();
-    const _profilerPlugins = [];
-    let _loadProto = import_obsidian8.Plugin.prototype;
-    while (_loadProto && !Object.prototype.hasOwnProperty.call(_loadProto, "load")) {
-      _loadProto = Object.getPrototypeOf(_loadProto);
-    }
-    const _origLoad = _loadProto == null ? void 0 : _loadProto.load;
-    if (_origLoad) {
-      _loadProto.load = function(...args) {
-        var _a3;
-        const pid = (_a3 = this.manifest) == null ? void 0 : _a3.id;
-        if (!pid || pid === "augment-terminal") return _origLoad.apply(this, args);
-        const t = performance.now();
-        const result = _origLoad.apply(this, args);
-        const finish = () => {
-          var _a4, _b;
-          return _profilerPlugins.push({ id: pid, name: (_b = (_a4 = this.manifest) == null ? void 0 : _a4.name) != null ? _b : pid, ms: Math.round(performance.now() - t) });
-        };
-        if (result && typeof result.then === "function") {
-          return result.then((v) => {
-            finish();
-            return v;
-          }, (e) => {
-            finish();
-            return Promise.reject(e);
-          });
-        }
-        finish();
-        return result;
-      };
-    }
     (0, import_obsidian8.addIcon)("augment-pyramid", `
       <circle cx="50" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
     `);
-    const _augmentSyncEnd = performance.now();
     console.log(`[augment] build ${this.getBuildFingerprint()}`);
     const raw = await this.loadData();
     if (raw && typeof raw === "object") {
@@ -23854,14 +23773,6 @@ ${excerpt}`,
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
     this.app.workspace.onLayoutReady(() => {
-      if (_loadProto && _origLoad) _loadProto.load = _origLoad;
-      if (this.settings.enableProfiler) {
-        this.startupTimings = {
-          ownMs: Math.round(_augmentSyncEnd - _profilerT0),
-          layoutReadyMs: Math.round(performance.now() - _profilerT0),
-          plugins: _profilerPlugins.slice().sort((a, b) => b.ms - a.ms)
-        };
-      }
       void this.loadSpendData();
       void this.scaffoldDefaultTemplates();
       void this.scaffoldDefaultSkills();

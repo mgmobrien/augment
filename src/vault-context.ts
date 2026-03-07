@@ -38,7 +38,6 @@ export interface AugmentSettings {
   defaultTerminalLocation: TerminalOpenLocation;
   showOtherProjects: boolean;
   sessionHistory: SessionRecord[];
-  enableProfiler: boolean;
   coloredRibbonIcon: boolean;
 }
 
@@ -68,7 +67,6 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   defaultTerminalLocation: "tab",
   showOtherProjects: false,
   sessionHistory: [],
-  enableProfiler: false,
   coloredRibbonIcon: false,
 };
 

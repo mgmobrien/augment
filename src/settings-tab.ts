@@ -529,57 +529,6 @@ export class AugmentSettingTab extends PluginSettingTab {
         });
       });
 
-    // ── Startup profiler ─────────────────────────────────────
-    {
-      const timings = this.plugin.startupTimings;
-      const profilerSection = overviewPane.createDiv({ cls: "augment-profiler-section" });
-
-      const profilerSetting = new Setting(profilerSection)
-        .setName("Startup profiler")
-        .setDesc("Measure how long each plugin takes to load. Takes effect on next Obsidian restart.")
-        .addToggle((toggle) => {
-          toggle.setValue(this.plugin.settings.enableProfiler).onChange(async (val) => {
-            this.plugin.settings.enableProfiler = val;
-            await this.plugin.saveData(this.plugin.settings);
-            this.display();
-          });
-        });
-      addInfoTooltip(profilerSetting.descEl, "Augment wraps the plugin loader at startup to time each plugin. It must load before any other plugin for this to work — Obsidian loads plugins in the order they appear in .obsidian/community-plugins.json. If you see 'No other plugin timings captured', move augment-terminal to the top of that list, then restart.");
-
-      if (this.plugin.settings.enableProfiler) {
-        if (!timings) {
-          profilerSection.createEl("p", {
-            cls: "augment-profiler-hint",
-            text: "Restart Obsidian to capture startup timing.",
-          });
-        } else {
-          const summaryEl = profilerSection.createDiv({ cls: "augment-profiler-summary" });
-          summaryEl.createEl("div", { cls: "augment-profiler-row augment-profiler-own",
-            text: `Augment (this plugin): ${timings.ownMs}ms` });
-          summaryEl.createEl("div", { cls: "augment-profiler-row",
-            text: `Total window (load \u2192 layout ready): ${timings.layoutReadyMs}ms` });
-
-          if (timings.plugins.length > 0) {
-            profilerSection.createDiv({ cls: "augment-pane-section augment-profiler-plugins-label", text: "Other plugins" });
-            const table = profilerSection.createEl("table", { cls: "augment-var-table augment-profiler-table" });
-            const tbody = table.createEl("tbody");
-            for (const p of timings.plugins) {
-              const tr = tbody.createEl("tr");
-              tr.createEl("td", { text: p.name });
-              const msEl = tr.createEl("td", { cls: "augment-profiler-ms", text: `${p.ms}ms` });
-              if (p.ms > 500) msEl.addClass("augment-profiler-slow");
-              else if (p.ms > 200) msEl.addClass("augment-profiler-med");
-            }
-          } else {
-            profilerSection.createEl("p", {
-              cls: "augment-profiler-hint",
-              text: "No other plugin timings captured. Augment must load before other plugins for timing to work — check that it appears first in community-plugins.json, then restart Obsidian.",
-            });
-          }
-        }
-      }
-    }
-
     // ── API usage ────────────────────────────────────────────
     {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
@@ -590,7 +539,7 @@ export class AugmentSettingTab extends PluginSettingTab {
 
       if (models.length === 0) {
         spendSection.createEl("p", {
-          cls: "augment-profiler-hint",
+          cls: "augment-spend-hint",
           text: "No generations tracked yet. Usage is recorded after each Generate call.",
         });
       } else {
@@ -601,9 +550,9 @@ export class AugmentSettingTab extends PluginSettingTab {
           totalGens += entry.generations;
         }
 
-        const summaryEl = spendSection.createDiv({ cls: "augment-profiler-summary" });
+        const summaryEl = spendSection.createDiv({ cls: "augment-spend-summary" });
         summaryEl.createEl("div", {
-          cls: "augment-profiler-row augment-profiler-own",
+          cls: "augment-spend-row augment-spend-own",
           text: `Total cost: $${totalCost.toFixed(4)} across ${totalGens} generation${totalGens === 1 ? "" : "s"}`,
         });
 
@@ -613,8 +562,8 @@ export class AugmentSettingTab extends PluginSettingTab {
           const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
           const tr = tbody.createEl("tr");
           tr.createEl("td", { text: modelDisplayName(modelId) });
-          tr.createEl("td", { cls: "augment-profiler-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
-          tr.createEl("td", { cls: "augment-profiler-ms", text: `$${cost.toFixed(4)}` });
+          tr.createEl("td", { cls: "augment-spend-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
+          tr.createEl("td", { cls: "augment-spend-ms", text: `$${cost.toFixed(4)}` });
         }
       }
 
