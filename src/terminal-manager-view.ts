@@ -141,7 +141,7 @@ export class TerminalManagerView extends ItemView {
     return (this.app as any).plugins?.plugins?.["augment-terminal"];
   }
 
-  private requestRefresh(): void {
+  requestRefresh(): void {
     if (this.refreshFrameId !== null) return;
     this.refreshFrameId = window.requestAnimationFrame(() => {
       this.refreshFrameId = null;

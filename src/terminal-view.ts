@@ -1279,7 +1279,24 @@ export class TerminalView extends ItemView {
     this.persistNameToLeafState();
     this.autoNamedThisTurn = true;
     this.app.workspace.trigger("augment-terminal:changed");
-    setTimeout(() => { this.autoNamedThisTurn = false; }, 1500);
+    // Belt-and-suspenders: directly call requestRefresh() on any open
+    // TerminalManagerViews. The workspace event above can be debounced away
+    // when a rAF frame from a concurrent setStatus() is already in-flight.
+    // Direct call bypasses the event/rAF race entirely.
+    this.app.workspace.getLeavesOfType("augment-terminal-manager").forEach(leaf => {
+      (leaf.view as any).requestRefresh?.();
+    });
+    // Second fallback 150ms later — covers the case where persistNameToLeafState()
+    // causes Obsidian to call setState() async, which can emit layout-change and
+    // temporarily shadow the name before our update is visible to TM.
+    setTimeout(() => {
+      if (this.terminalName === trimmed) {
+        this.app.workspace.getLeavesOfType("augment-terminal-manager").forEach(leaf => {
+          (leaf.view as any).requestRefresh?.();
+        });
+      }
+      this.autoNamedThisTurn = false;
+    }, 150);
     return true;
   }
 
