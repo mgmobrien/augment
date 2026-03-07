@@ -20598,6 +20598,42 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
     const nameEl = line.createSpan({ cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""), text: name });
     if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
+    if (typeof view.setName === "function") {
+      nameEl.addEventListener("click", (evt) => {
+        var _a3;
+        evt.preventDefault();
+        evt.stopPropagation();
+        const currentName = (_a3 = nameEl.textContent) != null ? _a3 : "";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = currentName;
+        input.className = "augment-tm-name-input";
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+        const commit = () => {
+          const newName = input.value.trim();
+          if (newName && newName !== currentName) {
+            view.setName(newName);
+          }
+          input.replaceWith(nameEl);
+          nameEl.textContent = newName || currentName;
+        };
+        const cancel = () => {
+          input.replaceWith(nameEl);
+        };
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        });
+        input.addEventListener("blur", commit);
+      });
+    }
     const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
     if (identity && identity.toLowerCase() !== name.toLowerCase()) {
       line.createSpan({ cls: "augment-tm-role", text: identity });
@@ -22340,8 +22376,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:14:37.183Z";
-    this.gitSha = "ab916d8";
+    this.buildId = "2026-03-07T02:17:38.576Z";
+    this.gitSha = "10ad64d";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22393,10 +22429,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
   applyRibbonIcon() {
     if (!this.ribbonGenerateEl) return;
-    const iconEl = this.ribbonGenerateEl.querySelector(".svg-icon");
-    if (iconEl) {
-      (0, import_obsidian12.setIcon)(iconEl, this.settings.ribbonIcon || "augment-pyramid");
-    }
+    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
   refreshStatusBar() {
     var _a2;
@@ -22680,6 +22713,23 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     } else if (this.settings.defaultTerminalLocation === "sidebar-left") {
       this.settings.defaultTerminalLocation = "sidebar-left-bottom";
     }
+    const VALID_RIBBON_ICONS = /* @__PURE__ */ new Set([
+      "augment-pyramid",
+      "wand-2",
+      "sparkles",
+      "brain",
+      "zap",
+      "bot",
+      "pencil",
+      "type",
+      "message-square",
+      "cpu",
+      "code-2",
+      "terminal"
+    ]);
+    if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
+      this.settings.ribbonIcon = "augment-pyramid";
+    }
     {
       const hm = this.app.hotkeyManager;
       const RUNTIME_CONFLICTS = [
@@ -22712,25 +22762,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       view.onSessionExit = (name, status, startedAt, skillName) => {
         this.appendSessionRecord(name, status, startedAt, skillName);
       };
-      view.onAutoRenameRequest = async (excerpt) => {
-        var _a3;
-        const localFallback = this.deriveTerminalNameFromExcerpt(excerpt);
-        if (!((_a3 = this.settings.apiKey) == null ? void 0 : _a3.trim())) {
-          return localFallback;
-        }
-        try {
-          const { text: raw3 } = await generateText(
-            "Generate a short descriptive name for this Claude Code terminal session based on the output excerpt. Use 2\u20134 lowercase words separated by hyphens. Respond with ONLY the name, nothing else.",
-            `Session excerpt:
-${excerpt}`,
-            this.settings,
-            "claude-haiku-4-5-20251001"
-          );
-          const cleaned = this.sanitizeTerminalName(raw3);
-          return cleaned != null ? cleaned : localFallback;
-        } catch (e) {
-          return localFallback;
-        }
+      view.onAutoRenameRequest = (excerpt) => {
+        return Promise.resolve(this.deriveTerminalNameFromExcerpt(excerpt));
       };
       view.onSwitchWorkspaceRequest = (v) => {
         new WorkspaceSwitcherModal(this.app, v).open();
