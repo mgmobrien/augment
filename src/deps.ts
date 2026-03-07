@@ -58,7 +58,8 @@ async function checkBool(cmd: string, env: Record<string, string>): Promise<bool
     // On Windows, retry via WSL if the native check fails.
     if (process.platform === "win32") {
       try {
-        await execAsync(`wsl ${cmd}`, env);
+        const wslCmd = cmd.startsWith("where ") ? "which " + cmd.slice(6) : cmd;
+        await execAsync(`wsl ${wslCmd}`, env);
         return true;
       } catch { /* fall through */ }
     }

@@ -1332,11 +1332,19 @@ export class AugmentSettingTab extends PluginSettingTab {
               });
           });
       } else {
-        const shellName = process.platform === "darwin" ? "zsh" : "bash";
+        const defaultShell = process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
         new Setting(advancedDetails)
           .setName("Shell")
-          .setDesc(`Using system default (${shellName}). Change your login shell to use a different one.`)
-          .setDisabled(true);
+          .setDesc("Custom shell path. Leave blank to use the system default.")
+          .addText((text) => {
+            text
+              .setPlaceholder(defaultShell)
+              .setValue(this.plugin.settings.shellPath)
+              .onChange(async (value) => {
+                this.plugin.settings.shellPath = value;
+                await this.plugin.saveData(this.plugin.settings);
+              });
+          });
       }
 
       new Setting(advancedDetails)
