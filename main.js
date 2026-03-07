@@ -16605,6 +16605,36 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
   if (!app.vault.getAbstractFileByPath(skillsPath)) {
     await app.vault.createFolder(skillsPath);
   }
+  if (!app.vault.getAbstractFileByPath(templateFolder)) {
+    try {
+      await app.vault.createFolder(templateFolder);
+    } catch (e) {
+    }
+  }
+  const exampleTemplatePath = `${templateFolder}/Linked notes summary.md`;
+  if (!app.vault.getAbstractFileByPath(exampleTemplatePath)) {
+    const exampleContent = [
+      "---",
+      "name: Linked notes summary",
+      "description: Summarize this note and its linked notes as structured bullet points",
+      "---",
+      'Summarize "{{ title }}" and its linked notes as structured bullet points.',
+      "",
+      "Note content:",
+      "{{ note_content | truncate: 2000 }}",
+      "",
+      "{% if linked_notes_array.size > 0 %}",
+      'Linked notes ({{ linked_notes_array | map: "title" | join: ", " }}):',
+      "{% for note in linked_notes_array %}",
+      "### {{ note.title }}",
+      "{{ note.content | truncate: 500 }}",
+      "{% endfor %}",
+      "{% endif %}",
+      "",
+      "Provide a concise summary with the main themes and key points across all notes."
+    ].join("\n");
+    await app.vault.create(exampleTemplatePath, exampleContent);
+  }
 }
 
 // src/template-picker.ts
@@ -16954,6 +16984,7 @@ var TemplateAssistantModal = class extends import_obsidian3.Modal {
     this.templateEditorEl = previewSection.createEl("textarea", { cls: "augment-tpl-editor" });
     this.templateEditorEl.rows = 6;
     this.templateEditorEl.placeholder = "Generated template will appear here\u2026";
+    this.templateEditorEl.addEventListener("input", () => void this.renderPreview());
     previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Rendered output (against active note)" });
     this.previewEl = previewSection.createDiv({ cls: "augment-tpl-rendered-preview" });
     this.previewEl.textContent = "Generate a template to see a preview.";
@@ -22158,8 +22189,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:28:01.819Z";
-    this.gitSha = "9e4ea8a";
+    this.buildId = "2026-03-07T01:45:04.728Z";
+    this.gitSha = "8e92c2a";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
