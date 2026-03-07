@@ -511,7 +511,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         return Promise.resolve(this.deriveTerminalNameFromExcerpt(excerpt));
       };
       view.onSwitchWorkspaceRequest = (v: TerminalView) => {
-        new WorkspaceSwitcherModal(this.app, v).open();
+        new WorkspaceSwitcherModal(this.app, v, this.settings).open();
       };
       return view;
     });
@@ -895,7 +895,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       callback: () => {
         const view = this.app.workspace.getActiveViewOfType(TerminalView);
         if (view) {
-          new WorkspaceSwitcherModal(this.app, view).open();
+          new WorkspaceSwitcherModal(this.app, view, this.settings).open();
         }
       },
     });
@@ -1534,31 +1534,52 @@ interface WorkspaceEntry {
   path: string;
 }
 
-function discoverWorkspaces(app: App): WorkspaceEntry[] {
+function discoverWorkspaces(app: App, settings: AugmentSettings): WorkspaceEntry[] {
   const entries: WorkspaceEntry[] = [];
+  const seenPaths = new Set<string>();
 
-  // Vault root always first
+  // Vault root always first.
   const vaultPath = (app.vault.adapter as any).basePath as string | undefined;
   if (vaultPath) {
     const vaultName = vaultPath.split("/").filter(Boolean).pop() ?? "vault";
     entries.push({ label: `vault — ${vaultName}`, path: vaultPath });
+    seenPaths.add(vaultPath);
   }
 
-  // Scan ~/Development/ for git repos
-  const devDir = join(homedir(), "Development");
-  if (existsSync(devDir)) {
+  // ~/.claude/projects/ — Claude Code's own project index.
+  // Encoded names are the original path with / and spaces replaced by -.
+  // Decode by replacing - with / (lossy for paths with dashes, but we verify with existsSync).
+  const home = homedir();
+  const projectsRoot = join(home, ".claude", "projects");
+  if (existsSync(projectsRoot)) {
     try {
-      const dirs = readdirSync(devDir, { withFileTypes: true });
-      for (const d of dirs) {
+      for (const d of readdirSync(projectsRoot, { withFileTypes: true })) {
         if (!d.isDirectory()) continue;
-        const fullPath = join(devDir, d.name);
-        if (existsSync(join(fullPath, ".git"))) {
-          entries.push({ label: d.name, path: fullPath });
-        }
+        const decoded = d.name.replace(/-/g, "/");
+        if (!decoded.startsWith("/")) continue;
+        if (!existsSync(decoded)) continue;
+        if (seenPaths.has(decoded)) continue;
+        seenPaths.add(decoded);
+        const label = decoded.split("/").filter(Boolean).pop() ?? decoded;
+        entries.push({ label, path: decoded });
       }
-    } catch {
-      // ignore unreadable directories
-    }
+    } catch { /* ignore unreadable */ }
+  }
+
+  // User-configured project root paths — scan each for git repo subdirectories.
+  for (const rootPath of (settings.projectRoots ?? [])) {
+    const expanded = rootPath.startsWith("~") ? join(home, rootPath.slice(1)) : rootPath;
+    if (!existsSync(expanded)) continue;
+    try {
+      for (const d of readdirSync(expanded, { withFileTypes: true })) {
+        if (!d.isDirectory()) continue;
+        const fullPath = join(expanded, d.name);
+        if (!existsSync(join(fullPath, ".git"))) continue;
+        if (seenPaths.has(fullPath)) continue;
+        seenPaths.add(fullPath);
+        entries.push({ label: d.name, path: fullPath });
+      }
+    } catch { /* ignore unreadable */ }
   }
 
   return entries;
@@ -1566,15 +1587,17 @@ function discoverWorkspaces(app: App): WorkspaceEntry[] {
 
 class WorkspaceSwitcherModal extends FuzzySuggestModal<WorkspaceEntry> {
   private targetView: TerminalView;
+  private settings: AugmentSettings;
 
-  constructor(app: App, targetView: TerminalView) {
+  constructor(app: App, targetView: TerminalView, settings: AugmentSettings) {
     super(app);
     this.targetView = targetView;
+    this.settings = settings;
     this.setPlaceholder("Type to filter workspaces…");
   }
 
   getItems(): WorkspaceEntry[] {
-    return discoverWorkspaces(this.app);
+    return discoverWorkspaces(this.app, this.settings);
   }
 
   getItemText(item: WorkspaceEntry): string {

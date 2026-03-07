@@ -16292,7 +16292,8 @@ var DEFAULT_SETTINGS = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "augment-pyramid"
+  ribbonIcon: "augment-pyramid",
+  projectRoots: []
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -18227,6 +18228,15 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
           this.plugin.settings.defaultWorkingDirectory = value;
           await this.plugin.saveData(this.plugin.settings);
         });
+      });
+      new import_obsidian7.Setting(advancedDetails).setName("Project scan paths").setDesc("Folders to scan for git repos in the workspace switcher. One path per line. Supports ~ for home directory (e.g. ~/Development).").addTextArea((text) => {
+        var _a3;
+        text.setPlaceholder("~/Development").setValue(((_a3 = this.plugin.settings.projectRoots) != null ? _a3 : []).join("\n")).onChange(async (value) => {
+          this.plugin.settings.projectRoots = value.split("\n").map((l) => l.trim()).filter(Boolean);
+          await this.plugin.saveData(this.plugin.settings);
+        });
+        text.inputEl.rows = 4;
+        text.inputEl.style.width = "100%";
       });
     }
     terminalPane.createEl("p", {
@@ -22399,8 +22409,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:26:17.029Z";
-    this.gitSha = "b4c8dc1";
+    this.buildId = "2026-03-07T02:50:46.868Z";
+    this.gitSha = "84e3ac9";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22791,7 +22801,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         return Promise.resolve(this.deriveTerminalNameFromExcerpt(excerpt));
       };
       view.onSwitchWorkspaceRequest = (v) => {
-        new WorkspaceSwitcherModal(this.app, v).open();
+        new WorkspaceSwitcherModal(this.app, v, this.settings).open();
       };
       return view;
     });
@@ -23122,7 +23132,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       callback: () => {
         const view = this.app.workspace.getActiveViewOfType(TerminalView);
         if (view) {
-          new WorkspaceSwitcherModal(this.app, view).open();
+          new WorkspaceSwitcherModal(this.app, view, this.settings).open();
         }
       }
     });
@@ -23701,24 +23711,44 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     return false;
   }
 };
-function discoverWorkspaces(app) {
-  var _a2;
+function discoverWorkspaces(app, settings) {
+  var _a2, _b, _c;
   const entries = [];
+  const seenPaths = /* @__PURE__ */ new Set();
   const vaultPath = app.vault.adapter.basePath;
   if (vaultPath) {
     const vaultName = (_a2 = vaultPath.split("/").filter(Boolean).pop()) != null ? _a2 : "vault";
     entries.push({ label: `vault \u2014 ${vaultName}`, path: vaultPath });
+    seenPaths.add(vaultPath);
   }
-  const devDir = (0, import_path10.join)((0, import_os2.homedir)(), "Development");
-  if ((0, import_fs3.existsSync)(devDir)) {
+  const home = (0, import_os2.homedir)();
+  const projectsRoot = (0, import_path10.join)(home, ".claude", "projects");
+  if ((0, import_fs3.existsSync)(projectsRoot)) {
     try {
-      const dirs = (0, import_fs3.readdirSync)(devDir, { withFileTypes: true });
-      for (const d of dirs) {
+      for (const d of (0, import_fs3.readdirSync)(projectsRoot, { withFileTypes: true })) {
         if (!d.isDirectory()) continue;
-        const fullPath = (0, import_path10.join)(devDir, d.name);
-        if ((0, import_fs3.existsSync)((0, import_path10.join)(fullPath, ".git"))) {
-          entries.push({ label: d.name, path: fullPath });
-        }
+        const decoded = d.name.replace(/-/g, "/");
+        if (!decoded.startsWith("/")) continue;
+        if (!(0, import_fs3.existsSync)(decoded)) continue;
+        if (seenPaths.has(decoded)) continue;
+        seenPaths.add(decoded);
+        const label = (_b = decoded.split("/").filter(Boolean).pop()) != null ? _b : decoded;
+        entries.push({ label, path: decoded });
+      }
+    } catch (e) {
+    }
+  }
+  for (const rootPath of (_c = settings.projectRoots) != null ? _c : []) {
+    const expanded = rootPath.startsWith("~") ? (0, import_path10.join)(home, rootPath.slice(1)) : rootPath;
+    if (!(0, import_fs3.existsSync)(expanded)) continue;
+    try {
+      for (const d of (0, import_fs3.readdirSync)(expanded, { withFileTypes: true })) {
+        if (!d.isDirectory()) continue;
+        const fullPath = (0, import_path10.join)(expanded, d.name);
+        if (!(0, import_fs3.existsSync)((0, import_path10.join)(fullPath, ".git"))) continue;
+        if (seenPaths.has(fullPath)) continue;
+        seenPaths.add(fullPath);
+        entries.push({ label: d.name, path: fullPath });
       }
     } catch (e) {
     }
@@ -23726,13 +23756,14 @@ function discoverWorkspaces(app) {
   return entries;
 }
 var WorkspaceSwitcherModal = class extends import_obsidian12.FuzzySuggestModal {
-  constructor(app, targetView) {
+  constructor(app, targetView, settings) {
     super(app);
     this.targetView = targetView;
+    this.settings = settings;
     this.setPlaceholder("Type to filter workspaces\u2026");
   }
   getItems() {
-    return discoverWorkspaces(this.app);
+    return discoverWorkspaces(this.app, this.settings);
   }
   getItemText(item) {
     return item.label;

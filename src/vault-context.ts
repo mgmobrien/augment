@@ -40,6 +40,7 @@ export interface AugmentSettings {
   sessionHistory: SessionRecord[];
   coloredRibbonIcon: boolean;
   ribbonIcon: string;
+  projectRoots: string[]; // additional paths to scan for git repos in workspace switcher
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -70,6 +71,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   sessionHistory: [],
   coloredRibbonIcon: false,
   ribbonIcon: "augment-pyramid",
+  projectRoots: [],
 };
 
 export interface SpendModelEntry {
