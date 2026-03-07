@@ -55,18 +55,31 @@ async function checkBool(cmd: string, env: Record<string, string>): Promise<bool
     await execAsync(cmd, env);
     return true;
   } catch {
+    // On Windows, retry via WSL if the native check fails.
+    if (process.platform === "win32") {
+      try {
+        await execAsync(`wsl ${cmd}`, env);
+        return true;
+      } catch { /* fall through */ }
+    }
     return false;
   }
 }
 
 async function checkAuth(env: Record<string, string>): Promise<boolean> {
-  try {
-    const r = await execAsync("claude auth status", env);
-    const lower = r.stdout.toLowerCase();
-    return !lower.includes("not logged in") && !lower.includes("not authenticated");
-  } catch {
-    return false;
-  }
+  const check = async (cmd: string): Promise<boolean> => {
+    try {
+      const r = await execAsync(cmd, env);
+      const lower = r.stdout.toLowerCase();
+      return !lower.includes("not logged in") && !lower.includes("not authenticated");
+    } catch {
+      return false;
+    }
+  };
+  const result = await check("claude auth status");
+  if (result) return true;
+  if (process.platform === "win32") return check("wsl claude auth status");
+  return false;
 }
 
 async function detectRuntimeDeps(options: DetectDepsOptions = {}): Promise<RuntimeDeps> {

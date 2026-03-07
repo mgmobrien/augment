@@ -109,7 +109,7 @@ export class PtyBridge {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
-      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "cmd.exe" : "bash"),
+      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "wsl.exe" : "bash"),
       AUGMENT_CWD: this.cwd,
     };
 

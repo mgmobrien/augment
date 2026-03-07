@@ -1316,18 +1316,35 @@ export class AugmentSettingTab extends PluginSettingTab {
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
 
-      new Setting(advancedDetails)
-        .setName("Shell")
-        .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
-        .addText((text) => {
-          text
-            .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
-            .setValue(this.plugin.settings.shellPath)
-            .onChange(async (value) => {
-              this.plugin.settings.shellPath = value;
-              await this.plugin.saveData(this.plugin.settings);
-            });
-        });
+      if (process.platform === "win32") {
+        new Setting(advancedDetails)
+          .setName("Shell")
+          .setDesc("Shell to launch in new terminals.")
+          .addDropdown((dropdown) => {
+            dropdown
+              .addOption("", "WSL (default)")
+              .addOption("powershell.exe", "PowerShell")
+              .addOption("cmd.exe", "Command Prompt")
+              .setValue(this.plugin.settings.shellPath)
+              .onChange(async (value) => {
+                this.plugin.settings.shellPath = value;
+                await this.plugin.saveData(this.plugin.settings);
+              });
+          });
+      } else {
+        new Setting(advancedDetails)
+          .setName("Shell")
+          .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
+          .addText((text) => {
+            text
+              .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
+              .setValue(this.plugin.settings.shellPath)
+              .onChange(async (value) => {
+                this.plugin.settings.shellPath = value;
+                await this.plugin.saveData(this.plugin.settings);
+              });
+          });
+      }
 
       new Setting(advancedDetails)
         .setName("Default working directory")
