@@ -1053,25 +1053,6 @@
   margin: 0 0 16px;
 }
 
-.augment-overview-how {
-  margin-bottom: 16px;
-}
-
-.augment-overview-how-title,
-.augment-overview-links-title {
-  font-size: var(--font-ui-small);
-  font-weight: var(--font-semibold);
-  color: var(--text-normal);
-  margin-bottom: 6px;
-}
-
-.augment-overview-steps {
-  margin: 0;
-  padding-left: 1.4em;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-  line-height: 1.8;
-}
 
 .augment-overview-mock {
   margin-bottom: 16px;
