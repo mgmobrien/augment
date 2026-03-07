@@ -804,20 +804,12 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     });
 
-    // ── Keyboard shortcuts ──
+    // ── Hotkey conflict ──
+    // The pill box at the top of this pane already shows both hotkeys.
+    // This section exists solely to surface and resolve the Cmd+Enter conflict
+    // with Obsidian's built-in "Open link in new tab" command.
     {
-      continuationPane.createDiv({ cls: "augment-pane-section", text: "Keyboard shortcuts" });
-
       const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
-      const templateHotkey = this.formatHotkey("augment-terminal:augment-generate-from-template");
-
-      new Setting(continuationPane)
-        .setName(`Generate: ${generateHotkey}`)
-        .setDesc("Run continuation on the current note.");
-
-      new Setting(continuationPane)
-        .setName(`Template: ${templateHotkey}`)
-        .setDesc("Pick and run a template on the current note.");
 
       const openHotkeysPage = () => {
         (this.app as any).setting.open();
