@@ -17297,14 +17297,19 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
     });
     {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
-      spendSection.createDiv({ cls: "augment-overview-how-title", text: "API usage" });
+      const header2 = spendSection.createDiv({ cls: "augment-spend-header" });
+      header2.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
+      const consoleLink = header2.createEl("a", { cls: "augment-spend-console-link", text: "View in Anthropic console \u2192" });
+      consoleLink.href = "https://console.anthropic.com/usage";
+      consoleLink.target = "_blank";
+      consoleLink.rel = "noopener noreferrer";
       const spend = this.plugin.spendData;
       const models = spend ? Object.keys(spend.byModel) : [];
       if (models.length === 0) {
-        spendSection.createEl("p", {
-          cls: "augment-spend-hint",
-          text: "No generations tracked yet. Usage is recorded after each Generate call."
-        });
+        const emptyEl = spendSection.createDiv({ cls: "augment-spend-empty" });
+        emptyEl.createEl("p", { text: "No generations tracked yet." });
+        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Try Cmd+Enter in any note to generate text with AI." });
+        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Or use Run template (Cmd+Shift+Enter) to apply a saved template." });
       } else {
         let totalCost = 0;
         let totalGens = 0;
@@ -17312,12 +17317,11 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           totalCost += calculateCost(modelId, entry.inputTokens, entry.outputTokens);
           totalGens += entry.generations;
         }
-        const summaryEl = spendSection.createDiv({ cls: "augment-spend-summary" });
-        summaryEl.createEl("div", {
-          cls: "augment-spend-row augment-spend-own",
-          text: `Total cost: $${totalCost.toFixed(4)} across ${totalGens} generation${totalGens === 1 ? "" : "s"}`
-        });
-        const table = spendSection.createEl("table", { cls: "augment-var-table augment-spend-table" });
+        const card = spendSection.createDiv({ cls: "augment-spend-card" });
+        const totals = card.createDiv({ cls: "augment-spend-totals" });
+        totals.createSpan({ cls: "augment-spend-total-amount", text: `$${totalCost.toFixed(4)} estimated` });
+        totals.createSpan({ cls: "augment-spend-total-meta", text: `across ${totalGens} generation${totalGens === 1 ? "" : "s"}` });
+        const table = card.createEl("table", { cls: "augment-var-table augment-spend-table" });
         const tbody = table.createEl("tbody");
         for (const [modelId, entry] of Object.entries(spend.byModel)) {
           const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
@@ -17327,10 +17331,9 @@ var AugmentSettingTab = class extends import_obsidian4.PluginSettingTab {
           tr.createEl("td", { cls: "augment-spend-ms", text: `$${cost.toFixed(4)}` });
         }
       }
-      spendSection.createEl("p", {
-        cls: "augment-spend-note",
-        text: "Tracks Generate and Run template calls only. Terminal (Claude Code) sessions are not tracked \u2014 those costs appear in your Anthropic console."
-      });
+      const infobox = spendSection.createDiv({ cls: "augment-spend-infobox" });
+      infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
+      infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
     }
     this.renderHotkeyBox(continuationPane, [
       { label: "Generate", commandId: "augment-terminal:augment-generate" },
@@ -21879,8 +21882,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T01:21:57.192Z";
-    this.gitSha = "f103058";
+    this.buildId = "2026-03-07T01:22:45.292Z";
+    this.gitSha = "ac2e6a2";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

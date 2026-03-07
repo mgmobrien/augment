@@ -532,16 +532,22 @@ export class AugmentSettingTab extends PluginSettingTab {
     // ── API usage ────────────────────────────────────────────
     {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
-      spendSection.createDiv({ cls: "augment-overview-how-title", text: "API usage" });
+
+      const header = spendSection.createDiv({ cls: "augment-spend-header" });
+      header.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
+      const consoleLink = header.createEl("a", { cls: "augment-spend-console-link", text: "View in Anthropic console \u2192" });
+      consoleLink.href = "https://console.anthropic.com/usage";
+      consoleLink.target = "_blank";
+      consoleLink.rel = "noopener noreferrer";
 
       const spend = this.plugin.spendData;
       const models = spend ? Object.keys(spend.byModel) : [];
 
       if (models.length === 0) {
-        spendSection.createEl("p", {
-          cls: "augment-spend-hint",
-          text: "No generations tracked yet. Usage is recorded after each Generate call.",
-        });
+        const emptyEl = spendSection.createDiv({ cls: "augment-spend-empty" });
+        emptyEl.createEl("p", { text: "No generations tracked yet." });
+        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Try Cmd+Enter in any note to generate text with AI." });
+        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Or use Run template (Cmd+Shift+Enter) to apply a saved template." });
       } else {
         let totalCost = 0;
         let totalGens = 0;
@@ -550,13 +556,12 @@ export class AugmentSettingTab extends PluginSettingTab {
           totalGens += entry.generations;
         }
 
-        const summaryEl = spendSection.createDiv({ cls: "augment-spend-summary" });
-        summaryEl.createEl("div", {
-          cls: "augment-spend-row augment-spend-own",
-          text: `Total cost: $${totalCost.toFixed(4)} across ${totalGens} generation${totalGens === 1 ? "" : "s"}`,
-        });
+        const card = spendSection.createDiv({ cls: "augment-spend-card" });
+        const totals = card.createDiv({ cls: "augment-spend-totals" });
+        totals.createSpan({ cls: "augment-spend-total-amount", text: `$${totalCost.toFixed(4)} estimated` });
+        totals.createSpan({ cls: "augment-spend-total-meta", text: `across ${totalGens} generation${totalGens === 1 ? "" : "s"}` });
 
-        const table = spendSection.createEl("table", { cls: "augment-var-table augment-spend-table" });
+        const table = card.createEl("table", { cls: "augment-var-table augment-spend-table" });
         const tbody = table.createEl("tbody");
         for (const [modelId, entry] of Object.entries(spend!.byModel)) {
           const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
@@ -567,10 +572,9 @@ export class AugmentSettingTab extends PluginSettingTab {
         }
       }
 
-      spendSection.createEl("p", {
-        cls: "augment-spend-note",
-        text: "Tracks Generate and Run template calls only. Terminal (Claude Code) sessions are not tracked — those costs appear in your Anthropic console.",
-      });
+      const infobox = spendSection.createDiv({ cls: "augment-spend-infobox" });
+      infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
+      infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
     }
 
     // ── Continuation pane ────────────────────────────────────

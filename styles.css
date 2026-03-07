@@ -1047,30 +1047,7 @@
   text-decoration: underline;
 }
 
-/* ── API usage section ── */
-.augment-spend-hint {
-  font-size: var(--font-ui-smaller);
-  color: var(--text-faint);
-  margin: 4px 0 0 0;
-}
-
-.augment-spend-summary {
-  margin: 8px 0 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.augment-spend-row {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
-}
-
-.augment-spend-own {
-  font-weight: var(--font-semibold);
-  color: var(--text-normal);
-}
-
+/* ── API usage section (revised) ── */
 .augment-spend-ms {
   text-align: right;
   font-family: var(--font-monospace);
@@ -1079,17 +1056,101 @@
   white-space: nowrap;
 }
 
-/* ── API usage section ── */
 .augment-spend-section {
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--background-modifier-border);
 }
 
-.augment-spend-note {
+.augment-spend-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.augment-spend-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+.augment-spend-console-link {
   font-size: var(--font-ui-smaller);
+  color: var(--text-accent);
+  text-decoration: none;
+}
+.augment-spend-console-link:hover {
+  text-decoration: underline;
+}
+
+.augment-spend-empty {
+  padding: 12px;
+  background: var(--background-modifier-form-field);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+}
+.augment-spend-empty p {
+  margin: 0 0 6px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+.augment-spend-empty p:first-child {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+
+.augment-spend-card {
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.augment-spend-totals {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.augment-spend-total-amount {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+.augment-spend-total-meta {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.augment-spend-infobox {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  background: var(--background-modifier-form-field);
+  border-left: 3px solid var(--text-faint);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  margin-top: 10px;
+}
+
+.augment-spend-infobox-icon {
+  font-size: var(--font-ui-small);
   color: var(--text-faint);
-  margin: 8px 0 0 0;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.augment-spend-infobox-text {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 /* ── Context pane intro ── */
