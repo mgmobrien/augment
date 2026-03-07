@@ -18291,18 +18291,14 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
       if (process.platform === "win32") {
         new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
-          dropdown.addOption("", "WSL (default)").addOption("powershell.exe", "PowerShell").addOption("cmd.exe", "Command Prompt").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
+          dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
             this.plugin.settings.shellPath = value;
             await this.plugin.saveData(this.plugin.settings);
           });
         });
       } else {
-        new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals. Leave blank to use the system default.").addText((text) => {
-          text.setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
-            this.plugin.settings.shellPath = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-        });
+        const shellName = process.platform === "darwin" ? "zsh" : "bash";
+        new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc(`Using system default (${shellName}). Change your login shell to use a different one.`).setDisabled(true);
       }
       new import_obsidian7.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
         text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
@@ -18407,7 +18403,7 @@ var PtyBridge = class {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
-      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "wsl.exe" : "bash"),
+      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "powershell.exe" : "bash"),
       AUGMENT_CWD: this.cwd
     };
     let candidateIndex = 0;
@@ -22451,8 +22447,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T16:23:37.379Z";
-    this.gitSha = "b87f37b";
+    this.buildId = "2026-03-07T16:34:03.390Z";
+    this.gitSha = "662a568";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

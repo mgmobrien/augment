@@ -1322,8 +1322,8 @@ export class AugmentSettingTab extends PluginSettingTab {
           .setDesc("Shell to launch in new terminals.")
           .addDropdown((dropdown) => {
             dropdown
-              .addOption("", "WSL (default)")
-              .addOption("powershell.exe", "PowerShell")
+              .addOption("", "PowerShell (default)")
+              .addOption("wsl.exe", "WSL")
               .addOption("cmd.exe", "Command Prompt")
               .setValue(this.plugin.settings.shellPath)
               .onChange(async (value) => {
@@ -1332,18 +1332,11 @@ export class AugmentSettingTab extends PluginSettingTab {
               });
           });
       } else {
+        const shellName = process.platform === "darwin" ? "zsh" : "bash";
         new Setting(advancedDetails)
           .setName("Shell")
-          .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
-          .addText((text) => {
-            text
-              .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
-              .setValue(this.plugin.settings.shellPath)
-              .onChange(async (value) => {
-                this.plugin.settings.shellPath = value;
-                await this.plugin.saveData(this.plugin.settings);
-              });
-          });
+          .setDesc(`Using system default (${shellName}). Change your login shell to use a different one.`)
+          .setDisabled(true);
       }
 
       new Setting(advancedDetails)
