@@ -6329,9 +6329,6 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian12 = require("obsidian");
-var import_fs3 = require("fs");
-var import_os2 = require("os");
-var import_path10 = require("path");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f) {
@@ -18968,8 +18965,6 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.lastPromptAtMs = 0;
     this.autoRenameInFlight = false;
     this.lastAutoRenameAttemptAtMs = 0;
-    this.forcedCwd = "";
-    this.cwdBadgeEl = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -19362,14 +19357,6 @@ var TerminalView = class extends import_obsidian8.ItemView {
     const errorBanner = container.createDiv({ cls: "augment-terminal-error-banner" });
     errorBanner.style.display = "none";
     this.errorBannerEl = errorBanner;
-    const cwdBar = container.createDiv({ cls: "augment-cwd-bar" });
-    const cwdIcon = cwdBar.createSpan({ cls: "augment-cwd-icon" });
-    (0, import_obsidian8.setIcon)(cwdIcon, "folder");
-    this.cwdBadgeEl = cwdBar.createSpan({ cls: "augment-cwd-badge" });
-    cwdBar.addEventListener("click", () => {
-      var _a2;
-      (_a2 = this.onSwitchWorkspaceRequest) == null ? void 0 : _a2.call(this, this);
-    });
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
     if (this.restoredSnapshot) {
@@ -19379,7 +19366,6 @@ var TerminalView = class extends import_obsidian8.ItemView {
       );
     }
     this.startPtyBridge();
-    this.updateCwdBadge();
     this.terminal.onData((data) => {
       var _a2;
       (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
@@ -19399,30 +19385,11 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
     this.resizeObserver.observe(container);
   }
-  /** Respawn the shell in a new working directory. */
-  setCwd(newPath) {
-    var _a2, _b;
-    this.forcedCwd = newPath;
-    const basename = (_a2 = newPath.split("/").filter(Boolean).pop()) != null ? _a2 : newPath;
-    (_b = this.terminal) == null ? void 0 : _b.write(`\r
-\x1B[2m[Switching workspace \u2192 ${basename}]\x1B[0m\r
-`);
-    this.startPtyBridge();
-    this.updateCwdBadge();
-  }
-  updateCwdBadge() {
-    var _a2;
-    if (!this.cwdBadgeEl) return;
-    const cwd = this.resolvedCwd;
-    const basename = (_a2 = cwd.split("/").filter(Boolean).pop()) != null ? _a2 : cwd;
-    this.cwdBadgeEl.textContent = basename;
-    this.cwdBadgeEl.title = cwd;
-  }
   startPtyBridge(forcedShellPath) {
     var _a2, _b;
     const vaultPath = this.app.vault.adapter.basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
-    this.resolvedCwd = this.forcedCwd || customCwd || vaultPath;
+    this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath != null ? forcedShellPath : this.getShellPath();
     this.ptyStartedAtMs = Date.now();
     (_a2 = this.ptyBridge) == null ? void 0 : _a2.kill();
@@ -22454,8 +22421,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T03:07:10.341Z";
-    this.gitSha = "cbb1048";
+    this.buildId = "2026-03-07T03:15:24.137Z";
+    this.gitSha = "912e2c2";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22848,9 +22815,6 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       view.onAutoRenameRequest = (excerpt) => {
         return Promise.resolve(this.deriveTerminalNameFromExcerpt(excerpt));
       };
-      view.onSwitchWorkspaceRequest = (v) => {
-        new WorkspaceSwitcherModal(this.app, v, this.settings).open();
-      };
       return view;
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
@@ -23173,16 +23137,6 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       hotkeys: [{ modifiers: ["Ctrl"], key: "t" }],
       callback: () => {
         this.openTerminalAt(this.settings.defaultTerminalLocation);
-      }
-    });
-    this.addCommand({
-      id: "switch-workspace",
-      name: "Switch workspace",
-      callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(TerminalView);
-        if (view) {
-          new WorkspaceSwitcherModal(this.app, view, this.settings).open();
-        }
       }
     });
     this.addCommand({
@@ -23758,66 +23712,5 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       }
     }
     return false;
-  }
-};
-function discoverWorkspaces(app, settings) {
-  var _a2, _b, _c;
-  const entries = [];
-  const seenPaths = /* @__PURE__ */ new Set();
-  const vaultPath = app.vault.adapter.basePath;
-  if (vaultPath) {
-    const vaultName = (_a2 = vaultPath.split("/").filter(Boolean).pop()) != null ? _a2 : "vault";
-    entries.push({ label: `vault \u2014 ${vaultName}`, path: vaultPath });
-    seenPaths.add(vaultPath);
-  }
-  const home = (0, import_os2.homedir)();
-  const projectsRoot = (0, import_path10.join)(home, ".claude", "projects");
-  if ((0, import_fs3.existsSync)(projectsRoot)) {
-    try {
-      for (const d of (0, import_fs3.readdirSync)(projectsRoot, { withFileTypes: true })) {
-        if (!d.isDirectory()) continue;
-        const decoded = d.name.replace(/-/g, "/");
-        if (!decoded.startsWith("/")) continue;
-        if (!(0, import_fs3.existsSync)(decoded)) continue;
-        if (seenPaths.has(decoded)) continue;
-        seenPaths.add(decoded);
-        const label = (_b = decoded.split("/").filter(Boolean).pop()) != null ? _b : decoded;
-        entries.push({ label, path: decoded });
-      }
-    } catch (e) {
-    }
-  }
-  for (const rootPath of (_c = settings.projectRoots) != null ? _c : []) {
-    const expanded = rootPath.startsWith("~") ? (0, import_path10.join)(home, rootPath.slice(1)) : rootPath;
-    if (!(0, import_fs3.existsSync)(expanded)) continue;
-    try {
-      for (const d of (0, import_fs3.readdirSync)(expanded, { withFileTypes: true })) {
-        if (!d.isDirectory()) continue;
-        const fullPath = (0, import_path10.join)(expanded, d.name);
-        if (!(0, import_fs3.existsSync)((0, import_path10.join)(fullPath, ".git"))) continue;
-        if (seenPaths.has(fullPath)) continue;
-        seenPaths.add(fullPath);
-        entries.push({ label: d.name, path: fullPath });
-      }
-    } catch (e) {
-    }
-  }
-  return entries;
-}
-var WorkspaceSwitcherModal = class extends import_obsidian12.FuzzySuggestModal {
-  constructor(app, targetView, settings) {
-    super(app);
-    this.targetView = targetView;
-    this.settings = settings;
-    this.setPlaceholder("Type to filter workspaces\u2026");
-  }
-  getItems() {
-    return discoverWorkspaces(this.app, this.settings);
-  }
-  getItemText(item) {
-    return item.label;
-  }
-  onChooseItem(item) {
-    this.targetView.setCwd(item.path);
   }
 };

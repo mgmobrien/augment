@@ -1,7 +1,4 @@
-import { addIcon, Editor, FuzzySuggestModal, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
-import { readdirSync, existsSync, statSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
+import { addIcon, Editor, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { InboxSuggest } from "./inbox-suggest";
@@ -513,9 +510,6 @@ export default class AugmentTerminalPlugin extends Plugin {
       view.onAutoRenameRequest = (excerpt: string) => {
         return Promise.resolve(this.deriveTerminalNameFromExcerpt(excerpt));
       };
-      view.onSwitchWorkspaceRequest = (v: TerminalView) => {
-        new WorkspaceSwitcherModal(this.app, v, this.settings).open();
-      };
       return view;
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
@@ -891,18 +885,6 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     // Tier 3 commands (location variants, manager, switcher) register lazily
     // via registerTieredCommands() when terminalSetupDone becomes true.
-
-    // Workspace switcher (Habitats Phase 1)
-    this.addCommand({
-      id: "switch-workspace",
-      name: "Switch workspace",
-      callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(TerminalView);
-        if (view) {
-          new WorkspaceSwitcherModal(this.app, view, this.settings).open();
-        }
-      },
-    });
 
     // Team scaffolding
     this.addCommand({
@@ -1531,84 +1513,3 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 }
 
-// ── Habitats: workspace discovery ────────────────────────────────────────────
-
-interface WorkspaceEntry {
-  label: string;
-  path: string;
-}
-
-function discoverWorkspaces(app: App, settings: AugmentSettings): WorkspaceEntry[] {
-  const entries: WorkspaceEntry[] = [];
-  const seenPaths = new Set<string>();
-
-  // Vault root always first.
-  const vaultPath = (app.vault.adapter as any).basePath as string | undefined;
-  if (vaultPath) {
-    const vaultName = vaultPath.split("/").filter(Boolean).pop() ?? "vault";
-    entries.push({ label: `vault — ${vaultName}`, path: vaultPath });
-    seenPaths.add(vaultPath);
-  }
-
-  // ~/.claude/projects/ — Claude Code's own project index.
-  // Encoded names are the original path with / and spaces replaced by -.
-  // Decode by replacing - with / (lossy for paths with dashes, but we verify with existsSync).
-  const home = homedir();
-  const projectsRoot = join(home, ".claude", "projects");
-  if (existsSync(projectsRoot)) {
-    try {
-      for (const d of readdirSync(projectsRoot, { withFileTypes: true })) {
-        if (!d.isDirectory()) continue;
-        const decoded = d.name.replace(/-/g, "/");
-        if (!decoded.startsWith("/")) continue;
-        if (!existsSync(decoded)) continue;
-        if (seenPaths.has(decoded)) continue;
-        seenPaths.add(decoded);
-        const label = decoded.split("/").filter(Boolean).pop() ?? decoded;
-        entries.push({ label, path: decoded });
-      }
-    } catch { /* ignore unreadable */ }
-  }
-
-  // User-configured project root paths — scan each for git repo subdirectories.
-  for (const rootPath of (settings.projectRoots ?? [])) {
-    const expanded = rootPath.startsWith("~") ? join(home, rootPath.slice(1)) : rootPath;
-    if (!existsSync(expanded)) continue;
-    try {
-      for (const d of readdirSync(expanded, { withFileTypes: true })) {
-        if (!d.isDirectory()) continue;
-        const fullPath = join(expanded, d.name);
-        if (!existsSync(join(fullPath, ".git"))) continue;
-        if (seenPaths.has(fullPath)) continue;
-        seenPaths.add(fullPath);
-        entries.push({ label: d.name, path: fullPath });
-      }
-    } catch { /* ignore unreadable */ }
-  }
-
-  return entries;
-}
-
-class WorkspaceSwitcherModal extends FuzzySuggestModal<WorkspaceEntry> {
-  private targetView: TerminalView;
-  private settings: AugmentSettings;
-
-  constructor(app: App, targetView: TerminalView, settings: AugmentSettings) {
-    super(app);
-    this.targetView = targetView;
-    this.settings = settings;
-    this.setPlaceholder("Type to filter workspaces…");
-  }
-
-  getItems(): WorkspaceEntry[] {
-    return discoverWorkspaces(this.app, this.settings);
-  }
-
-  getItemText(item: WorkspaceEntry): string {
-    return item.label;
-  }
-
-  onChooseItem(item: WorkspaceEntry): void {
-    this.targetView.setCwd(item.path);
-  }
-}

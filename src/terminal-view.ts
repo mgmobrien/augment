@@ -315,9 +315,6 @@ export class TerminalView extends ItemView {
   private lastPromptAtMs: number = 0;
   private autoRenameInFlight: boolean = false;
   private lastAutoRenameAttemptAtMs: number = 0;
-  private forcedCwd: string = "";
-  private cwdBadgeEl: HTMLElement | null = null;
-  public onSwitchWorkspaceRequest?: (view: TerminalView) => void;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -798,15 +795,6 @@ export class TerminalView extends ItemView {
     errorBanner.style.display = "none";
     this.errorBannerEl = errorBanner;
 
-    // CWD badge — shows current working directory basename, click to switch workspace.
-    const cwdBar = container.createDiv({ cls: "augment-cwd-bar" });
-    const cwdIcon = cwdBar.createSpan({ cls: "augment-cwd-icon" });
-    setIcon(cwdIcon, "folder");
-    this.cwdBadgeEl = cwdBar.createSpan({ cls: "augment-cwd-badge" });
-    cwdBar.addEventListener("click", () => {
-      this.onSwitchWorkspaceRequest?.(this);
-    });
-
     // Mount terminal.
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.terminal.open(termDiv);
@@ -821,7 +809,6 @@ export class TerminalView extends ItemView {
 
     // Start PTY.
     this.startPtyBridge();
-    this.updateCwdBadge();
 
     // Terminal input → PTY.
     this.terminal.onData((data) => {
@@ -849,27 +836,10 @@ export class TerminalView extends ItemView {
     this.resizeObserver.observe(container);
   }
 
-  /** Respawn the shell in a new working directory. */
-  public setCwd(newPath: string): void {
-    this.forcedCwd = newPath;
-    const basename = newPath.split("/").filter(Boolean).pop() ?? newPath;
-    this.terminal?.write(`\r\n\x1b[2m[Switching workspace → ${basename}]\x1b[0m\r\n`);
-    this.startPtyBridge();
-    this.updateCwdBadge();
-  }
-
-  private updateCwdBadge(): void {
-    if (!this.cwdBadgeEl) return;
-    const cwd = this.resolvedCwd;
-    const basename = cwd.split("/").filter(Boolean).pop() ?? cwd;
-    this.cwdBadgeEl.textContent = basename;
-    this.cwdBadgeEl.title = cwd;
-  }
-
   private startPtyBridge(forcedShellPath?: string): void {
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
-    this.resolvedCwd = this.forcedCwd || customCwd || vaultPath;
+    this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath ?? this.getShellPath();
     this.ptyStartedAtMs = Date.now();
     this.ptyBridge?.kill();
