@@ -17256,12 +17256,12 @@ function addInfoTooltip(descEl, tipText) {
 function formatHotkeyStr(mods, key, isMac) {
   const parts = [];
   for (const m of mods) {
-    if (m === "Mod") parts.push(isMac ? "\u2318" : "Ctrl");
+    if (m === "Mod") parts.push(isMac ? "Cmd" : "Ctrl");
     else if (m === "Ctrl") parts.push("Ctrl");
-    else if (m === "Shift") parts.push("\u21E7");
-    else if (m === "Alt") parts.push(isMac ? "\u2325" : "Alt");
+    else if (m === "Shift") parts.push("Shift");
+    else if (m === "Alt") parts.push(isMac ? "Opt" : "Alt");
   }
-  parts.push(key === "Enter" ? "\u21A9" : key.toUpperCase());
+  parts.push(key === "Enter" ? "Enter" : key.toUpperCase());
   return parts.join("+");
 }
 function getSetupStep(deps) {
@@ -17394,8 +17394,8 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       const h = defaults[0];
       return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
     }
-    if (commandId.includes("template")) return isMac ? "\u2318+Shift+\u21A9" : "Ctrl+Shift+\u21A9";
-    return isMac ? "\u2318+\u21A9" : "Ctrl+\u21A9";
+    if (commandId.includes("template")) return isMac ? "Cmd+Shift+Enter" : "Ctrl+Shift+Enter";
+    return isMac ? "Cmd+Enter" : "Ctrl+Enter";
   }
   display() {
     var _a2;
@@ -17620,12 +17620,26 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     if (this.plugin.settings.hasGenerated) {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
       const header2 = spendSection.createDiv({ cls: "augment-spend-header" });
-      header2.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
-      const consoleLink = header2.createEl("a", { cls: "augment-spend-console-link", text: "View in Anthropic console \u2192" });
+      const titleWrap = header2.createDiv({ cls: "augment-spend-title-wrap" });
+      titleWrap.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
+      const spend = this.plugin.spendData;
+      if (spend == null ? void 0 : spend.since) {
+        const sinceDate = new Date(spend.since);
+        const sinceStr = sinceDate.toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" });
+        titleWrap.createSpan({ cls: "augment-spend-since", text: `since ${sinceStr}` });
+      }
+      const headerActions = header2.createDiv({ cls: "augment-spend-header-actions" });
+      const consoleLink = headerActions.createEl("a", { cls: "augment-spend-console-link", text: "Anthropic console \u2197" });
       consoleLink.href = "https://console.anthropic.com/usage";
       consoleLink.target = "_blank";
       consoleLink.rel = "noopener noreferrer";
-      const spend = this.plugin.spendData;
+      const resetLink = headerActions.createEl("a", { cls: "augment-spend-reset-link", text: "Reset" });
+      resetLink.href = "#";
+      resetLink.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await this.plugin.resetSpendData();
+        this.display();
+      });
       const models = spend ? Object.keys(spend.byModel) : [];
       if (models.length === 0) {
         const emptyEl = spendSection.createDiv({ cls: "augment-spend-empty" });
@@ -22325,8 +22339,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:05:33.516Z";
-    this.gitSha = "dd64c07";
+    this.buildId = "2026-03-07T02:12:08.178Z";
+    this.gitSha = "75b0373";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -23482,11 +23496,19 @@ ${excerpt}`,
   async accumulateSpend(modelId, usage) {
     var _a2;
     if (!this.spendData) this.spendData = { byModel: {} };
+    if (!this.spendData.since) this.spendData.since = Date.now();
     const entry = (_a2 = this.spendData.byModel[modelId]) != null ? _a2 : { inputTokens: 0, outputTokens: 0, generations: 0 };
     entry.inputTokens += usage.input_tokens;
     entry.outputTokens += usage.output_tokens;
     entry.generations += 1;
     this.spendData.byModel[modelId] = entry;
+    try {
+      await this.app.vault.adapter.write(this.SPEND_PATH, JSON.stringify(this.spendData, null, 2));
+    } catch (e) {
+    }
+  }
+  async resetSpendData() {
+    this.spendData = { byModel: {}, since: Date.now() };
     try {
       await this.app.vault.adapter.write(this.SPEND_PATH, JSON.stringify(this.spendData, null, 2));
     } catch (e) {

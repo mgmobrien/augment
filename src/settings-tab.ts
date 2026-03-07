@@ -36,12 +36,12 @@ function addInfoTooltip(descEl: HTMLElement, tipText: string): void {
 function formatHotkeyStr(mods: string[], key: string, isMac: boolean): string {
   const parts: string[] = [];
   for (const m of mods) {
-    if (m === "Mod")        parts.push(isMac ? "⌘" : "Ctrl");
+    if (m === "Mod")        parts.push(isMac ? "Cmd" : "Ctrl");
     else if (m === "Ctrl")  parts.push("Ctrl");
-    else if (m === "Shift") parts.push("⇧");
-    else if (m === "Alt")   parts.push(isMac ? "⌥" : "Alt");
+    else if (m === "Shift") parts.push("Shift");
+    else if (m === "Alt")   parts.push(isMac ? "Opt" : "Alt");
   }
-  parts.push(key === "Enter" ? "↩" : key.toUpperCase());
+  parts.push(key === "Enter" ? "Enter" : key.toUpperCase());
   return parts.join("+");
 }
 
@@ -197,8 +197,8 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     // Hardcoded fallback if hotkeyManager isn't available
-    if (commandId.includes("template")) return isMac ? "⌘+Shift+↩" : "Ctrl+Shift+↩";
-    return isMac ? "⌘+↩" : "Ctrl+↩";
+    if (commandId.includes("template")) return isMac ? "Cmd+Shift+Enter" : "Ctrl+Shift+Enter";
+    return isMac ? "Cmd+Enter" : "Ctrl+Enter";
   }
 
   display(): void {
@@ -493,13 +493,27 @@ export class AugmentSettingTab extends PluginSettingTab {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
 
       const header = spendSection.createDiv({ cls: "augment-spend-header" });
-      header.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
-      const consoleLink = header.createEl("a", { cls: "augment-spend-console-link", text: "View in Anthropic console \u2192" });
+      const titleWrap = header.createDiv({ cls: "augment-spend-title-wrap" });
+      titleWrap.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
+      const spend = this.plugin.spendData;
+      if (spend?.since) {
+        const sinceDate = new Date(spend.since);
+        const sinceStr = sinceDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+        titleWrap.createSpan({ cls: "augment-spend-since", text: `since ${sinceStr}` });
+      }
+      const headerActions = header.createDiv({ cls: "augment-spend-header-actions" });
+      const consoleLink = headerActions.createEl("a", { cls: "augment-spend-console-link", text: "Anthropic console \u2197" });
       consoleLink.href = "https://console.anthropic.com/usage";
       consoleLink.target = "_blank";
       consoleLink.rel = "noopener noreferrer";
+      const resetLink = headerActions.createEl("a", { cls: "augment-spend-reset-link", text: "Reset" });
+      resetLink.href = "#";
+      resetLink.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await this.plugin.resetSpendData();
+        this.display();
+      });
 
-      const spend = this.plugin.spendData;
       const models = spend ? Object.keys(spend.byModel) : [];
 
       if (models.length === 0) {

@@ -82,6 +82,7 @@ export interface SpendModelEntry {
 
 export interface SpendData {
   byModel: Record<string, SpendModelEntry>;
+  since?: number; // Date.now() when tracking started (or was last reset)
 }
 
 export interface LinkedNoteSummary {

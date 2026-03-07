@@ -1395,11 +1395,19 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   private async accumulateSpend(modelId: string, usage: { input_tokens: number; output_tokens: number }): Promise<void> {
     if (!this.spendData) this.spendData = { byModel: {} };
+    if (!this.spendData.since) this.spendData.since = Date.now();
     const entry = this.spendData.byModel[modelId] ?? { inputTokens: 0, outputTokens: 0, generations: 0 };
     entry.inputTokens += usage.input_tokens;
     entry.outputTokens += usage.output_tokens;
     entry.generations += 1;
     this.spendData.byModel[modelId] = entry;
+    try {
+      await this.app.vault.adapter.write(this.SPEND_PATH, JSON.stringify(this.spendData, null, 2));
+    } catch { /* non-fatal */ }
+  }
+
+  async resetSpendData(): Promise<void> {
+    this.spendData = { byModel: {}, since: Date.now() };
     try {
       await this.app.vault.adapter.write(this.SPEND_PATH, JSON.stringify(this.spendData, null, 2));
     } catch { /* non-fatal */ }
