@@ -154,6 +154,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   public refreshStatusBar(): void {
     this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
+    this.ribbonGenerateEl?.removeClass("is-generating");
     if (!this.statusBarEl) return;
     if (!this.settings.apiKey) {
       this.statusBarEl.setText("Augment: API key needed");
@@ -189,6 +190,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.statusBarEl.createEl("span", { text: " Generating\u2026" });
     }
     this.ribbonGenerateEl?.addClass("augment-ribbon-generating");
+    this.ribbonGenerateEl?.addClass("is-generating");
   }
 
   private triggerGenerate(editor: Editor): void {
@@ -870,6 +872,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       }
       this.triggerGenerate(view.editor);
     });
+    this.ribbonGenerateEl.addClass("augment-ribbon-generate");
     this.applyRibbonColoredClass();
 
     // Default open command — uses defaultTerminalLocation setting.

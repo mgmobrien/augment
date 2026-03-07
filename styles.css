@@ -596,6 +596,16 @@
 .theme-dark .augment-ribbon-generating svg circle:nth-child(2) { fill: #1e88e5; }
 .theme-dark .augment-ribbon-generating svg circle:nth-child(3) { fill: #43a047; }
 
+/* ── Ribbon generate button — opacity pulse (all icons) ── */
+@keyframes augment-generate-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+.augment-ribbon-generate.is-generating {
+  animation: augment-generate-pulse 1.4s ease-in-out infinite;
+}
+
 /* ── Status bar generation dots — S3 pyramid layout ── */
 @keyframes augment-sb-pulse {
   0%, 100% { transform: scale(0.6);  opacity: 0.25; }
