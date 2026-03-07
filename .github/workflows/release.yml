@@ -42,6 +42,7 @@ jobs:
           files: |
             main.js
             manifest.json
+            versions.json
             styles.css
             scripts/augment-pty-darwin-arm64
             scripts/augment-pty-linux-x64
