@@ -397,6 +397,8 @@ export class TerminalManagerView extends ItemView {
 
       if (hasOtherProjects) {
         this.renderOtherProjectsSection(otherGroups, otherContainer);
+      } else if (this.projectsState.inFlight) {
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading…" });
       } else {
         otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
       }
