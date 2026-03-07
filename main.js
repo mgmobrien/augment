@@ -19749,6 +19749,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.app.workspace.trigger("augment-terminal:changed");
   }
   refreshLeafName() {
+    var _a2, _b;
     const leafAny = this.leaf;
     if (typeof leafAny.updateHeader === "function") {
       leafAny.updateHeader();
@@ -19761,9 +19762,29 @@ var TerminalView = class extends import_obsidian5.ItemView {
     if ((leafAny == null ? void 0 : leafAny.tabHeaderInnerTitleEl) && typeof leafAny.tabHeaderInnerTitleEl.setText === "function") {
       leafAny.tabHeaderInnerTitleEl.setText(this.terminalName);
     }
-    if ((leafAny == null ? void 0 : leafAny.tabHeaderEl) && typeof leafAny.tabHeaderEl.setAttribute === "function") {
-      leafAny.tabHeaderEl.setAttribute("aria-label", this.terminalName);
+    const tabHeaderEl = (_a2 = leafAny == null ? void 0 : leafAny.tabHeaderEl) != null ? _a2 : null;
+    if (tabHeaderEl) {
+      tabHeaderEl.setAttribute("aria-label", this.terminalName);
+      tabHeaderEl.setAttribute("data-augment-terminal", "true");
+      tabHeaderEl.setAttribute("data-augment-status", (_b = this.status) != null ? _b : "shell");
+      this.ensureTabCloseButton(tabHeaderEl);
     }
+  }
+  // Injects a hover-to-close × button into the tab header if not already present.
+  // Called after every updateHeader() because Obsidian may clear tab children.
+  ensureTabCloseButton(tabHeaderEl) {
+    if (tabHeaderEl.querySelector(".augment-tab-close")) return;
+    const btn = document.createElement("button");
+    btn.className = "augment-tab-close";
+    btn.setAttribute("aria-label", "Close terminal");
+    btn.setAttribute("type", "button");
+    btn.textContent = "\xD7";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.leaf.detach();
+    });
+    tabHeaderEl.appendChild(btn);
   }
   persistNameToLeafState() {
     var _a2;
@@ -20202,7 +20223,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
   // name call returned null. autoRenameInFlight + 1200ms cooldown prevent both triggers
   // from firing simultaneously.
   setStatus(newStatus) {
-    var _a2;
+    var _a2, _b, _c;
     const wasActive = this.status === "active" || this.status === "tool";
     const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";
     const nowActive = newStatus === "active" || newStatus === "tool";
@@ -20219,7 +20240,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.status = newStatus;
     (_a2 = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _a2.setAttribute("data-augment-status", newStatus);
-    this.leaf.updateHeader();
+    const leafAnyS = this.leaf;
+    (_b = leafAnyS.updateHeader) == null ? void 0 : _b.call(leafAnyS);
+    const tabHeaderElS = (_c = leafAnyS == null ? void 0 : leafAnyS.tabHeaderEl) != null ? _c : null;
+    if (tabHeaderElS) {
+      tabHeaderElS.setAttribute("data-augment-status", newStatus);
+      this.ensureTabCloseButton(tabHeaderElS);
+    }
     this.app.workspace.trigger("augment-terminal:changed");
   }
   async triggerAutoRename() {
@@ -22924,8 +22951,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:13:44.410Z";
-    this.gitSha = "3fae2a9";
+    this.buildId = "2026-03-07T00:14:31.036Z";
+    this.gitSha = "2725632";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

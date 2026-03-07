@@ -148,6 +148,101 @@
   letter-spacing: 0.02em;
 }
 
+/* ── Sidebar tab header enhancements ── */
+
+/* Ensure the session name (inner title) is visible in sidebar tabs. */
+.workspace-tab-header[data-augment-terminal] .workspace-tab-header-inner-title {
+  display: inline-block !important;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+}
+
+/* Position anchor for the status dot and close button. */
+.workspace-tab-header[data-augment-terminal] {
+  position: relative;
+}
+
+/* Status dot in the bottom-right corner of the tab icon area. */
+.workspace-tab-header[data-augment-terminal]::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.workspace-tab-header[data-augment-status="shell"]::after {
+  background-color: var(--color-green);
+}
+
+.workspace-tab-header[data-augment-status="idle"]::after {
+  background-color: var(--color-blue);
+}
+
+.workspace-tab-header[data-augment-status="active"]::after {
+  background-color: var(--color-yellow);
+  animation: augment-pulse 1.5s ease-in-out infinite;
+}
+
+.workspace-tab-header[data-augment-status="tool"]::after {
+  background-color: var(--color-blue);
+}
+
+.workspace-tab-header[data-augment-status="waiting"]::after {
+  background-color: var(--color-orange);
+}
+
+.workspace-tab-header[data-augment-status="running"]::after {
+  background-color: var(--color-green);
+}
+
+.workspace-tab-header[data-augment-status="exited"]::after {
+  background-color: var(--text-faint);
+}
+
+.workspace-tab-header[data-augment-status="crashed"]::after {
+  background-color: var(--color-red);
+}
+
+/* Hover-to-close × button injected into the tab header. */
+.augment-tab-close {
+  display: none;
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.augment-tab-close:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.workspace-tab-header[data-augment-terminal]:hover .augment-tab-close {
+  display: flex;
+}
+
 /* ── Terminal manager panel ── */
 .augment-terminal-manager {
   padding: 0;

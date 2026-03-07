@@ -486,9 +486,33 @@ export class TerminalView extends ItemView {
     if (leafAny?.tabHeaderInnerTitleEl && typeof leafAny.tabHeaderInnerTitleEl.setText === "function") {
       leafAny.tabHeaderInnerTitleEl.setText(this.terminalName);
     }
-    if (leafAny?.tabHeaderEl && typeof leafAny.tabHeaderEl.setAttribute === "function") {
-      leafAny.tabHeaderEl.setAttribute("aria-label", this.terminalName);
+
+    const tabHeaderEl: HTMLElement | null = leafAny?.tabHeaderEl ?? null;
+    if (tabHeaderEl) {
+      tabHeaderEl.setAttribute("aria-label", this.terminalName);
+      tabHeaderEl.setAttribute("data-augment-terminal", "true");
+      // Propagate current status so CSS can style the tab immediately.
+      tabHeaderEl.setAttribute("data-augment-status", this.status ?? "shell");
+      // Re-inject close button — updateHeader() may have wiped DOM children.
+      this.ensureTabCloseButton(tabHeaderEl);
     }
+  }
+
+  // Injects a hover-to-close × button into the tab header if not already present.
+  // Called after every updateHeader() because Obsidian may clear tab children.
+  private ensureTabCloseButton(tabHeaderEl: HTMLElement): void {
+    if (tabHeaderEl.querySelector(".augment-tab-close")) return;
+    const btn = document.createElement("button");
+    btn.className = "augment-tab-close";
+    btn.setAttribute("aria-label", "Close terminal");
+    btn.setAttribute("type", "button");
+    btn.textContent = "×";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.leaf.detach();
+    });
+    tabHeaderEl.appendChild(btn);
   }
 
   private persistNameToLeafState(): void {
@@ -1007,7 +1031,15 @@ export class TerminalView extends ItemView {
     this.contentEl
       .closest(".workspace-leaf")
       ?.setAttribute("data-augment-status", newStatus);
-    (this.leaf as any).updateHeader();
+    const leafAnyS = this.leaf as any;
+    leafAnyS.updateHeader?.();
+    // Propagate status to tab header for sidebar tab styling.
+    const tabHeaderElS: HTMLElement | null = leafAnyS?.tabHeaderEl ?? null;
+    if (tabHeaderElS) {
+      tabHeaderElS.setAttribute("data-augment-status", newStatus);
+      // Re-inject close button in case updateHeader() cleared DOM children.
+      this.ensureTabCloseButton(tabHeaderElS);
+    }
     this.app.workspace.trigger("augment-terminal:changed");
   }
 
