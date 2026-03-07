@@ -800,8 +800,8 @@
 }
 
 .augment-hotkey-cheatsheet-pill {
-  font-family: var(--font-monospace);
-  font-size: var(--font-ui-medium);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: var(--font-ui-smaller);
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-bottom-width: 2px;
