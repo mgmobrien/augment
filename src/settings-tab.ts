@@ -214,7 +214,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
     wordmark.createEl("div", {
       cls: "augment-settings-tagline",
-      text: "In-editor continuation and a terminal system for Claude Code.",
+      text: "In-editor AI generation and a terminal system for Claude Code.",
     });
 
     // ── Tab nav ──────────────────────────────────────────────
@@ -367,8 +367,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     }
 
-    // ── Advanced sections (shown only when showAdvancedSettings) ─────────────
-    if (this.plugin.settings.showAdvancedSettings) {
+    // ── How it works + keyboard shortcuts ────────────────────────────────────
+    {
       // How it works
       const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
       howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
@@ -502,18 +502,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
       infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
     }
-
-    // ── Advanced toggle (always visible, bottom of Overview) ─
-    new Setting(overviewPane)
-      .setName("Show advanced settings")
-      .setDesc("Reveal additional settings across all tabs.")
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.showAdvancedSettings).onChange(async (val) => {
-          this.plugin.settings.showAdvancedSettings = val;
-          await this.plugin.saveData(this.plugin.settings);
-          this.display();
-        });
-      });
 
     // ── Continuation pane ────────────────────────────────────
     this.renderHotkeyBox(continuationPane, [
@@ -696,7 +684,7 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    if (this.plugin.settings.showAdvancedSettings) {
+    {
       const contextLimitSetting = new Setting(continuationPane)
         .setName("Context limit")
         .setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.")
@@ -1040,7 +1028,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     const fmRows = [
       { key: "name",          desc: "Required. Shown in the template picker." },
       { key: "description",   desc: "Optional. Shown below the name in the picker." },
-      { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Overview tab \u2192 Advanced settings)." },
+      { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Generate tab \u2192 System prompt)." },
     ];
     for (const r of fmRows) {
       const tr = fmTbody.createEl("tr");
