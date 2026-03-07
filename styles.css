@@ -2603,3 +2603,14 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* @-mention inbox dispatch suggest */
+.augment-inbox-part-name {
+  font-weight: 500;
+  font-size: var(--font-ui-small);
+}
+
+.augment-inbox-part-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}

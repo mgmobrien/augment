@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, calculateCost, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
+import { InboxSuggest } from "./inbox-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
@@ -98,6 +99,9 @@ export default class AugmentTerminalPlugin extends Plugin {
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
   private ribbonGenerateEl: HTMLElement | null = null;
+  private ribbonTerminalEl: HTMLElement | null = null;
+  private _tier1Registered = false;
+  private _tier3Registered = false;
   public spendData: SpendData | null = null;
   private readonly SPEND_PATH = "augment-spend.json";
   private waitingBadgeEl: HTMLElement | null = null;
@@ -257,6 +261,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         if (!this.settings.hasGenerated) {
           this.settings.hasGenerated = true;
           await this.saveData(this.settings);
+          this.registerTieredCommands();
         }
       } catch (err) {
         if (this.activeGeneration?.abortController === abortController) {
@@ -544,6 +549,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.app.metadataCache.on("resolved", () => agentSuggest.reload())
     );
 
+    this.registerEditorSuggest(new InboxSuggest(this.app));
+
     // AI generation commands
     this.addCommand({
       id: "augment-generate",
@@ -738,6 +745,7 @@ export default class AugmentTerminalPlugin extends Plugin {
               if (!this.settings.hasGenerated) {
                 this.settings.hasGenerated = true;
                 await this.saveData(this.settings);
+                this.registerTieredCommands();
               }
               if (!this.settings.hasUsedTemplate) {
                 this.settings.hasUsedTemplate = true;
@@ -803,14 +811,6 @@ export default class AugmentTerminalPlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: "augment-view-context",
-      name: "Open context inspector",
-      callback: () => {
-        this.openContextInspector();
-      },
-    });
-
     this.addSettingTab(new AugmentSettingTab(this.app, this));
 
     // Status bar — model name, click to open settings
@@ -865,16 +865,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Ribbon: settings → Augment settings
-    this.addRibbonIcon("settings", "Augment settings", () => {
-      (this.app as any).setting.open();
-      (this.app as any).setting.openTabById("augment-terminal");
-    });
-
-    // Ribbon: terminal → open terminal (respects defaultTerminalLocation setting)
-    this.addRibbonIcon("terminal", "Open terminal", () => {
-      this.openTerminalAt(this.settings.defaultTerminalLocation);
-    });
+    // Ribbon: terminal — added only after terminal setup completes (tier 3).
+    this.addTerminalRibbonIfNeeded();
 
     // Ribbon: configurable icon → generate AI text
     this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
@@ -897,105 +889,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       },
     });
 
-    // Explicit location commands (users can bind hotkeys to these individually).
-    this.addCommand({
-      id: "open-terminal-tab",
-      name: "Open terminal in new tab",
-      callback: () => { this.openTerminalAt("tab"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-right",
-      name: "Open terminal to the right",
-      callback: () => { this.openTerminalAt("split-right"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-down",
-      name: "Open terminal below",
-      callback: () => { this.openTerminalAt("split-down"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-sidebar-right-top",
-      name: "Open terminal in right sidebar (top)",
-      callback: () => { this.openTerminalAt("sidebar-right-top"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-sidebar-right-bottom",
-      name: "Open terminal in right sidebar (bottom)",
-      callback: () => { this.openTerminalAt("sidebar-right-bottom"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-sidebar-left-top",
-      name: "Open terminal in left sidebar (top)",
-      callback: () => { this.openTerminalAt("sidebar-left-top"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-sidebar-left-bottom",
-      name: "Open terminal in left sidebar (bottom)",
-      callback: () => { this.openTerminalAt("sidebar-left-bottom"); },
-    });
-
-    // Keep old sidebar command IDs for backwards compat with any saved hotkeys.
-    this.addCommand({
-      id: "open-terminal-sidebar-right",
-      name: "Open terminal in right sidebar (bottom, legacy)",
-      callback: () => { this.openTerminalAt("sidebar-right-bottom"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-sidebar-left",
-      name: "Open terminal in left sidebar (bottom, legacy)",
-      callback: () => { this.openTerminalAt("sidebar-left-bottom"); },
-    });
-
-    this.addCommand({
-      id: "open-terminal-grid",
-      name: "Open terminal grid (2x2)",
-      callback: () => { this.openTerminalGrid(); },
-    });
-
-    // Keep old sidebar command ID for backwards compat with any saved hotkeys.
-    this.addCommand({
-      id: "open-terminal-sidebar",
-      name: "Open terminal in sidebar (right)",
-      callback: () => { this.openTerminalAt("sidebar-right"); },
-    });
-
-    // Rename command
-    this.addCommand({
-      id: "rename-terminal",
-      name: "Rename terminal",
-      callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(TerminalView);
-        if (view) {
-          new RenameModal(this.app, view).open();
-        }
-      },
-    });
-
-    // Terminal manager
-    this.addCommand({
-      id: "open-terminal-manager",
-      name: "Show terminal manager",
-      hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }],
-      callback: () => {
-        this.openTerminalManager();
-      },
-    });
-
-    // Terminal switcher
-    this.addCommand({
-      id: "switch-terminal",
-      name: "Switch terminal",
-      callback: () => {
-        new TerminalSwitcherModal(this.app).open();
-      },
-    });
+    // Tier 3 commands (location variants, manager, switcher) register lazily
+    // via registerTieredCommands() when terminalSetupDone becomes true.
 
     // Workspace switcher (Habitats Phase 1)
     this.addCommand({
@@ -1032,24 +927,35 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    // Attention queue — badge + command.
+    // Attention queue — badge (always visible), command registered lazily at tier 3.
     this.waitingBadgeEl = this.addStatusBarItem();
     this.waitingBadgeEl.style.cursor = "pointer";
     this.waitingBadgeEl.style.display = "none";
     this.waitingBadgeEl.addEventListener("click", () => this.jumpToNextWaiting());
-
-    this.addCommand({
-      id: "jump-to-next-waiting-session",
-      name: "Jump to next waiting session",
-      callback: () => this.jumpToNextWaiting(),
-    });
 
     this.registerEvent(
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
     );
 
     this.app.workspace.onLayoutReady(() => {
-      void this.loadSpendData();
+      void this.loadSpendData().then(() => {
+        // Migration: infer tier flags from existing data for users who installed before
+        // progressive disclosure was implemented.
+        let migrated = false;
+        if (!this.settings.terminalSetupDone && (this.settings.sessionHistory?.length ?? 0) > 0) {
+          this.settings.terminalSetupDone = true;
+          migrated = true;
+        }
+        if (!this.settings.hasGenerated && this.spendData && Object.keys(this.spendData.byModel).length > 0) {
+          this.settings.hasGenerated = true;
+          migrated = true;
+        }
+        if (migrated) {
+          void this.saveData(this.settings);
+        }
+        this.registerTieredCommands();
+        this.addTerminalRibbonIfNeeded();
+      });
       // Scaffold defaults on first install — deferred so vault I/O doesn't
       // compete with Obsidian's core startup sequence.
       void this.scaffoldDefaultTemplates();
@@ -1078,6 +984,125 @@ export default class AugmentTerminalPlugin extends Plugin {
       }
     });
 
+  }
+
+  // Lazily register commands that should only appear after the user reaches a tier.
+  // Safe to call multiple times — flags prevent double-registration.
+  public registerTieredCommands(): void {
+    if (this.settings.hasGenerated && !this._tier1Registered) {
+      this._tier1Registered = true;
+      // Tier 1: generate-from-template is already registered eagerly (complex callback).
+      // view-context registered at tier 1 only:
+      this.addCommand({
+        id: "augment-view-context",
+        name: "Open context inspector",
+        callback: () => { this.openContextInspector(); },
+      });
+    }
+
+    if (this.settings.terminalSetupDone && !this._tier3Registered) {
+      this._tier3Registered = true;
+
+      // 7 explicit location variants
+      this.addCommand({
+        id: "open-terminal-tab",
+        name: "Open terminal in new tab",
+        callback: () => { this.openTerminalAt("tab"); },
+      });
+      this.addCommand({
+        id: "open-terminal-right",
+        name: "Open terminal to the right",
+        callback: () => { this.openTerminalAt("split-right"); },
+      });
+      this.addCommand({
+        id: "open-terminal-down",
+        name: "Open terminal below",
+        callback: () => { this.openTerminalAt("split-down"); },
+      });
+      this.addCommand({
+        id: "open-terminal-sidebar-right-top",
+        name: "Open terminal in right sidebar (top)",
+        callback: () => { this.openTerminalAt("sidebar-right-top"); },
+      });
+      this.addCommand({
+        id: "open-terminal-sidebar-right-bottom",
+        name: "Open terminal in right sidebar (bottom)",
+        callback: () => { this.openTerminalAt("sidebar-right-bottom"); },
+      });
+      this.addCommand({
+        id: "open-terminal-sidebar-left-top",
+        name: "Open terminal in left sidebar (top)",
+        callback: () => { this.openTerminalAt("sidebar-left-top"); },
+      });
+      this.addCommand({
+        id: "open-terminal-sidebar-left-bottom",
+        name: "Open terminal in left sidebar (bottom)",
+        callback: () => { this.openTerminalAt("sidebar-left-bottom"); },
+      });
+
+      // Legacy compat aliases (preserve saved hotkeys)
+      this.addCommand({
+        id: "open-terminal-sidebar-right",
+        name: "Open terminal in right sidebar (bottom, legacy)",
+        callback: () => { this.openTerminalAt("sidebar-right-bottom"); },
+      });
+      this.addCommand({
+        id: "open-terminal-sidebar-left",
+        name: "Open terminal in left sidebar (bottom, legacy)",
+        callback: () => { this.openTerminalAt("sidebar-left-bottom"); },
+      });
+      this.addCommand({
+        id: "open-terminal-sidebar",
+        name: "Open terminal in sidebar (right)",
+        callback: () => { this.openTerminalAt("sidebar-right"); },
+      });
+      this.addCommand({
+        id: "open-terminal-grid",
+        name: "Open terminal grid (2x2)",
+        callback: () => { this.openTerminalGrid(); },
+      });
+
+      // Terminal manager
+      this.addCommand({
+        id: "open-terminal-manager",
+        name: "Show terminal manager",
+        hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }],
+        callback: () => { this.openTerminalManager(); },
+      });
+
+      // Terminal switcher
+      this.addCommand({
+        id: "switch-terminal",
+        name: "Switch terminal",
+        callback: () => { new TerminalSwitcherModal(this.app).open(); },
+      });
+
+      // Rename terminal
+      this.addCommand({
+        id: "rename-terminal",
+        name: "Rename terminal",
+        callback: () => {
+          const view = this.app.workspace.getActiveViewOfType(TerminalView);
+          if (view) { new RenameModal(this.app, view).open(); }
+        },
+      });
+
+      // Attention queue command
+      this.addCommand({
+        id: "jump-to-next-waiting-session",
+        name: "Jump to next waiting session",
+        callback: () => this.jumpToNextWaiting(),
+      });
+    }
+  }
+
+  // Add the terminal ribbon icon if terminalSetupDone and not already added.
+  public addTerminalRibbonIfNeeded(): void {
+    if (this.settings.terminalSetupDone && !this.ribbonTerminalEl) {
+      this.ribbonTerminalEl = this.addRibbonIcon("terminal", "Open terminal", () => {
+        this.openTerminalAt(this.settings.defaultTerminalLocation);
+      });
+    }
   }
 
   async onunload(): Promise<void> {
