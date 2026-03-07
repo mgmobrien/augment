@@ -1214,9 +1214,9 @@
 
 .augment-spend-infobox {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: flex-start;
-  padding: 8px 10px;
+  padding: 7px 10px;
   background: var(--background-modifier-form-field);
   border-left: 3px solid var(--text-faint);
   border-radius: 0 var(--radius-s) var(--radius-s) 0;
@@ -1224,16 +1224,16 @@
 }
 
 .augment-spend-infobox-icon {
-  font-size: var(--font-ui-small);
+  font-size: var(--font-ui-smaller);
   color: var(--text-faint);
   flex-shrink: 0;
-  margin-top: 1px;
+  line-height: 1.5;
 }
 
 .augment-spend-infobox-text {
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 /* ── Workspace scope UI ── */
