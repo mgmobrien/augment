@@ -1,6 +1,8 @@
 import Anthropic, { APIConnectionError, APIConnectionTimeoutError, APIError, AuthenticationError, BadRequestError, InternalServerError, PermissionDeniedError, RateLimitError } from "@anthropic-ai/sdk";
-import Handlebars from "handlebars";
+import { Liquid } from "liquidjs";
 import { AugmentSettings, LinkedNoteSummary, VaultContext } from "./vault-context";
+
+const liquidEngine = new Liquid({ outputEscape: false });
 
 function formatFrontmatter(fm: Record<string, unknown>): string {
   return Object.entries(fm)
@@ -69,7 +71,7 @@ function flattenFrontmatter(fm: Record<string, unknown> | null): Record<string, 
   return out;
 }
 
-export function substituteVariables(templateStr: string, ctx: VaultContext): string {
+export async function substituteVariables(templateStr: string, ctx: VaultContext): Promise<string> {
   const context = {
     selection: ctx.selection,
     title: ctx.title,
@@ -80,8 +82,7 @@ export function substituteVariables(templateStr: string, ctx: VaultContext): str
     linked_notes_array: ctx.linkedNotes,
     frontmatter: flattenFrontmatter(ctx.frontmatter),
   };
-  const compiled = Handlebars.compile(templateStr, { noEscape: true });
-  return compiled(context);
+  return liquidEngine.parseAndRender(templateStr, context);
 }
 
 // Per-million-token pricing (input / output). Update when Anthropic changes rates.

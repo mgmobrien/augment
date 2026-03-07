@@ -1176,7 +1176,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             }
           }
 
-          const rendered = substituteVariables(templateContent, ctx);
+          const rendered = await substituteVariables(templateContent, ctx);
 
           const runGenerate = async () => {
             this.showStatusBarGenerating();

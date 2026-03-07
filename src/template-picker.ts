@@ -250,8 +250,11 @@ export async function generateTemplatesFromFolder(
   }
   lines.push(
     "",
-    "Generate 2\u20133 Handlebars prompt templates for working with notes in this folder. " +
-    "Available variables: {{title}}, {{note_content}}, {{selection}}, {{linked_notes}}, {{frontmatter.KEY}}.",
+    "Generate 2\u20133 Liquid prompt templates for working with notes in this folder. " +
+    "Available variables: {{ title }}, {{ note_content }}, {{ selection }}, {{ linked_notes }}, {{ frontmatter.KEY }}. " +
+    "For per-linked-note formatting use: {% for note in linked_notes_array %}{{ note.title }}: {{ note.content }}{% endfor %}. " +
+    "Filters: {{ title | truncate: 60 }}, {{ linked_notes_array | map: 'title' | join: ', ' }}. " +
+    "Conditionals: {% if frontmatter.status %}...{% endif %}.",
     "",
     'Return ONLY a JSON array, no code fences: [{"name": string, "description": string, "system_prompt": string | null, "body": string}]',
     'The "body" is the prompt text (30\u2013120 words). The "system_prompt" is an optional custom instruction for Claude (null if not needed).'
