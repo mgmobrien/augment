@@ -1316,18 +1316,28 @@ export class AugmentSettingTab extends PluginSettingTab {
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
 
-      new Setting(advancedDetails)
-        .setName("Shell")
-        .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
-        .addText((text) => {
-          text
-            .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
-            .setValue(this.plugin.settings.shellPath)
-            .onChange(async (value) => {
-              this.plugin.settings.shellPath = value;
-              await this.plugin.saveData(this.plugin.settings);
-            });
-        });
+      if (process.platform === "win32") {
+        new Setting(advancedDetails)
+          .setName("Shell")
+          .setDesc("Shell to launch in new terminals.")
+          .addDropdown((dropdown) => {
+            dropdown
+              .addOption("", "PowerShell (default)")
+              .addOption("wsl.exe", "WSL")
+              .addOption("cmd.exe", "Command Prompt")
+              .setValue(this.plugin.settings.shellPath)
+              .onChange(async (value) => {
+                this.plugin.settings.shellPath = value;
+                await this.plugin.saveData(this.plugin.settings);
+              });
+          });
+      } else {
+        const shellName = process.platform === "darwin" ? "zsh" : "bash";
+        new Setting(advancedDetails)
+          .setName("Shell")
+          .setDesc(`Using system default (${shellName}). Change your login shell to use a different one.`)
+          .setDisabled(true);
+      }
 
       new Setting(advancedDetails)
         .setName("Default working directory")

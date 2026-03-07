@@ -15823,9 +15823,20 @@ function formatLinkedNotesFull(notes) {
     return parts.join("\n");
   }).join("\n\n");
 }
-function buildSystemPrompt(_ctx, systemPromptOverride, workspaceScope, workspacePath) {
+async function buildSystemPrompt(_ctx, systemPromptOverride, workspaceScope, workspacePath) {
   const parts = [];
-  if (systemPromptOverride == null ? void 0 : systemPromptOverride.trim()) parts.push(systemPromptOverride.trim());
+  if (systemPromptOverride == null ? void 0 : systemPromptOverride.trim()) {
+    const now = (/* @__PURE__ */ new Date()).toLocaleString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+    const rendered = await liquidEngine.parseAndRender(systemPromptOverride.trim(), { now });
+    parts.push(rendered);
+  }
   if (workspacePath && workspaceScope === "focused") {
     parts.push(`Focus on files within ${workspacePath}. Treat other workspaces as out of scope unless the task requires it.`);
   } else if (workspacePath && workspaceScope === "restricted") {
@@ -16286,7 +16297,7 @@ var DEFAULT_SETTINGS = {
   hasGenerated: false,
   hasUsedTemplate: false,
   hasSeenWelcome: false,
-  systemPrompt: "",
+  systemPrompt: "The current date and time is {{ now }}.",
   showGenerationToast: true,
   clearedLinkHotkey: false,
   clearedHotkeyOriginals: {},
@@ -16296,7 +16307,7 @@ var DEFAULT_SETTINGS = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
-  ribbonIcon: "radio-tower",
+  ribbonIcon: "augment-pyramid",
   projectRoots: [],
   workspaceScope: "open"
 };
@@ -16648,17 +16659,30 @@ async function checkBool(cmd, env) {
     await execAsync(cmd, env);
     return true;
   } catch (e) {
+    if (process.platform === "win32") {
+      try {
+        await execAsync(`wsl ${cmd}`, env);
+        return true;
+      } catch (e2) {
+      }
+    }
     return false;
   }
 }
 async function checkAuth(env) {
-  try {
-    const r = await execAsync("claude auth status", env);
-    const lower = r.stdout.toLowerCase();
-    return !lower.includes("not logged in") && !lower.includes("not authenticated");
-  } catch (e) {
-    return false;
-  }
+  const check = async (cmd) => {
+    try {
+      const r = await execAsync(cmd, env);
+      const lower = r.stdout.toLowerCase();
+      return !lower.includes("not logged in") && !lower.includes("not authenticated");
+    } catch (e) {
+      return false;
+    }
+  };
+  const result = await check("claude auth status");
+  if (result) return true;
+  if (process.platform === "win32") return check("wsl claude auth status");
+  return false;
 }
 async function detectRuntimeDeps(options = {}) {
   const { forceFresh = false } = options;
@@ -17455,6 +17479,25 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       targetBtn.addClass("is-active");
       targetPane.style.display = "";
     };
+    const isMac = process.platform === "darwin";
+    {
+      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
+      const overviewIntro = overviewHeader.createDiv({ cls: "augment-tab-intro" });
+      const welcomeEl = overviewIntro.createDiv({ cls: "augment-welcome" });
+      const copyEl = welcomeEl.createDiv({ cls: "augment-welcome-copy" });
+      copyEl.createDiv({
+        cls: "augment-welcome-line1",
+        text: "Augment \u2014 AI generation and Claude Code terminals for Obsidian."
+      });
+      copyEl.createDiv({
+        cls: "augment-welcome-line2",
+        text: `Press ${isMac ? "Cmd" : "Ctrl"}+Enter to generate text, or Ctrl+T to open a terminal.`
+      });
+      this.renderHotkeyBox(overviewHeader, [
+        { label: "Generate", commandId: "augment-terminal:augment-generate" },
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" }
+      ]);
+    }
     const apiKeySetting = new import_obsidian7.Setting(overviewPane).setName("API key").addText((text) => {
       apiKeyInputEl = text.inputEl;
       text.inputEl.type = "password";
@@ -17514,27 +17557,6 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       });
     });
     addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
-    const isMac = process.platform === "darwin";
-    {
-      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
-      const overviewIntro = overviewHeader.createDiv({ cls: "augment-tab-intro" });
-      const howEl = overviewIntro.createEl("div", { cls: "augment-overview-how" });
-      howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
-      const howSteps = [
-        "Position your cursor where you want output to appear.",
-        `Press ${isMac ? "Cmd" : "Ctrl"}+Enter (or right-click \u2192 Augment: Generate).`,
-        "A loading indicator appears while Claude generates.",
-        "The result is inserted at your cursor in the chosen format."
-      ];
-      const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
-      for (const step of howSteps) {
-        ol.createEl("li", { text: step });
-      }
-      this.renderHotkeyBox(overviewHeader, [
-        { label: "Generate", commandId: "augment-terminal:augment-generate" },
-        { label: "Open terminal", commandId: "augment-terminal:open-terminal" }
-      ]);
-    }
     {
       const shortcutsDetails = overviewPane.createEl("details", { cls: "augment-advanced-details" });
       shortcutsDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Keyboard shortcuts" });
@@ -17649,10 +17671,9 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
       ]);
     }
-    continuationPane.createDiv({ cls: "augment-pane-section", text: "Ribbon icon" });
     const RIBBON_ICONS = {
-      "radio-tower": "Sensor tower (default)",
-      "augment-pyramid": "Augment pyramid",
+      "augment-pyramid": "Augment pyramid (default)",
+      "radio-tower": "Sensor tower",
       "wand-2": "Wand",
       "sparkles": "Sparkles",
       "brain": "Brain",
@@ -17669,7 +17690,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       for (const [id, label] of Object.entries(RIBBON_ICONS)) {
         dd.addOption(id, label);
       }
-      dd.setValue(this.plugin.settings.ribbonIcon || "radio-tower");
+      dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
       dd.onChange(async (val) => {
         this.plugin.settings.ribbonIcon = val;
         await this.plugin.saveData(this.plugin.settings);
@@ -17679,7 +17700,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     });
     const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
     ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    (0, import_obsidian7.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "radio-tower");
+    (0, import_obsidian7.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
     new import_obsidian7.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
         this.plugin.settings.coloredRibbonIcon = val;
@@ -17787,8 +17808,8 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         });
       });
       addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
-      const systemPromptSetting = new import_obsidian7.Setting(continuationPane).setName("System prompt").setDesc("Override the default system prompt. Leave blank to use Augment's default.").addTextArea((text) => {
-        text.setPlaceholder("You are assisting with writing in an Obsidian vault.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
+      const systemPromptSetting = new import_obsidian7.Setting(continuationPane).setName("System prompt").setDesc("Sent to Claude before every generation. Supports LiquidJS variables \u2014 {{ now }} inserts the current date and time.").addTextArea((text) => {
+        text.setPlaceholder("The current date and time is {{ now }}.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
           this.plugin.settings.systemPrompt = value;
           await this.plugin.saveData(this.plugin.settings);
         });
@@ -17796,7 +17817,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         text.inputEl.style.width = "100%";
         text.inputEl.style.fontFamily = "var(--font-monospace)";
       });
-      addInfoTooltip(systemPromptSetting.descEl, "Augment's default prompt tells Claude your note title, frontmatter, and writing context. Override here to change how Claude approaches generation across this entire vault \u2014 useful for setting a persona, language, or domain focus.");
+      addInfoTooltip(systemPromptSetting.descEl, "Sent to Claude before every generation. Supports LiquidJS: {{ now }} \u2192 current date and time. Use to set a persona, language, or domain focus for the entire vault. Individual templates can override this via system_prompt: in their frontmatter.");
       const inspectorBtn = continuationPane.createEl("button", {
         cls: "augment-ctx-preview-btn",
         text: "Open context inspector"
@@ -18103,7 +18124,6 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         { label: "Next waiting", commandId: "augment-terminal:jump-to-next-waiting-session" }
       ]);
     }
-    terminalPane.createEl("hr", { cls: "augment-tab-divider" });
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
     const wizardBody = wizardSection.createDiv();
     const setupVault = async () => {
@@ -18269,12 +18289,17 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       renderScopeExtras();
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
-      new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals. Leave blank to use the system default.").addText((text) => {
-        text.setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
-          this.plugin.settings.shellPath = value;
-          await this.plugin.saveData(this.plugin.settings);
+      if (process.platform === "win32") {
+        new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
+          dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
+            this.plugin.settings.shellPath = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
         });
-      });
+      } else {
+        const shellName = process.platform === "darwin" ? "zsh" : "bash";
+        new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc(`Using system default (${shellName}). Change your login shell to use a different one.`).setDisabled(true);
+      }
       new import_obsidian7.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
         text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
           this.plugin.settings.defaultWorkingDirectory = value;
@@ -18378,7 +18403,7 @@ var PtyBridge = class {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
-      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "cmd.exe" : "bash"),
+      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "powershell.exe" : "bash"),
       AUGMENT_CWD: this.cwd
     };
     let candidateIndex = 0;
@@ -22422,8 +22447,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T05:21:42.251Z";
-    this.gitSha = "867b984";
+    this.buildId = "2026-03-07T16:34:03.390Z";
+    this.gitSha = "662a568";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22475,7 +22500,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
   applyRibbonIcon() {
     if (!this.ribbonGenerateEl) return;
-    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "radio-tower");
+    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
   refreshStatusBar() {
     var _a2, _b;
@@ -22483,12 +22508,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     (_b = this.ribbonGenerateEl) == null ? void 0 : _b.removeClass("is-generating");
     if (!this.statusBarEl) return;
     this.statusBarEl.empty();
-    const sbIconEl = this.statusBarEl.createEl("span", { cls: "augment-sb-icon" });
-    (0, import_obsidian12.setIcon)(sbIconEl, this.settings.ribbonIcon || "radio-tower");
     if (!this.settings.apiKey) {
-      this.statusBarEl.createEl("span", { text: " Augment: API key needed" });
+      this.statusBarEl.createEl("span", { text: "Augment: API key needed" });
     } else {
-      this.statusBarEl.createEl("span", { text: ` Augment: ${this.resolveModelDisplayName()}` });
+      this.statusBarEl.createEl("span", { text: `Augment: ${this.resolveModelDisplayName()}` });
     }
   }
   getBuildFingerprint() {
@@ -22545,7 +22568,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0), promptText, this.settings, resolvedModel, abortController.signal);
+        const builtSystemPrompt = await buildSystemPrompt(ctx, this.settings.systemPrompt || void 0, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0);
+        const { text: result, usage: genUsage } = await generateText(builtSystemPrompt, promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
         void this.accumulateSpend(resolvedModel, genUsage);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -22563,7 +22587,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           timestamp: Date.now(),
           noteName: ctx.title,
           model: resolvedModelName,
-          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || void 0, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0),
+          systemPrompt: builtSystemPrompt,
           userMessage: buildUserMessage(ctx, promptText)
         };
         this.pushContextHistory(entry);
@@ -22780,10 +22804,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       "terminal"
     ]);
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
-      this.settings.ribbonIcon = "radio-tower";
+      this.settings.ribbonIcon = "augment-pyramid";
     }
-    if (this.settings.ribbonIcon === "augment-pyramid") {
-      this.settings.ribbonIcon = "radio-tower";
+    if (!this.settings.systemPrompt) {
+      this.settings.systemPrompt = "The current date and time is {{ now }}.";
     }
     {
       const hm = this.app.hotkeyManager;
@@ -22958,7 +22982,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0), rendered, this.settings, resolvedModel, abortController.signal);
+              const builtSystemPrompt = await buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0);
+              const { text: result, usage: genUsage } = await generateText(builtSystemPrompt, rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
               void this.accumulateSpend(resolvedModel, genUsage);
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -23019,7 +23044,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                 timestamp: Date.now(),
                 noteName: ctx.title,
                 model: resolvedModelName,
-                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0),
+                systemPrompt: builtSystemPrompt,
                 userMessage: rendered
               };
               this.pushContextHistory(entry);
@@ -23103,7 +23128,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu) => {
-        const menuIcon = this.settings.ribbonIcon || "radio-tower";
+        const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
             item.setTitle("Augment: add API key to get started \u2192").setIcon(menuIcon).onClick(() => {
@@ -23125,8 +23150,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         });
       })
     );
-    this.addTerminalRibbonIfNeeded();
-    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "radio-tower", "Generate", () => {
+    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
       if (!view) {
         new import_obsidian12.Notice("Open a note to generate");
@@ -23136,6 +23160,11 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     });
     this.ribbonGenerateEl.addClass("augment-ribbon-generate");
     this.applyRibbonColoredClass();
+    this.addRibbonIcon("radio-tower", "Augment settings", () => {
+      this.app.setting.open();
+      this.app.setting.openTabById("augment-terminal");
+    });
+    this.addTerminalRibbonIfNeeded();
     this.addCommand({
       id: "open-terminal",
       name: "Open terminal",
