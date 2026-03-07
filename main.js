@@ -21481,11 +21481,24 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
       });
     }
   }
+  showSessionTooltip(evt, session) {
+    const excerpt = session.titleFull || session.title;
+    if (!excerpt) return;
+    this.hideActivityTooltip();
+    const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
+    this.tooltipEl = tip;
+    tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: excerpt });
+    const meta = [];
+    if (session.msgCount > 0) meta.push(`${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`);
+    meta.push(this.relativeTime(session.mtimeMs));
+    tip.createDiv({ cls: "augment-tm-activity-tip-label", text: meta.join(" \xB7 ") });
+    const x = evt.clientX + 12;
+    const y = evt.clientY + 14;
+    tip.style.left = `${Math.min(x, window.innerWidth - 340)}px`;
+    tip.style.top = `${y}px`;
+  }
   renderHistoryRow(session, container) {
     const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
-    if (session.titleFull && session.titleFull !== session.title) {
-      row.setAttribute("title", session.titleFull);
-    }
     const line = row.createDiv({ cls: "augment-tm-line" });
     line.createDiv({ cls: "augment-tm-dot" });
     line.createSpan({ cls: "augment-tm-name", text: session.title });
@@ -21494,6 +21507,8 @@ var TerminalManagerView = class extends import_obsidian6.ItemView {
     ageEl.dataset.ms = String(session.mtimeMs);
     ageEl.dataset.msgCount = String(session.msgCount);
     ageEl.textContent = this.formatHistoryMeta(session.msgCount, session.mtimeMs);
+    row.addEventListener("mouseenter", (evt) => this.showSessionTooltip(evt, session));
+    row.addEventListener("mouseleave", () => this.hideActivityTooltip());
     row.addEventListener("click", async () => {
       const plugin = this.getPlugin();
       if (!plugin) return;
@@ -22927,8 +22942,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:42:16.267Z";
-    this.gitSha = "35e7edc";
+    this.buildId = "2026-03-07T00:42:44.182Z";
+    this.gitSha = "3a97a6e";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

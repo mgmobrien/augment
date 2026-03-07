@@ -805,11 +805,29 @@ export class TerminalManagerView extends ItemView {
     }
   }
 
+  private showSessionTooltip(evt: MouseEvent, session: SessionMeta): void {
+    const excerpt = session.titleFull || session.title;
+    if (!excerpt) return;
+
+    this.hideActivityTooltip();
+    const tip = document.body.createDiv({ cls: "augment-tm-activity-tip" });
+    this.tooltipEl = tip;
+
+    tip.createDiv({ cls: "augment-tm-activity-tip-detail", text: excerpt });
+
+    const meta: string[] = [];
+    if (session.msgCount > 0) meta.push(`${session.msgCount} msg${session.msgCount !== 1 ? "s" : ""}`);
+    meta.push(this.relativeTime(session.mtimeMs));
+    tip.createDiv({ cls: "augment-tm-activity-tip-label", text: meta.join(" · ") });
+
+    const x = evt.clientX + 12;
+    const y = evt.clientY + 14;
+    tip.style.left = `${Math.min(x, window.innerWidth - 340)}px`;
+    tip.style.top = `${y}px`;
+  }
+
   private renderHistoryRow(session: SessionMeta, container: HTMLElement): void {
     const row = container.createDiv({ cls: "augment-tm-item is-history is-archived" });
-    if (session.titleFull && session.titleFull !== session.title) {
-      row.setAttribute("title", session.titleFull);
-    }
 
     const line = row.createDiv({ cls: "augment-tm-line" });
 
@@ -823,6 +841,9 @@ export class TerminalManagerView extends ItemView {
     ageEl.dataset.ms = String(session.mtimeMs);
     ageEl.dataset.msgCount = String(session.msgCount);
     ageEl.textContent = this.formatHistoryMeta(session.msgCount, session.mtimeMs);
+
+    row.addEventListener("mouseenter", (evt) => this.showSessionTooltip(evt, session));
+    row.addEventListener("mouseleave", () => this.hideActivityTooltip());
 
     // Click directly resumes the session — no expand drawer.
     row.addEventListener("click", async () => {
