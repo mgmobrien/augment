@@ -41,6 +41,7 @@ export interface AugmentSettings {
   coloredRibbonIcon: boolean;
   ribbonIcon: string;
   projectRoots: string[]; // additional paths to scan for git repos in workspace switcher
+  workspaceScope: "open" | "focused" | "restricted";
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -72,6 +73,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   coloredRibbonIcon: false,
   ribbonIcon: "augment-pyramid",
   projectRoots: [],
+  workspaceScope: "open",
 };
 
 export interface SpendModelEntry {

@@ -224,7 +224,7 @@ export default class AugmentTerminalPlugin extends Plugin {
         await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || undefined), promptText, this.settings, resolvedModel, abortController.signal);
+        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || undefined, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || undefined), promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
         void this.accumulateSpend(resolvedModel, genUsage);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -242,7 +242,7 @@ export default class AugmentTerminalPlugin extends Plugin {
           timestamp: Date.now(),
           noteName: ctx.title,
           model: resolvedModelName,
-          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || undefined),
+          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || undefined, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || undefined),
           userMessage: buildUserMessage(ctx, promptText),
         };
         this.pushContextHistory(entry);
@@ -668,7 +668,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
+              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || undefined), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
               void this.accumulateSpend(resolvedModel, genUsage);
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -733,7 +733,7 @@ export default class AugmentTerminalPlugin extends Plugin {
                 timestamp: Date.now(),
                 noteName: ctx.title,
                 model: resolvedModelName,
-                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride),
+                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || undefined),
                 userMessage: rendered,
               };
               this.pushContextHistory(entry);

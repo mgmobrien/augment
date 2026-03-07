@@ -15826,8 +15826,15 @@ function formatLinkedNotesFull(notes) {
     return parts.join("\n");
   }).join("\n\n");
 }
-function buildSystemPrompt(_ctx, systemPromptOverride) {
-  return (systemPromptOverride == null ? void 0 : systemPromptOverride.trim()) || "";
+function buildSystemPrompt(_ctx, systemPromptOverride, workspaceScope, workspacePath) {
+  const parts = [];
+  if (systemPromptOverride == null ? void 0 : systemPromptOverride.trim()) parts.push(systemPromptOverride.trim());
+  if (workspacePath && workspaceScope === "focused") {
+    parts.push(`Focus on files within ${workspacePath}. Treat other workspaces as out of scope unless the task requires it.`);
+  } else if (workspacePath && workspaceScope === "restricted") {
+    parts.push(`Avoid files outside ${workspacePath} unless explicitly asked by the user.`);
+  }
+  return parts.join("\n\n");
 }
 function buildUserMessage(ctx, instruction) {
   const parts = [instruction];
@@ -16293,7 +16300,8 @@ var DEFAULT_SETTINGS = {
   sessionHistory: [],
   coloredRibbonIcon: false,
   ribbonIcon: "augment-pyramid",
-  projectRoots: []
+  projectRoots: [],
+  workspaceScope: "open"
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -17399,7 +17407,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     return isMac ? "Cmd+Enter" : "Ctrl+Enter";
   }
   display() {
-    var _a2;
+    var _a2, _b;
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("augment-settings-container");
@@ -17875,12 +17883,12 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
     });
     openFolderEl.href = "#";
     openFolderEl.addEventListener("click", (e) => {
-      var _a3, _b, _c;
+      var _a3, _b2, _c;
       e.preventDefault();
       const folderPath = this.plugin.settings.templateFolder;
       const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
       if (folder) {
-        const fe = (_b = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
+        const fe = (_b2 = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b2.instance;
         (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
       } else {
         console.log(`[Augment] folder not found: "${folderPath}"`);
@@ -18215,6 +18223,26 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
           this.plugin.app.workspace.trigger("augment-terminal:changed");
         });
       });
+      const scopeSetting = new import_obsidian7.Setting(terminalPane).setName("Agent scope").setDesc("How the agent should treat files outside the configured workspace. Advisory only \u2014 the agent is instructed, not technically restricted.").addDropdown((drop) => {
+        var _a3;
+        drop.addOption("open", "No restrictions").addOption("focused", "Works within this workspace").addOption("restricted", "Stays within this workspace").setValue((_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open").onChange(async (value) => {
+          this.plugin.settings.workspaceScope = value;
+          await this.plugin.saveData(this.plugin.settings);
+          this.display();
+        });
+      });
+      addInfoTooltip(scopeSetting.descEl, "Workspace scope works through agent instructions. The agent is told to stay within configured paths \u2014 it isn\u2019t technically prevented from accessing other files.");
+      const scope = (_b = this.plugin.settings.workspaceScope) != null ? _b : "open";
+      if (scope !== "open") {
+        const scopeInfoEl = terminalPane.createDiv({ cls: "augment-scope-info" });
+        const wspath = this.plugin.settings.defaultWorkingDirectory;
+        if (wspath) {
+          scopeInfoEl.createEl("p", { cls: "augment-scope-path", text: `The agent will focus on ${wspath}.` });
+        } else {
+          scopeInfoEl.createEl("p", { cls: "augment-scope-warning", text: "Add a workspace path (Advanced \u2192 Default working directory) to make this effective." });
+        }
+        scopeInfoEl.createEl("p", { cls: "augment-scope-advisory", text: "Workspace scope works through agent instructions. The agent is told to stay within configured paths \u2014 it isn\u2019t technically prevented from accessing other files." });
+      }
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
       new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals. Leave blank to use the system default.").addText((text) => {
@@ -22409,8 +22437,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:50:46.868Z";
-    this.gitSha = "84e3ac9";
+    this.buildId = "2026-03-07T02:58:15.478Z";
+    this.gitSha = "aba54ad";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22529,7 +22557,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
-        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0), promptText, this.settings, resolvedModel, abortController.signal);
+        const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, this.settings.systemPrompt || void 0, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0), promptText, this.settings, resolvedModel, abortController.signal);
         this.activeGeneration = null;
         void this.accumulateSpend(resolvedModel, genUsage);
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -22547,7 +22575,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           timestamp: Date.now(),
           noteName: ctx.title,
           model: resolvedModelName,
-          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || void 0),
+          systemPrompt: buildSystemPrompt(ctx, this.settings.systemPrompt || void 0, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0),
           userMessage: buildUserMessage(ctx, promptText)
         };
         this.pushContextHistory(entry);
@@ -22941,7 +22969,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
-              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride), rendered, this.settings, resolvedModel, abortController.signal);
+              const { text: result, usage: genUsage } = await generateText(buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0), rendered, this.settings, resolvedModel, abortController.signal);
               this.activeGeneration = null;
               void this.accumulateSpend(resolvedModel, genUsage);
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
@@ -23002,7 +23030,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                 timestamp: Date.now(),
                 noteName: ctx.title,
                 model: resolvedModelName,
-                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride),
+                systemPrompt: buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0),
                 userMessage: rendered
               };
               this.pushContextHistory(entry);

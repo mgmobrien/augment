@@ -32,8 +32,20 @@ function formatLinkedNotesFull(notes: LinkedNoteSummary[]): string {
     .join("\n\n");
 }
 
-export function buildSystemPrompt(_ctx: VaultContext, systemPromptOverride?: string): string {
-  return systemPromptOverride?.trim() || "";
+export function buildSystemPrompt(
+  _ctx: VaultContext,
+  systemPromptOverride?: string,
+  workspaceScope?: "open" | "focused" | "restricted",
+  workspacePath?: string
+): string {
+  const parts: string[] = [];
+  if (systemPromptOverride?.trim()) parts.push(systemPromptOverride.trim());
+  if (workspacePath && workspaceScope === "focused") {
+    parts.push(`Focus on files within ${workspacePath}. Treat other workspaces as out of scope unless the task requires it.`);
+  } else if (workspacePath && workspaceScope === "restricted") {
+    parts.push(`Avoid files outside ${workspacePath} unless explicitly asked by the user.`);
+  }
+  return parts.join("\n\n");
 }
 
 export function buildUserMessage(ctx: VaultContext, instruction: string): string {
