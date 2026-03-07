@@ -1263,35 +1263,55 @@ export class AugmentSettingTab extends PluginSettingTab {
             });
         });
 
-      // ── Agent scope ──────────────────────────────────────────
-      const scopeSetting = new Setting(terminalPane)
-        .setName("Agent scope")
-        .setDesc("How the agent should treat files outside the configured workspace. Advisory only — the agent is instructed, not technically restricted.")
+      // ── Workspace scope ──────────────────────────────────────
+      new Setting(terminalPane)
+        .setName("Workspace scope")
+        .setDesc("Controls how the agent treats this workspace's paths relative to other workspaces.")
         .addDropdown((drop) => {
           drop
             .addOption("open", "No restrictions")
-            .addOption("focused", "Works within this workspace")
-            .addOption("restricted", "Stays within this workspace")
+            .addOption("focused", "Focus on this workspace")
+            .addOption("restricted", "Treat as private workspace")
             .setValue(this.plugin.settings.workspaceScope ?? "open")
             .onChange(async (value) => {
               this.plugin.settings.workspaceScope = value as "open" | "focused" | "restricted";
               await this.plugin.saveData(this.plugin.settings);
-              this.display();
+              renderScopeExtras();
             });
         });
-      addInfoTooltip(scopeSetting.descEl, "Workspace scope works through agent instructions. The agent is told to stay within configured paths — it isn\u2019t technically prevented from accessing other files.");
 
-      const scope = this.plugin.settings.workspaceScope ?? "open";
-      if (scope !== "open") {
-        const scopeInfoEl = terminalPane.createDiv({ cls: "augment-scope-info" });
-        const wspath = this.plugin.settings.defaultWorkingDirectory;
-        if (wspath) {
-          scopeInfoEl.createEl("p", { cls: "augment-scope-path", text: `The agent will focus on ${wspath}.` });
-        } else {
-          scopeInfoEl.createEl("p", { cls: "augment-scope-warning", text: "Add a workspace path (Advanced \u2192 Default working directory) to make this effective." });
+      const scopeExtrasEl = terminalPane.createDiv({ cls: "augment-scope-extras" });
+      const renderScopeExtras = () => {
+        scopeExtrasEl.empty();
+        const scope = this.plugin.settings.workspaceScope ?? "open";
+        const path = (this.plugin.settings.defaultWorkingDirectory || "").trim();
+
+        const descMap: Record<string, string> = {
+          open: "The agent works across your full vault without scope guidance.",
+          focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
+          restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it.",
+        };
+        scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
+
+        if (path && scope !== "open") {
+          const verb = scope === "focused" ? "focus on" : "treat as private";
+          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path}` });
         }
-        scopeInfoEl.createEl("p", { cls: "augment-scope-advisory", text: "Workspace scope works through agent instructions. The agent is told to stay within configured paths \u2014 it isn\u2019t technically prevented from accessing other files." });
-      }
+
+        if (scope !== "open") {
+          const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
+          box.createSpan({ cls: "augment-scope-infobox-icon", text: "ℹ" });
+          box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions — the agent is told to apply this, not technically prevented from other access." });
+        }
+
+        if (scope !== "open" && !path) {
+          scopeExtrasEl.createDiv({
+            cls: "augment-scope-validation",
+            text: "Set a working directory (Terminal → Advanced → Working directory) to apply scope guidance.",
+          });
+        }
+      };
+      renderScopeExtras();
 
       // ── Advanced (collapsed by default) ─────────────────────
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });

@@ -1236,35 +1236,49 @@
   line-height: 1.5;
 }
 
-/* ── Workspace scope info box ── */
-.augment-scope-info {
-  background: var(--background-modifier-form-field);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  padding: 8px 12px;
-  margin-bottom: 12px;
-}
-
-.augment-scope-info p {
-  margin: 0 0 4px;
+/* ── Workspace scope UI ── */
+.augment-scope-desc {
   font-size: var(--font-ui-smaller);
-  line-height: 1.5;
-}
-
-.augment-scope-info p:last-child {
-  margin-bottom: 0;
+  color: var(--text-muted);
+  margin-top: 4px;
+  margin-bottom: 6px;
 }
 
 .augment-scope-path {
-  color: var(--text-normal);
-}
-
-.augment-scope-warning {
-  color: var(--text-warning);
-}
-
-.augment-scope-advisory {
+  font-size: var(--font-ui-smaller);
   color: var(--text-muted);
+  font-family: var(--font-monospace);
+  margin-bottom: 6px;
+}
+
+.augment-scope-infobox {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  background: var(--background-modifier-form-field);
+  border-left: 3px solid var(--text-faint);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  margin-bottom: 6px;
+}
+
+.augment-scope-infobox-icon {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.augment-scope-infobox-text {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.augment-scope-validation {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-warning);
+  margin-top: 2px;
 }
 
 /* ── Context pane intro ── */

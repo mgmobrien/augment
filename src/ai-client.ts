@@ -43,7 +43,7 @@ export function buildSystemPrompt(
   if (workspacePath && workspaceScope === "focused") {
     parts.push(`Focus on files within ${workspacePath}. Treat other workspaces as out of scope unless the task requires it.`);
   } else if (workspacePath && workspaceScope === "restricted") {
-    parts.push(`Avoid files outside ${workspacePath} unless explicitly asked by the user.`);
+    parts.push(`Do not reference or surface content from ${workspacePath} in outputs or summaries outside that workspace.`);
   }
   return parts.join("\n\n");
 }
