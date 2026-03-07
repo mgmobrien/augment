@@ -685,6 +685,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     }
   }
 
+  /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
+  public applyRibbonIcon(): void {
+    if (!this.ribbonGenerateEl) return;
+    const iconEl = this.ribbonGenerateEl.querySelector(".svg-icon") as HTMLElement | null;
+    if (iconEl) {
+      setIcon(iconEl, this.settings.ribbonIcon || "augment-pyramid");
+    }
+  }
+
   public refreshStatusBar(): void {
     this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
     if (!this.statusBarEl) return;
@@ -1412,8 +1421,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
 
-    // Ribbon: augment-pyramid → generate AI text
-    this.ribbonGenerateEl = this.addRibbonIcon("augment-pyramid", "Generate", () => {
+    // Ribbon: configurable icon → generate AI text
+    this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
       const view = this.app.workspace.getActiveViewOfType(MarkdownView);
       if (!view) {
         new Notice("Open a note to generate");

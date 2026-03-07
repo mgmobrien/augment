@@ -39,6 +39,7 @@ export interface AugmentSettings {
   showOtherProjects: boolean;
   sessionHistory: SessionRecord[];
   coloredRibbonIcon: boolean;
+  ribbonIcon: string;
 }
 
 export const DEFAULT_SETTINGS: AugmentSettings = {
@@ -68,6 +69,7 @@ export const DEFAULT_SETTINGS: AugmentSettings = {
   showOtherProjects: false,
   sessionHistory: [],
   coloredRibbonIcon: false,
+  ribbonIcon: "augment-pyramid",
 };
 
 export interface SpendModelEntry {
