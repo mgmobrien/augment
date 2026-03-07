@@ -1,8 +1,8 @@
-import { addIcon, Editor, FuzzySuggestModal, MarkdownView, Modal, Notice, Plugin, Setting, setIcon, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, Editor, FuzzySuggestModal, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import { readdirSync, existsSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, calculateCost, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
+import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { InboxSuggest } from "./inbox-suggest";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
