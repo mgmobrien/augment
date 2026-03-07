@@ -65,6 +65,13 @@ npm install
 npm run build
 ```
 
+To install directly into your vault during development, set `OBSIDIAN_VAULT_PATH` to your vault root, then run:
+
+```bash
+export OBSIDIAN_VAULT_PATH="/path/to/your/vault"
+npm run obsidian:install
+```
+
 Then copy as above.
 
 ## Architecture

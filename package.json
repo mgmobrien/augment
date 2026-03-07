@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs watch",
     "build": "node esbuild.config.mjs build",
-    "obsidian:install": "cp -R main.js styles.css manifest.json scripts \"/Users/mattobrien/Obsidian Main Vault/ObsidianVault/.obsidian/plugins/augment-terminal/\"",
+    "obsidian:install": "cp -R main.js styles.css manifest.json scripts \"${OBSIDIAN_VAULT_PATH}/.obsidian/plugins/augment-terminal/\"",
     "test:rename-sync": "node scripts/check-rename-sync.mjs"
   },
   "dependencies": {
