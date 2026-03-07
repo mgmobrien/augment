@@ -352,25 +352,14 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
 
-    // ── Get started hints (tier 0) ───────────────────────────
+    // ── Tab header (hotkey box + intro) ──────────────────────
     const isMac = process.platform === "darwin";
     {
-      const hintsEl = overviewPane.createEl("div", { cls: "augment-overview-hints" });
-      const hintRows: { label: string; shortcut: string }[] = [
-        { label: "Generate text", shortcut: isMac ? "\u2318+\u21a9" : "Ctrl+\u21a9" },
-        { label: "Open terminal", shortcut: "Ctrl+T" },
-      ];
-      for (const h of hintRows) {
-        const row = hintsEl.createEl("div", { cls: "augment-hint-row" });
-        row.createEl("span", { cls: "augment-hint-label", text: h.label });
-        row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: h.shortcut });
-      }
-    }
+      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
+      const overviewIntro  = overviewHeader.createDiv({ cls: "augment-tab-intro" });
 
-    // ── How it works + keyboard shortcuts ────────────────────────────────────
-    {
-      // How it works
-      const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
+      // "How it works"
+      const howEl = overviewIntro.createEl("div", { cls: "augment-overview-how" });
       howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
       const howSteps = [
         "Position your cursor where you want output to appear.",
@@ -383,7 +372,20 @@ export class AugmentSettingTab extends PluginSettingTab {
         ol.createEl("li", { text: step });
       }
 
-      // Full keyboard shortcuts table
+      // Hotkey box — pinned right
+      this.renderHotkeyBox(overviewHeader, [
+        { label: "Generate",      commandId: "augment-terminal:augment-generate" },
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
+      ]);
+    }
+
+    overviewPane.createEl("hr", { cls: "augment-tab-divider" });
+
+    // ── Keyboard shortcuts (Advanced) ─────────────────────────
+    {
+      const shortcutsDetails = overviewPane.createEl("details", { cls: "augment-advanced-details" });
+      shortcutsDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Keyboard shortcuts" });
+
       interface AugmentCmd { id: string; label: string; defaultKeys: { modifiers: string[]; key: string }[]; }
       const AUGMENT_CMDS: AugmentCmd[] = [
         { id: "augment-generate",               label: "Generate",                              defaultKeys: [{ modifiers: ["Mod"],           key: "Enter" }] },
@@ -410,10 +412,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       const hm = (this.app as any).hotkeyManager;
       const customKeys: Record<string, { modifiers: string[]; key: string }[]> = hm?.customKeys ?? {};
 
-      const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
-      shortcutsEl.createEl("div", { cls: "augment-overview-how-title", text: "Keyboard shortcuts" });
-
-      const kbTable = shortcutsEl.createEl("table", { cls: "augment-var-table" });
+      const kbTable = shortcutsDetails.createEl("table", { cls: "augment-var-table" });
       const kbTbody = kbTable.createEl("tbody");
 
       for (const cmd of AUGMENT_CMDS) {
@@ -431,14 +430,13 @@ export class AugmentSettingTab extends PluginSettingTab {
         }
       }
 
-      const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
+      const customizeEl = shortcutsDetails.createEl("div", { cls: "augment-shortcuts-customize" });
       const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
       customizeLink.href = "#";
       customizeLink.addEventListener("click", (e) => {
         e.preventDefault();
         (this.app as any).setting.openTabById("hotkeys");
       });
-
     }
 
     // ── API usage (visible after first generation) ────────────
@@ -504,15 +502,19 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     // ── Continuation pane ────────────────────────────────────
-    this.renderHotkeyBox(continuationPane, [
-      { label: "Generate",          commandId: "augment-terminal:augment-generate" },
-      { label: "Run template",      commandId: "augment-terminal:augment-generate-from-template" },
-    ]);
-
-    continuationPane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it — the AI sees your note title, frontmatter, surrounding context, and linked notes.",
-    });
+    {
+      const contHeader = continuationPane.createDiv({ cls: "augment-tab-header" });
+      const contIntro  = contHeader.createDiv({ cls: "augment-tab-intro" });
+      contIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it — the AI sees your note title, frontmatter, surrounding context, and linked notes.",
+      });
+      this.renderHotkeyBox(contHeader, [
+        { label: "Generate",      commandId: "augment-terminal:augment-generate" },
+        { label: "Run template",  commandId: "augment-terminal:augment-generate-from-template" },
+      ]);
+    }
+    continuationPane.createEl("hr", { cls: "augment-tab-divider" });
 
     // ── Ribbon icon ──────────────────────────────────────────
     continuationPane.createDiv({ cls: "augment-pane-section", text: "Ribbon icon" });
@@ -782,14 +784,18 @@ export class AugmentSettingTab extends PluginSettingTab {
     }
 
     // ── Templates pane ───────────────────────────────────────
-    this.renderHotkeyBox(templatesPane, [
-      { label: "Run template",      commandId: "augment-terminal:augment-generate-from-template" },
-    ]);
-
-    templatesPane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note.",
-    });
+    {
+      const tplHeader = templatesPane.createDiv({ cls: "augment-tab-header" });
+      const tplIntro  = tplHeader.createDiv({ cls: "augment-tab-intro" });
+      tplIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note.",
+      });
+      this.renderHotkeyBox(tplHeader, [
+        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" },
+      ]);
+    }
+    templatesPane.createEl("hr", { cls: "augment-tab-divider" });
 
     // ELI5 — collapsed by default, visible to all tiers.
     const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
@@ -1087,16 +1093,20 @@ export class AugmentSettingTab extends PluginSettingTab {
     } // end hasUsedTemplate gate
 
     // ── Terminal pane ────────────────────────────────────────
-    this.renderHotkeyBox(terminalPane, [
-      { label: "Open terminal",         commandId: "augment-terminal:open-terminal" },
-      { label: "Terminal manager",      commandId: "augment-terminal:open-terminal-manager" },
-      { label: "Next waiting session",  commandId: "augment-terminal:jump-to-next-waiting-session" },
-    ]);
-
-    terminalPane.createEl("p", {
-      cls: "augment-context-intro",
-      text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette.",
-    });
+    {
+      const termHeader = terminalPane.createDiv({ cls: "augment-tab-header" });
+      const termIntro  = termHeader.createDiv({ cls: "augment-tab-intro" });
+      termIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette.",
+      });
+      this.renderHotkeyBox(termHeader, [
+        { label: "Open terminal",    commandId: "augment-terminal:open-terminal" },
+        { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
+        { label: "Next waiting",     commandId: "augment-terminal:jump-to-next-waiting-session" },
+      ]);
+    }
+    terminalPane.createEl("hr", { cls: "augment-tab-divider" });
 
     // Setup wizard section
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });

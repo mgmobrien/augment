@@ -778,11 +778,31 @@
   padding-left: 18px;
 }
 
+/* ── Standard tab header layout ── */
+.augment-tab-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.augment-tab-intro {
+  flex: 1;
+  min-width: 0;
+}
+
+hr.augment-tab-divider {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 0 0 16px;
+}
+
 /* ── Per-tab hotkey cheat-sheet box ── */
 .augment-hotkey-cheatsheet-wrapper {
-  float: right;
-  margin-left: 16px;
-  margin-bottom: 8px;
+  float: none;
+  margin-left: 0;
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .augment-hotkey-cheatsheet {
