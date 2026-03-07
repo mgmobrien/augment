@@ -1042,6 +1042,26 @@
   text-decoration: underline;
 }
 
+/* ── Get started action hints (tier 0 Overview) ── */
+.augment-overview-hints {
+  margin: 12px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.augment-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-ui-small);
+}
+
+.augment-hint-label {
+  color: var(--text-muted);
+  flex: 1;
+}
+
 /* ── Keyboard shortcuts table (Overview pane) ── */
 .augment-overview-shortcuts {
   margin-top: 20px;

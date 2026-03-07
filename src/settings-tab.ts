@@ -219,10 +219,17 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     // ── Tab nav ──────────────────────────────────────────────
     const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
-    const overviewTab      = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
-    const continuationTab  = tabNav.createEl("button", { cls: "augment-tab", text: "Continuation" });
-    const templatesTab     = tabNav.createEl("button", { cls: "augment-tab", text: "Templates" });
-    const terminalTab      = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
+    const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
+
+    // Continuation + Templates tabs appear after first generation (tier 1).
+    const continuationTab = this.plugin.settings.hasGenerated
+      ? tabNav.createEl("button", { cls: "augment-tab", text: "Continuation" })
+      : null;
+    const templatesTab = this.plugin.settings.hasGenerated
+      ? tabNav.createEl("button", { cls: "augment-tab", text: "Templates" })
+      : null;
+
+    const terminalTab = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
 
     // ── Panes ────────────────────────────────────────────────
     const overviewPane      = containerEl.createEl("div", { cls: "augment-tab-pane" });
@@ -233,11 +240,11 @@ export class AugmentSettingTab extends PluginSettingTab {
     templatesPane.style.display = "none";
     terminalPane.style.display  = "none";
 
-    const tabs = [
-      { btn: overviewTab,      pane: overviewPane      },
-      { btn: continuationTab,  pane: continuationPane  },
-      { btn: templatesTab,     pane: templatesPane },
-      { btn: terminalTab,      pane: terminalPane  },
+    const tabs: { btn: HTMLButtonElement; pane: HTMLElement }[] = [
+      { btn: overviewTab,  pane: overviewPane },
+      ...(continuationTab ? [{ btn: continuationTab, pane: continuationPane }] : []),
+      ...(templatesTab    ? [{ btn: templatesTab,    pane: templatesPane    }] : []),
+      { btn: terminalTab,  pane: terminalPane  },
     ];
 
     tabs.forEach(({ btn, pane }) => {
@@ -263,82 +270,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       targetPane.style.display = "";
     };
 
-    // Onboarding checklist card
-    const statusCard = overviewPane.createEl("div", { cls: "augment-onboarding-card" });
-
-    const renderSetupCard = () => {
-      statusCard.empty();
-      if (this.plugin.settings.setupCardDismissed) return;
-
-      const header = statusCard.createEl("div", { cls: "augment-onboarding-header" });
-      header.createEl("span", { cls: "augment-onboarding-title", text: "Get started" });
-      const dismissBtn = header.createEl("button", { cls: "augment-onboarding-dismiss clickable-icon" });
-      setIcon(dismissBtn, "x");
-      dismissBtn.addEventListener("click", async () => {
-        this.plugin.settings.setupCardDismissed = true;
-        await this.plugin.saveData(this.plugin.settings);
-        statusCard.empty();
-      });
-
-      const steps = [
-        {
-          label: "Add your API key",
-          done: !!this.plugin.settings.apiKey,
-          hotkey: null as string | null,
-          onClick: () => {
-            setTimeout(() => apiKeyInputEl?.focus(), 50);
-          },
-        },
-        {
-          label: "Generate text for the first time",
-          done: this.plugin.settings.hasGenerated,
-          hotkey: process.platform === "darwin" ? "\u2318\u21a9" : "Ctrl+\u21a9",
-          onClick: () => {
-            const msg = process.platform === "darwin" ? "Press \u2318\u21a9 to generate in any note" : "Press Ctrl+Enter to generate in any note";
-            console.log("[Augment]", msg);
-            new Notice(msg);
-          },
-        },
-        {
-          label: "Run a template for the first time",
-          done: this.plugin.settings.hasUsedTemplate,
-          hotkey: process.platform === "darwin" ? "\u2318\u21e7\u21a9" : "Ctrl+Shift+\u21a9",
-          onClick: () => {
-            jumpToTab(templatesTab, templatesPane);
-            setTimeout(() => templateFolderInputEl?.focus(), 50);
-          },
-        },
-        {
-          label: "Set up terminal",
-          done: this.plugin.settings.terminalSetupDone,
-          hotkey: null,
-          onClick: () => {
-            jumpToTab(terminalTab, terminalPane);
-          },
-        },
-      ];
-
-      for (const step of steps) {
-        const row = statusCard.createEl("div", {
-          cls: "augment-onboarding-step" + (step.done ? " is-done" : ""),
-        });
-        row.createEl("span", { cls: "augment-onboarding-check", text: step.done ? "\u2713" : "\u00b7" });
-        const labelEl = row.createEl("a", { cls: "augment-onboarding-label", text: step.label });
-        labelEl.href = "#";
-        labelEl.addEventListener("click", (e) => { e.preventDefault(); step.onClick(); });
-        if (step.hotkey) {
-          row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: step.hotkey });
-        }
-      }
-    };
-
-    renderSetupCard();
-    overviewTab.addEventListener("click", renderSetupCard);
-
-    overviewPane.createEl("p", {
-      cls: "augment-overview-intro",
-      text: `Augment is designed for high-speed, in-editor continuation while also providing a deep integrated terminal system for running agents like Claude Code. Generate inline with ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter \u2014 context comes from your note title, frontmatter, everything above your cursor, and linked notes.`,
-    });
 
     // API key (on Overview pane)
     const apiKeySetting = new Setting(overviewPane)
@@ -421,154 +352,144 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
 
-    const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
-    howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
-    const howSteps = [
-      "Position your cursor where you want output to appear.",
-      `Press ${process.platform === "darwin" ? "Cmd" : "Ctrl"}+Enter (or right-click → Augment: Generate).`,
-      "A loading indicator appears while Claude generates.",
-      "The result is inserted at your cursor in the chosen format.",
-    ];
-    const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
-    for (const step of howSteps) {
-      ol.createEl("li", { text: step });
-    }
-
-    const mockEl = overviewPane.createEl("div", { cls: "augment-overview-mock" });
-    mockEl.createEl("div", { cls: "augment-overview-mock-label", text: "Example output (callout format)" });
-    mockEl.createEl("pre", {
-      cls: "augment-overview-mock-code",
-      text: `> [!ai]+ Claude Haiku 4.5\n>\n> Your generated text appears here,\n> inline in the document.`,
-    });
-
-    const linksEl = overviewPane.createEl("div", { cls: "augment-overview-links" });
-    linksEl.createEl("div", { cls: "augment-overview-links-title", text: "Quick start" });
-    const linkList = linksEl.createEl("ul", { cls: "augment-overview-link-list" });
-    const items = [
-      { label: "Configure output format", tab: continuationTab, pane: continuationPane },
-      { label: "Manage templates",        tab: templatesTab,    pane: templatesPane    },
-    ];
-    for (const { label, tab, pane } of items) {
-      const li = linkList.createEl("li");
-      const a = li.createEl("a", { cls: "augment-overview-link", text: label });
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        jumpToTab(tab, pane);
-      });
-    }
-
-    // ── Keyboard shortcuts (Overview pane) ───────────────────
+    // ── Get started hints (tier 0) ───────────────────────────
     const isMac = process.platform === "darwin";
-
-    interface AugmentCmd { id: string; label: string; defaultKeys: { modifiers: string[]; key: string }[]; }
-    const AUGMENT_CMDS: AugmentCmd[] = [
-      { id: "augment-generate",               label: "Generate",                     defaultKeys: [{ modifiers: ["Mod"],           key: "Enter" }] },
-      { id: "augment-generate-from-template", label: "Generate from template",       defaultKeys: [{ modifiers: ["Mod", "Shift"],  key: "Enter" }] },
-      { id: "open-terminal",                  label: "Open terminal (default location)",     defaultKeys: [{ modifiers: ["Ctrl"], key: "t" }] },
-      { id: "open-terminal-tab",             label: "Open terminal in new tab",            defaultKeys: [] },
-      { id: "open-terminal-right",           label: "Open terminal to the right",          defaultKeys: [] },
-      { id: "open-terminal-down",            label: "Open terminal below",                 defaultKeys: [] },
-      { id: "open-terminal-sidebar-right-top",    label: "Open terminal in right sidebar (top)",    defaultKeys: [] },
-      { id: "open-terminal-sidebar-right-bottom", label: "Open terminal in right sidebar (bottom)", defaultKeys: [] },
-      { id: "open-terminal-sidebar-left-top",     label: "Open terminal in left sidebar (top)",     defaultKeys: [] },
-      { id: "open-terminal-sidebar-left-bottom",  label: "Open terminal in left sidebar (bottom)",  defaultKeys: [] },
-      { id: "open-terminal-manager",         label: "Show terminal manager",               defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
-      { id: "switch-terminal",               label: "Switch terminal",                     defaultKeys: [] },
-      { id: "rename-terminal",               label: "Rename terminal",                     defaultKeys: [] },
-      { id: "augment-view-context",           label: "Open context inspector",       defaultKeys: [] },
-      { id: "jump-to-next-waiting-session",   label: "Jump to next waiting session", defaultKeys: [] },
-      { id: "augment-open-settings",          label: "Open settings",                defaultKeys: [] },
-    ];
-
-    const renderHotkeyStr = (hk: { modifiers: string[]; key: string }): string =>
-      formatHotkeyStr(hk.modifiers, hk.key, isMac);
-
-    const hm = (this.app as any).hotkeyManager;
-    const customKeys: Record<string, { modifiers: string[]; key: string }[]> = hm?.customKeys ?? {};
-
-    const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
-    shortcutsEl.createEl("div", { cls: "augment-overview-how-title", text: "Keyboard shortcuts" });
-
-    const kbTable = shortcutsEl.createEl("table", { cls: "augment-var-table" });
-    const kbTbody = kbTable.createEl("tbody");
-
-    for (const cmd of AUGMENT_CMDS) {
-      const fullId = "augment-terminal:" + cmd.id;
-      // User customizations (including cleared bindings) override plugin defaults.
-      const effectiveKeys = fullId in customKeys ? customKeys[fullId] : cmd.defaultKeys;
-
-      const tr = kbTbody.createEl("tr");
-      tr.createEl("td", { cls: "augment-shortcuts-label", text: cmd.label });
-      const keyTd = tr.createEl("td", { cls: "augment-shortcuts-keys" });
-      if (effectiveKeys.length > 0) {
-        for (const hk of effectiveKeys) {
-          keyTd.createEl("kbd", { cls: "augment-onboarding-hotkey", text: renderHotkeyStr(hk) });
-        }
-      } else {
-        keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
+    {
+      const hintsEl = overviewPane.createEl("div", { cls: "augment-overview-hints" });
+      const hintRows: { label: string; shortcut: string }[] = [
+        { label: "Generate text", shortcut: isMac ? "\u2318+\u21a9" : "Ctrl+\u21a9" },
+        { label: "Open terminal", shortcut: "Ctrl+T" },
+      ];
+      for (const h of hintRows) {
+        const row = hintsEl.createEl("div", { cls: "augment-hint-row" });
+        row.createEl("span", { cls: "augment-hint-label", text: h.label });
+        row.createEl("kbd", { cls: "augment-onboarding-hotkey", text: h.shortcut });
       }
     }
 
-    const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
-    const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
-    customizeLink.href = "#";
-    customizeLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      (this.app as any).setting.openTabById("hotkeys");
-    });
+    // ── Advanced sections (shown only when showAdvancedSettings) ─────────────
+    if (this.plugin.settings.showAdvancedSettings) {
+      // How it works
+      const howEl = overviewPane.createEl("div", { cls: "augment-overview-how" });
+      howEl.createEl("div", { cls: "augment-overview-how-title", text: "How it works" });
+      const howSteps = [
+        "Position your cursor where you want output to appear.",
+        `Press ${isMac ? "Cmd" : "Ctrl"}+Enter (or right-click \u2192 Augment: Generate).`,
+        "A loading indicator appears while Claude generates.",
+        "The result is inserted at your cursor in the chosen format.",
+      ];
+      const ol = howEl.createEl("ol", { cls: "augment-overview-steps" });
+      for (const step of howSteps) {
+        ol.createEl("li", { text: step });
+      }
 
-    // ── Ribbon icon picker ─────────────────────────────────────
-    const RIBBON_ICONS: Record<string, string> = {
-      "augment-pyramid": "Augment pyramid (default)",
-      "wand-2": "Wand",
-      "sparkles": "Sparkles",
-      "brain": "Brain",
-      "zap": "Zap",
-      "bot": "Bot",
-      "pencil": "Pencil",
-      "type": "Type",
-      "message-square": "Message square",
-      "cpu": "CPU",
-      "code-2": "Code",
-      "terminal": "Terminal",
-    };
+      // Full keyboard shortcuts table
+      interface AugmentCmd { id: string; label: string; defaultKeys: { modifiers: string[]; key: string }[]; }
+      const AUGMENT_CMDS: AugmentCmd[] = [
+        { id: "augment-generate",               label: "Generate",                              defaultKeys: [{ modifiers: ["Mod"],           key: "Enter" }] },
+        { id: "augment-generate-from-template", label: "Generate from template",                defaultKeys: [{ modifiers: ["Mod", "Shift"],  key: "Enter" }] },
+        { id: "open-terminal",                  label: "Open terminal (default location)",      defaultKeys: [{ modifiers: ["Ctrl"], key: "t" }] },
+        { id: "open-terminal-tab",              label: "Open terminal in new tab",              defaultKeys: [] },
+        { id: "open-terminal-right",            label: "Open terminal to the right",            defaultKeys: [] },
+        { id: "open-terminal-down",             label: "Open terminal below",                   defaultKeys: [] },
+        { id: "open-terminal-sidebar-right-top",    label: "Open terminal in right sidebar (top)",    defaultKeys: [] },
+        { id: "open-terminal-sidebar-right-bottom", label: "Open terminal in right sidebar (bottom)", defaultKeys: [] },
+        { id: "open-terminal-sidebar-left-top",     label: "Open terminal in left sidebar (top)",     defaultKeys: [] },
+        { id: "open-terminal-sidebar-left-bottom",  label: "Open terminal in left sidebar (bottom)",  defaultKeys: [] },
+        { id: "open-terminal-manager",          label: "Show terminal manager",                 defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
+        { id: "switch-terminal",                label: "Switch terminal",                       defaultKeys: [] },
+        { id: "rename-terminal",                label: "Rename terminal",                       defaultKeys: [] },
+        { id: "augment-view-context",           label: "Open context inspector",                defaultKeys: [] },
+        { id: "jump-to-next-waiting-session",   label: "Jump to next waiting session",          defaultKeys: [] },
+        { id: "augment-open-settings",          label: "Open settings",                         defaultKeys: [] },
+      ];
 
-    const ribbonIconSetting = new Setting(overviewPane)
-      .setName("Generate ribbon icon")
-      .setDesc("Choose the icon shown on the Generate ribbon button. Obsidian's full Lucide icon set is available.")
-      .addDropdown((dd) => {
-        for (const [id, label] of Object.entries(RIBBON_ICONS)) {
-          dd.addOption(id, label);
+      const renderHotkeyStr = (hk: { modifiers: string[]; key: string }): string =>
+        formatHotkeyStr(hk.modifiers, hk.key, isMac);
+
+      const hm = (this.app as any).hotkeyManager;
+      const customKeys: Record<string, { modifiers: string[]; key: string }[]> = hm?.customKeys ?? {};
+
+      const shortcutsEl = overviewPane.createEl("div", { cls: "augment-overview-shortcuts" });
+      shortcutsEl.createEl("div", { cls: "augment-overview-how-title", text: "Keyboard shortcuts" });
+
+      const kbTable = shortcutsEl.createEl("table", { cls: "augment-var-table" });
+      const kbTbody = kbTable.createEl("tbody");
+
+      for (const cmd of AUGMENT_CMDS) {
+        const fullId = "augment-terminal:" + cmd.id;
+        const effectiveKeys = fullId in customKeys ? customKeys[fullId] : cmd.defaultKeys;
+        const tr = kbTbody.createEl("tr");
+        tr.createEl("td", { cls: "augment-shortcuts-label", text: cmd.label });
+        const keyTd = tr.createEl("td", { cls: "augment-shortcuts-keys" });
+        if (effectiveKeys.length > 0) {
+          for (const hk of effectiveKeys) {
+            keyTd.createEl("kbd", { cls: "augment-onboarding-hotkey", text: renderHotkeyStr(hk) });
+          }
+        } else {
+          keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
         }
-        dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
-        dd.onChange(async (val) => {
-          this.plugin.settings.ribbonIcon = val;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.applyRibbonIcon();
-          // Update preview
-          if (previewEl) setIcon(previewEl, val);
-        });
+      }
+
+      const customizeEl = shortcutsEl.createEl("div", { cls: "augment-shortcuts-customize" });
+      const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
+      customizeLink.href = "#";
+      customizeLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        (this.app as any).setting.openTabById("hotkeys");
       });
 
-    // Icon preview
-    const previewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
-    previewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    setIcon(previewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+      // Ribbon icon picker (advanced)
+      const RIBBON_ICONS: Record<string, string> = {
+        "augment-pyramid": "Augment pyramid (default)",
+        "wand-2": "Wand",
+        "sparkles": "Sparkles",
+        "brain": "Brain",
+        "zap": "Zap",
+        "bot": "Bot",
+        "pencil": "Pencil",
+        "type": "Type",
+        "message-square": "Message square",
+        "cpu": "CPU",
+        "code-2": "Code",
+        "terminal": "Terminal",
+      };
 
-    // ── Colored ribbon icon ────────────────────────────────────
-    new Setting(overviewPane)
-      .setName("Colored Generate icon")
-      .setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.")
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
-          this.plugin.settings.coloredRibbonIcon = val;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.applyRibbonColoredClass();
+      const ribbonIconSetting = new Setting(overviewPane)
+        .setName("Generate ribbon icon")
+        .setDesc("Choose the icon shown on the Generate ribbon button. Obsidian's full Lucide icon set is available.")
+        .addDropdown((dd) => {
+          for (const [id, label] of Object.entries(RIBBON_ICONS)) {
+            dd.addOption(id, label);
+          }
+          dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
+          dd.onChange(async (val) => {
+            this.plugin.settings.ribbonIcon = val;
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyRibbonIcon();
+            if (previewEl) setIcon(previewEl, val);
+          });
         });
-      });
 
-    // ── API usage ────────────────────────────────────────────
-    {
+      const previewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
+      previewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
+      setIcon(previewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+
+      // Colored ribbon icon (advanced)
+      new Setting(overviewPane)
+        .setName("Colored Generate icon")
+        .setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.")
+        .addToggle((toggle) => {
+          toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
+            this.plugin.settings.coloredRibbonIcon = val;
+            await this.plugin.saveData(this.plugin.settings);
+            this.plugin.applyRibbonColoredClass();
+          });
+        });
+    }
+
+    // ── API usage (visible after first generation) ────────────
+    if (this.plugin.settings.hasGenerated) {
       const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
 
       const header = spendSection.createDiv({ cls: "augment-spend-header" });
@@ -614,6 +535,18 @@ export class AugmentSettingTab extends PluginSettingTab {
       infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
       infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
     }
+
+    // ── Advanced toggle (always visible, bottom of Overview) ─
+    new Setting(overviewPane)
+      .setName("Show advanced settings")
+      .setDesc("Reveal additional settings across all tabs.")
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.showAdvancedSettings).onChange(async (val) => {
+          this.plugin.settings.showAdvancedSettings = val;
+          await this.plugin.saveData(this.plugin.settings);
+          this.display();
+        });
+      });
 
     // ── Continuation pane ────────────────────────────────────
     this.renderHotkeyBox(continuationPane, [
@@ -735,25 +668,6 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
     addInfoTooltip(linkedNotesSetting.descEl, "Outgoing wikilinks only — notes the current note links to, not notes that link back to it. Frontmatter (tags, aliases, custom properties) is included; note body is not. Use {{linked_notes_full}} in a template if you need the full body content.");
 
-    const contextLimitSetting = new Setting(continuationPane)
-      .setName("Context limit")
-      .setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.")
-      .addText((text) => {
-        text.inputEl.type = "number";
-        text.inputEl.min = "1";
-        text
-          .setPlaceholder("2000")
-          .setValue(String(this.plugin.settings.maxContextTokens))
-          .onChange(async (value) => {
-            const n = parseInt(value, 10);
-            if (!isNaN(n) && n > 0) {
-              this.plugin.settings.maxContextTokens = n;
-              await this.plugin.saveData(this.plugin.settings);
-            }
-          });
-      });
-    addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
-
     new Setting(continuationPane)
       .setName("Show generation notice")
       .setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.")
@@ -766,82 +680,100 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
-    const systemPromptSetting = new Setting(continuationPane)
-      .setName("System prompt")
-      .setDesc("Override the default system prompt. Leave blank to use Augment's default.")
-      .addTextArea((text) => {
-        text
-          .setPlaceholder("You are assisting with writing in an Obsidian vault.")
-          .setValue(this.plugin.settings.systemPrompt)
-          .onChange(async (value) => {
-            this.plugin.settings.systemPrompt = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-        text.inputEl.rows = 5;
-        text.inputEl.style.width = "100%";
-        text.inputEl.style.fontFamily = "var(--font-monospace)";
+    if (this.plugin.settings.showAdvancedSettings) {
+      const contextLimitSetting = new Setting(continuationPane)
+        .setName("Context limit")
+        .setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.")
+        .addText((text) => {
+          text.inputEl.type = "number";
+          text.inputEl.min = "1";
+          text
+            .setPlaceholder("2000")
+            .setValue(String(this.plugin.settings.maxContextTokens))
+            .onChange(async (value) => {
+              const n = parseInt(value, 10);
+              if (!isNaN(n) && n > 0) {
+                this.plugin.settings.maxContextTokens = n;
+                await this.plugin.saveData(this.plugin.settings);
+              }
+            });
+        });
+      addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
+
+      const systemPromptSetting = new Setting(continuationPane)
+        .setName("System prompt")
+        .setDesc("Override the default system prompt. Leave blank to use Augment's default.")
+        .addTextArea((text) => {
+          text
+            .setPlaceholder("You are assisting with writing in an Obsidian vault.")
+            .setValue(this.plugin.settings.systemPrompt)
+            .onChange(async (value) => {
+              this.plugin.settings.systemPrompt = value;
+              await this.plugin.saveData(this.plugin.settings);
+            });
+          text.inputEl.rows = 5;
+          text.inputEl.style.width = "100%";
+          text.inputEl.style.fontFamily = "var(--font-monospace)";
+        });
+      addInfoTooltip(systemPromptSetting.descEl, "Augment's default prompt tells Claude your note title, frontmatter, and writing context. Override here to change how Claude approaches generation across this entire vault — useful for setting a persona, language, or domain focus.");
+
+      const inspectorBtn = continuationPane.createEl("button", {
+        cls: "augment-ctx-preview-btn",
+        text: "Open context inspector",
       });
-    addInfoTooltip(systemPromptSetting.descEl, "Augment's default prompt tells Claude your note title, frontmatter, and writing context. Override here to change how Claude approaches generation across this entire vault — useful for setting a persona, language, or domain focus.");
+      inspectorBtn.addEventListener("click", () => {
+        const leaf = this.plugin.app.workspace.getRightLeaf(false);
+        if (leaf) {
+          leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+          this.plugin.app.workspace.revealLeaf(leaf);
+        }
+      });
 
-    const inspectorBtn = continuationPane.createEl("button", {
-      cls: "augment-ctx-preview-btn",
-      text: "Open context inspector",
-    });
-    inspectorBtn.addEventListener("click", () => {
-      const leaf = this.plugin.app.workspace.getRightLeaf(false);
-      if (leaf) {
-        leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
-        this.plugin.app.workspace.revealLeaf(leaf);
-      }
-    });
+      // ── Hotkey conflict ──
+      {
+        const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
 
-    // ── Hotkey conflict ──
-    // The pill box at the top of this pane already shows both hotkeys.
-    // This section exists solely to surface and resolve the Cmd+Enter conflict
-    // with Obsidian's built-in "Open link in new tab" command.
-    {
-      const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
+        const openHotkeysPage = () => {
+          (this.app as any).setting.open();
+          (this.app as any).setting.openTabById("hotkeys");
+        };
 
-      const openHotkeysPage = () => {
-        (this.app as any).setting.open();
-        (this.app as any).setting.openTabById("hotkeys");
-      };
+        if (this.plugin.settings.clearedLinkHotkey) {
+          const desc = document.createDocumentFragment();
+          desc.appendText("Displaced: Open link in new tab.  ");
+          const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
+          link.style.cursor = "pointer";
+          link.addEventListener("click", () => openHotkeysPage());
 
-      if (this.plugin.settings.clearedLinkHotkey) {
-        const desc = document.createDocumentFragment();
-        desc.appendText("Displaced: Open link in new tab.  ");
-        const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
-        link.style.cursor = "pointer";
-        link.addEventListener("click", () => openHotkeysPage());
+          new Setting(continuationPane)
+            .setName(`Generate: ${generateHotkey}`)
+            .setDesc(desc)
+            .addButton((btn) => {
+              btn.setButtonText("Restore original")
+                .onClick(async () => {
+                  await this.plugin.restoreObsidianLinkHotkey();
+                  this.display();
+                });
+            });
+        } else {
+          const desc2 = document.createDocumentFragment();
+          desc2.appendText(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
+          const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
+          link2.style.cursor = "pointer";
+          link2.addEventListener("click", () => openHotkeysPage());
 
-        new Setting(continuationPane)
-          .setName(`Generate: ${generateHotkey}`)
-          .setDesc(desc)
-          .addButton((btn) => {
-            btn.setButtonText("Restore original")
-              .onClick(async () => {
-                await this.plugin.restoreObsidianLinkHotkey();
-                this.display();
-              });
-          });
-      } else {
-        const desc2 = document.createDocumentFragment();
-        desc2.appendText(`Obsidian\u2019s \u201cOpen link in new tab\u201d uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
-        const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
-        link2.style.cursor = "pointer";
-        link2.addEventListener("click", () => openHotkeysPage());
-
-        new Setting(continuationPane)
-          .setName(`${generateHotkey} conflict`)
-          .setDesc(desc2)
-          .addButton((btn) => {
-            btn.setButtonText(`Claim ${generateHotkey}`)
-              .setCta()
-              .onClick(async () => {
-                await this.plugin.clearObsidianLinkHotkey();
-                this.display();
-              });
-          });
+          new Setting(continuationPane)
+            .setName(`${generateHotkey} conflict`)
+            .setDesc(desc2)
+            .addButton((btn) => {
+              btn.setButtonText(`Claim ${generateHotkey}`)
+                .setCta()
+                .onClick(async () => {
+                  await this.plugin.clearObsidianLinkHotkey();
+                  this.display();
+                });
+            });
+        }
       }
     }
 
@@ -976,45 +908,6 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     renderTemplateList();
 
-    // "Generate templates from folder" button.
-    const genTplSetting = new Setting(templatesPane)
-      .setName("Generate templates from folder")
-      .setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.")
-      .addButton((btn) => {
-        btn.setButtonText("Choose folder\u2026").onClick(async () => {
-          if (!this.plugin.settings.apiKey) {
-            new Notice("Add an API key in the Overview tab first");
-            return;
-          }
-          runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
-        });
-      });
-
-    // Info icon — warns that this feature calls the API and incurs charges.
-    genTplSetting.descEl.appendChild(
-      createFragment((frag) => {
-        frag.appendText("\u00a0");
-        const infoIcon = frag.createEl("span", {
-          cls: "augment-api-key-info",
-          text: "\u24d8",
-        });
-        let tip: HTMLElement | null = null;
-        infoIcon.addEventListener("mouseenter", () => {
-          tip = document.createElement("div");
-          tip.className = "augment-api-key-tip";
-          tip.textContent = "This feature calls Claude to analyse your notes and write templates. It uses your API key and will incur charges. Larger folders or complex notes cost more.";
-          document.body.appendChild(tip);
-          const rect = infoIcon.getBoundingClientRect();
-          tip.style.top = `${rect.bottom + 6}px`;
-          tip.style.left = `${rect.left}px`;
-        });
-        infoIcon.addEventListener("mouseleave", () => {
-          tip?.remove();
-          tip = null;
-        });
-      })
-    );
-
     // "+ New template" button.
     const newTemplateBtn = templatesPane.createEl("button", {
       cls: "augment-template-new-btn",
@@ -1038,8 +931,49 @@ export class AugmentSettingTab extends PluginSettingTab {
       }
     });
 
-    // Reference section — variables table + format guide.
-    templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
+    // Reference section and "Generate templates from folder" — unlocked after first template use (tier 2).
+    if (this.plugin.settings.hasUsedTemplate) {
+      // "Generate templates from folder" button.
+      const genTplSetting = new Setting(templatesPane)
+        .setName("Generate templates from folder")
+        .setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.")
+        .addButton((btn) => {
+          btn.setButtonText("Choose folder\u2026").onClick(async () => {
+            if (!this.plugin.settings.apiKey) {
+              new Notice("Add an API key in the Overview tab first");
+              return;
+            }
+            runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
+          });
+        });
+
+      // Info icon — warns that this feature calls the API and incurs charges.
+      genTplSetting.descEl.appendChild(
+        createFragment((frag) => {
+          frag.appendText("\u00a0");
+          const infoIcon = frag.createEl("span", {
+            cls: "augment-api-key-info",
+            text: "\u24d8",
+          });
+          let tip: HTMLElement | null = null;
+          infoIcon.addEventListener("mouseenter", () => {
+            tip = document.createElement("div");
+            tip.className = "augment-api-key-tip";
+            tip.textContent = "This feature calls Claude to analyse your notes and write templates. It uses your API key and will incur charges. Larger folders or complex notes cost more.";
+            document.body.appendChild(tip);
+            const rect = infoIcon.getBoundingClientRect();
+            tip.style.top = `${rect.bottom + 6}px`;
+            tip.style.left = `${rect.left}px`;
+          });
+          infoIcon.addEventListener("mouseleave", () => {
+            tip?.remove();
+            tip = null;
+          });
+        })
+      );
+
+      // Reference section — variables table + format guide.
+      templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
 
     const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
     varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
@@ -1111,6 +1045,7 @@ export class AugmentSettingTab extends PluginSettingTab {
     });
     hbsLink.target = "_blank";
     hbsLink.rel = "noopener";
+    } // end hasUsedTemplate gate
 
     // ── Terminal pane ────────────────────────────────────────
     this.renderHotkeyBox(terminalPane, [
@@ -1228,7 +1163,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       if (allReady && !this.plugin.settings.terminalSetupDone) {
         this.plugin.settings.terminalSetupDone = true;
         void this.plugin.saveData(this.plugin.settings);
-        renderSetupCard();
+        this.plugin.registerTieredCommands();
+        this.plugin.addTerminalRibbonIfNeeded();
       }
 
       // Footer
@@ -1252,69 +1188,72 @@ export class AugmentSettingTab extends PluginSettingTab {
 
     void renderStatusCard();
 
-    // ── Default terminal location ────────────────────────────
-    const terminalLocationSetting = new Setting(terminalPane)
-      .setName("Default terminal location")
-      .setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.")
-      .addDropdown((drop) => {
-        drop
-          .addOption("tab", "New tab")
-          .addOption("split-right", "Split right")
-          .addOption("split-down", "Split below")
-          .addOption("sidebar-right-top", "Right sidebar (top)")
-          .addOption("sidebar-right-bottom", "Right sidebar (bottom)")
-          .addOption("sidebar-left-top", "Left sidebar (top)")
-          .addOption("sidebar-left-bottom", "Left sidebar (bottom)")
-          .setValue(this.plugin.settings.defaultTerminalLocation ?? "tab")
-          .onChange(async (value) => {
-            this.plugin.settings.defaultTerminalLocation = value as TerminalOpenLocation;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
-    addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
+    // Location + other projects + advanced — visible only after terminal setup (tier 3).
+    if (this.plugin.settings.terminalSetupDone) {
+      // ── Default terminal location ────────────────────────────
+      const terminalLocationSetting = new Setting(terminalPane)
+        .setName("Default terminal location")
+        .setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.")
+        .addDropdown((drop) => {
+          drop
+            .addOption("tab", "New tab")
+            .addOption("split-right", "Split right")
+            .addOption("split-down", "Split below")
+            .addOption("sidebar-right-top", "Right sidebar (top)")
+            .addOption("sidebar-right-bottom", "Right sidebar (bottom)")
+            .addOption("sidebar-left-top", "Left sidebar (top)")
+            .addOption("sidebar-left-bottom", "Left sidebar (bottom)")
+            .setValue(this.plugin.settings.defaultTerminalLocation ?? "tab")
+            .onChange(async (value) => {
+              this.plugin.settings.defaultTerminalLocation = value as TerminalOpenLocation;
+              await this.plugin.saveData(this.plugin.settings);
+            });
+        });
+      addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
 
-    new Setting(terminalPane)
-      .setName("Show other projects")
-      .setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in — this reads that index. Your filesystem is not scanned directly.")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.showOtherProjects)
-          .onChange(async (value) => {
-            this.plugin.settings.showOtherProjects = value;
-            await this.plugin.saveData(this.plugin.settings);
-            (this.plugin.app.workspace as any).trigger("augment-terminal:changed");
-          });
-      });
+      new Setting(terminalPane)
+        .setName("Show other projects")
+        .setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in — this reads that index. Your filesystem is not scanned directly.")
+        .addToggle((toggle) => {
+          toggle
+            .setValue(this.plugin.settings.showOtherProjects)
+            .onChange(async (value) => {
+              this.plugin.settings.showOtherProjects = value;
+              await this.plugin.saveData(this.plugin.settings);
+              (this.plugin.app.workspace as any).trigger("augment-terminal:changed");
+            });
+        });
 
-    // ── Advanced (collapsed by default) ─────────────────────
-    const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
-    advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
+      // ── Advanced (collapsed by default) ─────────────────────
+      const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
+      advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
 
-    new Setting(advancedDetails)
-      .setName("Shell")
-      .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
-      .addText((text) => {
-        text
-          .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
-          .setValue(this.plugin.settings.shellPath)
-          .onChange(async (value) => {
-            this.plugin.settings.shellPath = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
+      new Setting(advancedDetails)
+        .setName("Shell")
+        .setDesc("Shell to launch in new terminals. Leave blank to use the system default.")
+        .addText((text) => {
+          text
+            .setPlaceholder(process.platform === "darwin" ? "/bin/zsh" : "$SHELL")
+            .setValue(this.plugin.settings.shellPath)
+            .onChange(async (value) => {
+              this.plugin.settings.shellPath = value;
+              await this.plugin.saveData(this.plugin.settings);
+            });
+        });
 
-    new Setting(advancedDetails)
-      .setName("Default working directory")
-      .setDesc("Starting directory for new terminals. Leave blank to use the vault root.")
-      .addText((text) => {
-        text
-          .setPlaceholder("(vault root)")
-          .setValue(this.plugin.settings.defaultWorkingDirectory)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultWorkingDirectory = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-      });
+      new Setting(advancedDetails)
+        .setName("Default working directory")
+        .setDesc("Starting directory for new terminals. Leave blank to use the vault root.")
+        .addText((text) => {
+          text
+            .setPlaceholder("(vault root)")
+            .setValue(this.plugin.settings.defaultWorkingDirectory)
+            .onChange(async (value) => {
+              this.plugin.settings.defaultWorkingDirectory = value;
+              await this.plugin.saveData(this.plugin.settings);
+            });
+        });
+    }
 
     // Filesystem rename notice
     terminalPane.createEl("p", {
