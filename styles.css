@@ -1561,6 +1561,59 @@
   overflow-x: auto;
 }
 
+/* ── Ref blocks (Variables, Template format) ── */
+.augment-ref-block {
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 10px 12px;
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+
+/* ── Frontmatter fields table ── */
+.augment-frontmatter-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-ui-smaller);
+}
+
+.augment-frontmatter-table td {
+  padding: 4px 0;
+  vertical-align: top;
+}
+
+.augment-frontmatter-table td:first-child {
+  font-family: var(--font-monospace);
+  color: var(--text-normal);
+  width: 110px;
+  padding-right: 12px;
+  white-space: nowrap;
+}
+
+.augment-frontmatter-table td:last-child {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── ELI5 collapsible ── */
+.augment-eli5-details {
+  margin-bottom: 16px;
+  margin-top: 8px;
+}
+
+.augment-eli5-body .augment-format-example {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.augment-eli5-footer {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 /* ── Handlebars syntax guide (collapsible) ── */
 .augment-hbs-details {
   margin-top: 16px;

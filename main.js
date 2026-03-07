@@ -17849,6 +17849,23 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       cls: "augment-context-intro",
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
     });
+    const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
+    eli5Details.createEl("summary", { cls: "augment-hbs-summary", text: "What is a template?" });
+    const eli5Body = eli5Details.createDiv({ cls: "augment-hbs-body augment-eli5-body" });
+    eli5Body.createEl("p", {
+      cls: "augment-hbs-intro",
+      text: "A template is a Markdown file with instructions for Claude and variables that pull in content from your note."
+    });
+    eli5Body.createEl("pre", {
+      cls: "augment-format-example",
+      text: "---\nname: Meeting summary\ndescription: Summarises a note into action items\n---\nExtract the key action items from this note:\n\n{{note_content}}"
+    });
+    const eli5Footer = eli5Body.createEl("p", { cls: "augment-eli5-footer" });
+    eli5Footer.appendText("When you run a template, Augment fills in the variables and sends the instructions to Claude. Use ");
+    eli5Footer.createEl("strong", { text: "Generate template" });
+    eli5Footer.appendText(" below to create one with AI, or ");
+    eli5Footer.createEl("strong", { text: "+ New template" });
+    eli5Footer.appendText(" to start from scratch.");
     const templateFolderSetting = new import_obsidian7.Setting(templatesPane).setName("Template folder").setDesc("Vault path to the folder containing .md prompt templates.").addText((text) => {
       templateFolderInputEl = text.inputEl;
       text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
@@ -17992,8 +18009,8 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         })
       );
       templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
-      const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
-      varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+      templatesPane.createDiv({ cls: "augment-section-label", text: "Variables" });
+      const varRef = templatesPane.createDiv({ cls: "augment-ref-block augment-variable-ref" });
       const varTable = varRef.createEl("table", { cls: "augment-var-table" });
       const varTbody = varTable.createEl("tbody");
       const varRows = [
@@ -18011,14 +18028,28 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
         td1.createEl("code", { text: v.name });
         tr.createEl("td", { text: v.desc });
       }
-      const formatGuide = templatesPane.createDiv({ cls: "augment-template-format" });
-      formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
+      templatesPane.createDiv({ cls: "augment-section-label", style: "margin-top: 16px;", text: "Template format" });
+      const formatGuide = templatesPane.createDiv({ cls: "augment-ref-block augment-template-format" });
+      formatGuide.createDiv({ cls: "augment-section-label", style: "margin-bottom: 6px;", text: "Frontmatter fields" });
+      const fmTable = formatGuide.createEl("table", { cls: "augment-frontmatter-table" });
+      const fmTbody = fmTable.createEl("tbody");
+      const fmRows = [
+        { key: "name", desc: "Required. Shown in the template picker." },
+        { key: "description", desc: "Optional. Shown below the name in the picker." },
+        { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Overview tab \u2192 Advanced settings)." }
+      ];
+      for (const r of fmRows) {
+        const tr = fmTbody.createEl("tr");
+        tr.createEl("td", { text: r.key });
+        tr.createEl("td", { text: r.desc });
+      }
+      formatGuide.createDiv({ cls: "augment-section-label", style: "margin-top: 12px; margin-bottom: 6px;", text: "Template body" });
       formatGuide.createEl("pre", {
         cls: "augment-format-example",
-        text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}"
+        text: "Summarise the following note and its linked notes as bullet points.\n\n{{note_content}}\n\n{% if linked_notes %}Linked context:\n{{ linked_notes }}{% endif %}"
       });
       const hbsDetails = templatesPane.createEl("details", { cls: "augment-hbs-details" });
-      hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Template syntax (LiquidJS)" });
+      hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Syntax reference (LiquidJS)" });
       const hbsBody = hbsDetails.createDiv({ cls: "augment-hbs-body" });
       hbsBody.createEl("p", {
         cls: "augment-hbs-intro",
@@ -22376,8 +22407,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:21:50.522Z";
-    this.gitSha = "e7314b8";
+    this.buildId = "2026-03-07T02:24:10.035Z";
+    this.gitSha = "7315f8b";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22432,8 +22463,9 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
   refreshStatusBar() {
-    var _a2;
+    var _a2, _b;
     (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.removeClass("augment-ribbon-generating");
+    (_b = this.ribbonGenerateEl) == null ? void 0 : _b.removeClass("is-generating");
     if (!this.statusBarEl) return;
     if (!this.settings.apiKey) {
       this.statusBarEl.setText("Augment: API key needed");
@@ -22456,7 +22488,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     new import_obsidian12.Notice("Augment: generation cancelled");
   }
   showStatusBarGenerating() {
-    var _a2;
+    var _a2, _b;
     if (this.statusBarEl) {
       this.statusBarEl.empty();
       const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
@@ -22466,6 +22498,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       this.statusBarEl.createEl("span", { text: " Generating\u2026" });
     }
     (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.addClass("augment-ribbon-generating");
+    (_b = this.ribbonGenerateEl) == null ? void 0 : _b.addClass("is-generating");
   }
   triggerGenerate(editor) {
     const cursor = editor.getCursor();
@@ -23081,6 +23114,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       }
       this.triggerGenerate(view.editor);
     });
+    this.ribbonGenerateEl.addClass("augment-ribbon-generate");
     this.applyRibbonColoredClass();
     this.addCommand({
       id: "open-terminal",

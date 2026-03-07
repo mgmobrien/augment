@@ -803,6 +803,25 @@ export class AugmentSettingTab extends PluginSettingTab {
       text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note.",
     });
 
+    // ELI5 — collapsed by default, visible to all tiers.
+    const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
+    eli5Details.createEl("summary", { cls: "augment-hbs-summary", text: "What is a template?" });
+    const eli5Body = eli5Details.createDiv({ cls: "augment-hbs-body augment-eli5-body" });
+    eli5Body.createEl("p", {
+      cls: "augment-hbs-intro",
+      text: "A template is a Markdown file with instructions for Claude and variables that pull in content from your note.",
+    });
+    eli5Body.createEl("pre", {
+      cls: "augment-format-example",
+      text: "---\nname: Meeting summary\ndescription: Summarises a note into action items\n---\nExtract the key action items from this note:\n\n{{note_content}}",
+    });
+    const eli5Footer = eli5Body.createEl("p", { cls: "augment-eli5-footer" });
+    eli5Footer.appendText("When you run a template, Augment fills in the variables and sends the instructions to Claude. Use ");
+    eli5Footer.createEl("strong", { text: "Generate template" });
+    eli5Footer.appendText(" below to create one with AI, or ");
+    eli5Footer.createEl("strong", { text: "+ New template" });
+    eli5Footer.appendText(" to start from scratch.");
+
     // Template folder setting.
     const templateFolderSetting = new Setting(templatesPane)
       .setName("Template folder")
@@ -991,8 +1010,9 @@ export class AugmentSettingTab extends PluginSettingTab {
       // Reference section — variables table + format guide.
       templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
 
-    const varRef = templatesPane.createDiv({ cls: "augment-variable-ref" });
-    varRef.createDiv({ cls: "augment-section-label", text: "Variables" });
+    // Variables box.
+    templatesPane.createDiv({ cls: "augment-section-label", text: "Variables" });
+    const varRef = templatesPane.createDiv({ cls: "augment-ref-block augment-variable-ref" });
     const varTable = varRef.createEl("table", { cls: "augment-var-table" });
     const varTbody = varTable.createEl("tbody");
     const varRows = [
@@ -1011,16 +1031,31 @@ export class AugmentSettingTab extends PluginSettingTab {
       tr.createEl("td", { text: v.desc });
     }
 
-    const formatGuide = templatesPane.createDiv({ cls: "augment-template-format" });
-    formatGuide.createDiv({ cls: "augment-section-label", text: "Template format" });
+    // Template format box — frontmatter fields table + body example.
+    templatesPane.createDiv({ cls: "augment-section-label", style: "margin-top: 16px;", text: "Template format" });
+    const formatGuide = templatesPane.createDiv({ cls: "augment-ref-block augment-template-format" });
+    formatGuide.createDiv({ cls: "augment-section-label", style: "margin-bottom: 6px;", text: "Frontmatter fields" });
+    const fmTable = formatGuide.createEl("table", { cls: "augment-frontmatter-table" });
+    const fmTbody = fmTable.createEl("tbody");
+    const fmRows = [
+      { key: "name",          desc: "Required. Shown in the template picker." },
+      { key: "description",   desc: "Optional. Shown below the name in the picker." },
+      { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Overview tab \u2192 Advanced settings)." },
+    ];
+    for (const r of fmRows) {
+      const tr = fmTbody.createEl("tr");
+      tr.createEl("td", { text: r.key });
+      tr.createEl("td", { text: r.desc });
+    }
+    formatGuide.createDiv({ cls: "augment-section-label", style: "margin-top: 12px; margin-bottom: 6px;", text: "Template body" });
     formatGuide.createEl("pre", {
       cls: "augment-format-example",
-      text: "---\nname: Template name\ndescription: Shown in picker\nsystem_prompt: |\n  You are Gus, a thinking partner embedded in this vault.\n  [optional \u2014 omit to use the default system prompt]\n---\nYour task instruction here.\n\n{{note_content}}",
+      text: "Summarise the following note and its linked notes as bullet points.\n\n{{note_content}}\n\n{% if linked_notes %}Linked context:\n{{ linked_notes }}{% endif %}",
     });
 
     // LiquidJS syntax guide — collapsible for progressive disclosure.
     const hbsDetails = templatesPane.createEl("details", { cls: "augment-hbs-details" });
-    hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Template syntax (LiquidJS)" });
+    hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Syntax reference (LiquidJS)" });
 
     const hbsBody = hbsDetails.createDiv({ cls: "augment-hbs-body" });
     hbsBody.createEl("p", {
