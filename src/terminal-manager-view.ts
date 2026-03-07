@@ -717,8 +717,6 @@ export class TerminalManagerView extends ItemView {
         } else {
           this.expandedProjects.add(group.encodedName);
         }
-        this.projectsState.lastLoadTime = 0; // allow fresh load
-        this.projectsState.reloadRequested = true;
         this.requestRefresh();
       });
 
