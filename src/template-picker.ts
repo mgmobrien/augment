@@ -1,6 +1,6 @@
 import { App, FuzzyMatch, FuzzySuggestModal, Modal, Notice, Setting, TFile, TFolder } from "obsidian";
-import { AugmentSettings, VaultContext } from "./vault-context";
-import { generateText } from "./ai-client";
+import { assembleNoteContext, AugmentSettings, populateLinkedNoteContent, VaultContext } from "./vault-context";
+import { friendlyApiError, generateText, substituteVariables } from "./ai-client";
 
 export function getTemplateFiles(app: App, folderPath: string): TFile[] {
   const folder = app.vault.getAbstractFileByPath(folderPath);
@@ -385,4 +385,224 @@ export class GeneratedTemplatesModal extends Modal {
   onClose(): void {
     this.contentEl.empty();
   }
+}
+
+// ── Template generation assistant ────────────────────────────────────────────
+
+const TEMPLATE_ASSISTANT_PILLS = [
+  "Summarize this note and its linked notes as bullet points",
+  "Extract all action items from this note and its linked notes",
+  "Write a synthesis from the linked notes that supports the thesis of this note",
+  "Create a meeting notes template with agenda, attendees, decisions, and next steps",
+];
+
+const TEMPLATE_ASSISTANT_SYSTEM_PROMPT = `You write Liquid templates for the Augment Obsidian plugin.
+
+Available variables:
+- {{ title }} — note title (string)
+- {{ note_content }} — full note text (string)
+- {{ selection }} — currently selected text (string, may be empty)
+- {{ context }} — text above cursor (string)
+- {{ frontmatter.KEY }} — any frontmatter field (string). Example: {{ frontmatter.status }}
+- {{ linked_notes }} — linked notes as a formatted text block (string)
+- {{ linked_notes_full }} — linked notes with full content (string)
+- {{ linked_notes_array }} — array of linked notes; each has .title (string), .frontmatter (object), .content (string)
+
+Liquid syntax:
+- Loop: {% for note in linked_notes_array %}{{ note.title }}: {{ note.content | truncate: 200 }}{% endfor %}
+- Filter: {{ title | truncate: 60 }}
+- Conditional: {% if frontmatter.status == "done" %}...{% endif %}
+- Join filter: {{ linked_notes_array | map: "title" | join: ", " }}
+
+Return ONLY the raw template text. No markdown fences, no explanation, no preamble.`;
+
+export class TemplateAssistantModal extends Modal {
+  private descriptionEl: HTMLTextAreaElement | null = null;
+  private templateEditorEl: HTMLTextAreaElement | null = null;
+  private previewEl: HTMLElement | null = null;
+  private saveBtnEl: HTMLButtonElement | null = null;
+  private generatedTemplate = "";
+  private isGenerating = false;
+
+  constructor(
+    app: App,
+    private settings: AugmentSettings,
+    private resolvedModel: string,
+    private targetFolder: string,
+    private onSave: () => void
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.addClass("augment-tpl-assistant-modal");
+    contentEl.createEl("h2", { text: "Generate template" });
+
+    // Description input.
+    contentEl.createEl("label", { cls: "augment-tpl-assistant-label", text: "Describe what you want" });
+    const textarea = contentEl.createEl("textarea", { cls: "augment-tpl-assistant-desc" });
+    textarea.placeholder = "Summarize this note and its linked notes as bullet points\u2026";
+    textarea.rows = 3;
+    this.descriptionEl = textarea;
+    setTimeout(() => textarea.focus(), 50);
+
+    // Starter example pills.
+    const pillsEl = contentEl.createDiv({ cls: "augment-tpl-assistant-pills" });
+    for (const pill of TEMPLATE_ASSISTANT_PILLS) {
+      const btn = pillsEl.createEl("button", { cls: "augment-tpl-pill", text: pill });
+      btn.addEventListener("click", () => {
+        if (this.descriptionEl) {
+          this.descriptionEl.value = pill;
+          this.descriptionEl.focus();
+        }
+      });
+    }
+
+    // Generate button.
+    const generateBtn = contentEl.createEl("button", {
+      cls: "augment-tpl-assistant-generate mod-cta",
+      text: "Generate",
+    });
+    generateBtn.addEventListener("click", () => void this.runGenerate(generateBtn));
+    textarea.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        void this.runGenerate(generateBtn);
+      }
+    });
+
+    // Preview section.
+    const previewSection = contentEl.createDiv({ cls: "augment-tpl-assistant-preview-section" });
+    previewSection.createDiv({ cls: "augment-tpl-assistant-sep" }).createSpan({ text: "Preview" });
+
+    previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Generated template" });
+    this.templateEditorEl = previewSection.createEl("textarea", { cls: "augment-tpl-editor" });
+    this.templateEditorEl.rows = 6;
+    this.templateEditorEl.placeholder = "Generated template will appear here\u2026";
+
+    previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Rendered output (against active note)" });
+    this.previewEl = previewSection.createDiv({ cls: "augment-tpl-rendered-preview" });
+    this.previewEl.textContent = "Generate a template to see a preview.";
+
+    // Footer buttons.
+    const footer = contentEl.createDiv({ cls: "augment-tpl-assistant-footer" });
+    const cancelBtn = footer.createEl("button", { text: "Cancel" });
+    cancelBtn.addEventListener("click", () => this.close());
+    const saveBtn = footer.createEl("button", { cls: "mod-cta", text: "Save" });
+    saveBtn.disabled = true;
+    this.saveBtnEl = saveBtn;
+    saveBtn.addEventListener("click", () => void this.runSave());
+  }
+
+  private async runGenerate(generateBtn: HTMLButtonElement): Promise<void> {
+    const description = this.descriptionEl?.value.trim();
+    if (!description || this.isGenerating) return;
+
+    this.isGenerating = true;
+    generateBtn.disabled = true;
+    generateBtn.textContent = "Generating\u2026";
+    if (this.previewEl) this.previewEl.textContent = "Generating\u2026";
+    if (this.templateEditorEl) this.templateEditorEl.value = "";
+    if (this.saveBtnEl) this.saveBtnEl.disabled = true;
+
+    try {
+      const result = await generateText(
+        TEMPLATE_ASSISTANT_SYSTEM_PROMPT,
+        description,
+        this.settings,
+        this.resolvedModel,
+        undefined,
+        1024
+      );
+      this.generatedTemplate = result.text.trim();
+      if (this.templateEditorEl) this.templateEditorEl.value = this.generatedTemplate;
+      await this.renderPreview();
+      if (this.saveBtnEl) this.saveBtnEl.disabled = false;
+    } catch (err) {
+      const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
+      if (this.previewEl) this.previewEl.textContent = `Error: ${errMsg}`;
+    } finally {
+      this.isGenerating = false;
+      generateBtn.disabled = false;
+      generateBtn.textContent = "Generate";
+    }
+  }
+
+  private async renderPreview(): Promise<void> {
+    if (!this.previewEl) return;
+    const template = this.templateEditorEl?.value.trim() || this.generatedTemplate;
+    if (!template) return;
+
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      this.previewEl.textContent = template;
+      return;
+    }
+
+    try {
+      const ctx = await assembleNoteContext(this.app, activeFile, this.settings);
+      await populateLinkedNoteContent(this.app, ctx, 1000);
+      const rendered = await substituteVariables(template, ctx);
+      this.previewEl.textContent = rendered;
+    } catch {
+      this.previewEl.textContent = template;
+    }
+  }
+
+  private async runSave(): Promise<void> {
+    const template = this.templateEditorEl?.value.trim() || this.generatedTemplate;
+    if (!template) return;
+    new TemplateSaveNameModal(this.app, async (name) => {
+      const folder = this.targetFolder || "Augment/templates";
+      if (!this.app.vault.getAbstractFileByPath(folder)) {
+        try { await this.app.vault.createFolder(folder); } catch { /* already exists */ }
+      }
+      const path = `${folder}/${name}.md`;
+      if (this.app.vault.getAbstractFileByPath(path)) {
+        new Notice(`Template "${name}" already exists`);
+        return;
+      }
+      await this.app.vault.create(path, buildTemplateFileContent({ name, description: "", system_prompt: null, body: template }));
+      new Notice(`Template "${name}" saved`);
+      this.onSave();
+      this.close();
+    }).open();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
+class TemplateSaveNameModal extends Modal {
+  constructor(app: App, private onConfirm: (name: string) => Promise<void>) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Name your template" });
+    let name = "";
+    const setting = new Setting(contentEl)
+      .setName("Template name")
+      .addText((text) => {
+        text.setPlaceholder("My template").onChange((val) => { name = val; });
+        setTimeout(() => text.inputEl.focus(), 50);
+        text.inputEl.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); void save(); }
+        });
+      });
+    const save = async () => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      await this.onConfirm(trimmed);
+      this.close();
+    };
+    new Setting(contentEl)
+      .addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()))
+      .addButton((btn) => btn.setButtonText("Save").setCta().onClick(save));
+  }
+
+  onClose(): void { this.contentEl.empty(); }
 }

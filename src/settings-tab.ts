@@ -5,7 +5,7 @@ import { calculateCost, modelDisplayName } from "./ai-client";
 import { VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
-import { runGenerateTemplatesFlow } from "./template-picker";
+import { runGenerateTemplatesFlow, TemplateAssistantModal } from "./template-picker";
 
 
 
@@ -903,6 +903,23 @@ export class AugmentSettingTab extends PluginSettingTab {
             this.plugin.settings.showTemplatePreview = value;
             await this.plugin.saveData(this.plugin.settings);
           });
+      });
+
+    // "Generate template" assistant button.
+    new Setting(templatesPane)
+      .setName("Generate template")
+      .setDesc("Describe what you want in plain English and Augment will write a Liquid template for you.")
+      .addButton((btn) => {
+        btn.setButtonText("Generate template\u2026").setCta().onClick(() => {
+          const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
+          new TemplateAssistantModal(
+            this.app,
+            this.plugin.settings,
+            this.plugin.resolveModel(),
+            targetFolder,
+            () => renderTemplateList()
+          ).open();
+        });
       });
 
     // Template list container.
