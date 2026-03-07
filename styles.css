@@ -2501,6 +2501,8 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 /* ── Template generation assistant modal ────────────────────────────────── */
 .augment-tpl-assistant-modal {
   padding: 4px 0 0;
+  min-width: min(680px, 90vw);
+  width: min(680px, 90vw);
 }
 .augment-tpl-assistant-modal h2 {
   margin-bottom: 16px;

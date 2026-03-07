@@ -638,7 +638,7 @@ export default class AugmentTerminalPlugin extends Plugin {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile) ctx.content = await this.app.vault.read(activeFile);
           }
-          if (templateContent.includes("{{linked_notes_full}}")) {
+          if (templateContent.includes("{{linked_notes_full}}") || templateContent.includes("linked_notes_array")) {
             for (const note of ctx.linkedNotes) {
               const file = this.app.vault.getFiles().find((f) => f.basename === note.title);
               if (file) {

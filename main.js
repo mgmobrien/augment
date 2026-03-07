@@ -17091,7 +17091,7 @@ var TemplateAssistantModal = class extends import_obsidian6.Modal {
     }
     const generateBtn = contentEl.createEl("button", {
       cls: "augment-tpl-assistant-generate mod-cta",
-      text: "Generate"
+      text: "Generate template"
     });
     generateBtn.addEventListener("click", () => void this.runGenerate(generateBtn));
     textarea.addEventListener("keydown", (e) => {
@@ -17147,7 +17147,7 @@ var TemplateAssistantModal = class extends import_obsidian6.Modal {
     } finally {
       this.isGenerating = false;
       generateBtn.disabled = false;
-      generateBtn.textContent = "Generate";
+      generateBtn.textContent = "Generate template";
     }
   }
   async renderPreview() {
@@ -17170,9 +17170,10 @@ var TemplateAssistantModal = class extends import_obsidian6.Modal {
     }
   }
   async runSave() {
-    var _a2;
+    var _a2, _b, _c;
     const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
     if (!template) return;
+    const description = (_c = (_b = this.descriptionEl) == null ? void 0 : _b.value.trim()) != null ? _c : "";
     new TemplateSaveNameModal(this.app, async (name) => {
       const folder = this.targetFolder || "Augment/templates";
       if (!this.app.vault.getAbstractFileByPath(folder)) {
@@ -17186,7 +17187,7 @@ var TemplateAssistantModal = class extends import_obsidian6.Modal {
         new import_obsidian6.Notice(`Template "${name}" already exists`);
         return;
       }
-      await this.app.vault.create(path4, buildTemplateFileContent({ name, description: "", system_prompt: null, body: template }));
+      await this.app.vault.create(path4, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
       new import_obsidian6.Notice(`Template "${name}" saved`);
       this.onSave();
       this.close();
@@ -22339,8 +22340,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T02:12:08.178Z";
-    this.gitSha = "75b0373";
+    this.buildId = "2026-03-07T02:14:37.183Z";
+    this.gitSha = "ab916d8";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22839,7 +22840,7 @@ ${excerpt}`,
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile) ctx.content = await this.app.vault.read(activeFile);
           }
-          if (templateContent.includes("{{linked_notes_full}}")) {
+          if (templateContent.includes("{{linked_notes_full}}") || templateContent.includes("linked_notes_array")) {
             for (const note of ctx.linkedNotes) {
               const file = this.app.vault.getFiles().find((f) => f.basename === note.title);
               if (file) {

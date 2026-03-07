@@ -462,7 +462,7 @@ export class TemplateAssistantModal extends Modal {
     // Generate button.
     const generateBtn = contentEl.createEl("button", {
       cls: "augment-tpl-assistant-generate mod-cta",
-      text: "Generate",
+      text: "Generate template",
     });
     generateBtn.addEventListener("click", () => void this.runGenerate(generateBtn));
     textarea.addEventListener("keydown", (e) => {
@@ -526,7 +526,7 @@ export class TemplateAssistantModal extends Modal {
     } finally {
       this.isGenerating = false;
       generateBtn.disabled = false;
-      generateBtn.textContent = "Generate";
+      generateBtn.textContent = "Generate template";
     }
   }
 
@@ -554,6 +554,7 @@ export class TemplateAssistantModal extends Modal {
   private async runSave(): Promise<void> {
     const template = this.templateEditorEl?.value.trim() || this.generatedTemplate;
     if (!template) return;
+    const description = this.descriptionEl?.value.trim() ?? "";
     new TemplateSaveNameModal(this.app, async (name) => {
       const folder = this.targetFolder || "Augment/templates";
       if (!this.app.vault.getAbstractFileByPath(folder)) {
@@ -564,7 +565,7 @@ export class TemplateAssistantModal extends Modal {
         new Notice(`Template "${name}" already exists`);
         return;
       }
-      await this.app.vault.create(path, buildTemplateFileContent({ name, description: "", system_prompt: null, body: template }));
+      await this.app.vault.create(path, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
       new Notice(`Template "${name}" saved`);
       this.onSave();
       this.close();
