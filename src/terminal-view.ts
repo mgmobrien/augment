@@ -1020,8 +1020,11 @@ export class TerminalView extends ItemView {
     if (wasActive && nowIdle) {
       this.exchangeCount++;
       this.lastActivityMs = Date.now();
-      // Trigger auto-rename after exchange 3; retry on 4 and 5 if prior attempt failed.
-      const shouldTry = (this.exchangeCount === 3) ||
+      // Trigger auto-rename after exchange 1 (enough content for a local name).
+      // Haiku API is called again at exchange 3 as a quality upgrade if available.
+      // Retries at 4 and 5 if prior attempt returned null.
+      const shouldTry = (this.exchangeCount === 1) ||
+        (this.exchangeCount === 3) ||
         ((this.exchangeCount === 4 || this.exchangeCount === 5) && this.autoRenameNeeded);
       if (shouldTry && !this.userRenamed) {
         void this.triggerAutoRename();
@@ -1089,6 +1092,7 @@ export class TerminalView extends ItemView {
       this.promptTurnCount++;
 
       const shouldTry =
+        this.promptTurnCount === 1 ||
         this.promptTurnCount === 3 ||
         ((this.promptTurnCount === 4 || this.promptTurnCount === 5) && this.autoRenameNeeded);
 

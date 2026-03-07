@@ -20233,7 +20233,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     if (wasActive && nowIdle) {
       this.exchangeCount++;
       this.lastActivityMs = Date.now();
-      const shouldTry = this.exchangeCount === 3 || (this.exchangeCount === 4 || this.exchangeCount === 5) && this.autoRenameNeeded;
+      const shouldTry = this.exchangeCount === 1 || this.exchangeCount === 3 || (this.exchangeCount === 4 || this.exchangeCount === 5) && this.autoRenameNeeded;
       if (shouldTry && !this.userRenamed) {
         void this.triggerAutoRename();
       }
@@ -20288,7 +20288,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       this.lastPromptText = text;
       this.lastPromptAtMs = now;
       this.promptTurnCount++;
-      const shouldTry = this.promptTurnCount === 3 || (this.promptTurnCount === 4 || this.promptTurnCount === 5) && this.autoRenameNeeded;
+      const shouldTry = this.promptTurnCount === 1 || this.promptTurnCount === 3 || (this.promptTurnCount === 4 || this.promptTurnCount === 5) && this.autoRenameNeeded;
       if (shouldTry) {
         void this.triggerAutoRename();
       }
@@ -22951,8 +22951,8 @@ var AugmentTerminalPlugin = class extends import_obsidian8.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T00:14:31.036Z";
-    this.gitSha = "2725632";
+    this.buildId = "2026-03-07T00:21:02.183Z";
+    this.gitSha = "a0094df";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
