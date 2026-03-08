@@ -322,6 +322,8 @@ export class TerminalView extends ItemView {
   private lastPtyCols: number = 0;
   private resizeInFlight: boolean = false;
   private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastContainerWidth: number = 0;
+  private lastContainerHeight: number = 0;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -1553,11 +1555,12 @@ export class TerminalView extends ItemView {
     if (!this.terminal) return;
 
     // Re-entrancy guard: after a dimension change, the TUI needs time
-    // to process SIGWINCH and redraw (10-80ms). If we resize again
-    // during that window, fit() clears the render model while the TUI
-    // is mid-paint, producing stale bottom-row content. Defer instead.
+    // to process SIGWINCH and redraw. Complex TUI layouts (Claude/Codex
+    // status bar + separator + prompt + streaming output) can take up to
+    // 150ms. If we resize again during that window, fit() clears the
+    // render model while the TUI is mid-paint, producing garbled output.
     if (this.resizeInFlight) {
-      this.scheduleResize(80);
+      this.scheduleResize(150);
       return;
     }
 
@@ -1590,7 +1593,7 @@ export class TerminalView extends ItemView {
       this.resizeFlightTimer = setTimeout(() => {
         this.resizeInFlight = false;
         this.resizeFlightTimer = null;
-      }, 80);
+      }, 150);
     }
     // Do NOT call clearTextureAtlas() or terminal.refresh() here.
     //
@@ -1641,6 +1644,28 @@ export class TerminalView extends ItemView {
     const el = this.terminal.element?.parentElement;
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
 
+    // Pixel-level dimension cache: skip the ENTIRE resize chain when the
+    // container's actual pixel dimensions haven't changed meaningfully.
+    // In 2x2 layouts, ResizeObserver fires for all panes when Obsidian's
+    // flex layout shifts by even a fraction of a pixel (focus borders,
+    // scrollbar micro-shifts, flex rounding). Even proposeDimensions()
+    // can return different row/col values for 1px container changes that
+    // straddle a cell boundary. Gating on a 2px threshold eliminates
+    // sub-cell resize noise that invalidates xterm's render model while
+    // TUI apps are mid-paint.
+    if (el) {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (Math.abs(w - this.lastContainerWidth) < 2 &&
+          Math.abs(h - this.lastContainerHeight) < 2) {
+        // Container dimensions unchanged — clear stale height but skip resize.
+        this.terminal.element?.style.removeProperty("height");
+        return;
+      }
+      this.lastContainerWidth = w;
+      this.lastContainerHeight = h;
+    }
+
     try {
       // Check proposed dimensions BEFORE calling fit().
       // fit() does terminal.resize() which invalidates the entire render
@@ -1651,8 +1676,6 @@ export class TerminalView extends ItemView {
       if (proposed &&
           proposed.cols === this.terminal.cols &&
           proposed.rows === this.terminal.rows) {
-        // Dimensions unchanged — skip fit() to avoid render model invalidation.
-        // Still clear stale inline height from previous builds.
         this.terminal.element?.style.removeProperty("height");
         return;
       }
@@ -1660,8 +1683,7 @@ export class TerminalView extends ItemView {
       this.fitAddon.fit();
 
       // Clear any stale inline height set by a previous plugin version
-      // that quantized viewport height to rows*cellHeight. Leaving it
-      // prevents the viewport from scrolling.
+      // that quantized viewport height to rows*cellHeight.
       this.terminal.element?.style.removeProperty("height");
 
       const { rows, cols } = this.terminal;

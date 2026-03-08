@@ -22573,6 +22573,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.lastPtyCols = 0;
     this.resizeInFlight = false;
     this.resizeFlightTimer = null;
+    this.lastContainerWidth = 0;
+    this.lastContainerHeight = 0;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -23560,7 +23562,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
     var _a5, _b, _c, _d, _e2, _f;
     if (!this.terminal) return;
     if (this.resizeInFlight) {
-      this.scheduleResize(80);
+      this.scheduleResize(150);
       return;
     }
     const core = this.terminal._core;
@@ -23577,7 +23579,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
       this.resizeFlightTimer = setTimeout(() => {
         this.resizeInFlight = false;
         this.resizeFlightTimer = null;
-      }, 80);
+      }, 150);
     }
   }
   registerTerminalMetricObservers() {
@@ -23601,23 +23603,33 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
   }
   handleResize() {
-    var _a5, _b, _c, _d;
+    var _a5, _b, _c, _d, _e2;
     if (!this.fitAddon || !this.terminal) return;
     const el = (_a5 = this.terminal.element) == null ? void 0 : _a5.parentElement;
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
-    try {
-      const proposed = this.fitAddon.proposeDimensions();
-      if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
+    if (el) {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (Math.abs(w - this.lastContainerWidth) < 2 && Math.abs(h - this.lastContainerHeight) < 2) {
         (_b = this.terminal.element) == null ? void 0 : _b.style.removeProperty("height");
         return;
       }
+      this.lastContainerWidth = w;
+      this.lastContainerHeight = h;
+    }
+    try {
+      const proposed = this.fitAddon.proposeDimensions();
+      if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
+        (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
+        return;
+      }
       this.fitAddon.fit();
-      (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
+      (_d = this.terminal.element) == null ? void 0 : _d.style.removeProperty("height");
       const { rows, cols } = this.terminal;
       if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
         this.lastPtyRows = rows;
         this.lastPtyCols = cols;
-        (_d = this.ptyBridge) == null ? void 0 : _d.resize(rows, cols);
+        (_e2 = this.ptyBridge) == null ? void 0 : _e2.resize(rows, cols);
       }
     } catch (e) {
     }
@@ -26156,8 +26168,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T16:29:10.383Z";
-    this.gitSha = "e7cf6fe";
+    this.buildId = "2026-03-08T16:43:19.131Z";
+    this.gitSha = "09c15ed";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
