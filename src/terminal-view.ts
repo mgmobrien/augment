@@ -2,6 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { PtyBridge } from "./pty-bridge";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
@@ -819,6 +820,16 @@ export class TerminalView extends ItemView {
     // Mount terminal.
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.openTerminalWithStableMetrics(termDiv);
+
+    // Switch to WebGL renderer — eliminates the DOM renderer's partial
+    // repaint corruption under TUI-heavy redraws (Claude/Codex status
+    // lines, separator repaints, cursor-motion updates). Falls back to
+    // the DOM renderer silently if WebGL is unavailable.
+    try {
+      this.terminal.loadAddon(new WebglAddon());
+    } catch {
+      // WebGL not available — DOM renderer continues as fallback.
+    }
 
     // Fit immediately so the terminal has correct dimensions before any
     // content is written — avoids garbled snapshot restore and ensures
