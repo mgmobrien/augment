@@ -265,7 +265,7 @@ export class TerminalView extends ItemView {
   private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
   private cachedCellWidth: number = 0;
   private cachedCellHeight: number = 0;
-  private cachedScrollbarWidth: number = 6; // matches styles.css forced scrollbar
+  private cachedScrollbarWidth: number = 0; // read from viewport in updateCellCache()
   private windowResizeTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAnalysis: string[] = [];
   private analysisRaf: number | null = null;

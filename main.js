@@ -20953,8 +20953,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.resizeFlightTimer = null;
     this.cachedCellWidth = 0;
     this.cachedCellHeight = 0;
-    this.cachedScrollbarWidth = 6;
-    // matches styles.css forced scrollbar
+    this.cachedScrollbarWidth = 0;
+    // read from viewport in updateCellCache()
     this.windowResizeTimer = null;
     this.pendingAnalysis = [];
     this.analysisRaf = null;
@@ -24632,8 +24632,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T17:12:35.370Z";
-    this.gitSha = "9d7f5fc";
+    this.buildId = "2026-03-08T17:13:45.120Z";
+    this.gitSha = "0e1b838";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
