@@ -19333,11 +19333,11 @@ function formatHotkeyStr(mods, key, isMac) {
   parts.push(key === "Enter" ? "Enter" : key.toUpperCase());
   return parts.join("+");
 }
-function getSetupStep(deps) {
+function getSetupStep(deps, isWsl) {
   if (!deps.node) {
     return {
       title: "Install AI tools",
-      desc: "Node.js is needed to run Claude Code. Download and run the installer from nodejs.org.",
+      desc: isWsl ? "Node.js is needed to run Claude Code. Install it inside WSL using Linux commands \u2014 not the Windows installer." : "Node.js is needed to run Claude Code. Download and run the installer from nodejs.org.",
       action: "link",
       actionLabel: "Open nodejs.org \u2197",
       actionUrl: "https://nodejs.org"
@@ -19346,7 +19346,7 @@ function getSetupStep(deps) {
   if (!deps.cc) {
     return {
       title: "Set up your AI assistant",
-      desc: "A terminal will open and install Claude Code automatically.",
+      desc: isWsl ? "A terminal will open and install Claude Code automatically. This runs inside WSL \u2014 use Linux commands." : "A terminal will open and install Claude Code automatically.",
       action: "terminal",
       actionLabel: "Install",
       terminalCmd: "npm install -g @anthropic-ai/claude-code\n"
@@ -20175,7 +20175,7 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       const deps = await detectDeps(this.app, { forceFresh: true });
       wizardBody.empty();
       const depRows = DEP_ROWS;
-      const activeStep = getSetupStep(deps);
+      const activeStep = getSetupStep(deps, this.plugin.settings.shellPath === "wsl.exe");
       const allReady = activeStep === null;
       wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
       if (!allReady && activeStep) {
@@ -24701,8 +24701,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T18:31:31.339Z";
-    this.gitSha = "8da6fbe";
+    this.buildId = "2026-03-08T18:53:56.545Z";
+    this.gitSha = "5c47b29";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
