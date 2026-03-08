@@ -23601,17 +23601,23 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
   }
   handleResize() {
-    var _a5, _b;
+    var _a5, _b, _c, _d;
     if (!this.fitAddon || !this.terminal) return;
     const el = (_a5 = this.terminal.element) == null ? void 0 : _a5.parentElement;
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
     try {
+      const proposed = this.fitAddon.proposeDimensions();
+      if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
+        (_b = this.terminal.element) == null ? void 0 : _b.style.removeProperty("height");
+        return;
+      }
       this.fitAddon.fit();
+      (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
       const { rows, cols } = this.terminal;
       if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
         this.lastPtyRows = rows;
         this.lastPtyCols = cols;
-        (_b = this.ptyBridge) == null ? void 0 : _b.resize(rows, cols);
+        (_d = this.ptyBridge) == null ? void 0 : _d.resize(rows, cols);
       }
     } catch (e) {
     }
@@ -26150,8 +26156,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T16:16:42.742Z";
-    this.gitSha = "e06c459";
+    this.buildId = "2026-03-08T16:29:10.383Z";
+    this.gitSha = "e7cf6fe";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

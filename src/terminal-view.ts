@@ -1642,7 +1642,27 @@ export class TerminalView extends ItemView {
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
 
     try {
+      // Check proposed dimensions BEFORE calling fit().
+      // fit() does terminal.resize() which invalidates the entire render
+      // model (marks all rows dirty, reflows the buffer). If the computed
+      // dimensions are the same as current, skip fit() entirely — avoids
+      // render model thrash while TUI apps are mid-paint.
+      const proposed = this.fitAddon.proposeDimensions();
+      if (proposed &&
+          proposed.cols === this.terminal.cols &&
+          proposed.rows === this.terminal.rows) {
+        // Dimensions unchanged — skip fit() to avoid render model invalidation.
+        // Still clear stale inline height from previous builds.
+        this.terminal.element?.style.removeProperty("height");
+        return;
+      }
+
       this.fitAddon.fit();
+
+      // Clear any stale inline height set by a previous plugin version
+      // that quantized viewport height to rows*cellHeight. Leaving it
+      // prevents the viewport from scrolling.
+      this.terminal.element?.style.removeProperty("height");
 
       const { rows, cols } = this.terminal;
 
