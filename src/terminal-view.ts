@@ -265,6 +265,7 @@ export class TerminalView extends ItemView {
   private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
   private cachedCellWidth: number = 0;
   private cachedCellHeight: number = 0;
+  private cachedScrollbarWidth: number = 6; // matches styles.css forced scrollbar
   private windowResizeTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAnalysis: string[] = [];
   private analysisRaf: number | null = null;
@@ -1546,28 +1547,57 @@ export class TerminalView extends ItemView {
    *  different terminal cols/rows? Uses cached cell dimensions so this
    *  involves zero DOM reads and can run in the ResizeObserver callback
    *  without triggering layout. Returns true when cell cache is empty
-   *  (first resize) to ensure the initial fit always runs. */
+   *  (first resize) to ensure the initial fit always runs.
+   *
+   *  Subtracts scrollbar width from available width to match FitAddon's
+   *  proposeDimensions() math (FitAddon.ts:67). styles.css forces a
+   *  constant 6px scrollbar, so we cache that value. */
   private wouldChangeCellGrid(containerWidth: number, containerHeight: number): boolean {
     if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
-    const newCols = Math.max(2, Math.floor(containerWidth / this.cachedCellWidth));
+    const availableWidth = containerWidth - this.cachedScrollbarWidth;
+    if (availableWidth <= 0) return true; // degenerate — let applyResize handle it
+    const newCols = Math.max(2, Math.floor(availableWidth / this.cachedCellWidth));
     const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
     return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
   }
 
   /** Update the cached cell dimensions from xterm's render service.
-   *  Called after fit() and on font load — NOT on every resize check. */
+   *  Called after fit() and on font load — NOT on every resize check.
+   *  Also re-measures character dimensions for the DOM fallback renderer
+   *  (when Canvas addon is not loaded), ensuring font/metric changes are
+   *  reflected in the cache and in subsequent proposeDimensions() calls. */
   private updateCellCache(): void {
     const core = (this.terminal as Terminal & {
       _core?: {
+        _charSizeService?: { measure?: () => void };
         _renderService?: {
+          _renderer?: { value?: { _setDefaultSpacing?: () => void } };
           dimensions?: { css?: { cell?: { width?: number; height?: number } } };
         };
+        viewport?: { scrollBarWidth?: number };
       };
     })._core;
+
+    // Re-measure character dimensions for DOM renderer fallback.
+    // Canvas/WebGL renderers do their own measurement, but the DOM renderer
+    // relies on _charSizeService which must be explicitly re-measured after
+    // font changes. Without this, stale cell measurements make the cell-grid
+    // gate and proposeDimensions checks unreliable.
+    if (!this.canvasAddon) {
+      core?._charSizeService?.measure?.();
+      core?._renderService?._renderer?.value?._setDefaultSpacing?.();
+    }
+
     const dims = core?._renderService?.dimensions?.css?.cell;
     if (dims?.width && dims?.height) {
       this.cachedCellWidth = dims.width;
       this.cachedCellHeight = dims.height;
+    }
+    // Read actual scrollbar width from the viewport (falls back to 6px
+    // which matches styles.css forced scrollbar).
+    const sbWidth = core?.viewport?.scrollBarWidth;
+    if (sbWidth !== undefined && sbWidth >= 0) {
+      this.cachedScrollbarWidth = sbWidth;
     }
   }
 

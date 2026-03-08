@@ -20953,6 +20953,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.resizeFlightTimer = null;
     this.cachedCellWidth = 0;
     this.cachedCellHeight = 0;
+    this.cachedScrollbarWidth = 6;
+    // matches styles.css forced scrollbar
     this.windowResizeTimer = null;
     this.pendingAnalysis = [];
     this.analysisRaf = null;
@@ -21974,22 +21976,39 @@ var TerminalView = class extends import_obsidian8.ItemView {
    *  different terminal cols/rows? Uses cached cell dimensions so this
    *  involves zero DOM reads and can run in the ResizeObserver callback
    *  without triggering layout. Returns true when cell cache is empty
-   *  (first resize) to ensure the initial fit always runs. */
+   *  (first resize) to ensure the initial fit always runs.
+   *
+   *  Subtracts scrollbar width from available width to match FitAddon's
+   *  proposeDimensions() math (FitAddon.ts:67). styles.css forces a
+   *  constant 6px scrollbar, so we cache that value. */
   wouldChangeCellGrid(containerWidth, containerHeight) {
     if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
-    const newCols = Math.max(2, Math.floor(containerWidth / this.cachedCellWidth));
+    const availableWidth = containerWidth - this.cachedScrollbarWidth;
+    if (availableWidth <= 0) return true;
+    const newCols = Math.max(2, Math.floor(availableWidth / this.cachedCellWidth));
     const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
     return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
   }
   /** Update the cached cell dimensions from xterm's render service.
-   *  Called after fit() and on font load — NOT on every resize check. */
+   *  Called after fit() and on font load — NOT on every resize check.
+   *  Also re-measures character dimensions for the DOM fallback renderer
+   *  (when Canvas addon is not loaded), ensuring font/metric changes are
+   *  reflected in the cache and in subsequent proposeDimensions() calls. */
   updateCellCache() {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const core = this.terminal._core;
-    const dims = (_c = (_b = (_a2 = core == null ? void 0 : core._renderService) == null ? void 0 : _a2.dimensions) == null ? void 0 : _b.css) == null ? void 0 : _c.cell;
+    if (!this.canvasAddon) {
+      (_b = (_a2 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a2.measure) == null ? void 0 : _b.call(_a2);
+      (_f = (_e = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e._setDefaultSpacing) == null ? void 0 : _f.call(_e);
+    }
+    const dims = (_i = (_h = (_g = core == null ? void 0 : core._renderService) == null ? void 0 : _g.dimensions) == null ? void 0 : _h.css) == null ? void 0 : _i.cell;
     if ((dims == null ? void 0 : dims.width) && (dims == null ? void 0 : dims.height)) {
       this.cachedCellWidth = dims.width;
       this.cachedCellHeight = dims.height;
+    }
+    const sbWidth = (_j = core == null ? void 0 : core.viewport) == null ? void 0 : _j.scrollBarWidth;
+    if (sbWidth !== void 0 && sbWidth >= 0) {
+      this.cachedScrollbarWidth = sbWidth;
     }
   }
   /** Schedule a resize via requestAnimationFrame. rAF runs at the start
@@ -24613,8 +24632,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T17:04:55.070Z";
-    this.gitSha = "cc6fb4a";
+    this.buildId = "2026-03-08T17:12:35.370Z";
+    this.gitSha = "9d7f5fc";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
