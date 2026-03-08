@@ -582,7 +582,7 @@ export class TerminalManagerView extends ItemView {
     // Working directory basename label.
     const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
     if (cwd) {
-      const cwdBasename = cwd.split("/").filter(Boolean).pop() || cwd;
+      const cwdBasename = cwd.split(/[/\\]/).filter(Boolean).pop() || cwd;
       line.createSpan({ cls: "augment-tm-cwd", text: cwdBasename });
     }
 

@@ -2,6 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { CanvasAddon } from "@xterm/addon-canvas";
 import { PtyBridge } from "./pty-bridge";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
@@ -64,7 +65,7 @@ function translatePtyError(raw: string): string {
     return "Permission error — try running the install again.";
   }
   if (l.includes("sigkill") || l.includes("signal sigkill")) {
-    return "Terminal bridge was killed by macOS during launch.";
+    return "Terminal bridge was killed by the OS during launch.";
   }
   return "The terminal connection failed.";
 }
@@ -107,92 +108,58 @@ function generateTerminalName(): string {
 // Strip ANSI escape sequences for pattern matching.
 function stripAnsi(str: string): string {
   return str
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-    .replace(/\x1b\][^\x07]*\x07/g, "")
-    .replace(/\x1b[()][0-9A-B]/g, "");
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z@`]/g, "")           // CSI (including private mode ?25h etc.)
+    .replace(/\x1b\](?:[^\x07\x1b]|\x1b[^\\])*(?:\x07|\x1b\\)/g, "")  // OSC (BEL or ST terminator)
+    .replace(/\x1b[()][0-9A-B]/g, "")                     // Charset designations
+    .replace(/\x1b[=>78DMEHNOcn]/g, "");                  // Simple two-character escapes
 }
 
-// ── Teammate-message XML filter ──
-// Intercepts <teammate-message> XML blocks in the PTY stream and reformats
-// them as compact ANSI-colored lines instead of raw XML.
-const FLUSH_TIMEOUT_MS = 2000;
-
+// ── Teammate-message XML detector ──
+// Non-blocking side-channel detector: NEVER buffers or delays the PTY data
+// stream. All data passes through to terminal.write() immediately. This
+// detector scans the stripped text for teammate-message blocks and emits
+// compact formatted summaries as ADDITIONAL terminal output after the raw
+// data has already been rendered.
 class TeammateMessageFilter {
-  private buffer: string = "";
-  private buffering = false;
-  private flushTimer: ReturnType<typeof setTimeout> | null = null;
-  private passthrough: (data: string) => void;
+  private scanBuffer: string = "";
+  private emit: (data: string) => void;
 
-  constructor(passthrough: (data: string) => void) {
-    this.passthrough = passthrough;
+  constructor(emit: (data: string) => void) {
+    this.emit = emit;
   }
 
-  feed(data: string): void {
-    const clean = stripAnsi(data);
-
-    if (this.buffering) {
-      this.buffer += data;
-      if (clean.includes("</teammate-message>")) {
-        this.clearTimer();
-        this.emitFormatted();
-      }
-      return;
+  // Scan stripped text for complete teammate-message blocks.
+  // Called AFTER data has already been written to the terminal.
+  detect(cleanChunk: string): void {
+    this.scanBuffer += cleanChunk;
+    // Keep scan buffer bounded
+    if (this.scanBuffer.length > 8000) {
+      this.scanBuffer = this.scanBuffer.slice(-4000);
     }
 
-    // Check for open tag in this chunk
-    const openIdx = clean.indexOf("<teammate-message");
+    // Look for complete blocks
+    const closeIdx = this.scanBuffer.indexOf("</teammate-message>");
+    if (closeIdx === -1) return;
+
+    const openIdx = this.scanBuffer.lastIndexOf("<teammate-message", closeIdx);
     if (openIdx === -1) {
-      this.passthrough(data);
+      // Closing tag without opening — discard up to closing tag
+      this.scanBuffer = this.scanBuffer.slice(closeIdx + 19);
       return;
     }
 
-    // Pass through everything before the tag
-    if (openIdx > 0) {
-      // Find corresponding position in raw data (approximate — match on the clean text offset)
-      const rawBefore = this.findRawOffset(data, clean, openIdx);
-      this.passthrough(data.slice(0, rawBefore));
-      data = data.slice(rawBefore);
-    }
-
-    this.buffering = true;
-    this.buffer = data;
-
-    if (clean.includes("</teammate-message>")) {
-      this.emitFormatted();
-    } else {
-      this.startTimer();
-    }
+    const block = this.scanBuffer.slice(openIdx, closeIdx + 19);
+    this.scanBuffer = this.scanBuffer.slice(closeIdx + 19);
+    this.emitFormatted(block);
   }
 
-  private findRawOffset(raw: string, clean: string, cleanOffset: number): number {
-    // Walk raw string counting non-ANSI characters until we reach cleanOffset
-    let ci = 0;
-    let ri = 0;
-    while (ri < raw.length && ci < cleanOffset) {
-      if (raw[ri] === "\x1b") {
-        // Skip ANSI sequence
-        const m = raw.slice(ri).match(/^\x1b(?:\[[0-9;]*[a-zA-Z]|\][^\x07]*\x07|[()][0-9A-B])/);
-        if (m) { ri += m[0].length; continue; }
-      }
-      ri++;
-      ci++;
-    }
-    return ri;
-  }
-
-  private emitFormatted(): void {
-    const clean = stripAnsi(this.buffer);
-    this.buffering = false;
-    this.buffer = "";
-
-    // Extract attributes
+  private emitFormatted(clean: string): void {
     const attr = (name: string): string =>
       clean.match(new RegExp(`${name}="([^"]*)"`))?.[1] ?? "";
     const type = attr("type") || "message";
     const id = attr("teammate_id") || attr("recipient") || "?";
     const summary = attr("summary").slice(0, 70);
 
-    // ANSI codes: dim = \x1b[2m, yellow = \x1b[33m, reset = \x1b[0m
     const DIM = "\x1b[2m";
     const WARN = "\x1b[33m";
     const RST = "\x1b[0m";
@@ -200,7 +167,6 @@ class TeammateMessageFilter {
     let line: string;
     switch (type) {
       case "message":
-        // Outgoing DM: ↗ [recipient] summary
         line = `${DIM}\u2197 [${id}] ${summary}${RST}`;
         break;
       case "broadcast":
@@ -227,35 +193,11 @@ class TeammateMessageFilter {
         line = `${DIM}\u2197 [${id}] ${summary || type}${RST}`;
     }
 
-    this.passthrough(`\r\n${line}\r\n`);
-  }
-
-  private startTimer(): void {
-    this.clearTimer();
-    this.flushTimer = setTimeout(() => {
-      // Timeout — flush buffer as-is (malformed XML)
-      if (this.buffering) {
-        this.passthrough(this.buffer);
-        this.buffering = false;
-        this.buffer = "";
-      }
-    }, FLUSH_TIMEOUT_MS);
-  }
-
-  private clearTimer(): void {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
+    this.emit(`\r\n${line}\r\n`);
   }
 
   destroy(): void {
-    this.clearTimer();
-    if (this.buffering) {
-      this.passthrough(this.buffer);
-      this.buffering = false;
-      this.buffer = "";
-    }
+    this.scanBuffer = "";
   }
 }
 
@@ -307,6 +249,7 @@ export class TerminalView extends ItemView {
   private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
   private messageFilter: TeammateMessageFilter | null = null;
+  private canvasAddon: CanvasAddon | null = null;
   private ptyStartedAtMs: number = 0;
   private startupRetryCount: number = 0;
   private resolvedCwd: string = "";
@@ -315,6 +258,18 @@ export class TerminalView extends ItemView {
   private lastPromptAtMs: number = 0;
   private autoRenameInFlight: boolean = false;
   private lastAutoRenameAttemptAtMs: number = 0;
+  private resizeRafId: number | null = null;
+  private lastPtyRows: number = 0;
+  private lastPtyCols: number = 0;
+  private resizeInFlight: boolean = false;
+  private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
+  private cachedCellWidth: number = 0;
+  private cachedCellHeight: number = 0;
+  private cachedScrollbarWidth: number = 0; // read from viewport in updateCellCache()
+  private windowResizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingAnalysis: string[] = [];
+  private analysisRaf: number | null = null;
+  private analysisTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -644,6 +599,25 @@ export class TerminalView extends ItemView {
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
     const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
 
+    // When deps (Node and/or Claude) were found only in WSL but the
+    // terminal is running a native Windows shell, guide the user to switch.
+    // This covers both "fully installed in WSL" and "Node in WSL, Claude
+    // not yet installed" — in either case, the native shell can't use them.
+    const shellPath = this.getShellPath();
+    const isWslShell = /wsl/i.test(shellPath);
+    if (deps.wslOnly && !isWslShell) {
+      wrapper.createEl("h2", {
+        text: "Switch terminal to WSL",
+        cls: "augment-bootstrapper-title",
+      });
+      wrapper.createEl("p", {
+        text: "Node.js and Claude Code were found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
+        cls: "augment-bootstrapper-desc",
+      });
+      this.createBootstrapperBypassActions(wrapper, () => wrapper.remove());
+      return;
+    }
+
     wrapper.createEl("h2", {
       text: needsRuntimeSetup ? "Set up Claude Code" : "Finish terminal setup",
       cls: "augment-bootstrapper-title",
@@ -780,7 +754,7 @@ export class TerminalView extends ItemView {
     this.terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+      fontFamily: this.getTerminalFontFamily(),
       theme: this.getTheme(),
       allowProposedApi: true,
       scrollback: 10000,
@@ -797,7 +771,26 @@ export class TerminalView extends ItemView {
 
     // Mount terminal.
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
-    this.terminal.open(termDiv);
+    this.openTerminalWithStableMetrics(termDiv);
+
+    // Switch to Canvas renderer — uses independent 2D canvas contexts per
+    // terminal (no shared global state like WebGL's CharAtlasCache). This
+    // eliminates cross-terminal glyph corruption in 2x2+ layouts where
+    // WebGL's shared texture atlas caused one pane's resize to corrupt
+    // siblings' glyph textures. Falls back to DOM renderer silently.
+    try {
+      const canvas = new CanvasAddon();
+      this.terminal.loadAddon(canvas);
+      this.canvasAddon = canvas;
+    } catch {
+      // Canvas addon not available — DOM renderer continues as fallback.
+    }
+
+    // Fit immediately so the terminal has correct dimensions before any
+    // content is written — avoids garbled snapshot restore and ensures
+    // the PTY starts with the right cols/rows instead of default 80x24.
+    this.applyResize();
+    this.updateCellCache();
 
     // Restore previous terminal output snapshot, then spawn a fresh shell.
     if (this.restoredSnapshot) {
@@ -817,14 +810,28 @@ export class TerminalView extends ItemView {
 
     // Handle resize — the ResizeObserver fires once the container has
     // its final dimensions, which also handles the initial fit.
-    this.resizeObserver = new ResizeObserver(() => {
-      this.handleResize();
+    // Cell-grid gate: only schedule a resize if the container change would
+    // actually produce different cols/rows. This is pure arithmetic (no DOM
+    // reads) and eliminates 90%+ of resize cycles in 2x2 layouts where
+    // Obsidian's flex recalculates all panes on every micro-shift.
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (this.wouldChangeCellGrid(width, height)) {
+        this.scheduleResize();
+      }
     });
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
+          // Do NOT resize on focus change. Focus does not change container
+          // dimensions. ResizeObserver handles the case where a previously-
+          // hidden pane becomes visible and gets dimensions. Resizing on
+          // every focus change in a 2x2 layout fires 4 unnecessary resize
+          // cycles that interrupt TUI mid-paint.
         }
       })
     );
@@ -833,7 +840,11 @@ export class TerminalView extends ItemView {
       this.markActivityRead();
     }
 
-    this.resizeObserver.observe(container);
+    this.resizeObserver.observe(termDiv);
+    this.registerTerminalMetricObservers();
+    // No boot-time delayed resize needed — ResizeObserver fires when the
+    // element gets dimensions (including deferred visibility), and the
+    // initial applyResize() call above handles the sync case.
   }
 
   private startPtyBridge(forcedShellPath?: string): void {
@@ -844,19 +855,48 @@ export class TerminalView extends ItemView {
     this.ptyStartedAtMs = Date.now();
     this.ptyBridge?.kill();
     this.messageFilter?.destroy();
-    this.messageFilter = new TeammateMessageFilter((filtered) => {
-      this.terminal?.write(filtered);
-      this.appendToScrollback(filtered);
+    this.messageFilter = new TeammateMessageFilter((formatted) => {
+      this.terminal?.write(formatted);
+      // Include formatted summaries in scrollback so snapshot restore
+      // and auto-rename see the same output the user saw live (not raw XML).
+      this.appendToScrollback(formatted);
     });
+    // Clear any queued analysis from the previous PTY session so stale
+    // output from a failed shell doesn't produce bogus status/rename signals
+    // against the new session (e.g., during automatic fallback-shell retries).
+    this.flushPendingAnalysis();
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: this.resolvedCwd,
       shellPath,
+      initialRows: this.terminal?.rows ?? 0,
+      initialCols: this.terminal?.cols ?? 0,
       onData: (data) => {
-        this.messageFilter!.feed(data);
-        this.detectStatus(data);
-        this.detectUserPromptTurns(data);
-        this.detectOrchestrationActivity(data);
+        // ALWAYS write to terminal FIRST, immediately, with zero delay.
+        // Never let analysis or filtering block the data path.
+        this.terminal?.write(data);
+        this.appendToScrollback(data);
+        // Batch analysis using rAF (preferred) with setTimeout fallback.
+        // rAF is throttled/paused when the Electron window is hidden, so
+        // the fallback ensures analysis drains even for background sessions
+        // and prevents unbounded pendingAnalysis growth.
+        this.pendingAnalysis.push(data);
+        if (!this.analysisRaf && !this.analysisTimer) {
+          this.analysisRaf = requestAnimationFrame(() => {
+            this.analysisRaf = null;
+            this.drainAnalysis();
+          });
+          // Fallback: if rAF doesn't fire within 500ms (window hidden),
+          // drain via setTimeout instead.
+          this.analysisTimer = setTimeout(() => {
+            this.analysisTimer = null;
+            if (this.analysisRaf !== null) {
+              cancelAnimationFrame(this.analysisRaf);
+              this.analysisRaf = null;
+            }
+            this.drainAnalysis();
+          }, 500);
+        }
       },
       onError: (err) => {
         const friendly = translatePtyError(err.message);
@@ -866,7 +906,10 @@ export class TerminalView extends ItemView {
         const runtimeMs = Date.now() - this.ptyStartedAtMs;
         const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
         if (exitedImmediately && this.startupRetryCount < 2) {
-          const fallbackShell = this.startupRetryCount === 0 ? "/bin/bash" : "/bin/zsh";
+          const isWin = process.platform === "win32";
+          const fallbackShell = this.startupRetryCount === 0
+            ? (isWin ? "powershell.exe" : "/bin/bash")
+            : (isWin ? "cmd.exe" : "/bin/zsh");
           this.startupRetryCount++;
           this.terminal?.write(
             `\r\n\x1b[2m[Shell exited quickly (${runtimeMs}ms); retrying with ${fallbackShell}]\x1b[0m\r\n`
@@ -933,10 +976,8 @@ export class TerminalView extends ItemView {
     }
   }
 
-  private detectStatus(rawData: string): void {
+  private detectStatus(clean: string): void {
     if (this.isExited) return;
-
-    const clean = stripAnsi(rawData);
 
     let detected: TerminalStatus | null = null;
 
@@ -1449,17 +1490,231 @@ export class TerminalView extends ItemView {
     return withoutQuotes.replace(/[^a-zA-Z0-9._-]+$/g, "");
   }
 
-  private handleResize(): void {
-    if (!this.fitAddon || !this.terminal) return;
+  private openTerminalWithStableMetrics(termDiv: HTMLDivElement): void {
+    if (!this.terminal) return;
+
+    // xterm's DOM renderer compares two different font measurement paths.
+    // In Electron, OffscreenCanvas metrics can drift from actual DOM glyph
+    // widths, which explodes row height and injected letter-spacing.
+    const globalScope = globalThis as typeof globalThis & {
+      OffscreenCanvas?: typeof OffscreenCanvas;
+    };
+    const hadOwnOffscreenCanvas = Object.prototype.hasOwnProperty.call(globalScope, "OffscreenCanvas");
+    const originalOffscreenCanvas = globalScope.OffscreenCanvas;
 
     try {
-      this.fitAddon.fit();
-      const dims = this.fitAddon.proposeDimensions();
-      if (dims) {
-        this.ptyBridge?.resize(dims.rows, dims.cols);
+      (globalScope as { OffscreenCanvas?: typeof OffscreenCanvas }).OffscreenCanvas = undefined;
+      this.terminal.open(termDiv);
+    } finally {
+      if (hadOwnOffscreenCanvas) {
+        globalScope.OffscreenCanvas = originalOffscreenCanvas;
+      } else {
+        delete (globalScope as { OffscreenCanvas?: typeof OffscreenCanvas }).OffscreenCanvas;
       }
-    } catch (e) {
+    }
+  }
+
+  /** Drain pending analysis batch. Called from rAF or setTimeout fallback. */
+  private drainAnalysis(): void {
+    if (this.analysisTimer !== null) {
+      clearTimeout(this.analysisTimer);
+      this.analysisTimer = null;
+    }
+    if (this.pendingAnalysis.length === 0) return;
+    const batch = this.pendingAnalysis.join("");
+    this.pendingAnalysis = [];
+    const clean = stripAnsi(batch);
+    this.messageFilter?.detect(clean);
+    this.detectStatus(clean);
+    this.detectUserPromptTurns(batch);
+    this.detectOrchestrationActivity(batch);
+  }
+
+  /** Flush and discard any queued analysis (used on PTY restart). */
+  private flushPendingAnalysis(): void {
+    if (this.analysisRaf !== null) {
+      cancelAnimationFrame(this.analysisRaf);
+      this.analysisRaf = null;
+    }
+    if (this.analysisTimer !== null) {
+      clearTimeout(this.analysisTimer);
+      this.analysisTimer = null;
+    }
+    this.pendingAnalysis = [];
+  }
+
+  /** Pure arithmetic check: would the given container dimensions produce
+   *  different terminal cols/rows? Uses cached cell dimensions so this
+   *  involves zero DOM reads and can run in the ResizeObserver callback
+   *  without triggering layout. Returns true when cell cache is empty
+   *  (first resize) to ensure the initial fit always runs.
+   *
+   *  Subtracts scrollbar width from available width to match FitAddon's
+   *  proposeDimensions() math (FitAddon.ts:67). styles.css forces a
+   *  constant 6px scrollbar, so we cache that value. */
+  private wouldChangeCellGrid(containerWidth: number, containerHeight: number): boolean {
+    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
+    const availableWidth = containerWidth - this.cachedScrollbarWidth;
+    if (availableWidth <= 0) return true; // degenerate — let applyResize handle it
+    const newCols = Math.max(2, Math.floor(availableWidth / this.cachedCellWidth));
+    const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
+    return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
+  }
+
+  /** Update the cached cell dimensions from xterm's render service.
+   *  Called after fit() and on font load — NOT on every resize check.
+   *  Also re-measures character dimensions for the DOM fallback renderer
+   *  (when Canvas addon is not loaded), ensuring font/metric changes are
+   *  reflected in the cache and in subsequent proposeDimensions() calls. */
+  private updateCellCache(): void {
+    const core = (this.terminal as Terminal & {
+      _core?: {
+        _charSizeService?: { measure?: () => void };
+        _renderService?: {
+          _renderer?: { value?: { _setDefaultSpacing?: () => void } };
+          dimensions?: { css?: { cell?: { width?: number; height?: number } } };
+        };
+        viewport?: { scrollBarWidth?: number };
+      };
+    })._core;
+
+    // Re-measure character dimensions for DOM renderer fallback.
+    // Canvas/WebGL renderers do their own measurement, but the DOM renderer
+    // relies on _charSizeService which must be explicitly re-measured after
+    // font changes. Without this, stale cell measurements make the cell-grid
+    // gate and proposeDimensions checks unreliable.
+    if (!this.canvasAddon) {
+      core?._charSizeService?.measure?.();
+      core?._renderService?._renderer?.value?._setDefaultSpacing?.();
+    }
+
+    const dims = core?._renderService?.dimensions?.css?.cell;
+    if (dims?.width && dims?.height) {
+      this.cachedCellWidth = dims.width;
+      this.cachedCellHeight = dims.height;
+    }
+    // Read actual scrollbar width from the viewport (falls back to 6px
+    // which matches styles.css forced scrollbar).
+    const sbWidth = core?.viewport?.scrollBarWidth;
+    if (sbWidth !== undefined && sbWidth >= 0) {
+      this.cachedScrollbarWidth = sbWidth;
+    }
+  }
+
+  /** Schedule a resize via requestAnimationFrame. rAF runs at the start
+   *  of the next frame after all pending layout is committed, naturally
+   *  coalescing multiple triggers from the same layout pass. In a 2x2
+   *  layout, if 4 ResizeObserver callbacks fire in one frame, only one
+   *  rAF callback runs. */
+  private scheduleResize(): void {
+    if (this.resizeRafId !== null) return; // already scheduled
+    this.resizeRafId = requestAnimationFrame(() => {
+      this.resizeRafId = null;
+      this.applyResize();
+    });
+  }
+
+  /** Apply a resize: fit the terminal to its container and send PTY resize.
+   *  Only called when wouldChangeCellGrid() returned true or from font/
+   *  visibility handlers that bypass the cell-grid gate. */
+  private applyResize(): void {
+    if (!this.terminal || !this.fitAddon) return;
+
+    // Re-entrancy guard: after a real dimension change, the TUI needs
+    // time to process SIGWINCH and redraw (up to 150ms for complex TUI
+    // layouts). If we resize again during that window, fit() invalidates
+    // the render model while the TUI is mid-paint.
+    if (this.resizeInFlight) {
+      this.scheduleResize();
+      return;
+    }
+
+    const el = this.terminal.element?.parentElement;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
+
+    // Final gate: proposeDimensions accounts for padding and scrollbar
+    // width that our fast-path wouldChangeCellGrid does not.
+    const proposed = this.fitAddon.proposeDimensions();
+    if (proposed &&
+        proposed.cols === this.terminal.cols &&
+        proposed.rows === this.terminal.rows) {
+      this.terminal.element?.style.removeProperty("height");
+      return;
+    }
+
+    try {
+      const oldCols = this.terminal.cols;
+      const oldRows = this.terminal.rows;
+
+      this.fitAddon.fit();
+      this.terminal.element?.style.removeProperty("height");
+
+      const { rows, cols } = this.terminal;
+
+      if (rows > 0 && cols > 0 &&
+          (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
+        this.lastPtyRows = rows;
+        this.lastPtyCols = cols;
+        this.ptyBridge?.resize(rows, cols);
+      }
+
+      // Update cell cache after fit — cell dimensions may have changed
+      // if the renderer recalculated metrics.
+      this.updateCellCache();
+
+      // If dimensions actually changed, block subsequent resizes for 150ms
+      // so the TUI can finish its SIGWINCH redraw.
+      if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+        this.resizeInFlight = true;
+        if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
+        this.resizeFlightTimer = setTimeout(() => {
+          this.resizeInFlight = false;
+          this.resizeFlightTimer = null;
+        }, 150);
+      }
+    } catch {
       // Ignore resize errors during teardown.
+    }
+  }
+
+  private registerTerminalMetricObservers(): void {
+    // Window resize: debounce separately since it fires rapidly during
+    // window drag. The cell-grid gate isn't needed here — window resize
+    // always changes all container dimensions.
+    this.registerDomEvent(window, "resize", () => {
+      if (this.windowResizeTimer !== null) clearTimeout(this.windowResizeTimer);
+      this.windowResizeTimer = setTimeout(() => {
+        this.windowResizeTimer = null;
+        this.updateCellCache();
+        this.scheduleResize();
+      }, 100);
+    });
+
+    // Visibility change: only resize if we were hidden (dimensions may
+    // have changed while hidden and ResizeObserver doesn't fire then).
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (!document.hidden) {
+        this.scheduleResize();
+      }
+    });
+
+    // Font load: re-measure cell dimensions and resize.
+    const fontSet = document.fonts;
+    if (!fontSet) return;
+
+    const onFontChange = () => {
+      this.updateCellCache();
+      this.scheduleResize();
+    };
+    void fontSet.ready.then(onFontChange);
+
+    if ("addEventListener" in fontSet) {
+      fontSet.addEventListener("loadingdone", onFontChange);
+      fontSet.addEventListener("loadingerror", onFontChange);
+      this.register(() => {
+        fontSet.removeEventListener("loadingdone", onFontChange);
+        fontSet.removeEventListener("loadingerror", onFontChange);
+      });
     }
   }
 
@@ -1492,16 +1747,36 @@ export class TerminalView extends ItemView {
     };
   }
 
+  private getTerminalFontFamily(): string {
+    const themeMono = getComputedStyle(document.body).getPropertyValue("--font-monospace").trim();
+    return themeMono || "'SF Mono', 'Cascadia Mono', Menlo, 'DejaVu Sans Mono', monospace";
+  }
+
   async onClose(): Promise<void> {
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
     }
+    if (this.resizeRafId !== null) {
+      cancelAnimationFrame(this.resizeRafId);
+      this.resizeRafId = null;
+    }
+    if (this.windowResizeTimer !== null) {
+      clearTimeout(this.windowResizeTimer);
+      this.windowResizeTimer = null;
+    }
+    if (this.resizeFlightTimer !== null) {
+      clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = null;
+    }
+    this.flushPendingAnalysis();
 
     this.resizeObserver?.disconnect();
     this.messageFilter?.destroy();
     this.messageFilter = null;
     this.ptyBridge?.kill();
+    this.canvasAddon?.dispose();
+    this.canvasAddon = null;
     this.terminal?.dispose();
     this.terminal = null;
     this.fitAddon = null;
