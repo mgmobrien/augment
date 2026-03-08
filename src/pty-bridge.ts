@@ -119,13 +119,16 @@ export class PtyBridge {
       ? "powershell.exe"
       : (process.env.SHELL || "bash");
 
-    // When the shell is WSL, translate the CWD from Windows paths to /mnt/...
-    let effectiveCwd = this.cwd;
-    const effectiveShell = this.shellPath || shellFallback;
+    // When the shell is WSL, pass --cd with the translated path so the
+    // Linux shell starts in the right directory. AUGMENT_CWD stays as the
+    // native Windows path for ConPTY's CreateProcess (it sets the CWD of
+    // wsl.exe itself, which is fine as a Windows path).
+    let effectiveShell = this.shellPath || shellFallback;
     if (platform === "win32" && /^wsl(\.exe)?$/i.test(effectiveShell.split(/[\s/\\]/).pop() || "")) {
-      effectiveCwd = effectiveCwd
+      const wslCwd = this.cwd
         .replace(/^([A-Za-z]):\\/, (_, drive: string) => `/mnt/${drive.toLowerCase()}/`)
         .replace(/\\/g, "/");
+      effectiveShell = `${effectiveShell} --cd ${wslCwd}`;
     }
 
     const env: Record<string, string | undefined> = {
@@ -133,7 +136,7 @@ export class PtyBridge {
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
       AUGMENT_SHELL: effectiveShell,
-      AUGMENT_CWD: effectiveCwd,
+      AUGMENT_CWD: this.cwd,
       // Pass initial dimensions so the Go binary creates the PTY at the
       // correct size — eliminates the race where the shell/TUI starts
       // painting before the fd-3 resize command arrives.

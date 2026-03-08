@@ -16657,13 +16657,13 @@ function execAsync(cmd, env) {
 async function checkBool(cmd, env) {
   try {
     await execAsync(cmd, env);
-    return true;
+    return "native";
   } catch (e) {
     if (process.platform === "win32") {
       try {
         const wslCmd = cmd.startsWith("where ") ? "which " + cmd.slice(6) : cmd;
         await execAsync(`wsl ${wslCmd}`, env);
-        return true;
+        return "wsl";
       } catch (e2) {
       }
     }
@@ -16697,10 +16697,13 @@ async function detectRuntimeDeps(options = {}) {
   const epoch = runtimeDepsEpoch;
   const env = shellEnv();
   const run = (async () => {
-    const node = await checkBool("node --version", env);
-    const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
+    const nodeResult = await checkBool("node --version", env);
+    const node = !!nodeResult;
+    const ccResult = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
+    const cc = !!ccResult;
     const authed = cc ? await checkAuth(env) : false;
-    return { node, cc, authed };
+    const wslOnly = node && cc && (nodeResult === "wsl" || ccResult === "wsl");
+    return { node, cc, authed, wslOnly };
   })();
   if (!forceFresh) {
     runtimeDepsInFlight = run;
@@ -16732,7 +16735,7 @@ function invalidateDepsCache() {
 async function detectDeps(app, options = {}) {
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
   const runtimeDeps = await detectRuntimeDeps(options);
-  return { ...runtimeDeps, vaultConfigured };
+  return { ...runtimeDeps, vaultConfigured, wslOnly: runtimeDeps.wslOnly };
 }
 
 // src/vault-setup.ts
@@ -18292,7 +18295,13 @@ var AugmentSettingTab = class extends import_obsidian7.PluginSettingTab {
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
       if (process.platform === "win32") {
         new import_obsidian7.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
-          dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt").setValue(this.plugin.settings.shellPath).onChange(async (value) => {
+          const knownValues = ["", "wsl.exe", "cmd.exe"];
+          const current = this.plugin.settings.shellPath;
+          dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt");
+          if (current && !knownValues.includes(current)) {
+            dropdown.addOption(current, current);
+          }
+          dropdown.setValue(current).onChange(async (value) => {
             this.plugin.settings.shellPath = value;
             await this.plugin.saveData(this.plugin.settings);
           });
@@ -18410,17 +18419,17 @@ var PtyBridge = class {
     }
     candidates.push(sourcePath);
     const shellFallback = platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    let effectiveCwd = this.cwd;
-    const effectiveShell = this.shellPath || shellFallback;
+    let effectiveShell = this.shellPath || shellFallback;
     if (platform === "win32" && /^wsl(\.exe)?$/i.test(effectiveShell.split(/[\s/\\]/).pop() || "")) {
-      effectiveCwd = effectiveCwd.replace(/^([A-Za-z]):\\/, (_, drive) => `/mnt/${drive.toLowerCase()}/`).replace(/\\/g, "/");
+      const wslCwd = this.cwd.replace(/^([A-Za-z]):\\/, (_, drive) => `/mnt/${drive.toLowerCase()}/`).replace(/\\/g, "/");
+      effectiveShell = `${effectiveShell} --cd ${wslCwd}`;
     }
     const env = {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
       AUGMENT_SHELL: effectiveShell,
-      AUGMENT_CWD: effectiveCwd,
+      AUGMENT_CWD: this.cwd,
       // Pass initial dimensions so the Go binary creates the PTY at the
       // correct size — eliminates the race where the shell/TUI starts
       // painting before the fd-3 resize command arrives.
@@ -19280,6 +19289,20 @@ var TerminalView = class extends import_obsidian8.ItemView {
   renderBootstrapper(container, deps) {
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
     const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
+    const shellPath = this.getShellPath();
+    const isWslShell = /wsl/i.test(shellPath);
+    if (deps.wslOnly && !isWslShell && deps.cc && deps.authed) {
+      wrapper.createEl("h2", {
+        text: "Switch terminal to WSL",
+        cls: "augment-bootstrapper-title"
+      });
+      wrapper.createEl("p", {
+        text: "Claude Code was found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
+        cls: "augment-bootstrapper-desc"
+      });
+      this.createBootstrapperBypassActions(wrapper, () => wrapper.remove());
+      return;
+    }
     wrapper.createEl("h2", {
       text: needsRuntimeSetup ? "Set up Claude Code" : "Finish terminal setup",
       cls: "augment-bootstrapper-title"
@@ -22558,8 +22581,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T15:16:47.818Z";
-    this.gitSha = "657847d";
+    this.buildId = "2026-03-08T15:26:58.593Z";
+    this.gitSha = "d0b687d";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

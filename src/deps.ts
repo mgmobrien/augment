@@ -8,6 +8,8 @@ export interface CCDeps {
   cc: boolean;
   authed: boolean;
   vaultConfigured: boolean;
+  /** True when deps were only found via WSL, not natively on Windows. */
+  wslOnly: boolean;
 }
 
 type RuntimeDeps = Omit<CCDeps, "vaultConfigured">;
@@ -50,17 +52,18 @@ function execAsync(cmd: string, env: Record<string, string>): Promise<{ stdout: 
   });
 }
 
-async function checkBool(cmd: string, env: Record<string, string>): Promise<boolean> {
+/** Returns "native" if the command succeeded natively, "wsl" if only via WSL, or false. */
+async function checkBool(cmd: string, env: Record<string, string>): Promise<"native" | "wsl" | false> {
   try {
     await execAsync(cmd, env);
-    return true;
+    return "native";
   } catch {
     // On Windows, retry via WSL if the native check fails.
     if (process.platform === "win32") {
       try {
         const wslCmd = cmd.startsWith("where ") ? "which " + cmd.slice(6) : cmd;
         await execAsync(`wsl ${wslCmd}`, env);
-        return true;
+        return "wsl";
       } catch { /* fall through */ }
     }
     return false;
@@ -98,10 +101,14 @@ async function detectRuntimeDeps(options: DetectDepsOptions = {}): Promise<Runti
   const epoch = runtimeDepsEpoch;
   const env = shellEnv();
   const run = (async () => {
-    const node = await checkBool("node --version", env);
-    const cc = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
+    const nodeResult = await checkBool("node --version", env);
+    const node = !!nodeResult;
+    const ccResult = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
+    const cc = !!ccResult;
     const authed = cc ? await checkAuth(env) : false;
-    return { node, cc, authed };
+    // Deps are WSL-only when all successful checks came from WSL, not native Windows.
+    const wslOnly = node && cc && (nodeResult === "wsl" || ccResult === "wsl");
+    return { node, cc, authed, wslOnly };
   })();
 
   if (!forceFresh) {
@@ -137,5 +144,5 @@ export function invalidateDepsCache(): void {
 export async function detectDeps(app: App, options: DetectDepsOptions = {}): Promise<CCDeps> {
   const vaultConfigured = !!app.vault.getAbstractFileByPath("CLAUDE.md");
   const runtimeDeps = await detectRuntimeDeps(options);
-  return { ...runtimeDeps, vaultConfigured };
+  return { ...runtimeDeps, vaultConfigured, wslOnly: runtimeDeps.wslOnly };
 }
