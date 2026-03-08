@@ -21989,9 +21989,6 @@ var PtyBridge = class {
         stdio: ["pipe", "pipe", "pipe", "pipe"]
       });
       this.controlStream = this.process.stdio[3];
-      if (this.initialRows > 0 && this.initialCols > 0) {
-        this.resize(this.initialRows, this.initialCols);
-      }
       (_a5 = this.process.stdout) == null ? void 0 : _a5.setEncoding("utf-8");
       (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
         this.onData(data);
@@ -22571,8 +22568,9 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.lastPromptAtMs = 0;
     this.autoRenameInFlight = false;
     this.lastAutoRenameAttemptAtMs = 0;
-    this.resizeDebounceTimer = null;
-    this.metricRefreshTimer = null;
+    this.resizeTimer = null;
+    this.lastPtyRows = 0;
+    this.lastPtyCols = 0;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -23004,17 +23002,13 @@ var TerminalView = class extends import_obsidian8.ItemView {
       (_a5 = this.ptyBridge) == null ? void 0 : _a5.write(data);
     });
     this.resizeObserver = new ResizeObserver(() => {
-      if (this.resizeDebounceTimer !== null) clearTimeout(this.resizeDebounceTimer);
-      this.resizeDebounceTimer = setTimeout(() => {
-        this.resizeDebounceTimer = null;
-        this.refreshTerminalMetrics();
-      }, 50);
+      this.scheduleResize(50);
     });
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
-          requestAnimationFrame(() => this.refreshTerminalMetrics());
+          this.scheduleResize(50);
         }
       })
     );
@@ -23023,7 +23017,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
     this.resizeObserver.observe(termDiv);
     this.registerTerminalMetricObservers();
-    this.scheduleMetricRefresh(100);
+    this.scheduleResize(100);
   }
   startPtyBridge(forcedShellPath) {
     var _a5, _b, _c, _d, _e2, _f;
@@ -23548,12 +23542,15 @@ var TerminalView = class extends import_obsidian8.ItemView {
       }
     }
   }
-  scheduleMetricRefresh(delayMs = 0) {
-    if (this.metricRefreshTimer !== null) {
-      clearTimeout(this.metricRefreshTimer);
+  /** Single unified resize scheduler. All resize triggers go through here
+   *  so overlapping events (ResizeObserver, window resize, active-leaf-change,
+   *  visibility change, font load) collapse into a single resize cycle. */
+  scheduleResize(delayMs = 50) {
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
     }
-    this.metricRefreshTimer = setTimeout(() => {
-      this.metricRefreshTimer = null;
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
       this.refreshTerminalMetrics();
     }, delayMs);
   }
@@ -23568,15 +23565,15 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.handleResize();
   }
   registerTerminalMetricObservers() {
-    this.registerDomEvent(window, "resize", () => this.scheduleMetricRefresh());
+    this.registerDomEvent(window, "resize", () => this.scheduleResize());
     this.registerDomEvent(document, "visibilitychange", () => {
       if (!document.hidden) {
-        this.scheduleMetricRefresh();
+        this.scheduleResize();
       }
     });
     const fontSet = document.fonts;
     if (!fontSet) return;
-    const refreshForFonts = () => this.scheduleMetricRefresh();
+    const refreshForFonts = () => this.scheduleResize();
     void fontSet.ready.then(refreshForFonts);
     if ("addEventListener" in fontSet) {
       fontSet.addEventListener("loadingdone", refreshForFonts);
@@ -23588,14 +23585,25 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
   }
   handleResize() {
-    var _a5, _b;
+    var _a5, _b, _c, _d, _e2, _f;
     if (!this.fitAddon || !this.terminal) return;
     const el = (_a5 = this.terminal.element) == null ? void 0 : _a5.parentElement;
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
     try {
       this.fitAddon.fit();
-      if (this.terminal.cols > 0 && this.terminal.rows > 0) {
-        (_b = this.ptyBridge) == null ? void 0 : _b.resize(this.terminal.rows, this.terminal.cols);
+      const { rows, cols } = this.terminal;
+      const xtermEl = this.terminal.element;
+      if (xtermEl) {
+        const dims = (_c = (_b = this.terminal._core) == null ? void 0 : _b._renderService) == null ? void 0 : _c.dimensions;
+        const cellHeight = (_e2 = (_d = dims == null ? void 0 : dims.css) == null ? void 0 : _d.cell) == null ? void 0 : _e2.height;
+        if (cellHeight && cellHeight > 0) {
+          xtermEl.style.height = `${rows * cellHeight}px`;
+        }
+      }
+      if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
+        this.lastPtyRows = rows;
+        this.lastPtyCols = cols;
+        (_f = this.ptyBridge) == null ? void 0 : _f.resize(rows, cols);
       }
     } catch (e) {
     }
@@ -23627,13 +23635,9 @@ var TerminalView = class extends import_obsidian8.ItemView {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
     }
-    if (this.resizeDebounceTimer !== null) {
-      clearTimeout(this.resizeDebounceTimer);
-      this.resizeDebounceTimer = null;
-    }
-    if (this.metricRefreshTimer !== null) {
-      clearTimeout(this.metricRefreshTimer);
-      this.metricRefreshTimer = null;
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
     }
     (_a5 = this.resizeObserver) == null ? void 0 : _a5.disconnect();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
@@ -26134,8 +26138,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T15:49:47.216Z";
-    this.gitSha = "c205cf9";
+    this.buildId = "2026-03-08T16:09:32.365Z";
+    this.gitSha = "8f54328";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

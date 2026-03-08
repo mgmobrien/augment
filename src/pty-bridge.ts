@@ -150,9 +150,10 @@ export class PtyBridge {
       });
 
       this.controlStream = this.process.stdio[3] as Writable;
-      if (this.initialRows > 0 && this.initialCols > 0) {
-        this.resize(this.initialRows, this.initialCols);
-      }
+      // Do NOT send an initial resize here. The Go binary already creates
+      // the PTY at the correct size via AUGMENT_ROWS/AUGMENT_COLS env vars.
+      // Sending a redundant fd-3 resize triggers an extra SIGWINCH that
+      // interrupts the shell/TUI during its initial startup paint.
 
       this.process.stdout?.setEncoding("utf-8");
       this.process.stdout?.on("data", (data: string) => {

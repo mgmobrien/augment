@@ -317,8 +317,9 @@ export class TerminalView extends ItemView {
   private lastPromptAtMs: number = 0;
   private autoRenameInFlight: boolean = false;
   private lastAutoRenameAttemptAtMs: number = 0;
-  private resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private metricRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastPtyRows: number = 0;
+  private lastPtyCols: number = 0;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -864,21 +865,17 @@ export class TerminalView extends ItemView {
     // Handle resize — the ResizeObserver fires once the container has
     // its final dimensions, which also handles the initial fit.
     this.resizeObserver = new ResizeObserver(() => {
-      if (this.resizeDebounceTimer !== null) clearTimeout(this.resizeDebounceTimer);
-      this.resizeDebounceTimer = setTimeout(() => {
-        this.resizeDebounceTimer = null;
-        this.refreshTerminalMetrics();
-      }, 50);
+      this.scheduleResize(50);
     });
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
-          // Re-fit after a frame so the DOM has settled — handles the case
-          // where a sidebar tab becomes visible without a size change (so
-          // the ResizeObserver never fires).
-          requestAnimationFrame(() => this.refreshTerminalMetrics());
+          // Use the same debounced path as ResizeObserver — avoids
+          // bypassing the debounce via requestAnimationFrame, which
+          // caused double resizes and redundant SIGWINCH signals.
+          this.scheduleResize(50);
         }
       })
     );
@@ -892,7 +889,7 @@ export class TerminalView extends ItemView {
 
     // Force a re-fit shortly after boot so the PTY gets correct dimensions
     // even if the pane wasn't visible when the ResizeObserver first fired.
-    this.scheduleMetricRefresh(100);
+    this.scheduleResize(100);
   }
 
   private startPtyBridge(forcedShellPath?: string): void {
@@ -1537,13 +1534,15 @@ export class TerminalView extends ItemView {
     }
   }
 
-  private scheduleMetricRefresh(delayMs: number = 0): void {
-    if (this.metricRefreshTimer !== null) {
-      clearTimeout(this.metricRefreshTimer);
+  /** Single unified resize scheduler. All resize triggers go through here
+   *  so overlapping events (ResizeObserver, window resize, active-leaf-change,
+   *  visibility change, font load) collapse into a single resize cycle. */
+  private scheduleResize(delayMs: number = 50): void {
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
     }
-
-    this.metricRefreshTimer = setTimeout(() => {
-      this.metricRefreshTimer = null;
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
       this.refreshTerminalMetrics();
     }, delayMs);
   }
@@ -1588,17 +1587,17 @@ export class TerminalView extends ItemView {
   }
 
   private registerTerminalMetricObservers(): void {
-    this.registerDomEvent(window, "resize", () => this.scheduleMetricRefresh());
+    this.registerDomEvent(window, "resize", () => this.scheduleResize());
     this.registerDomEvent(document, "visibilitychange", () => {
       if (!document.hidden) {
-        this.scheduleMetricRefresh();
+        this.scheduleResize();
       }
     });
 
     const fontSet = document.fonts;
     if (!fontSet) return;
 
-    const refreshForFonts = () => this.scheduleMetricRefresh();
+    const refreshForFonts = () => this.scheduleResize();
     void fontSet.ready.then(refreshForFonts);
 
     if ("addEventListener" in fontSet) {
@@ -1621,12 +1620,32 @@ export class TerminalView extends ItemView {
 
     try {
       this.fitAddon.fit();
-      // Use the terminal's actual dimensions after fit() rather than
-      // calling proposeDimensions() again — a second call can return
-      // different values if fit() caused a scrollbar to appear/disappear,
-      // which desynchronises xterm and PTY column counts.
-      if (this.terminal.cols > 0 && this.terminal.rows > 0) {
-        this.ptyBridge?.resize(this.terminal.rows, this.terminal.cols);
+
+      const { rows, cols } = this.terminal;
+
+      // Quantize the xterm element height to exactly rows * cellHeight.
+      // Without this, the container (sized by CSS flex + height:100%) is
+      // taller than the rendered grid, leaving dead space at the bottom
+      // where the WebGL canvas shows stale content from previous frames.
+      const xtermEl = this.terminal.element;
+      if (xtermEl) {
+        const dims = (this.terminal as Terminal & {
+          _core?: { _renderService?: { dimensions?: { css?: { cell?: { height?: number } } } } };
+        })._core?._renderService?.dimensions;
+        const cellHeight = dims?.css?.cell?.height;
+        if (cellHeight && cellHeight > 0) {
+          xtermEl.style.height = `${rows * cellHeight}px`;
+        }
+      }
+
+      // Only send PTY resize when dimensions actually changed —
+      // prevents redundant SIGWINCH signals that interrupt the TUI
+      // mid-redraw when multiple resize triggers fire in sequence.
+      if (rows > 0 && cols > 0 &&
+          (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
+        this.lastPtyRows = rows;
+        this.lastPtyCols = cols;
+        this.ptyBridge?.resize(rows, cols);
       }
     } catch (e) {
       // Ignore resize errors during teardown.
@@ -1672,13 +1691,9 @@ export class TerminalView extends ItemView {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
     }
-    if (this.resizeDebounceTimer !== null) {
-      clearTimeout(this.resizeDebounceTimer);
-      this.resizeDebounceTimer = null;
-    }
-    if (this.metricRefreshTimer !== null) {
-      clearTimeout(this.metricRefreshTimer);
-      this.metricRefreshTimer = null;
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
     }
 
     this.resizeObserver?.disconnect();
