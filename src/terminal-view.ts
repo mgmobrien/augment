@@ -2,7 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
+import { CanvasAddon } from "@xterm/addon-canvas";
 import { PtyBridge } from "./pty-bridge";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
@@ -249,7 +249,7 @@ export class TerminalView extends ItemView {
   private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
   private messageFilter: TeammateMessageFilter | null = null;
-  private webglAddon: WebglAddon | null = null;
+  private canvasAddon: CanvasAddon | null = null;
   private ptyStartedAtMs: number = 0;
   private startupRetryCount: number = 0;
   private resolvedCwd: string = "";
@@ -267,6 +267,7 @@ export class TerminalView extends ItemView {
   private lastContainerHeight: number = 0;
   private pendingAnalysis: string[] = [];
   private analysisRaf: number | null = null;
+  private analysisTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -770,22 +771,17 @@ export class TerminalView extends ItemView {
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.openTerminalWithStableMetrics(termDiv);
 
-    // Switch to WebGL renderer — eliminates the DOM renderer's partial
-    // repaint corruption under TUI-heavy redraws (Claude/Codex status
-    // lines, separator repaints, cursor-motion updates). Falls back to
-    // the DOM renderer silently if WebGL is unavailable.
+    // Switch to Canvas renderer — uses independent 2D canvas contexts per
+    // terminal (no shared global state like WebGL's CharAtlasCache). This
+    // eliminates cross-terminal glyph corruption in 2x2+ layouts where
+    // WebGL's shared texture atlas caused one pane's resize to corrupt
+    // siblings' glyph textures. Falls back to DOM renderer silently.
     try {
-      const webgl = new WebglAddon();
-      // If the GPU drops the WebGL context at runtime, dispose the addon
-      // so xterm falls back to its built-in DOM renderer automatically.
-      webgl.onContextLoss(() => {
-        webgl.dispose();
-        this.webglAddon = null;
-      });
-      this.terminal.loadAddon(webgl);
-      this.webglAddon = webgl;
+      const canvas = new CanvasAddon();
+      this.terminal.loadAddon(canvas);
+      this.canvasAddon = canvas;
     } catch {
-      // WebGL not available — DOM renderer continues as fallback.
+      // Canvas addon not available — DOM renderer continues as fallback.
     }
 
     // Fit immediately so the terminal has correct dimensions before any
@@ -850,7 +846,14 @@ export class TerminalView extends ItemView {
     this.messageFilter?.destroy();
     this.messageFilter = new TeammateMessageFilter((formatted) => {
       this.terminal?.write(formatted);
+      // Include formatted summaries in scrollback so snapshot restore
+      // and auto-rename see the same output the user saw live (not raw XML).
+      this.appendToScrollback(formatted);
     });
+    // Clear any queued analysis from the previous PTY session so stale
+    // output from a failed shell doesn't produce bogus status/rename signals
+    // against the new session (e.g., during automatic fallback-shell retries).
+    this.flushPendingAnalysis();
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
       cwd: this.resolvedCwd,
@@ -862,20 +865,26 @@ export class TerminalView extends ItemView {
         // Never let analysis or filtering block the data path.
         this.terminal?.write(data);
         this.appendToScrollback(data);
-        // Batch analysis into next animation frame so it never blocks
-        // the terminal write. Strip ANSI once for all consumers.
+        // Batch analysis using rAF (preferred) with setTimeout fallback.
+        // rAF is throttled/paused when the Electron window is hidden, so
+        // the fallback ensures analysis drains even for background sessions
+        // and prevents unbounded pendingAnalysis growth.
         this.pendingAnalysis.push(data);
-        if (!this.analysisRaf) {
+        if (!this.analysisRaf && !this.analysisTimer) {
           this.analysisRaf = requestAnimationFrame(() => {
             this.analysisRaf = null;
-            const batch = this.pendingAnalysis.join("");
-            this.pendingAnalysis = [];
-            const clean = stripAnsi(batch);
-            this.messageFilter?.detect(clean);
-            this.detectStatus(clean);
-            this.detectUserPromptTurns(batch);
-            this.detectOrchestrationActivity(batch);
+            this.drainAnalysis();
           });
+          // Fallback: if rAF doesn't fire within 500ms (window hidden),
+          // drain via setTimeout instead.
+          this.analysisTimer = setTimeout(() => {
+            this.analysisTimer = null;
+            if (this.analysisRaf !== null) {
+              cancelAnimationFrame(this.analysisRaf);
+              this.analysisRaf = null;
+            }
+            this.drainAnalysis();
+          }, 500);
         }
       },
       onError: (err) => {
@@ -1494,6 +1503,35 @@ export class TerminalView extends ItemView {
     }
   }
 
+  /** Drain pending analysis batch. Called from rAF or setTimeout fallback. */
+  private drainAnalysis(): void {
+    if (this.analysisTimer !== null) {
+      clearTimeout(this.analysisTimer);
+      this.analysisTimer = null;
+    }
+    if (this.pendingAnalysis.length === 0) return;
+    const batch = this.pendingAnalysis.join("");
+    this.pendingAnalysis = [];
+    const clean = stripAnsi(batch);
+    this.messageFilter?.detect(clean);
+    this.detectStatus(clean);
+    this.detectUserPromptTurns(batch);
+    this.detectOrchestrationActivity(batch);
+  }
+
+  /** Flush and discard any queued analysis (used on PTY restart). */
+  private flushPendingAnalysis(): void {
+    if (this.analysisRaf !== null) {
+      cancelAnimationFrame(this.analysisRaf);
+      this.analysisRaf = null;
+    }
+    if (this.analysisTimer !== null) {
+      clearTimeout(this.analysisTimer);
+      this.analysisTimer = null;
+    }
+    this.pendingAnalysis = [];
+  }
+
   /** Single unified resize scheduler. All resize triggers go through here
    *  so overlapping events (ResizeObserver, window resize, active-leaf-change,
    *  visibility change, font load) collapse into a single resize cycle. */
@@ -1531,7 +1569,7 @@ export class TerminalView extends ItemView {
 
     // Re-measure character dimensions from the DOM (only relevant for
     // the DOM renderer fallback path — WebGL does its own measurement).
-    if (!this.webglAddon) {
+    if (!this.canvasAddon) {
       core?._charSizeService?.measure?.();
       core?._renderService?._renderer?.value?._setDefaultSpacing?.();
     }
@@ -1705,18 +1743,14 @@ export class TerminalView extends ItemView {
       clearTimeout(this.resizeFlightTimer);
       this.resizeFlightTimer = null;
     }
-    if (this.analysisRaf !== null) {
-      cancelAnimationFrame(this.analysisRaf);
-      this.analysisRaf = null;
-    }
-    this.pendingAnalysis = [];
+    this.flushPendingAnalysis();
 
     this.resizeObserver?.disconnect();
     this.messageFilter?.destroy();
     this.messageFilter = null;
     this.ptyBridge?.kill();
-    this.webglAddon?.dispose();
-    this.webglAddon = null;
+    this.canvasAddon?.dispose();
+    this.canvasAddon = null;
     this.terminal?.dispose();
     this.terminal = null;
     this.fitAddon = null;
