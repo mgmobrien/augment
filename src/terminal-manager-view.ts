@@ -1,6 +1,7 @@
 import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
+import type { PartInfo } from "./inbox-bus";
 import { discoverVaultParts, unreadCount } from "./inbox-bus";
 import { ComposeModal } from "./inbox-suggest";
 
@@ -758,8 +759,8 @@ export class TerminalManagerView extends ItemView {
     }
   }
 
-  private renderPartsSection(parts: string[]): void {
-    const totalUnread = parts.reduce((sum, p) => sum + unreadCount(this.app, p), 0);
+  private renderPartsSection(parts: PartInfo[]): void {
+    const totalUnread = parts.reduce((sum, part) => sum + unreadCount(this.app, part.address), 0);
     const isExpanded = this.partsCollapseState !== "closed";
 
     const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
@@ -773,8 +774,21 @@ export class TerminalManagerView extends ItemView {
     const partsContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) partsContainer.style.display = "none";
 
-    for (const partName of parts) {
-      this.renderPartRow(partName, partsContainer);
+    const groups = new Map<string, PartInfo[]>();
+    for (const part of parts) {
+      const group = groups.get(part.habitat) ?? [];
+      group.push(part);
+      groups.set(part.habitat, group);
+    }
+
+    for (const [habitat, groupParts] of groups) {
+      partsContainer.createDiv({
+        cls: "augment-tm-date-group",
+        text: habitat === "vault" ? "Vault" : habitat,
+      });
+      for (const part of groupParts) {
+        this.renderPartRow(part, partsContainer);
+      }
     }
 
     divider.addEventListener("click", () => {
@@ -784,14 +798,14 @@ export class TerminalManagerView extends ItemView {
     });
   }
 
-  private renderPartRow(partName: string, container: HTMLElement): void {
-    const count = unreadCount(this.app, partName);
+  private renderPartRow(part: PartInfo, container: HTMLElement): void {
+    const count = unreadCount(this.app, part.address);
     const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
     if (count > 0) row.addClass("has-unread");
 
     const line = row.createDiv({ cls: "augment-tm-line" });
     line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
-    line.createSpan({ cls: "augment-tm-name", text: partName });
+    line.createSpan({ cls: "augment-tm-name", text: part.name });
     line.createDiv({ cls: "augment-tm-spacer" });
 
     if (count > 0) {
@@ -801,7 +815,13 @@ export class TerminalManagerView extends ItemView {
     row.addEventListener("click", () => {
       const activeFile = this.app.workspace.getActiveFile();
       const sourceNote = activeFile?.basename ?? "";
-      new ComposeModal(this.app, partName, sourceNote, "").open();
+      new ComposeModal(
+        this.app,
+        part.address,
+        part.isProjectPart ? part.address : part.name,
+        sourceNote,
+        ""
+      ).open();
     });
   }
 

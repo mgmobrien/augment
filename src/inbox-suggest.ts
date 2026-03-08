@@ -1,4 +1,5 @@
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, Modal, Notice } from "obsidian";
+import type { PartInfo } from "./inbox-bus";
 import { discoverVaultParts, writeMessage } from "./inbox-bus";
 
 /**
@@ -7,7 +8,7 @@ import { discoverVaultParts, writeMessage } from "./inbox-bus";
  * Triggers on `@` at line-start or after whitespace (avoids email addresses).
  * On selection: opens a compose modal for the user to write a message.
  */
-export class InboxSuggest extends EditorSuggest<string> {
+export class InboxSuggest extends EditorSuggest<PartInfo> {
   constructor(app: App) {
     super(app);
   }
@@ -26,18 +27,27 @@ export class InboxSuggest extends EditorSuggest<string> {
     };
   }
 
-  getSuggestions(ctx: EditorSuggestContext): string[] {
+  getSuggestions(ctx: EditorSuggestContext): PartInfo[] {
     const parts = discoverVaultParts(this.app);
     const q = ctx.query.toLowerCase();
-    return q ? parts.filter((p) => p.includes(q)) : parts;
+    if (!q) return parts;
+    return parts.filter((part) =>
+      [part.name, part.address, part.habitat].some((value) =>
+        value.toLowerCase().includes(q)
+      )
+    );
   }
 
-  renderSuggestion(partName: string, el: HTMLElement): void {
-    el.createEl("div", { cls: "augment-inbox-part-name", text: partName });
-    el.createEl("div", { cls: "augment-inbox-part-hint", text: `→ ${partName}'s inbox` });
+  renderSuggestion(part: PartInfo, el: HTMLElement): void {
+    const label = part.isProjectPart ? part.address : part.name;
+    el.createEl("div", { cls: "augment-inbox-part-name", text: label });
+    el.createEl("div", {
+      cls: "augment-inbox-part-hint",
+      text: `→ ${part.address}`,
+    });
   }
 
-  selectSuggestion(partName: string): void {
+  selectSuggestion(part: PartInfo): void {
     const ctx = this.context;
     if (!ctx) return;
     const editor = ctx.editor;
@@ -53,18 +63,32 @@ export class InboxSuggest extends EditorSuggest<string> {
     const sourceNote = activeFile?.basename ?? "";
 
     // Open compose modal instead of sending immediately.
-    new ComposeModal(this.app, partName, sourceNote, selection).open();
+    new ComposeModal(
+      this.app,
+      part.address,
+      part.isProjectPart ? part.address : part.name,
+      sourceNote,
+      selection
+    ).open();
   }
 }
 
 export class ComposeModal extends Modal {
-  private partName: string;
+  private recipientAddress: string;
+  private recipientLabel: string;
   private sourceNote: string;
   private initialBody: string;
 
-  constructor(app: App, partName: string, sourceNote: string, initialBody: string) {
+  constructor(
+    app: App,
+    recipientAddress: string,
+    recipientLabel: string,
+    sourceNote: string,
+    initialBody: string
+  ) {
     super(app);
-    this.partName = partName;
+    this.recipientAddress = recipientAddress;
+    this.recipientLabel = recipientLabel;
     this.sourceNote = sourceNote;
     this.initialBody = initialBody;
   }
@@ -76,7 +100,7 @@ export class ComposeModal extends Modal {
     // To: line
     const recipientEl = contentEl.createEl("div", { cls: "augment-compose-recipient" });
     recipientEl.createEl("span", { cls: "augment-compose-label", text: "To: " });
-    recipientEl.createEl("span", { cls: "augment-compose-value", text: this.partName });
+    recipientEl.createEl("span", { cls: "augment-compose-value", text: this.recipientLabel });
 
     // From: context line (only if we have a source note)
     if (this.sourceNote) {
@@ -120,15 +144,15 @@ export class ComposeModal extends Modal {
   private submit(body: string): void {
     const subject = body.trim().slice(0, 80) || "Message";
     void writeMessage(this.app, {
-      to: this.partName,
+      to: this.recipientAddress,
       from: "user",
       subject,
       body: body.trim(),
       sourceNote: this.sourceNote,
     }).then(() => {
-      new Notice(`Sent to ${this.partName}`);
+      new Notice(`Sent to ${this.recipientLabel}`);
     }).catch((err: unknown) => {
-      new Notice(`Failed to send to ${this.partName}: ${String(err)}`);
+      new Notice(`Failed to send to ${this.recipientLabel}: ${String(err)}`);
     });
     this.close();
   }

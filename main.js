@@ -18147,8 +18147,8 @@ var SOURCE_NOTE_SUFFIX = "-->";
 var cacheByApp = /* @__PURE__ */ new WeakMap();
 function normalizeAddress(raw2, kind) {
   const trimmed = raw2.trim().toLowerCase();
-  if (!trimmed) return kind === "from" ? "matt@vault" : "@vault";
-  if (kind === "from" && trimmed === "user") return "matt@vault";
+  if (!trimmed) return kind === "from" ? "user@vault" : "@vault";
+  if (kind === "from" && trimmed === "user") return "user@vault";
   if (trimmed.includes("@")) return trimmed;
   return `${trimmed}@vault`;
 }
@@ -18461,6 +18461,11 @@ function unreadCount(app, partName) {
   const actor = normalizeAddress(partName, "to");
   return (_a2 = getBusIndex(app).unreadCounts.get(actor)) != null ? _a2 : 0;
 }
+function hasPartState(app, workspacePath) {
+  return app.vault.getAbstractFileByPath(
+    (0, import_obsidian2.normalizePath)(`${workspacePath}/.state/current.md`)
+  ) instanceof import_obsidian2.TFile;
+}
 function setBusNotifier(app, fn) {
   const state = getCacheState(app);
   state.notify = fn;
@@ -18471,7 +18476,34 @@ function setBusNotifier(app, fn) {
 function discoverVaultParts(app) {
   const partsFolder = app.vault.getAbstractFileByPath(PARTS_ROOT);
   if (!(partsFolder instanceof import_obsidian2.TFolder)) return [];
-  return partsFolder.children.filter((child) => child instanceof import_obsidian2.TFolder).map((folder) => folder.name).sort((a, b) => a.localeCompare(b));
+  const parts = [];
+  for (const child of partsFolder.children) {
+    if (!(child instanceof import_obsidian2.TFolder)) continue;
+    if (hasPartState(app, child.path)) {
+      parts.push({
+        name: child.name,
+        address: `${child.name}@vault`,
+        habitat: "vault",
+        workspacePath: child.path,
+        isProjectPart: false
+      });
+      continue;
+    }
+    const projectParts = child.children.filter((grandchild) => grandchild instanceof import_obsidian2.TFolder).filter((grandchild) => hasPartState(app, grandchild.path)).map((grandchild) => ({
+      name: grandchild.name,
+      address: `${grandchild.name}@${child.name}`,
+      habitat: child.name,
+      workspacePath: grandchild.path,
+      isProjectPart: true
+    }));
+    parts.push(...projectParts);
+  }
+  return parts.sort((a, b) => {
+    if (a.habitat === b.habitat) return a.name.localeCompare(b.name);
+    if (a.habitat === "vault") return -1;
+    if (b.habitat === "vault") return 1;
+    return a.habitat.localeCompare(b.habitat);
+  });
 }
 
 // src/inbox-suggest.ts
@@ -18494,13 +18526,22 @@ var InboxSuggest = class extends import_obsidian3.EditorSuggest {
   getSuggestions(ctx) {
     const parts = discoverVaultParts(this.app);
     const q = ctx.query.toLowerCase();
-    return q ? parts.filter((p) => p.includes(q)) : parts;
+    if (!q) return parts;
+    return parts.filter(
+      (part) => [part.name, part.address, part.habitat].some(
+        (value) => value.toLowerCase().includes(q)
+      )
+    );
   }
-  renderSuggestion(partName, el) {
-    el.createEl("div", { cls: "augment-inbox-part-name", text: partName });
-    el.createEl("div", { cls: "augment-inbox-part-hint", text: `\u2192 ${partName}'s inbox` });
+  renderSuggestion(part, el) {
+    const label = part.isProjectPart ? part.address : part.name;
+    el.createEl("div", { cls: "augment-inbox-part-name", text: label });
+    el.createEl("div", {
+      cls: "augment-inbox-part-hint",
+      text: `\u2192 ${part.address}`
+    });
   }
-  selectSuggestion(partName) {
+  selectSuggestion(part) {
     var _a2;
     const ctx = this.context;
     if (!ctx) return;
@@ -18509,13 +18550,20 @@ var InboxSuggest = class extends import_obsidian3.EditorSuggest {
     editor.replaceRange("", ctx.start, ctx.end);
     const activeFile = this.app.workspace.getActiveFile();
     const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
-    new ComposeModal(this.app, partName, sourceNote, selection).open();
+    new ComposeModal(
+      this.app,
+      part.address,
+      part.isProjectPart ? part.address : part.name,
+      sourceNote,
+      selection
+    ).open();
   }
 };
 var ComposeModal = class extends import_obsidian3.Modal {
-  constructor(app, partName, sourceNote, initialBody) {
+  constructor(app, recipientAddress, recipientLabel, sourceNote, initialBody) {
     super(app);
-    this.partName = partName;
+    this.recipientAddress = recipientAddress;
+    this.recipientLabel = recipientLabel;
     this.sourceNote = sourceNote;
     this.initialBody = initialBody;
   }
@@ -18524,7 +18572,7 @@ var ComposeModal = class extends import_obsidian3.Modal {
     contentEl.addClass("augment-compose-modal");
     const recipientEl = contentEl.createEl("div", { cls: "augment-compose-recipient" });
     recipientEl.createEl("span", { cls: "augment-compose-label", text: "To: " });
-    recipientEl.createEl("span", { cls: "augment-compose-value", text: this.partName });
+    recipientEl.createEl("span", { cls: "augment-compose-value", text: this.recipientLabel });
     if (this.sourceNote) {
       const contextEl = contentEl.createEl("div", { cls: "augment-compose-context" });
       contextEl.createEl("span", { cls: "augment-compose-label", text: "From: " });
@@ -18555,15 +18603,15 @@ var ComposeModal = class extends import_obsidian3.Modal {
   submit(body) {
     const subject = body.trim().slice(0, 80) || "Message";
     void writeMessage(this.app, {
-      to: this.partName,
+      to: this.recipientAddress,
       from: "user",
       subject,
       body: body.trim(),
       sourceNote: this.sourceNote
     }).then(() => {
-      new import_obsidian3.Notice(`Sent to ${this.partName}`);
+      new import_obsidian3.Notice(`Sent to ${this.recipientLabel}`);
     }).catch((err) => {
-      new import_obsidian3.Notice(`Failed to send to ${this.partName}: ${String(err)}`);
+      new import_obsidian3.Notice(`Failed to send to ${this.recipientLabel}: ${String(err)}`);
     });
     this.close();
   }
@@ -23368,7 +23416,8 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     }
   }
   renderPartsSection(parts) {
-    const totalUnread = parts.reduce((sum2, p) => sum2 + unreadCount(this.app, p), 0);
+    var _a2;
+    const totalUnread = parts.reduce((sum2, part) => sum2 + unreadCount(this.app, part.address), 0);
     const isExpanded = this.partsCollapseState !== "closed";
     const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
@@ -23379,8 +23428,20 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
     const partsContainer = this.listEl.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) partsContainer.style.display = "none";
-    for (const partName of parts) {
-      this.renderPartRow(partName, partsContainer);
+    const groups = /* @__PURE__ */ new Map();
+    for (const part of parts) {
+      const group = (_a2 = groups.get(part.habitat)) != null ? _a2 : [];
+      group.push(part);
+      groups.set(part.habitat, group);
+    }
+    for (const [habitat, groupParts] of groups) {
+      partsContainer.createDiv({
+        cls: "augment-tm-date-group",
+        text: habitat === "vault" ? "Vault" : habitat
+      });
+      for (const part of groupParts) {
+        this.renderPartRow(part, partsContainer);
+      }
     }
     divider.addEventListener("click", () => {
       this.partsCollapseState = isExpanded ? "closed" : "open";
@@ -23388,13 +23449,13 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
       partsContainer.style.display = isExpanded ? "none" : "";
     });
   }
-  renderPartRow(partName, container) {
-    const count = unreadCount(this.app, partName);
+  renderPartRow(part, container) {
+    const count = unreadCount(this.app, part.address);
     const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
     if (count > 0) row.addClass("has-unread");
     const line = row.createDiv({ cls: "augment-tm-line" });
     line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
-    line.createSpan({ cls: "augment-tm-name", text: partName });
+    line.createSpan({ cls: "augment-tm-name", text: part.name });
     line.createDiv({ cls: "augment-tm-spacer" });
     if (count > 0) {
       line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
@@ -23403,7 +23464,13 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
       var _a2;
       const activeFile = this.app.workspace.getActiveFile();
       const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
-      new ComposeModal(this.app, partName, sourceNote, "").open();
+      new ComposeModal(
+        this.app,
+        part.address,
+        part.isProjectPart ? part.address : part.name,
+        sourceNote,
+        ""
+      ).open();
     });
   }
   renderOtherProjectsSection(groups, container) {
@@ -24968,8 +25035,8 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T21:53:06.720Z";
-    this.gitSha = "b3e5376";
+    this.buildId = "2026-03-08T21:56:57.523Z";
+    this.gitSha = "db050e8";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

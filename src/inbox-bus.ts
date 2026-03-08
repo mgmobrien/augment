@@ -38,6 +38,14 @@ export interface WriteMessageOptions {
   sourceNote?: string;
 }
 
+export interface PartInfo {
+  name: string;
+  address: string;
+  habitat: string;
+  workspacePath: string;
+  isProjectPart: boolean;
+}
+
 interface IndexedMessage {
   file: TFile;
   filePath: string;
@@ -81,8 +89,8 @@ const cacheByApp = new WeakMap<App, CacheState>();
 
 function normalizeAddress(raw: string, kind: "to" | "from"): string {
   const trimmed = raw.trim().toLowerCase();
-  if (!trimmed) return kind === "from" ? "matt@vault" : "@vault";
-  if (kind === "from" && trimmed === "user") return "matt@vault";
+  if (!trimmed) return kind === "from" ? "user@vault" : "@vault";
+  if (kind === "from" && trimmed === "user") return "user@vault";
   if (trimmed.includes("@")) return trimmed;
   return `${trimmed}@vault`;
 }
@@ -622,6 +630,12 @@ export function unreadCount(app: App, partName: string): number {
   return getBusIndex(app).unreadCounts.get(actor) ?? 0;
 }
 
+function hasPartState(app: App, workspacePath: string): boolean {
+  return app.vault.getAbstractFileByPath(
+    normalizePath(`${workspacePath}/.state/current.md`)
+  ) instanceof TFile;
+}
+
 // Register a callback to be called whenever a file under agents/bus/ changes.
 // Returns an unsubscribe function. Call once from plugin onload.
 export function setBusNotifier(app: App, fn: () => void): () => void {
@@ -632,12 +646,44 @@ export function setBusNotifier(app: App, fn: () => void): () => void {
   };
 }
 
-export function discoverVaultParts(app: App): string[] {
+export function discoverVaultParts(app: App): PartInfo[] {
   const partsFolder = app.vault.getAbstractFileByPath(PARTS_ROOT);
   if (!(partsFolder instanceof TFolder)) return [];
 
-  return partsFolder.children
-    .filter((child): child is TFolder => child instanceof TFolder)
-    .map((folder) => folder.name)
-    .sort((a, b) => a.localeCompare(b));
+  const parts: PartInfo[] = [];
+
+  for (const child of partsFolder.children) {
+    if (!(child instanceof TFolder)) continue;
+
+    if (hasPartState(app, child.path)) {
+      parts.push({
+        name: child.name,
+        address: `${child.name}@vault`,
+        habitat: "vault",
+        workspacePath: child.path,
+        isProjectPart: false,
+      });
+      continue;
+    }
+
+    const projectParts = child.children
+      .filter((grandchild): grandchild is TFolder => grandchild instanceof TFolder)
+      .filter((grandchild) => hasPartState(app, grandchild.path))
+      .map((grandchild) => ({
+        name: grandchild.name,
+        address: `${grandchild.name}@${child.name}`,
+        habitat: child.name,
+        workspacePath: grandchild.path,
+        isProjectPart: true,
+      }));
+
+    parts.push(...projectParts);
+  }
+
+  return parts.sort((a, b) => {
+    if (a.habitat === b.habitat) return a.name.localeCompare(b.name);
+    if (a.habitat === "vault") return -1;
+    if (b.habitat === "vault") return 1;
+    return a.habitat.localeCompare(b.habitat);
+  });
 }
