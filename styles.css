@@ -1,41 +1,68 @@
-/* Ensure Obsidian's view-content fills the leaf */
+/* .view-content IS .augment-terminal-container at runtime (bootTerminal adds
+   the class to contentEl). flex: 1 gives it a definite height from
+   .workspace-leaf-content's flex layout — no percentage heights needed,
+   so there's no circular dependency and no overflow from view-header. */
 .workspace-leaf-content[data-type="augment-terminal"] .view-content {
-  height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
-/* Container fills the Obsidian leaf pane */
+/* Additional container properties (same element as .view-content) */
 .augment-terminal-container {
   position: relative;
   width: 100%;
-  height: 100%;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   background-color: var(--background-primary);
 }
 
-/* Wrapper div that holds the xterm instance */
+/* Wrapper div that holds the xterm instance.
+   Use margin for the visual inset so xterm's measured box itself stays
+   padding-free and the viewport/grid math stays aligned. */
 .augment-terminal-xterm {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  margin: 4px;
+  background-color: var(--background-primary);
+}
+
+/* Sidebar terminal: tighter inset */
+.mod-right-split .augment-terminal-xterm {
+  margin: 2px;
 }
 
 /* xterm.js terminal fills its wrapper */
 .augment-terminal-container .xterm {
   height: 100%;
-  padding: 4px;
 }
 
-/* Sidebar terminal: tighter padding */
-.mod-right-split .augment-terminal-container .xterm {
-  padding: 2px;
+/* The xterm DOM renderer lays out text on a fixed cell grid.
+   Ligatures collapse multiple cells into one glyph and break alignment.
+   CRITICAL: These must also apply to xterm's measurement elements
+   (.xterm-char-measure-element, .xterm-width-cache-measure-container)
+   which live in .xterm-helpers, NOT .xterm-rows. If measurement spans
+   see the font WITH ligatures but rendered spans see it WITHOUT,
+   the width delta corrupts letter-spacing and row height. */
+.augment-terminal-container .xterm .xterm-rows,
+.augment-terminal-container .xterm .xterm-rows span,
+.augment-terminal-container .xterm .xterm-char-measure-element,
+.augment-terminal-container .xterm .xterm-width-cache-measure-container,
+.augment-terminal-container .xterm .xterm-width-cache-measure-container span {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
 }
 
-/* Override xterm viewport to remove default scrollbar styling conflicts */
+/* Always show scrollbar so its 6px width is constant — prevents column
+   count mismatches when content grows past the viewport and the scrollbar
+   suddenly appears, stealing width without triggering a resize. */
 .augment-terminal-container .xterm-viewport {
-  overflow-y: auto;
+  overflow-y: scroll;
 }
 
 /* Use Obsidian's scrollbar styling */

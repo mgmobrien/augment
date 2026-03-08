@@ -1321,11 +1321,18 @@ export class AugmentSettingTab extends PluginSettingTab {
           .setName("Shell")
           .setDesc("Shell to launch in new terminals.")
           .addDropdown((dropdown) => {
+            const knownValues = ["", "wsl.exe", "cmd.exe"];
+            const current = this.plugin.settings.shellPath;
             dropdown
               .addOption("", "PowerShell (default)")
               .addOption("wsl.exe", "WSL")
-              .addOption("cmd.exe", "Command Prompt")
-              .setValue(this.plugin.settings.shellPath)
+              .addOption("cmd.exe", "Command Prompt");
+            // Preserve any custom shell path set before the dropdown existed.
+            if (current && !knownValues.includes(current)) {
+              dropdown.addOption(current, current);
+            }
+            dropdown
+              .setValue(current)
               .onChange(async (value) => {
                 this.plugin.settings.shellPath = value;
                 await this.plugin.saveData(this.plugin.settings);

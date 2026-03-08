@@ -2,6 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { PtyBridge } from "./pty-bridge";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
@@ -64,7 +65,7 @@ function translatePtyError(raw: string): string {
     return "Permission error — try running the install again.";
   }
   if (l.includes("sigkill") || l.includes("signal sigkill")) {
-    return "Terminal bridge was killed by macOS during launch.";
+    return "Terminal bridge was killed by the OS during launch.";
   }
   return "The terminal connection failed.";
 }
@@ -307,6 +308,7 @@ export class TerminalView extends ItemView {
   private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
   private messageFilter: TeammateMessageFilter | null = null;
+  private webglAddon: WebglAddon | null = null;
   private ptyStartedAtMs: number = 0;
   private startupRetryCount: number = 0;
   private resolvedCwd: string = "";
@@ -315,6 +317,11 @@ export class TerminalView extends ItemView {
   private lastPromptAtMs: number = 0;
   private autoRenameInFlight: boolean = false;
   private lastAutoRenameAttemptAtMs: number = 0;
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastPtyRows: number = 0;
+  private lastPtyCols: number = 0;
+  private resizeInFlight: boolean = false;
+  private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -644,6 +651,25 @@ export class TerminalView extends ItemView {
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
     const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
 
+    // When deps (Node and/or Claude) were found only in WSL but the
+    // terminal is running a native Windows shell, guide the user to switch.
+    // This covers both "fully installed in WSL" and "Node in WSL, Claude
+    // not yet installed" — in either case, the native shell can't use them.
+    const shellPath = this.getShellPath();
+    const isWslShell = /wsl/i.test(shellPath);
+    if (deps.wslOnly && !isWslShell) {
+      wrapper.createEl("h2", {
+        text: "Switch terminal to WSL",
+        cls: "augment-bootstrapper-title",
+      });
+      wrapper.createEl("p", {
+        text: "Node.js and Claude Code were found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
+        cls: "augment-bootstrapper-desc",
+      });
+      this.createBootstrapperBypassActions(wrapper, () => wrapper.remove());
+      return;
+    }
+
     wrapper.createEl("h2", {
       text: needsRuntimeSetup ? "Set up Claude Code" : "Finish terminal setup",
       cls: "augment-bootstrapper-title",
@@ -780,7 +806,7 @@ export class TerminalView extends ItemView {
     this.terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+      fontFamily: this.getTerminalFontFamily(),
       theme: this.getTheme(),
       allowProposedApi: true,
       scrollback: 10000,
@@ -797,7 +823,30 @@ export class TerminalView extends ItemView {
 
     // Mount terminal.
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
-    this.terminal.open(termDiv);
+    this.openTerminalWithStableMetrics(termDiv);
+
+    // Switch to WebGL renderer — eliminates the DOM renderer's partial
+    // repaint corruption under TUI-heavy redraws (Claude/Codex status
+    // lines, separator repaints, cursor-motion updates). Falls back to
+    // the DOM renderer silently if WebGL is unavailable.
+    try {
+      const webgl = new WebglAddon();
+      // If the GPU drops the WebGL context at runtime, dispose the addon
+      // so xterm falls back to its built-in DOM renderer automatically.
+      webgl.onContextLoss(() => {
+        webgl.dispose();
+        this.webglAddon = null;
+      });
+      this.terminal.loadAddon(webgl);
+      this.webglAddon = webgl;
+    } catch {
+      // WebGL not available — DOM renderer continues as fallback.
+    }
+
+    // Fit immediately so the terminal has correct dimensions before any
+    // content is written — avoids garbled snapshot restore and ensures
+    // the PTY starts with the right cols/rows instead of default 80x24.
+    this.refreshTerminalMetrics();
 
     // Restore previous terminal output snapshot, then spawn a fresh shell.
     if (this.restoredSnapshot) {
@@ -818,13 +867,17 @@ export class TerminalView extends ItemView {
     // Handle resize — the ResizeObserver fires once the container has
     // its final dimensions, which also handles the initial fit.
     this.resizeObserver = new ResizeObserver(() => {
-      this.handleResize();
+      this.scheduleResize(50);
     });
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
+          // Use the same debounced path as ResizeObserver — avoids
+          // bypassing the debounce via requestAnimationFrame, which
+          // caused double resizes and redundant SIGWINCH signals.
+          this.scheduleResize(50);
         }
       })
     );
@@ -833,7 +886,12 @@ export class TerminalView extends ItemView {
       this.markActivityRead();
     }
 
-    this.resizeObserver.observe(container);
+    this.resizeObserver.observe(termDiv);
+    this.registerTerminalMetricObservers();
+
+    // Force a re-fit shortly after boot so the PTY gets correct dimensions
+    // even if the pane wasn't visible when the ResizeObserver first fired.
+    this.scheduleResize(100);
   }
 
   private startPtyBridge(forcedShellPath?: string): void {
@@ -852,6 +910,8 @@ export class TerminalView extends ItemView {
       pluginDir: this.pluginDir,
       cwd: this.resolvedCwd,
       shellPath,
+      initialRows: this.terminal?.rows ?? 0,
+      initialCols: this.terminal?.cols ?? 0,
       onData: (data) => {
         this.messageFilter!.feed(data);
         this.detectStatus(data);
@@ -866,7 +926,10 @@ export class TerminalView extends ItemView {
         const runtimeMs = Date.now() - this.ptyStartedAtMs;
         const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
         if (exitedImmediately && this.startupRetryCount < 2) {
-          const fallbackShell = this.startupRetryCount === 0 ? "/bin/bash" : "/bin/zsh";
+          const isWin = process.platform === "win32";
+          const fallbackShell = this.startupRetryCount === 0
+            ? (isWin ? "powershell.exe" : "/bin/bash")
+            : (isWin ? "cmd.exe" : "/bin/zsh");
           this.startupRetryCount++;
           this.terminal?.write(
             `\r\n\x1b[2m[Shell exited quickly (${runtimeMs}ms); retrying with ${fallbackShell}]\x1b[0m\r\n`
@@ -1449,14 +1512,148 @@ export class TerminalView extends ItemView {
     return withoutQuotes.replace(/[^a-zA-Z0-9._-]+$/g, "");
   }
 
+  private openTerminalWithStableMetrics(termDiv: HTMLDivElement): void {
+    if (!this.terminal) return;
+
+    // xterm's DOM renderer compares two different font measurement paths.
+    // In Electron, OffscreenCanvas metrics can drift from actual DOM glyph
+    // widths, which explodes row height and injected letter-spacing.
+    const globalScope = globalThis as typeof globalThis & {
+      OffscreenCanvas?: typeof OffscreenCanvas;
+    };
+    const hadOwnOffscreenCanvas = Object.prototype.hasOwnProperty.call(globalScope, "OffscreenCanvas");
+    const originalOffscreenCanvas = globalScope.OffscreenCanvas;
+
+    try {
+      (globalScope as { OffscreenCanvas?: typeof OffscreenCanvas }).OffscreenCanvas = undefined;
+      this.terminal.open(termDiv);
+    } finally {
+      if (hadOwnOffscreenCanvas) {
+        globalScope.OffscreenCanvas = originalOffscreenCanvas;
+      } else {
+        delete (globalScope as { OffscreenCanvas?: typeof OffscreenCanvas }).OffscreenCanvas;
+      }
+    }
+  }
+
+  /** Single unified resize scheduler. All resize triggers go through here
+   *  so overlapping events (ResizeObserver, window resize, active-leaf-change,
+   *  visibility change, font load) collapse into a single resize cycle. */
+  private scheduleResize(delayMs: number = 50): void {
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+    }
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
+      this.refreshTerminalMetrics();
+    }, delayMs);
+  }
+
+  private refreshTerminalMetrics(): void {
+    if (!this.terminal) return;
+
+    // Re-entrancy guard: after a dimension change, the TUI needs time
+    // to process SIGWINCH and redraw (10-80ms). If we resize again
+    // during that window, fit() clears the render model while the TUI
+    // is mid-paint, producing stale bottom-row content. Defer instead.
+    if (this.resizeInFlight) {
+      this.scheduleResize(80);
+      return;
+    }
+
+    const core = (this.terminal as Terminal & {
+      _core?: {
+        _charSizeService?: { measure?: () => void };
+        _renderService?: {
+          _renderer?: { value?: { _setDefaultSpacing?: () => void } };
+        };
+      };
+    })._core;
+
+    // Re-measure character dimensions from the DOM (only relevant for
+    // the DOM renderer fallback path — WebGL does its own measurement).
+    if (!this.webglAddon) {
+      core?._charSizeService?.measure?.();
+      core?._renderService?._renderer?.value?._setDefaultSpacing?.();
+    }
+
+    const oldCols = this.terminal.cols;
+    const oldRows = this.terminal.rows;
+
+    this.handleResize();
+
+    // If dimensions actually changed, mark resize as in-flight so
+    // subsequent triggers wait for the TUI to finish its redraw.
+    if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+      this.resizeInFlight = true;
+      if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = setTimeout(() => {
+        this.resizeInFlight = false;
+        this.resizeFlightTimer = null;
+      }, 80);
+    }
+    // Do NOT call clearTextureAtlas() or terminal.refresh() here.
+    //
+    // clearTextureAtlas(): WebGL shares the glyph atlas across terminals
+    // with matching config — clearing it from one pane corrupts siblings.
+    //
+    // terminal.refresh(0, rows-1): Forces a synchronous full-screen
+    // redraw from xterm's internal buffer. If a TUI app (Claude/Codex)
+    // is actively writing cursor-movement sequences to update the screen,
+    // refresh() captures a partially-updated buffer state — cleared lines
+    // that haven't been rewritten yet, cursor positions mid-sequence.
+    // This produces duplicated separators, double prompt lines, clipped
+    // text, and stale "Working..." rows. handleResize() → fit() →
+    // terminal.resize() already marks all rows dirty; the renderer
+    // redraws them on the next animation frame after all pending writes
+    // have been processed.
+  }
+
+  private registerTerminalMetricObservers(): void {
+    this.registerDomEvent(window, "resize", () => this.scheduleResize());
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (!document.hidden) {
+        this.scheduleResize();
+      }
+    });
+
+    const fontSet = document.fonts;
+    if (!fontSet) return;
+
+    const refreshForFonts = () => this.scheduleResize();
+    void fontSet.ready.then(refreshForFonts);
+
+    if ("addEventListener" in fontSet) {
+      fontSet.addEventListener("loadingdone", refreshForFonts);
+      fontSet.addEventListener("loadingerror", refreshForFonts);
+      this.register(() => {
+        fontSet.removeEventListener("loadingdone", refreshForFonts);
+        fontSet.removeEventListener("loadingerror", refreshForFonts);
+      });
+    }
+  }
+
   private handleResize(): void {
     if (!this.fitAddon || !this.terminal) return;
 
+    // Skip fitting when the container is hidden or has no dimensions —
+    // avoids reflowing to MINIMUM_COLS (2) which garbles existing text.
+    const el = this.terminal.element?.parentElement;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
+
     try {
       this.fitAddon.fit();
-      const dims = this.fitAddon.proposeDimensions();
-      if (dims) {
-        this.ptyBridge?.resize(dims.rows, dims.cols);
+
+      const { rows, cols } = this.terminal;
+
+      // Only send PTY resize when dimensions actually changed —
+      // prevents redundant SIGWINCH signals that interrupt the TUI
+      // mid-redraw when multiple resize triggers fire in sequence.
+      if (rows > 0 && cols > 0 &&
+          (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
+        this.lastPtyRows = rows;
+        this.lastPtyCols = cols;
+        this.ptyBridge?.resize(rows, cols);
       }
     } catch (e) {
       // Ignore resize errors during teardown.
@@ -1492,16 +1689,31 @@ export class TerminalView extends ItemView {
     };
   }
 
+  private getTerminalFontFamily(): string {
+    const themeMono = getComputedStyle(document.body).getPropertyValue("--font-monospace").trim();
+    return themeMono || "'SF Mono', 'Cascadia Mono', Menlo, 'DejaVu Sans Mono', monospace";
+  }
+
   async onClose(): Promise<void> {
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
+    }
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
+    if (this.resizeFlightTimer !== null) {
+      clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = null;
     }
 
     this.resizeObserver?.disconnect();
     this.messageFilter?.destroy();
     this.messageFilter = null;
     this.ptyBridge?.kill();
+    this.webglAddon?.dispose();
+    this.webglAddon = null;
     this.terminal?.dispose();
     this.terminal = null;
     this.fitAddon = null;
