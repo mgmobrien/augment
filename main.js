@@ -22562,6 +22562,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.errorBannerEl = null;
     this.currentActivity = null;
     this.messageFilter = null;
+    this.webglAddon = null;
     this.ptyStartedAtMs = 0;
     this.startupRetryCount = 0;
     this.resolvedCwd = "";
@@ -22981,7 +22982,13 @@ var TerminalView = class extends import_obsidian8.ItemView {
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
     this.openTerminalWithStableMetrics(termDiv);
     try {
-      this.terminal.loadAddon(new xr());
+      const webgl = new xr();
+      webgl.onContextLoss(() => {
+        webgl.dispose();
+        this.webglAddon = null;
+      });
+      this.terminal.loadAddon(webgl);
+      this.webglAddon = webgl;
     } catch (e) {
     }
     this.refreshTerminalMetrics();
@@ -23554,10 +23561,11 @@ var TerminalView = class extends import_obsidian8.ItemView {
     var _a5, _b, _c, _d, _e2, _f;
     if (!this.terminal) return;
     const core = this.terminal._core;
-    (_b = (_a5 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a5.measure) == null ? void 0 : _b.call(_a5);
-    (_f = (_e2 = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e2._setDefaultSpacing) == null ? void 0 : _f.call(_e2);
+    if (!this.webglAddon) {
+      (_b = (_a5 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a5.measure) == null ? void 0 : _b.call(_a5);
+      (_f = (_e2 = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e2._setDefaultSpacing) == null ? void 0 : _f.call(_e2);
+    }
     this.handleResize();
-    this.terminal.clearTextureAtlas();
     if (this.terminal.rows > 0) {
       this.terminal.refresh(0, this.terminal.rows - 1);
     }
@@ -23617,7 +23625,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
     return themeMono || "'SF Mono', 'Cascadia Mono', Menlo, 'DejaVu Sans Mono', monospace";
   }
   async onClose() {
-    var _a5, _b, _c, _d;
+    var _a5, _b, _c, _d, _e2;
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
@@ -23634,7 +23642,9 @@ var TerminalView = class extends import_obsidian8.ItemView {
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
     this.messageFilter = null;
     (_c = this.ptyBridge) == null ? void 0 : _c.kill();
-    (_d = this.terminal) == null ? void 0 : _d.dispose();
+    (_d = this.webglAddon) == null ? void 0 : _d.dispose();
+    this.webglAddon = null;
+    (_e2 = this.terminal) == null ? void 0 : _e2.dispose();
     this.terminal = null;
     this.fitAddon = null;
     this.ptyBridge = null;
@@ -26127,8 +26137,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T15:38:20.312Z";
-    this.gitSha = "8dcd8ea";
+    this.buildId = "2026-03-08T15:44:17.582Z";
+    this.gitSha = "a6b1e12";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

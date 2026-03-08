@@ -308,6 +308,7 @@ export class TerminalView extends ItemView {
   private currentActivity: CurrentActivity = null;
   public onAutoRenameRequest?: (excerpt: string) => Promise<string | null>;
   private messageFilter: TeammateMessageFilter | null = null;
+  private webglAddon: WebglAddon | null = null;
   private ptyStartedAtMs: number = 0;
   private startupRetryCount: number = 0;
   private resolvedCwd: string = "";
@@ -826,7 +827,15 @@ export class TerminalView extends ItemView {
     // lines, separator repaints, cursor-motion updates). Falls back to
     // the DOM renderer silently if WebGL is unavailable.
     try {
-      this.terminal.loadAddon(new WebglAddon());
+      const webgl = new WebglAddon();
+      // If the GPU drops the WebGL context at runtime, dispose the addon
+      // so xterm falls back to its built-in DOM renderer automatically.
+      webgl.onContextLoss(() => {
+        webgl.dispose();
+        this.webglAddon = null;
+      });
+      this.terminal.loadAddon(webgl);
+      this.webglAddon = webgl;
     } catch {
       // WebGL not available — DOM renderer continues as fallback.
     }
@@ -1551,14 +1560,20 @@ export class TerminalView extends ItemView {
       };
     })._core;
 
-    // Re-measure character dimensions from the DOM
-    core?._charSizeService?.measure?.();
-    // Force the DOM renderer to recalculate letter-spacing from the
-    // updated measurements — without this, stale letter-spacing values
-    // persist even after _charSizeService.measure() updates cell widths.
-    core?._renderService?._renderer?.value?._setDefaultSpacing?.();
+    // Re-measure character dimensions from the DOM (only relevant for
+    // the DOM renderer fallback path — WebGL does its own measurement).
+    if (!this.webglAddon) {
+      core?._charSizeService?.measure?.();
+      // Force the DOM renderer to recalculate letter-spacing from the
+      // updated measurements — without this, stale letter-spacing values
+      // persist even after _charSizeService.measure() updates cell widths.
+      core?._renderService?._renderer?.value?._setDefaultSpacing?.();
+    }
     this.handleResize();
-    this.terminal.clearTextureAtlas();
+    // Do NOT call clearTextureAtlas() here. The WebGL renderer shares
+    // the glyph atlas across terminals with matching config via
+    // CharAtlasCache. Clearing it from one pane invalidates siblings,
+    // leaving them visually corrupted until they repaint on focus.
 
     if (this.terminal.rows > 0) {
       this.terminal.refresh(0, this.terminal.rows - 1);
@@ -1663,6 +1678,8 @@ export class TerminalView extends ItemView {
     this.messageFilter?.destroy();
     this.messageFilter = null;
     this.ptyBridge?.kill();
+    this.webglAddon?.dispose();
+    this.webglAddon = null;
     this.terminal?.dispose();
     this.terminal = null;
     this.fitAddon = null;
