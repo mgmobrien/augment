@@ -1,4 +1,5 @@
 import { addIcon, Editor, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
+import { execFile } from "child_process";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { InboxSuggest } from "./inbox-suggest";
@@ -14,9 +15,25 @@ import { EditorSelection } from "@codemirror/state";
 import { SCAFFOLD_FOLDER, SCAFFOLD_TEMPLATES, SCAFFOLD_SKILLS_FOLDER, SCAFFOLD_SKILLS } from "./scaffold-data";
 import { addSpinnerEffect, removeSpinnerEffect, spinnerField, addAgentWidgetEffect, removeAgentWidgetEffect, agentWidgetField } from "./editor-extensions";
 import { TeamCreateSpawnEvent, RenameModal, InitTeamModal } from "./terminal-modals";
+import { promisify } from "util";
 
 declare const __AUGMENT_BUILD_ID__: string;
 declare const __AUGMENT_GIT_SHA__: string;
+
+const execFileAsync = promisify(execFile);
+
+async function isWslAvailable(): Promise<boolean> {
+  try {
+    const result = await execFileAsync("wsl.exe", ["--list", "--quiet"], {
+      encoding: "utf8",
+      timeout: 10000,
+      windowsHide: true,
+    });
+    return result.stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
 
 function buildWelcomeNoteContent(mod: string): string {
   return `# Get started with Augment
@@ -108,6 +125,21 @@ export default class AugmentTerminalPlugin extends Plugin {
     cmView: EditorView;
     insertPos: number;
   } | null = null;
+
+  private async maybeDefaultWindowsShellToWsl(): Promise<void> {
+    if (process.platform !== "win32") return;
+    if (this.settings.shellPath.trim().length > 0) return;
+
+    if (!(await isWslAvailable())) return;
+    if (this.settings.shellPath.trim().length > 0) return;
+
+    this.settings.shellPath = "wsl.exe";
+    try {
+      await this.saveData(this.settings);
+    } catch (err) {
+      console.warn("[Augment] failed to save WSL shell default", err);
+    }
+  }
 
   // Returns the actual model ID to use, resolving "auto" and tier aliases to the best available.
   public resolveModel(): string {
@@ -465,6 +497,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.settings.ribbonIcon = "augment-pyramid";
     }
     // systemPrompt default is in DEFAULT_SETTINGS. Users may intentionally blank it.
+
+    void this.maybeDefaultWindowsShellToWsl();
 
     // Clear Obsidian's conflicting Cmd/Ctrl+Enter defaults.
     // Two mechanisms: (1) removeDefaultHotkeys on the runtime hotkey manager (immediate),
@@ -1519,4 +1553,3 @@ export default class AugmentTerminalPlugin extends Plugin {
     return false;
   }
 }
-

@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, execFileSync } from "child_process";
+import { spawn, spawnSync, ChildProcess, execFileSync } from "child_process";
 import { join } from "path";
 import { copyFileSync, existsSync, mkdirSync, chmodSync, statSync } from "fs";
 import { tmpdir } from "os";
@@ -16,6 +16,17 @@ export interface PtyBridgeOptions {
 // macOS may SIGKILL binaries executed from certain paths (vault dirs, iCloud-
 // synced folders, etc.). Copy the binary to a temp location before spawning.
 const STAGING_DIR = join(tmpdir(), "augment-pty");
+
+function winPathToWsl(p: string): string {
+  const normalized = p.replace(/\\/g, "/");
+  const match = normalized.match(/^([A-Za-z]):(.*)$/);
+  if (!match) throw new Error(`Cannot translate non-drive path to WSL: ${p}`);
+  return `/mnt/${match[1].toLowerCase()}${match[2]}`;
+}
+
+function appendWslenv(current: string | undefined, spec: string): string {
+  return current ? `${current}:${spec}` : spec;
+}
 
 function stageBinary(sourcePath: string, binaryName: string): string {
   if (!existsSync(STAGING_DIR)) mkdirSync(STAGING_DIR, { recursive: true });
@@ -47,10 +58,63 @@ function stageBinary(sourcePath: string, binaryName: string): string {
   return staged;
 }
 
+function stageBinaryInWsl(
+  sourcePath: string,
+  binaryName: string,
+  sourceMtimeMs: number,
+  distro: string | null
+): string {
+  const sourceMtimeToken = `${Math.floor(sourceMtimeMs)}`;
+  const sourceMtimeSeconds = `${Math.floor(sourceMtimeMs / 1000)}`;
+  const sourcePathFallback = winPathToWsl(sourcePath);
+  const wslenv = appendWslenv(process.env.WSLENV, "AUGMENT_WSL_STAGE_SRC/p");
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    AUGMENT_WSL_STAGE_SRC: sourcePath,
+    AUGMENT_WSL_STAGE_SRC_FALLBACK: sourcePathFallback,
+    AUGMENT_WSL_BINARY_NAME: binaryName,
+    AUGMENT_WSL_BINARY_MTIME: sourceMtimeToken,
+    AUGMENT_WSL_BINARY_MTIME_SECONDS: sourceMtimeSeconds,
+    WSLENV: wslenv,
+  };
+  const args = [
+    ...(distro ? ["-d", distro] : []),
+    "sh",
+    "-lc",
+    [
+      "set -eu",
+      'src="${AUGMENT_WSL_STAGE_SRC:-$AUGMENT_WSL_STAGE_SRC_FALLBACK}"',
+      'dst="$HOME/.cache/augment/pty/$AUGMENT_WSL_BINARY_NAME-$AUGMENT_WSL_BINARY_MTIME"',
+      'current_mtime=""',
+      'if [ -e "$dst" ]; then current_mtime="$(stat -c %Y "$dst" 2>/dev/null || printf "")"; fi',
+      'if [ "$current_mtime" != "$AUGMENT_WSL_BINARY_MTIME_SECONDS" ]; then',
+      '  install -Dm755 "$src" "$dst"',
+      '  touch -m -d "@$AUGMENT_WSL_BINARY_MTIME_SECONDS" "$dst" 2>/dev/null || true',
+      "fi",
+      'printf "%s" "$dst"',
+    ].join("; "),
+  ];
+  const result = spawnSync("wsl.exe", args, {
+    env,
+    encoding: "utf8",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || `wsl.exe exited with code ${result.status}`).trim();
+    throw new Error(detail);
+  }
+  const stagedPath = result.stdout.trim();
+  if (!stagedPath) {
+    throw new Error("WSL staging did not return a launch path");
+  }
+  return stagedPath;
+}
+
 export class PtyBridge {
   private process: ChildProcess | null = null;
   private controlStream: Writable | null = null;
   private stopping = false;
+  private wslMode = false;
   private pluginDir: string;
   private cwd: string;
   private shellPath: string;
@@ -90,6 +154,76 @@ export class PtyBridge {
     this.stopping = false;
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const isWslTarget = platform === "win32" && this.shellPath === "wsl.exe";
+
+    this.wslMode = isWslTarget;
+    this.controlStream = null;
+
+    if (isWslTarget) {
+      const binaryName = `augment-pty-linux-${arch}`;
+      const sourcePath = join(this.pluginDir, "scripts", binaryName);
+
+      try {
+        const sourceMtimeMs = statSync(sourcePath).mtimeMs;
+        const hostStagedPath = stageBinary(sourcePath, binaryName);
+        const wslDistro = null;
+        const stagedLinuxPath = stageBinaryInWsl(hostStagedPath, binaryName, sourceMtimeMs, wslDistro);
+        const wslenv = appendWslenv(process.env.WSLENV, "AUGMENT_CWD/p");
+        const env: Record<string, string | undefined> = {
+          ...process.env,
+          TERM: "xterm-256color",
+          LANG: process.env.LANG || "en_US.UTF-8",
+          AUGMENT_CWD: this.cwd,
+          AUGMENT_SHELL: undefined,
+          WSLENV: wslenv,
+        };
+        const args = [
+          ...(wslDistro ? ["-d", wslDistro] : []),
+          "--exec",
+          stagedLinuxPath,
+        ];
+
+        this.process = spawn("wsl.exe", args, {
+          cwd: this.cwd,
+          env,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+
+        this.process.stdout?.setEncoding("utf-8");
+        this.process.stdout?.on("data", (data: string) => {
+          this.onData(data);
+        });
+
+        this.process.stderr?.setEncoding("utf-8");
+        this.process.stderr?.on("data", (data: string) => {
+          console.error("[augment-pty]", data);
+        });
+
+        this.process.on("exit", (code, signal) => {
+          this.process = null;
+          this.controlStream = null;
+          this.onExit(code ?? 0, signal ?? null);
+        });
+
+        this.process.on("error", (err) => {
+          console.error("[augment-pty] Process error:", err);
+          this.process = null;
+          this.controlStream = null;
+          this.onError?.(err);
+          this.onExit(1);
+        });
+        return;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("[augment-pty] WSL staging error:", error);
+        this.process = null;
+        this.controlStream = null;
+        this.onError?.(error);
+        this.onExit(1);
+        return;
+      }
+    }
+
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
     const sourcePath = join(this.pluginDir, "scripts", binaryName);
     const candidates: string[] = [];
@@ -181,6 +315,10 @@ export class PtyBridge {
   }
 
   resize(rows: number, cols: number): void {
+    if (this.wslMode) {
+      // fd 3 control pipe not verified to survive wsl.exe boundary — resize deferred.
+      return;
+    }
     this.controlStream?.write(`R${rows},${cols}\n`);
   }
 

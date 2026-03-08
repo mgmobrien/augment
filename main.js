@@ -6329,6 +6329,7 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian12 = require("obsidian");
+var import_child_process3 = require("child_process");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f) {
@@ -18394,6 +18395,15 @@ var import_path8 = require("path");
 var import_fs2 = require("fs");
 var import_os = require("os");
 var STAGING_DIR = (0, import_path8.join)((0, import_os.tmpdir)(), "augment-pty");
+function winPathToWsl(p) {
+  const normalized = p.replace(/\\/g, "/");
+  const match = normalized.match(/^([A-Za-z]):(.*)$/);
+  if (!match) throw new Error(`Cannot translate non-drive path to WSL: ${p}`);
+  return `/mnt/${match[1].toLowerCase()}${match[2]}`;
+}
+function appendWslenv(current, spec) {
+  return current ? `${current}:${spec}` : spec;
+}
 function stageBinary(sourcePath, binaryName) {
   if (!(0, import_fs2.existsSync)(STAGING_DIR)) (0, import_fs2.mkdirSync)(STAGING_DIR, { recursive: true });
   const staged = (0, import_path8.join)(STAGING_DIR, binaryName);
@@ -18419,11 +18429,58 @@ function stageBinary(sourcePath, binaryName) {
   }
   return staged;
 }
+function stageBinaryInWsl(sourcePath, binaryName, sourceMtimeMs, distro) {
+  const sourceMtimeToken = `${Math.floor(sourceMtimeMs)}`;
+  const sourceMtimeSeconds = `${Math.floor(sourceMtimeMs / 1e3)}`;
+  const sourcePathFallback = winPathToWsl(sourcePath);
+  const wslenv = appendWslenv(process.env.WSLENV, "AUGMENT_WSL_STAGE_SRC/p");
+  const env = {
+    ...process.env,
+    AUGMENT_WSL_STAGE_SRC: sourcePath,
+    AUGMENT_WSL_STAGE_SRC_FALLBACK: sourcePathFallback,
+    AUGMENT_WSL_BINARY_NAME: binaryName,
+    AUGMENT_WSL_BINARY_MTIME: sourceMtimeToken,
+    AUGMENT_WSL_BINARY_MTIME_SECONDS: sourceMtimeSeconds,
+    WSLENV: wslenv
+  };
+  const args = [
+    ...distro ? ["-d", distro] : [],
+    "sh",
+    "-lc",
+    [
+      "set -eu",
+      'src="${AUGMENT_WSL_STAGE_SRC:-$AUGMENT_WSL_STAGE_SRC_FALLBACK}"',
+      'dst="$HOME/.cache/augment/pty/$AUGMENT_WSL_BINARY_NAME-$AUGMENT_WSL_BINARY_MTIME"',
+      'current_mtime=""',
+      'if [ -e "$dst" ]; then current_mtime="$(stat -c %Y "$dst" 2>/dev/null || printf "")"; fi',
+      'if [ "$current_mtime" != "$AUGMENT_WSL_BINARY_MTIME_SECONDS" ]; then',
+      '  install -Dm755 "$src" "$dst"',
+      '  touch -m -d "@$AUGMENT_WSL_BINARY_MTIME_SECONDS" "$dst" 2>/dev/null || true',
+      "fi",
+      'printf "%s" "$dst"'
+    ].join("; ")
+  ];
+  const result = (0, import_child_process2.spawnSync)("wsl.exe", args, {
+    env,
+    encoding: "utf8"
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || `wsl.exe exited with code ${result.status}`).trim();
+    throw new Error(detail);
+  }
+  const stagedPath = result.stdout.trim();
+  if (!stagedPath) {
+    throw new Error("WSL staging did not return a launch path");
+  }
+  return stagedPath;
+}
 var PtyBridge = class {
   constructor(opts) {
     this.process = null;
     this.controlStream = null;
     this.stopping = false;
+    this.wslMode = false;
     this.pluginDir = opts.pluginDir;
     this.cwd = opts.cwd;
     this.shellPath = opts.shellPath || "";
@@ -18451,9 +18508,72 @@ var PtyBridge = class {
   // On SIGKILL within 1.2s the spawn loop falls back from staged → source.
   // On process error (ENOENT, EACCES) it also falls back.
   start() {
+    var _a2, _b, _c, _d, _e;
     this.stopping = false;
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const isWslTarget = platform === "win32" && this.shellPath === "wsl.exe";
+    this.wslMode = isWslTarget;
+    this.controlStream = null;
+    if (isWslTarget) {
+      const binaryName2 = `augment-pty-linux-${arch}`;
+      const sourcePath2 = (0, import_path8.join)(this.pluginDir, "scripts", binaryName2);
+      try {
+        const sourceMtimeMs = (0, import_fs2.statSync)(sourcePath2).mtimeMs;
+        const hostStagedPath = stageBinary(sourcePath2, binaryName2);
+        const wslDistro = null;
+        const stagedLinuxPath = stageBinaryInWsl(hostStagedPath, binaryName2, sourceMtimeMs, wslDistro);
+        const wslenv = appendWslenv(process.env.WSLENV, "AUGMENT_CWD/p");
+        const env2 = {
+          ...process.env,
+          TERM: "xterm-256color",
+          LANG: process.env.LANG || "en_US.UTF-8",
+          AUGMENT_CWD: this.cwd,
+          AUGMENT_SHELL: void 0,
+          WSLENV: wslenv
+        };
+        const args = [
+          ...wslDistro ? ["-d", wslDistro] : [],
+          "--exec",
+          stagedLinuxPath
+        ];
+        this.process = (0, import_child_process2.spawn)("wsl.exe", args, {
+          cwd: this.cwd,
+          env: env2,
+          stdio: ["pipe", "pipe", "pipe"]
+        });
+        (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
+        (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
+          this.onData(data);
+        });
+        (_c = this.process.stderr) == null ? void 0 : _c.setEncoding("utf-8");
+        (_d = this.process.stderr) == null ? void 0 : _d.on("data", (data) => {
+          console.error("[augment-pty]", data);
+        });
+        this.process.on("exit", (code, signal) => {
+          this.process = null;
+          this.controlStream = null;
+          this.onExit(code != null ? code : 0, signal != null ? signal : null);
+        });
+        this.process.on("error", (err) => {
+          var _a3;
+          console.error("[augment-pty] Process error:", err);
+          this.process = null;
+          this.controlStream = null;
+          (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
+          this.onExit(1);
+        });
+        return;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("[augment-pty] WSL staging error:", error);
+        this.process = null;
+        this.controlStream = null;
+        (_e = this.onError) == null ? void 0 : _e.call(this, error);
+        this.onExit(1);
+        return;
+      }
+    }
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
     const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
     const candidates = [];
@@ -18472,7 +18592,7 @@ var PtyBridge = class {
     };
     let candidateIndex = 0;
     const spawnCandidate = () => {
-      var _a2, _b, _c, _d;
+      var _a3, _b2, _c2, _d2;
       const binaryPath = candidates[candidateIndex];
       const startedAt = Date.now();
       this.process = (0, import_child_process2.spawn)(binaryPath, [], {
@@ -18481,12 +18601,12 @@ var PtyBridge = class {
         stdio: ["pipe", "pipe", "pipe", "pipe"]
       });
       this.controlStream = this.process.stdio[3];
-      (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
-      (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
+      (_a3 = this.process.stdout) == null ? void 0 : _a3.setEncoding("utf-8");
+      (_b2 = this.process.stdout) == null ? void 0 : _b2.on("data", (data) => {
         this.onData(data);
       });
-      (_c = this.process.stderr) == null ? void 0 : _c.setEncoding("utf-8");
-      (_d = this.process.stderr) == null ? void 0 : _d.on("data", (data) => {
+      (_c2 = this.process.stderr) == null ? void 0 : _c2.setEncoding("utf-8");
+      (_d2 = this.process.stderr) == null ? void 0 : _d2.on("data", (data) => {
         console.error("[augment-pty]", data);
       });
       this.process.on("exit", (code, signal) => {
@@ -18502,7 +18622,7 @@ var PtyBridge = class {
         this.onExit(code != null ? code : 0, signal != null ? signal : null);
       });
       this.process.on("error", (err) => {
-        var _a3;
+        var _a4;
         console.error("[augment-pty] Process error:", err);
         this.process = null;
         this.controlStream = null;
@@ -18512,7 +18632,7 @@ var PtyBridge = class {
           spawnCandidate();
           return;
         }
-        (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
+        (_a4 = this.onError) == null ? void 0 : _a4.call(this, err);
         this.onExit(1);
       });
     };
@@ -18524,6 +18644,9 @@ var PtyBridge = class {
   }
   resize(rows, cols) {
     var _a2;
+    if (this.wslMode) {
+      return;
+    }
     (_a2 = this.controlStream) == null ? void 0 : _a2.write(`R${rows},${cols}
 `);
   }
@@ -22433,6 +22556,20 @@ var InitTeamModal = class extends import_obsidian11.Modal {
 };
 
 // src/main.ts
+var import_util = require("util");
+var execFileAsync = (0, import_util.promisify)(import_child_process3.execFile);
+async function isWslAvailable() {
+  try {
+    const result = await execFileAsync("wsl.exe", ["--list", "--quiet"], {
+      encoding: "utf8",
+      timeout: 1e4,
+      windowsHide: true
+    });
+    return result.stdout.trim().length > 0;
+  } catch (e) {
+    return false;
+  }
+}
 function buildWelcomeNoteContent(mod) {
   return `# Get started with Augment
 
@@ -22506,8 +22643,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T07:05:30.258Z";
-    this.gitSha = "7d6c378";
+    this.buildId = "2026-03-08T18:00:15.618Z";
+    this.gitSha = "4a7fc57";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22520,6 +22657,18 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.waitingBadgeEl = null;
     this.waitingCursor = 0;
     this.activeGeneration = null;
+  }
+  async maybeDefaultWindowsShellToWsl() {
+    if (process.platform !== "win32") return;
+    if (this.settings.shellPath.trim().length > 0) return;
+    if (!await isWslAvailable()) return;
+    if (this.settings.shellPath.trim().length > 0) return;
+    this.settings.shellPath = "wsl.exe";
+    try {
+      await this.saveData(this.settings);
+    } catch (err) {
+      console.warn("[Augment] failed to save WSL shell default", err);
+    }
   }
   // Returns the actual model ID to use, resolving "auto" and tier aliases to the best available.
   resolveModel() {
@@ -22865,6 +23014,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
       this.settings.ribbonIcon = "augment-pyramid";
     }
+    void this.maybeDefaultWindowsShellToWsl();
     {
       const hm = this.app.hotkeyManager;
       const RUNTIME_CONFLICTS = [
