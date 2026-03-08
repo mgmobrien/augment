@@ -1646,21 +1646,6 @@ export class TerminalView extends ItemView {
 
       const { rows, cols } = this.terminal;
 
-      // Quantize the xterm element height to exactly rows * cellHeight.
-      // Without this, the container (sized by CSS flex + height:100%) is
-      // taller than the rendered grid, leaving dead space at the bottom
-      // where the WebGL canvas shows stale content from previous frames.
-      const xtermEl = this.terminal.element;
-      if (xtermEl) {
-        const dims = (this.terminal as Terminal & {
-          _core?: { _renderService?: { dimensions?: { css?: { cell?: { height?: number } } } } };
-        })._core?._renderService?.dimensions;
-        const cellHeight = dims?.css?.cell?.height;
-        if (cellHeight && cellHeight > 0) {
-          xtermEl.style.height = `${rows * cellHeight}px`;
-        }
-      }
-
       // Only send PTY resize when dimensions actually changed —
       // prevents redundant SIGWINCH signals that interrupt the TUI
       // mid-redraw when multiple resize triggers fire in sequence.
