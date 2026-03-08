@@ -20946,13 +20946,14 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.lastPromptAtMs = 0;
     this.autoRenameInFlight = false;
     this.lastAutoRenameAttemptAtMs = 0;
-    this.resizeTimer = null;
+    this.resizeRafId = null;
     this.lastPtyRows = 0;
     this.lastPtyCols = 0;
     this.resizeInFlight = false;
     this.resizeFlightTimer = null;
-    this.lastContainerWidth = 0;
-    this.lastContainerHeight = 0;
+    this.cachedCellWidth = 0;
+    this.cachedCellHeight = 0;
+    this.windowResizeTimer = null;
     this.pendingAnalysis = [];
     this.analysisRaf = null;
     this.analysisTimer = null;
@@ -21370,7 +21371,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
       this.canvasAddon = canvas;
     } catch (e) {
     }
-    this.refreshTerminalMetrics();
+    this.applyResize();
+    this.updateCellCache();
     if (this.restoredSnapshot) {
       this.terminal.write(this.restoredSnapshot);
       this.terminal.write(
@@ -21382,8 +21384,13 @@ var TerminalView = class extends import_obsidian8.ItemView {
       var _a2;
       (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
     });
-    this.resizeObserver = new ResizeObserver(() => {
-      this.scheduleResize(50);
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (this.wouldChangeCellGrid(width, height)) {
+        this.scheduleResize();
+      }
     });
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
@@ -21397,7 +21404,6 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
     this.resizeObserver.observe(termDiv);
     this.registerTerminalMetricObservers();
-    this.scheduleResize(100);
   }
   startPtyBridge(forcedShellPath) {
     var _a2, _b, _c, _d, _e, _f;
@@ -21964,44 +21970,89 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }
     this.pendingAnalysis = [];
   }
-  /** Single unified resize scheduler. All resize triggers go through here
-   *  so overlapping events (ResizeObserver, window resize, active-leaf-change,
-   *  visibility change, font load) collapse into a single resize cycle. */
-  scheduleResize(delayMs = 50) {
-    if (this.resizeTimer !== null) {
-      clearTimeout(this.resizeTimer);
-    }
-    this.resizeTimer = setTimeout(() => {
-      this.resizeTimer = null;
-      this.refreshTerminalMetrics();
-    }, delayMs);
+  /** Pure arithmetic check: would the given container dimensions produce
+   *  different terminal cols/rows? Uses cached cell dimensions so this
+   *  involves zero DOM reads and can run in the ResizeObserver callback
+   *  without triggering layout. Returns true when cell cache is empty
+   *  (first resize) to ensure the initial fit always runs. */
+  wouldChangeCellGrid(containerWidth, containerHeight) {
+    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
+    const newCols = Math.max(2, Math.floor(containerWidth / this.cachedCellWidth));
+    const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
+    return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
   }
-  refreshTerminalMetrics() {
-    var _a2, _b, _c, _d, _e, _f;
-    if (!this.terminal) return;
+  /** Update the cached cell dimensions from xterm's render service.
+   *  Called after fit() and on font load — NOT on every resize check. */
+  updateCellCache() {
+    var _a2, _b, _c;
+    const core = this.terminal._core;
+    const dims = (_c = (_b = (_a2 = core == null ? void 0 : core._renderService) == null ? void 0 : _a2.dimensions) == null ? void 0 : _b.css) == null ? void 0 : _c.cell;
+    if ((dims == null ? void 0 : dims.width) && (dims == null ? void 0 : dims.height)) {
+      this.cachedCellWidth = dims.width;
+      this.cachedCellHeight = dims.height;
+    }
+  }
+  /** Schedule a resize via requestAnimationFrame. rAF runs at the start
+   *  of the next frame after all pending layout is committed, naturally
+   *  coalescing multiple triggers from the same layout pass. In a 2x2
+   *  layout, if 4 ResizeObserver callbacks fire in one frame, only one
+   *  rAF callback runs. */
+  scheduleResize() {
+    if (this.resizeRafId !== null) return;
+    this.resizeRafId = requestAnimationFrame(() => {
+      this.resizeRafId = null;
+      this.applyResize();
+    });
+  }
+  /** Apply a resize: fit the terminal to its container and send PTY resize.
+   *  Only called when wouldChangeCellGrid() returned true or from font/
+   *  visibility handlers that bypass the cell-grid gate. */
+  applyResize() {
+    var _a2, _b, _c, _d;
+    if (!this.terminal || !this.fitAddon) return;
     if (this.resizeInFlight) {
-      this.scheduleResize(150);
+      this.scheduleResize();
       return;
     }
-    const core = this.terminal._core;
-    if (!this.canvasAddon) {
-      (_b = (_a2 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a2.measure) == null ? void 0 : _b.call(_a2);
-      (_f = (_e = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e._setDefaultSpacing) == null ? void 0 : _f.call(_e);
+    const el = (_a2 = this.terminal.element) == null ? void 0 : _a2.parentElement;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
+    const proposed = this.fitAddon.proposeDimensions();
+    if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
+      (_b = this.terminal.element) == null ? void 0 : _b.style.removeProperty("height");
+      return;
     }
-    const oldCols = this.terminal.cols;
-    const oldRows = this.terminal.rows;
-    this.handleResize();
-    if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
-      this.resizeInFlight = true;
-      if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
-      this.resizeFlightTimer = setTimeout(() => {
-        this.resizeInFlight = false;
-        this.resizeFlightTimer = null;
-      }, 150);
+    try {
+      const oldCols = this.terminal.cols;
+      const oldRows = this.terminal.rows;
+      this.fitAddon.fit();
+      (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
+      const { rows, cols } = this.terminal;
+      if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
+        this.lastPtyRows = rows;
+        this.lastPtyCols = cols;
+        (_d = this.ptyBridge) == null ? void 0 : _d.resize(rows, cols);
+      }
+      this.updateCellCache();
+      if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+        this.resizeInFlight = true;
+        if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
+        this.resizeFlightTimer = setTimeout(() => {
+          this.resizeInFlight = false;
+          this.resizeFlightTimer = null;
+        }, 150);
+      }
+    } catch (e) {
     }
   }
   registerTerminalMetricObservers() {
-    this.registerDomEvent(window, "resize", () => this.scheduleResize());
+    this.registerDomEvent(window, "resize", () => {
+      if (this.windowResizeTimer !== null) clearTimeout(this.windowResizeTimer);
+      this.windowResizeTimer = setTimeout(() => {
+        this.windowResizeTimer = null;
+        this.updateCellCache();
+        this.scheduleResize();
+      }, 100);
+    });
     this.registerDomEvent(document, "visibilitychange", () => {
       if (!document.hidden) {
         this.scheduleResize();
@@ -22009,47 +22060,18 @@ var TerminalView = class extends import_obsidian8.ItemView {
     });
     const fontSet = document.fonts;
     if (!fontSet) return;
-    const refreshForFonts = () => this.scheduleResize();
-    void fontSet.ready.then(refreshForFonts);
+    const onFontChange = () => {
+      this.updateCellCache();
+      this.scheduleResize();
+    };
+    void fontSet.ready.then(onFontChange);
     if ("addEventListener" in fontSet) {
-      fontSet.addEventListener("loadingdone", refreshForFonts);
-      fontSet.addEventListener("loadingerror", refreshForFonts);
+      fontSet.addEventListener("loadingdone", onFontChange);
+      fontSet.addEventListener("loadingerror", onFontChange);
       this.register(() => {
-        fontSet.removeEventListener("loadingdone", refreshForFonts);
-        fontSet.removeEventListener("loadingerror", refreshForFonts);
+        fontSet.removeEventListener("loadingdone", onFontChange);
+        fontSet.removeEventListener("loadingerror", onFontChange);
       });
-    }
-  }
-  handleResize() {
-    var _a2, _b, _c, _d, _e;
-    if (!this.fitAddon || !this.terminal) return;
-    const el = (_a2 = this.terminal.element) == null ? void 0 : _a2.parentElement;
-    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
-    if (el) {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      if (Math.abs(w - this.lastContainerWidth) < 2 && Math.abs(h - this.lastContainerHeight) < 2) {
-        (_b = this.terminal.element) == null ? void 0 : _b.style.removeProperty("height");
-        return;
-      }
-      this.lastContainerWidth = w;
-      this.lastContainerHeight = h;
-    }
-    try {
-      const proposed = this.fitAddon.proposeDimensions();
-      if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
-        (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
-        return;
-      }
-      this.fitAddon.fit();
-      (_d = this.terminal.element) == null ? void 0 : _d.style.removeProperty("height");
-      const { rows, cols } = this.terminal;
-      if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
-        this.lastPtyRows = rows;
-        this.lastPtyCols = cols;
-        (_e = this.ptyBridge) == null ? void 0 : _e.resize(rows, cols);
-      }
-    } catch (e) {
     }
   }
   appendToScrollback(data) {
@@ -22079,9 +22101,13 @@ var TerminalView = class extends import_obsidian8.ItemView {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
     }
-    if (this.resizeTimer !== null) {
-      clearTimeout(this.resizeTimer);
-      this.resizeTimer = null;
+    if (this.resizeRafId !== null) {
+      cancelAnimationFrame(this.resizeRafId);
+      this.resizeRafId = null;
+    }
+    if (this.windowResizeTimer !== null) {
+      clearTimeout(this.windowResizeTimer);
+      this.windowResizeTimer = null;
     }
     if (this.resizeFlightTimer !== null) {
       clearTimeout(this.resizeFlightTimer);
@@ -24587,8 +24613,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T17:00:30.198Z";
-    this.gitSha = "a503f9c";
+    this.buildId = "2026-03-08T17:04:55.070Z";
+    this.gitSha = "cc6fb4a";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

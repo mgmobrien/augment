@@ -258,13 +258,14 @@ export class TerminalView extends ItemView {
   private lastPromptAtMs: number = 0;
   private autoRenameInFlight: boolean = false;
   private lastAutoRenameAttemptAtMs: number = 0;
-  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private resizeRafId: number | null = null;
   private lastPtyRows: number = 0;
   private lastPtyCols: number = 0;
   private resizeInFlight: boolean = false;
   private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
-  private lastContainerWidth: number = 0;
-  private lastContainerHeight: number = 0;
+  private cachedCellWidth: number = 0;
+  private cachedCellHeight: number = 0;
+  private windowResizeTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAnalysis: string[] = [];
   private analysisRaf: number | null = null;
   private analysisTimer: ReturnType<typeof setTimeout> | null = null;
@@ -787,7 +788,8 @@ export class TerminalView extends ItemView {
     // Fit immediately so the terminal has correct dimensions before any
     // content is written — avoids garbled snapshot restore and ensures
     // the PTY starts with the right cols/rows instead of default 80x24.
-    this.refreshTerminalMetrics();
+    this.applyResize();
+    this.updateCellCache();
 
     // Restore previous terminal output snapshot, then spawn a fresh shell.
     if (this.restoredSnapshot) {
@@ -807,8 +809,17 @@ export class TerminalView extends ItemView {
 
     // Handle resize — the ResizeObserver fires once the container has
     // its final dimensions, which also handles the initial fit.
-    this.resizeObserver = new ResizeObserver(() => {
-      this.scheduleResize(50);
+    // Cell-grid gate: only schedule a resize if the container change would
+    // actually produce different cols/rows. This is pure arithmetic (no DOM
+    // reads) and eliminates 90%+ of resize cycles in 2x2 layouts where
+    // Obsidian's flex recalculates all panes on every micro-shift.
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (this.wouldChangeCellGrid(width, height)) {
+        this.scheduleResize();
+      }
     });
 
     this.registerEvent(
@@ -830,10 +841,9 @@ export class TerminalView extends ItemView {
 
     this.resizeObserver.observe(termDiv);
     this.registerTerminalMetricObservers();
-
-    // Force a re-fit shortly after boot so the PTY gets correct dimensions
-    // even if the pane wasn't visible when the ResizeObserver first fired.
-    this.scheduleResize(100);
+    // No boot-time delayed resize needed — ResizeObserver fires when the
+    // element gets dimensions (including deferred visibility), and the
+    // initial applyResize() call above handles the sync case.
   }
 
   private startPtyBridge(forcedShellPath?: string): void {
@@ -1532,167 +1542,149 @@ export class TerminalView extends ItemView {
     this.pendingAnalysis = [];
   }
 
-  /** Single unified resize scheduler. All resize triggers go through here
-   *  so overlapping events (ResizeObserver, window resize, active-leaf-change,
-   *  visibility change, font load) collapse into a single resize cycle. */
-  private scheduleResize(delayMs: number = 50): void {
-    if (this.resizeTimer !== null) {
-      clearTimeout(this.resizeTimer);
-    }
-    this.resizeTimer = setTimeout(() => {
-      this.resizeTimer = null;
-      this.refreshTerminalMetrics();
-    }, delayMs);
+  /** Pure arithmetic check: would the given container dimensions produce
+   *  different terminal cols/rows? Uses cached cell dimensions so this
+   *  involves zero DOM reads and can run in the ResizeObserver callback
+   *  without triggering layout. Returns true when cell cache is empty
+   *  (first resize) to ensure the initial fit always runs. */
+  private wouldChangeCellGrid(containerWidth: number, containerHeight: number): boolean {
+    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
+    const newCols = Math.max(2, Math.floor(containerWidth / this.cachedCellWidth));
+    const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
+    return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
   }
 
-  private refreshTerminalMetrics(): void {
-    if (!this.terminal) return;
-
-    // Re-entrancy guard: after a dimension change, the TUI needs time
-    // to process SIGWINCH and redraw. Complex TUI layouts (Claude/Codex
-    // status bar + separator + prompt + streaming output) can take up to
-    // 150ms. If we resize again during that window, fit() clears the
-    // render model while the TUI is mid-paint, producing garbled output.
-    if (this.resizeInFlight) {
-      this.scheduleResize(150);
-      return;
-    }
-
+  /** Update the cached cell dimensions from xterm's render service.
+   *  Called after fit() and on font load — NOT on every resize check. */
+  private updateCellCache(): void {
     const core = (this.terminal as Terminal & {
       _core?: {
-        _charSizeService?: { measure?: () => void };
         _renderService?: {
-          _renderer?: { value?: { _setDefaultSpacing?: () => void } };
+          dimensions?: { css?: { cell?: { width?: number; height?: number } } };
         };
       };
     })._core;
-
-    // Re-measure character dimensions from the DOM (only relevant for
-    // the DOM renderer fallback path — WebGL does its own measurement).
-    if (!this.canvasAddon) {
-      core?._charSizeService?.measure?.();
-      core?._renderService?._renderer?.value?._setDefaultSpacing?.();
+    const dims = core?._renderService?.dimensions?.css?.cell;
+    if (dims?.width && dims?.height) {
+      this.cachedCellWidth = dims.width;
+      this.cachedCellHeight = dims.height;
     }
-
-    const oldCols = this.terminal.cols;
-    const oldRows = this.terminal.rows;
-
-    this.handleResize();
-
-    // If dimensions actually changed, mark resize as in-flight so
-    // subsequent triggers wait for the TUI to finish its redraw.
-    if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
-      this.resizeInFlight = true;
-      if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
-      this.resizeFlightTimer = setTimeout(() => {
-        this.resizeInFlight = false;
-        this.resizeFlightTimer = null;
-      }, 150);
-    }
-    // Do NOT call clearTextureAtlas() or terminal.refresh() here.
-    //
-    // clearTextureAtlas(): WebGL shares the glyph atlas across terminals
-    // with matching config — clearing it from one pane corrupts siblings.
-    //
-    // terminal.refresh(0, rows-1): Forces a synchronous full-screen
-    // redraw from xterm's internal buffer. If a TUI app (Claude/Codex)
-    // is actively writing cursor-movement sequences to update the screen,
-    // refresh() captures a partially-updated buffer state — cleared lines
-    // that haven't been rewritten yet, cursor positions mid-sequence.
-    // This produces duplicated separators, double prompt lines, clipped
-    // text, and stale "Working..." rows. handleResize() → fit() →
-    // terminal.resize() already marks all rows dirty; the renderer
-    // redraws them on the next animation frame after all pending writes
-    // have been processed.
   }
 
-  private registerTerminalMetricObservers(): void {
-    this.registerDomEvent(window, "resize", () => this.scheduleResize());
-    this.registerDomEvent(document, "visibilitychange", () => {
-      if (!document.hidden) {
-        this.scheduleResize();
-      }
+  /** Schedule a resize via requestAnimationFrame. rAF runs at the start
+   *  of the next frame after all pending layout is committed, naturally
+   *  coalescing multiple triggers from the same layout pass. In a 2x2
+   *  layout, if 4 ResizeObserver callbacks fire in one frame, only one
+   *  rAF callback runs. */
+  private scheduleResize(): void {
+    if (this.resizeRafId !== null) return; // already scheduled
+    this.resizeRafId = requestAnimationFrame(() => {
+      this.resizeRafId = null;
+      this.applyResize();
     });
-
-    const fontSet = document.fonts;
-    if (!fontSet) return;
-
-    const refreshForFonts = () => this.scheduleResize();
-    void fontSet.ready.then(refreshForFonts);
-
-    if ("addEventListener" in fontSet) {
-      fontSet.addEventListener("loadingdone", refreshForFonts);
-      fontSet.addEventListener("loadingerror", refreshForFonts);
-      this.register(() => {
-        fontSet.removeEventListener("loadingdone", refreshForFonts);
-        fontSet.removeEventListener("loadingerror", refreshForFonts);
-      });
-    }
   }
 
-  private handleResize(): void {
-    if (!this.fitAddon || !this.terminal) return;
+  /** Apply a resize: fit the terminal to its container and send PTY resize.
+   *  Only called when wouldChangeCellGrid() returned true or from font/
+   *  visibility handlers that bypass the cell-grid gate. */
+  private applyResize(): void {
+    if (!this.terminal || !this.fitAddon) return;
 
-    // Skip fitting when the container is hidden or has no dimensions —
-    // avoids reflowing to MINIMUM_COLS (2) which garbles existing text.
+    // Re-entrancy guard: after a real dimension change, the TUI needs
+    // time to process SIGWINCH and redraw (up to 150ms for complex TUI
+    // layouts). If we resize again during that window, fit() invalidates
+    // the render model while the TUI is mid-paint.
+    if (this.resizeInFlight) {
+      this.scheduleResize();
+      return;
+    }
+
     const el = this.terminal.element?.parentElement;
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
 
-    // Pixel-level dimension cache: skip the ENTIRE resize chain when the
-    // container's actual pixel dimensions haven't changed meaningfully.
-    // In 2x2 layouts, ResizeObserver fires for all panes when Obsidian's
-    // flex layout shifts by even a fraction of a pixel (focus borders,
-    // scrollbar micro-shifts, flex rounding). Even proposeDimensions()
-    // can return different row/col values for 1px container changes that
-    // straddle a cell boundary. Gating on a 2px threshold eliminates
-    // sub-cell resize noise that invalidates xterm's render model while
-    // TUI apps are mid-paint.
-    if (el) {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      if (Math.abs(w - this.lastContainerWidth) < 2 &&
-          Math.abs(h - this.lastContainerHeight) < 2) {
-        // Container dimensions unchanged — clear stale height but skip resize.
-        this.terminal.element?.style.removeProperty("height");
-        return;
-      }
-      this.lastContainerWidth = w;
-      this.lastContainerHeight = h;
+    // Final gate: proposeDimensions accounts for padding and scrollbar
+    // width that our fast-path wouldChangeCellGrid does not.
+    const proposed = this.fitAddon.proposeDimensions();
+    if (proposed &&
+        proposed.cols === this.terminal.cols &&
+        proposed.rows === this.terminal.rows) {
+      this.terminal.element?.style.removeProperty("height");
+      return;
     }
 
     try {
-      // Check proposed dimensions BEFORE calling fit().
-      // fit() does terminal.resize() which invalidates the entire render
-      // model (marks all rows dirty, reflows the buffer). If the computed
-      // dimensions are the same as current, skip fit() entirely — avoids
-      // render model thrash while TUI apps are mid-paint.
-      const proposed = this.fitAddon.proposeDimensions();
-      if (proposed &&
-          proposed.cols === this.terminal.cols &&
-          proposed.rows === this.terminal.rows) {
-        this.terminal.element?.style.removeProperty("height");
-        return;
-      }
+      const oldCols = this.terminal.cols;
+      const oldRows = this.terminal.rows;
 
       this.fitAddon.fit();
-
-      // Clear any stale inline height set by a previous plugin version
-      // that quantized viewport height to rows*cellHeight.
       this.terminal.element?.style.removeProperty("height");
 
       const { rows, cols } = this.terminal;
 
-      // Only send PTY resize when dimensions actually changed —
-      // prevents redundant SIGWINCH signals that interrupt the TUI
-      // mid-redraw when multiple resize triggers fire in sequence.
       if (rows > 0 && cols > 0 &&
           (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
         this.lastPtyRows = rows;
         this.lastPtyCols = cols;
         this.ptyBridge?.resize(rows, cols);
       }
-    } catch (e) {
+
+      // Update cell cache after fit — cell dimensions may have changed
+      // if the renderer recalculated metrics.
+      this.updateCellCache();
+
+      // If dimensions actually changed, block subsequent resizes for 150ms
+      // so the TUI can finish its SIGWINCH redraw.
+      if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+        this.resizeInFlight = true;
+        if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
+        this.resizeFlightTimer = setTimeout(() => {
+          this.resizeInFlight = false;
+          this.resizeFlightTimer = null;
+        }, 150);
+      }
+    } catch {
       // Ignore resize errors during teardown.
+    }
+  }
+
+  private registerTerminalMetricObservers(): void {
+    // Window resize: debounce separately since it fires rapidly during
+    // window drag. The cell-grid gate isn't needed here — window resize
+    // always changes all container dimensions.
+    this.registerDomEvent(window, "resize", () => {
+      if (this.windowResizeTimer !== null) clearTimeout(this.windowResizeTimer);
+      this.windowResizeTimer = setTimeout(() => {
+        this.windowResizeTimer = null;
+        this.updateCellCache();
+        this.scheduleResize();
+      }, 100);
+    });
+
+    // Visibility change: only resize if we were hidden (dimensions may
+    // have changed while hidden and ResizeObserver doesn't fire then).
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (!document.hidden) {
+        this.scheduleResize();
+      }
+    });
+
+    // Font load: re-measure cell dimensions and resize.
+    const fontSet = document.fonts;
+    if (!fontSet) return;
+
+    const onFontChange = () => {
+      this.updateCellCache();
+      this.scheduleResize();
+    };
+    void fontSet.ready.then(onFontChange);
+
+    if ("addEventListener" in fontSet) {
+      fontSet.addEventListener("loadingdone", onFontChange);
+      fontSet.addEventListener("loadingerror", onFontChange);
+      this.register(() => {
+        fontSet.removeEventListener("loadingdone", onFontChange);
+        fontSet.removeEventListener("loadingerror", onFontChange);
+      });
     }
   }
 
@@ -1735,9 +1727,13 @@ export class TerminalView extends ItemView {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
     }
-    if (this.resizeTimer !== null) {
-      clearTimeout(this.resizeTimer);
-      this.resizeTimer = null;
+    if (this.resizeRafId !== null) {
+      cancelAnimationFrame(this.resizeRafId);
+      this.resizeRafId = null;
+    }
+    if (this.windowResizeTimer !== null) {
+      clearTimeout(this.windowResizeTimer);
+      this.windowResizeTimer = null;
     }
     if (this.resizeFlightTimer !== null) {
       clearTimeout(this.resizeFlightTimer);
