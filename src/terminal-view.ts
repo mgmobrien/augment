@@ -320,6 +320,8 @@ export class TerminalView extends ItemView {
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
   private lastPtyRows: number = 0;
   private lastPtyCols: number = 0;
+  private resizeInFlight: boolean = false;
+  private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -1550,6 +1552,15 @@ export class TerminalView extends ItemView {
   private refreshTerminalMetrics(): void {
     if (!this.terminal) return;
 
+    // Re-entrancy guard: after a dimension change, the TUI needs time
+    // to process SIGWINCH and redraw (10-80ms). If we resize again
+    // during that window, fit() clears the render model while the TUI
+    // is mid-paint, producing stale bottom-row content. Defer instead.
+    if (this.resizeInFlight) {
+      this.scheduleResize(80);
+      return;
+    }
+
     const core = (this.terminal as Terminal & {
       _core?: {
         _charSizeService?: { measure?: () => void };
@@ -1563,12 +1574,24 @@ export class TerminalView extends ItemView {
     // the DOM renderer fallback path — WebGL does its own measurement).
     if (!this.webglAddon) {
       core?._charSizeService?.measure?.();
-      // Force the DOM renderer to recalculate letter-spacing from the
-      // updated measurements — without this, stale letter-spacing values
-      // persist even after _charSizeService.measure() updates cell widths.
       core?._renderService?._renderer?.value?._setDefaultSpacing?.();
     }
+
+    const oldCols = this.terminal.cols;
+    const oldRows = this.terminal.rows;
+
     this.handleResize();
+
+    // If dimensions actually changed, mark resize as in-flight so
+    // subsequent triggers wait for the TUI to finish its redraw.
+    if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+      this.resizeInFlight = true;
+      if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = setTimeout(() => {
+        this.resizeInFlight = false;
+        this.resizeFlightTimer = null;
+      }, 80);
+    }
     // Do NOT call clearTextureAtlas() or terminal.refresh() here.
     //
     // clearTextureAtlas(): WebGL shares the glyph atlas across terminals
@@ -1694,6 +1717,10 @@ export class TerminalView extends ItemView {
     if (this.resizeTimer !== null) {
       clearTimeout(this.resizeTimer);
       this.resizeTimer = null;
+    }
+    if (this.resizeFlightTimer !== null) {
+      clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = null;
     }
 
     this.resizeObserver?.disconnect();

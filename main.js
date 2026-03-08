@@ -22571,6 +22571,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.resizeTimer = null;
     this.lastPtyRows = 0;
     this.lastPtyCols = 0;
+    this.resizeInFlight = false;
+    this.resizeFlightTimer = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -23557,12 +23559,26 @@ var TerminalView = class extends import_obsidian8.ItemView {
   refreshTerminalMetrics() {
     var _a5, _b, _c, _d, _e2, _f;
     if (!this.terminal) return;
+    if (this.resizeInFlight) {
+      this.scheduleResize(80);
+      return;
+    }
     const core = this.terminal._core;
     if (!this.webglAddon) {
       (_b = (_a5 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a5.measure) == null ? void 0 : _b.call(_a5);
       (_f = (_e2 = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e2._setDefaultSpacing) == null ? void 0 : _f.call(_e2);
     }
+    const oldCols = this.terminal.cols;
+    const oldRows = this.terminal.rows;
     this.handleResize();
+    if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+      this.resizeInFlight = true;
+      if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = setTimeout(() => {
+        this.resizeInFlight = false;
+        this.resizeFlightTimer = null;
+      }, 80);
+    }
   }
   registerTerminalMetricObservers() {
     this.registerDomEvent(window, "resize", () => this.scheduleResize());
@@ -23638,6 +23654,10 @@ var TerminalView = class extends import_obsidian8.ItemView {
     if (this.resizeTimer !== null) {
       clearTimeout(this.resizeTimer);
       this.resizeTimer = null;
+    }
+    if (this.resizeFlightTimer !== null) {
+      clearTimeout(this.resizeFlightTimer);
+      this.resizeFlightTimer = null;
     }
     (_a5 = this.resizeObserver) == null ? void 0 : _a5.disconnect();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
@@ -26138,8 +26158,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T16:09:32.365Z";
-    this.gitSha = "8f54328";
+    this.buildId = "2026-03-08T16:14:07.873Z";
+    this.gitSha = "5a96a4f";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
