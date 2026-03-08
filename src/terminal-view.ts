@@ -646,17 +646,19 @@ export class TerminalView extends ItemView {
     const wrapper = container.createDiv({ cls: "augment-bootstrapper-wrapper" });
     const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
 
-    // When Claude Code was found in WSL but the terminal is running a
-    // native Windows shell, guide the user to switch to WSL.
+    // When deps (Node and/or Claude) were found only in WSL but the
+    // terminal is running a native Windows shell, guide the user to switch.
+    // This covers both "fully installed in WSL" and "Node in WSL, Claude
+    // not yet installed" — in either case, the native shell can't use them.
     const shellPath = this.getShellPath();
     const isWslShell = /wsl/i.test(shellPath);
-    if (deps.wslOnly && !isWslShell && deps.cc && deps.authed) {
+    if (deps.wslOnly && !isWslShell) {
       wrapper.createEl("h2", {
         text: "Switch terminal to WSL",
         cls: "augment-bootstrapper-title",
       });
       wrapper.createEl("p", {
-        text: "Claude Code was found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
+        text: "Node.js and Claude Code were found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
         cls: "augment-bootstrapper-desc",
       });
       this.createBootstrapperBypassActions(wrapper, () => wrapper.remove());

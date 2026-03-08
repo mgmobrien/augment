@@ -119,17 +119,11 @@ export class PtyBridge {
       ? "powershell.exe"
       : (process.env.SHELL || "bash");
 
-    // When the shell is WSL, pass --cd with the translated path so the
-    // Linux shell starts in the right directory. AUGMENT_CWD stays as the
-    // native Windows path for ConPTY's CreateProcess (it sets the CWD of
-    // wsl.exe itself, which is fine as a Windows path).
-    let effectiveShell = this.shellPath || shellFallback;
-    if (platform === "win32" && /^wsl(\.exe)?$/i.test(effectiveShell.split(/[\s/\\]/).pop() || "")) {
-      const wslCwd = this.cwd
-        .replace(/^([A-Za-z]):\\/, (_, drive: string) => `/mnt/${drive.toLowerCase()}/`)
-        .replace(/\\/g, "/");
-      effectiveShell = `${effectiveShell} --cd ${wslCwd}`;
-    }
+    // WSL auto-translates the Windows CWD to /mnt/... when launched from
+    // a Windows directory. No --cd or path translation needed — ConPTY
+    // sets the CWD of wsl.exe to the native Windows path, and WSL handles
+    // the mount-path mapping internally.
+    const effectiveShell = this.shellPath || shellFallback;
 
     const env: Record<string, string | undefined> = {
       ...process.env,

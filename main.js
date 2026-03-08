@@ -16702,7 +16702,7 @@ async function detectRuntimeDeps(options = {}) {
     const ccResult = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
     const cc = !!ccResult;
     const authed = cc ? await checkAuth(env) : false;
-    const wslOnly = node && cc && (nodeResult === "wsl" || ccResult === "wsl");
+    const wslOnly = nodeResult === "wsl" || ccResult === "wsl";
     return { node, cc, authed, wslOnly };
   })();
   if (!forceFresh) {
@@ -18419,11 +18419,7 @@ var PtyBridge = class {
     }
     candidates.push(sourcePath);
     const shellFallback = platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    let effectiveShell = this.shellPath || shellFallback;
-    if (platform === "win32" && /^wsl(\.exe)?$/i.test(effectiveShell.split(/[\s/\\]/).pop() || "")) {
-      const wslCwd = this.cwd.replace(/^([A-Za-z]):\\/, (_, drive) => `/mnt/${drive.toLowerCase()}/`).replace(/\\/g, "/");
-      effectiveShell = `${effectiveShell} --cd ${wslCwd}`;
-    }
+    const effectiveShell = this.shellPath || shellFallback;
     const env = {
       ...process.env,
       TERM: "xterm-256color",
@@ -19291,13 +19287,13 @@ var TerminalView = class extends import_obsidian8.ItemView {
     const needsRuntimeSetup = !deps.node || !deps.cc || !deps.authed;
     const shellPath = this.getShellPath();
     const isWslShell = /wsl/i.test(shellPath);
-    if (deps.wslOnly && !isWslShell && deps.cc && deps.authed) {
+    if (deps.wslOnly && !isWslShell) {
       wrapper.createEl("h2", {
         text: "Switch terminal to WSL",
         cls: "augment-bootstrapper-title"
       });
       wrapper.createEl("p", {
-        text: "Claude Code was found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
+        text: "Node.js and Claude Code were found in WSL but the terminal is running a native Windows shell. Go to Settings \u2192 Augment \u2192 Terminal and change the shell to WSL, then reopen this terminal.",
         cls: "augment-bootstrapper-desc"
       });
       this.createBootstrapperBypassActions(wrapper, () => wrapper.remove());
@@ -22581,8 +22577,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T15:26:58.593Z";
-    this.gitSha = "d0b687d";
+    this.buildId = "2026-03-08T15:31:42.585Z";
+    this.gitSha = "75b07d3";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

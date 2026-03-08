@@ -106,8 +106,9 @@ async function detectRuntimeDeps(options: DetectDepsOptions = {}): Promise<Runti
     const ccResult = node ? await checkBool(process.platform === "win32" ? "where claude" : "which claude", env) : false;
     const cc = !!ccResult;
     const authed = cc ? await checkAuth(env) : false;
-    // Deps are WSL-only when all successful checks came from WSL, not native Windows.
-    const wslOnly = node && cc && (nodeResult === "wsl" || ccResult === "wsl");
+    // WSL-only when ANY successful check came from WSL rather than native Windows.
+    // This catches partial setups too (e.g., Node in WSL but Claude not installed yet).
+    const wslOnly = nodeResult === "wsl" || ccResult === "wsl";
     return { node, cc, authed, wslOnly };
   })();
 
