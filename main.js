@@ -16177,7 +16177,18 @@ function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d+Z$/, "Z");
 }
 async function writeMessage(app, opts) {
-  const { to, from, subject, body } = opts;
+  const {
+    to,
+    from,
+    subject,
+    body,
+    threadId = "",
+    msgType = "message",
+    replyTo = "",
+    habitat = "vault",
+    privacy = "local",
+    sourceNote = ""
+  } = opts;
   const inbox = inboxPath(to);
   if (!app.vault.getAbstractFileByPath(inbox)) {
     await app.vault.createFolder(inbox);
@@ -16194,12 +16205,16 @@ async function writeMessage(app, opts) {
   const content = [
     "---",
     `msg_id: ${msgId}`,
+    `thread_id: ${threadId}`,
     `from: ${from}`,
     `to: ${to}@vault`,
+    `msg_type: ${msgType}`,
     `subject: ${subject}`,
+    `reply_to: ${replyTo}`,
     `created_at: ${now}`,
-    `habitat: vault`,
-    `privacy: local`,
+    `habitat: ${habitat}`,
+    `privacy: ${privacy}`,
+    `source_note: ${sourceNote}`,
     "---",
     "",
     body
@@ -16248,31 +16263,74 @@ var InboxSuggest = class extends import_obsidian4.EditorSuggest {
     el.createEl("div", { cls: "augment-inbox-part-hint", text: `\u2192 ${partName}'s inbox` });
   }
   selectSuggestion(partName) {
+    var _a2;
     const ctx = this.context;
     if (!ctx) return;
     const editor = ctx.editor;
-    let body;
     const selection = editor.getSelection().trim();
-    if (selection) {
-      body = selection;
-    } else {
-      const line = editor.getLine(ctx.start.line);
-      const before = line.slice(0, ctx.start.ch).trim();
-      const after = line.slice(ctx.end.ch).trim();
-      body = [before, after].filter(Boolean).join(" ");
-    }
     editor.replaceRange("", ctx.start, ctx.end);
-    const subject = body.slice(0, 80) || "Message";
+    const activeFile = this.app.workspace.getActiveFile();
+    const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
+    new ComposeModal(this.app, partName, sourceNote, selection).open();
+  }
+};
+var ComposeModal = class extends import_obsidian4.Modal {
+  constructor(app, partName, sourceNote, initialBody) {
+    super(app);
+    this.partName = partName;
+    this.sourceNote = sourceNote;
+    this.initialBody = initialBody;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("augment-compose-modal");
+    const recipientEl = contentEl.createEl("div", { cls: "augment-compose-recipient" });
+    recipientEl.createEl("span", { cls: "augment-compose-label", text: "To: " });
+    recipientEl.createEl("span", { cls: "augment-compose-value", text: this.partName });
+    if (this.sourceNote) {
+      const contextEl = contentEl.createEl("div", { cls: "augment-compose-context" });
+      contextEl.createEl("span", { cls: "augment-compose-label", text: "From: " });
+      contextEl.createEl("span", { text: this.sourceNote });
+    }
+    contentEl.createEl("div", { cls: "augment-compose-divider" });
+    const textarea = contentEl.createEl("textarea", {
+      cls: "augment-compose-body",
+      attr: { rows: "4", placeholder: "Write a message..." }
+    });
+    textarea.value = this.initialBody;
+    textarea.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        this.submit(textarea.value);
+      }
+    });
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+    }, 10);
+    const btnRow = contentEl.createEl("div", { cls: "augment-compose-btn-row" });
+    const cancelBtn = btnRow.createEl("button", { text: "Cancel" });
+    cancelBtn.addEventListener("click", () => this.close());
+    const sendBtn = btnRow.createEl("button", { cls: "mod-cta", text: "Send" });
+    sendBtn.addEventListener("click", () => this.submit(textarea.value));
+  }
+  submit(body) {
+    const subject = body.trim().slice(0, 80) || "Message";
     void writeMessage(this.app, {
-      to: partName,
+      to: this.partName,
       from: "user",
       subject,
-      body
+      body: body.trim(),
+      sourceNote: this.sourceNote
     }).then(() => {
-      new import_obsidian4.Notice(`Sent to ${partName}'s inbox`);
+      new import_obsidian4.Notice(`Sent to ${this.partName}`);
     }).catch((err) => {
-      new import_obsidian4.Notice(`Failed to send to ${partName}: ${String(err)}`);
+      new import_obsidian4.Notice(`Failed to send to ${this.partName}: ${String(err)}`);
     });
+    this.close();
+  }
+  onClose() {
+    this.contentEl.empty();
   }
 };
 
@@ -20893,16 +20951,11 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     if (count > 0) {
       line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
     }
-    row.addEventListener("click", async () => {
-      const plugin = this.getPlugin();
-      if (!plugin) return;
-      const termView = await plugin.openFocusedTerminal();
-      if (termView) {
-        setTimeout(() => {
-          termView.write(`claude "/${partName}"
-`);
-        }, 1500);
-      }
+    row.addEventListener("click", () => {
+      var _a2;
+      const activeFile = this.app.workspace.getActiveFile();
+      const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
+      new ComposeModal(this.app, partName, sourceNote, "").open();
     });
   }
   renderOtherProjectsSection(groups, container) {
@@ -22453,8 +22506,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T16:56:43.372Z";
-    this.gitSha = "d8ec8f8";
+    this.buildId = "2026-03-08T07:05:30.258Z";
+    this.gitSha = "7d6c378";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -22811,9 +22864,6 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     ]);
     if (!VALID_RIBBON_ICONS.has(this.settings.ribbonIcon)) {
       this.settings.ribbonIcon = "augment-pyramid";
-    }
-    if (!this.settings.systemPrompt) {
-      this.settings.systemPrompt = "The current date and time is {{ now }}.";
     }
     {
       const hm = this.app.hotkeyManager;

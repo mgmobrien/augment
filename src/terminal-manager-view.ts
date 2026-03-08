@@ -2,6 +2,7 @@ import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 import { discoverVaultParts, unreadCount } from "./inbox-bus";
+import { ComposeModal } from "./inbox-suggest";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
@@ -792,15 +793,10 @@ export class TerminalManagerView extends ItemView {
       line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
     }
 
-    row.addEventListener("click", async () => {
-      const plugin = this.getPlugin();
-      if (!plugin) return;
-      const termView = await plugin.openFocusedTerminal();
-      if (termView) {
-        setTimeout(() => {
-          termView.write(`claude "/${partName}"\n`);
-        }, 1500);
-      }
+    row.addEventListener("click", () => {
+      const activeFile = this.app.workspace.getActiveFile();
+      const sourceNote = activeFile?.basename ?? "";
+      new ComposeModal(this.app, partName, sourceNote, "").open();
     });
   }
 
