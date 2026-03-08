@@ -3,11 +3,16 @@ import { normalizePath } from "obsidian";
 
 export interface InboxMessage {
   msgId: string;
+  threadId: string;
   from: string;
   to: string;
+  msgType: string;
   subject: string;
+  replyTo: string;
   createdAt: string;
   habitat: string;
+  privacy: string;
+  sourceNote: string;
   body: string;
   filePath: string;
 }
@@ -17,6 +22,12 @@ export interface WriteMessageOptions {
   from: string;     // sender, e.g. "user", "stack@vault"
   subject: string;
   body: string;
+  threadId?: string;
+  msgType?: string;
+  replyTo?: string;
+  habitat?: string;
+  privacy?: string;
+  sourceNote?: string;  // note title where message was composed
 }
 
 // Vault-level part inbox root: agents/parts/{name}/inbox/
@@ -41,7 +52,18 @@ export async function writeMessage(
   app: App,
   opts: WriteMessageOptions
 ): Promise<string> {
-  const { to, from, subject, body } = opts;
+  const {
+    to,
+    from,
+    subject,
+    body,
+    threadId = "",
+    msgType = "message",
+    replyTo = "",
+    habitat = "vault",
+    privacy = "local",
+    sourceNote = "",
+  } = opts;
 
   const inbox = inboxPath(to);
 
@@ -64,12 +86,16 @@ export async function writeMessage(
   const content = [
     "---",
     `msg_id: ${msgId}`,
+    `thread_id: ${threadId}`,
     `from: ${from}`,
     `to: ${to}@vault`,
+    `msg_type: ${msgType}`,
     `subject: ${subject}`,
+    `reply_to: ${replyTo}`,
     `created_at: ${now}`,
-    `habitat: vault`,
-    `privacy: local`,
+    `habitat: ${habitat}`,
+    `privacy: ${privacy}`,
+    `source_note: ${sourceNote}`,
     "---",
     "",
     body,
@@ -172,17 +198,22 @@ function parseMessage(raw: string, filePath: string): InboxMessage | null {
   const body = raw.slice(fmMatch[0].length).trim();
 
   const get = (key: string): string => {
-    const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
+    const m = fm.match(new RegExp(`^${key}:\\s*(.*)$`, "m"));
     return m ? m[1].trim() : "";
   };
 
   return {
     msgId: get("msg_id"),
+    threadId: get("thread_id"),
     from: get("from"),
     to: get("to"),
+    msgType: get("msg_type") || "message",
     subject: get("subject"),
+    replyTo: get("reply_to"),
     createdAt: get("created_at"),
     habitat: get("habitat") || "vault",
+    privacy: get("privacy") || "local",
+    sourceNote: get("source_note"),
     body,
     filePath,
   };
