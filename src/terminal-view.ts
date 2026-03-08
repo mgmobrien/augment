@@ -315,6 +315,8 @@ export class TerminalView extends ItemView {
   private lastPromptAtMs: number = 0;
   private autoRenameInFlight: boolean = false;
   private lastAutoRenameAttemptAtMs: number = 0;
+  private resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private metricRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -780,7 +782,7 @@ export class TerminalView extends ItemView {
     this.terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+      fontFamily: this.getTerminalFontFamily(),
       theme: this.getTheme(),
       allowProposedApi: true,
       scrollback: 10000,
@@ -797,7 +799,12 @@ export class TerminalView extends ItemView {
 
     // Mount terminal.
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
-    this.terminal.open(termDiv);
+    this.openTerminalWithStableMetrics(termDiv);
+
+    // Fit immediately so the terminal has correct dimensions before any
+    // content is written — avoids garbled snapshot restore and ensures
+    // the PTY starts with the right cols/rows instead of default 80x24.
+    this.refreshTerminalMetrics();
 
     // Restore previous terminal output snapshot, then spawn a fresh shell.
     if (this.restoredSnapshot) {
@@ -818,13 +825,21 @@ export class TerminalView extends ItemView {
     // Handle resize — the ResizeObserver fires once the container has
     // its final dimensions, which also handles the initial fit.
     this.resizeObserver = new ResizeObserver(() => {
-      this.handleResize();
+      if (this.resizeDebounceTimer !== null) clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = setTimeout(() => {
+        this.resizeDebounceTimer = null;
+        this.refreshTerminalMetrics();
+      }, 50);
     });
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
+          // Re-fit after a frame so the DOM has settled — handles the case
+          // where a sidebar tab becomes visible without a size change (so
+          // the ResizeObserver never fires).
+          requestAnimationFrame(() => this.refreshTerminalMetrics());
         }
       })
     );
@@ -833,7 +848,12 @@ export class TerminalView extends ItemView {
       this.markActivityRead();
     }
 
-    this.resizeObserver.observe(container);
+    this.resizeObserver.observe(termDiv);
+    this.registerTerminalMetricObservers();
+
+    // Force a re-fit shortly after boot so the PTY gets correct dimensions
+    // even if the pane wasn't visible when the ResizeObserver first fired.
+    this.scheduleMetricRefresh(100);
   }
 
   private startPtyBridge(forcedShellPath?: string): void {
@@ -852,6 +872,8 @@ export class TerminalView extends ItemView {
       pluginDir: this.pluginDir,
       cwd: this.resolvedCwd,
       shellPath,
+      initialRows: this.terminal?.rows ?? 0,
+      initialCols: this.terminal?.cols ?? 0,
       onData: (data) => {
         this.messageFilter!.feed(data);
         this.detectStatus(data);
@@ -1449,14 +1471,99 @@ export class TerminalView extends ItemView {
     return withoutQuotes.replace(/[^a-zA-Z0-9._-]+$/g, "");
   }
 
+  private openTerminalWithStableMetrics(termDiv: HTMLDivElement): void {
+    if (!this.terminal) return;
+
+    // xterm's DOM renderer compares two different font measurement paths.
+    // In Electron, OffscreenCanvas metrics can drift from actual DOM glyph
+    // widths, which explodes row height and injected letter-spacing.
+    const globalScope = globalThis as typeof globalThis & {
+      OffscreenCanvas?: typeof OffscreenCanvas;
+    };
+    const hadOwnOffscreenCanvas = Object.prototype.hasOwnProperty.call(globalScope, "OffscreenCanvas");
+    const originalOffscreenCanvas = globalScope.OffscreenCanvas;
+
+    try {
+      (globalScope as { OffscreenCanvas?: typeof OffscreenCanvas }).OffscreenCanvas = undefined;
+      this.terminal.open(termDiv);
+    } finally {
+      if (hadOwnOffscreenCanvas) {
+        globalScope.OffscreenCanvas = originalOffscreenCanvas;
+      } else {
+        delete (globalScope as { OffscreenCanvas?: typeof OffscreenCanvas }).OffscreenCanvas;
+      }
+    }
+  }
+
+  private scheduleMetricRefresh(delayMs: number = 0): void {
+    if (this.metricRefreshTimer !== null) {
+      clearTimeout(this.metricRefreshTimer);
+    }
+
+    this.metricRefreshTimer = setTimeout(() => {
+      this.metricRefreshTimer = null;
+      this.refreshTerminalMetrics();
+    }, delayMs);
+  }
+
+  private refreshTerminalMetrics(): void {
+    if (!this.terminal) return;
+
+    const core = (this.terminal as Terminal & {
+      _core?: {
+        _charSizeService?: { measure?: () => void };
+      };
+    })._core;
+
+    core?._charSizeService?.measure?.();
+    this.handleResize();
+    this.terminal.clearTextureAtlas();
+
+    if (this.terminal.rows > 0) {
+      this.terminal.refresh(0, this.terminal.rows - 1);
+    }
+  }
+
+  private registerTerminalMetricObservers(): void {
+    this.registerDomEvent(window, "resize", () => this.scheduleMetricRefresh());
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (!document.hidden) {
+        this.scheduleMetricRefresh();
+      }
+    });
+
+    const fontSet = document.fonts;
+    if (!fontSet) return;
+
+    const refreshForFonts = () => this.scheduleMetricRefresh();
+    void fontSet.ready.then(refreshForFonts);
+
+    if ("addEventListener" in fontSet) {
+      fontSet.addEventListener("loadingdone", refreshForFonts);
+      fontSet.addEventListener("loadingerror", refreshForFonts);
+      this.register(() => {
+        fontSet.removeEventListener("loadingdone", refreshForFonts);
+        fontSet.removeEventListener("loadingerror", refreshForFonts);
+      });
+    }
+  }
+
   private handleResize(): void {
     if (!this.fitAddon || !this.terminal) return;
 
+    // Skip fitting when the container is hidden or has no dimensions —
+    // avoids reflowing to MINIMUM_COLS (2) which garbles existing text.
+    const el = this.terminal.element?.parentElement;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
+
     try {
       this.fitAddon.fit();
-      const dims = this.fitAddon.proposeDimensions();
-      if (dims) {
-        this.ptyBridge?.resize(dims.rows, dims.cols);
+      // Use the terminal's actual dimensions after fit() rather than
+      // calling proposeDimensions() again — a second call can return
+      // different values if fit() caused a scrollbar to appear/disappear,
+      // which desynchronises xterm and PTY column counts.
+      if (this.terminal.cols > 0 && this.terminal.rows > 0) {
+        this.ptyBridge?.resize(this.terminal.rows, this.terminal.cols);
       }
     } catch (e) {
       // Ignore resize errors during teardown.
@@ -1492,10 +1599,23 @@ export class TerminalView extends ItemView {
     };
   }
 
+  private getTerminalFontFamily(): string {
+    const themeMono = getComputedStyle(document.body).getPropertyValue("--font-monospace").trim();
+    return themeMono || "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace";
+  }
+
   async onClose(): Promise<void> {
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
+    }
+    if (this.resizeDebounceTimer !== null) {
+      clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = null;
+    }
+    if (this.metricRefreshTimer !== null) {
+      clearTimeout(this.metricRefreshTimer);
+      this.metricRefreshTimer = null;
     }
 
     this.resizeObserver?.disconnect();

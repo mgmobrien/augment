@@ -18369,6 +18369,8 @@ var PtyBridge = class {
     this.pluginDir = opts.pluginDir;
     this.cwd = opts.cwd;
     this.shellPath = opts.shellPath || "";
+    this.initialRows = Number.isFinite(opts.initialRows) ? Math.max(0, Math.floor(opts.initialRows)) : 0;
+    this.initialCols = Number.isFinite(opts.initialCols) ? Math.max(0, Math.floor(opts.initialCols)) : 0;
     this.onData = opts.onData;
     this.onExit = opts.onExit;
     this.onError = opts.onError;
@@ -18410,7 +18412,12 @@ var PtyBridge = class {
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
       AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "powershell.exe" : "bash"),
-      AUGMENT_CWD: this.cwd
+      AUGMENT_CWD: this.cwd,
+      // Pass initial dimensions so the Go binary creates the PTY at the
+      // correct size — eliminates the race where the shell/TUI starts
+      // painting before the fd-3 resize command arrives.
+      AUGMENT_ROWS: this.initialRows > 0 ? String(this.initialRows) : void 0,
+      AUGMENT_COLS: this.initialCols > 0 ? String(this.initialCols) : void 0
     };
     let candidateIndex = 0;
     const spawnCandidate = () => {
@@ -18423,6 +18430,9 @@ var PtyBridge = class {
         stdio: ["pipe", "pipe", "pipe", "pipe"]
       });
       this.controlStream = this.process.stdio[3];
+      if (this.initialRows > 0 && this.initialCols > 0) {
+        this.resize(this.initialRows, this.initialCols);
+      }
       (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
       (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
         this.onData(data);
@@ -18997,6 +19007,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.lastPromptAtMs = 0;
     this.autoRenameInFlight = false;
     this.lastAutoRenameAttemptAtMs = 0;
+    this.resizeDebounceTimer = null;
+    this.metricRefreshTimer = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -19378,7 +19390,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.terminal = new import_xterm.Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+      fontFamily: this.getTerminalFontFamily(),
       theme: this.getTheme(),
       allowProposedApi: true,
       scrollback: 1e4
@@ -19390,7 +19402,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     errorBanner.style.display = "none";
     this.errorBannerEl = errorBanner;
     const termDiv = container.createDiv({ cls: "augment-terminal-xterm" });
-    this.terminal.open(termDiv);
+    this.openTerminalWithStableMetrics(termDiv);
+    this.refreshTerminalMetrics();
     if (this.restoredSnapshot) {
       this.terminal.write(this.restoredSnapshot);
       this.terminal.write(
@@ -19403,22 +19416,29 @@ var TerminalView = class extends import_obsidian8.ItemView {
       (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
     });
     this.resizeObserver = new ResizeObserver(() => {
-      this.handleResize();
+      if (this.resizeDebounceTimer !== null) clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = setTimeout(() => {
+        this.resizeDebounceTimer = null;
+        this.refreshTerminalMetrics();
+      }, 50);
     });
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
+          requestAnimationFrame(() => this.refreshTerminalMetrics());
         }
       })
     );
     if (this.app.workspace.activeLeaf === this.leaf) {
       this.markActivityRead();
     }
-    this.resizeObserver.observe(container);
+    this.resizeObserver.observe(termDiv);
+    this.registerTerminalMetricObservers();
+    this.scheduleMetricRefresh(100);
   }
   startPtyBridge(forcedShellPath) {
-    var _a2, _b;
+    var _a2, _b, _c, _d, _e, _f;
     const vaultPath = this.app.vault.adapter.basePath || ".";
     const customCwd = this.getDefaultWorkingDirectory();
     this.resolvedCwd = customCwd || vaultPath;
@@ -19435,6 +19455,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
       pluginDir: this.pluginDir,
       cwd: this.resolvedCwd,
       shellPath,
+      initialRows: (_d = (_c = this.terminal) == null ? void 0 : _c.rows) != null ? _d : 0,
+      initialCols: (_f = (_e = this.terminal) == null ? void 0 : _e.cols) != null ? _f : 0,
       onData: (data) => {
         this.messageFilter.feed(data);
         this.detectStatus(data);
@@ -19446,7 +19468,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
         this.showErrorBanner(friendly, err.message);
       },
       onExit: (code, signal) => {
-        var _a3, _b2, _c, _d, _e;
+        var _a3, _b2, _c2, _d2, _e2;
         const runtimeMs = Date.now() - this.ptyStartedAtMs;
         const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
         if (exitedImmediately && this.startupRetryCount < 2) {
@@ -19465,20 +19487,20 @@ var TerminalView = class extends import_obsidian8.ItemView {
 [Process terminated by ${signal}]\r
 `);
         } else {
-          (_c = this.terminal) == null ? void 0 : _c.write(`\r
+          (_c2 = this.terminal) == null ? void 0 : _c2.write(`\r
 [Process exited with code ${code}]\r
 `);
         }
         this.isExited = true;
         const exitStatus = signal ? "crashed" : code === 0 ? "exited" : "crashed";
         this.setStatus(exitStatus);
-        (_d = this.onSessionExit) == null ? void 0 : _d.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
+        (_d2 = this.onSessionExit) == null ? void 0 : _d2.call(this, this.terminalName, exitStatus, this.startedAt, this.skillName);
         this.app.workspace.trigger("augment-terminal:changed");
         if (signal) {
           const friendly = translatePtyError(`signal ${signal}`);
           this.showErrorBanner(friendly, `Signal: ${signal}`);
         } else if (code !== 0) {
-          const friendly = (_e = translateExitCode(code)) != null ? _e : translatePtyError(`exit ${code}`);
+          const friendly = (_e2 = translateExitCode(code)) != null ? _e2 : translatePtyError(`exit ${code}`);
           this.showErrorBanner(friendly, `Exit code: ${code}`);
         }
       }
@@ -19921,14 +19943,71 @@ var TerminalView = class extends import_obsidian8.ItemView {
     const withoutQuotes = trimmed.replace(/^["']+|["']+$/g, "");
     return withoutQuotes.replace(/[^a-zA-Z0-9._-]+$/g, "");
   }
+  openTerminalWithStableMetrics(termDiv) {
+    if (!this.terminal) return;
+    const globalScope = globalThis;
+    const hadOwnOffscreenCanvas = Object.prototype.hasOwnProperty.call(globalScope, "OffscreenCanvas");
+    const originalOffscreenCanvas = globalScope.OffscreenCanvas;
+    try {
+      globalScope.OffscreenCanvas = void 0;
+      this.terminal.open(termDiv);
+    } finally {
+      if (hadOwnOffscreenCanvas) {
+        globalScope.OffscreenCanvas = originalOffscreenCanvas;
+      } else {
+        delete globalScope.OffscreenCanvas;
+      }
+    }
+  }
+  scheduleMetricRefresh(delayMs = 0) {
+    if (this.metricRefreshTimer !== null) {
+      clearTimeout(this.metricRefreshTimer);
+    }
+    this.metricRefreshTimer = setTimeout(() => {
+      this.metricRefreshTimer = null;
+      this.refreshTerminalMetrics();
+    }, delayMs);
+  }
+  refreshTerminalMetrics() {
+    var _a2, _b;
+    if (!this.terminal) return;
+    const core = this.terminal._core;
+    (_b = (_a2 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a2.measure) == null ? void 0 : _b.call(_a2);
+    this.handleResize();
+    this.terminal.clearTextureAtlas();
+    if (this.terminal.rows > 0) {
+      this.terminal.refresh(0, this.terminal.rows - 1);
+    }
+  }
+  registerTerminalMetricObservers() {
+    this.registerDomEvent(window, "resize", () => this.scheduleMetricRefresh());
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (!document.hidden) {
+        this.scheduleMetricRefresh();
+      }
+    });
+    const fontSet = document.fonts;
+    if (!fontSet) return;
+    const refreshForFonts = () => this.scheduleMetricRefresh();
+    void fontSet.ready.then(refreshForFonts);
+    if ("addEventListener" in fontSet) {
+      fontSet.addEventListener("loadingdone", refreshForFonts);
+      fontSet.addEventListener("loadingerror", refreshForFonts);
+      this.register(() => {
+        fontSet.removeEventListener("loadingdone", refreshForFonts);
+        fontSet.removeEventListener("loadingerror", refreshForFonts);
+      });
+    }
+  }
   handleResize() {
-    var _a2;
+    var _a2, _b;
     if (!this.fitAddon || !this.terminal) return;
+    const el = (_a2 = this.terminal.element) == null ? void 0 : _a2.parentElement;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
     try {
       this.fitAddon.fit();
-      const dims = this.fitAddon.proposeDimensions();
-      if (dims) {
-        (_a2 = this.ptyBridge) == null ? void 0 : _a2.resize(dims.rows, dims.cols);
+      if (this.terminal.cols > 0 && this.terminal.rows > 0) {
+        (_b = this.ptyBridge) == null ? void 0 : _b.resize(this.terminal.rows, this.terminal.cols);
       }
     } catch (e) {
     }
@@ -19950,11 +20029,23 @@ var TerminalView = class extends import_obsidian8.ItemView {
       selectionBackground: style.getPropertyValue("--text-selection").trim() || "rgba(82, 139, 255, 0.3)"
     };
   }
+  getTerminalFontFamily() {
+    const themeMono = getComputedStyle(document.body).getPropertyValue("--font-monospace").trim();
+    return themeMono || "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace";
+  }
   async onClose() {
     var _a2, _b, _c, _d;
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
+    }
+    if (this.resizeDebounceTimer !== null) {
+      clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = null;
+    }
+    if (this.metricRefreshTimer !== null) {
+      clearTimeout(this.metricRefreshTimer);
+      this.metricRefreshTimer = null;
     }
     (_a2 = this.resizeObserver) == null ? void 0 : _a2.disconnect();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
@@ -22453,8 +22544,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-07T16:56:43.372Z";
-    this.gitSha = "d8ec8f8";
+    this.buildId = "2026-03-08T14:59:17.529Z";
+    this.gitSha = "nogit";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

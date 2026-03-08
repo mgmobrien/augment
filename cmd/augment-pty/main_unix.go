@@ -44,7 +44,20 @@ func main() {
 		c.Dir = cwd
 	}
 
-	ptmx, err := pty.Start(c)
+	// Use initial dimensions from environment if available, otherwise
+	// default to 80x24. This avoids the race where the shell/TUI starts
+	// painting at the wrong size before the Node side sends a resize.
+	initRows, initCols := 24, 80
+	if v := os.Getenv("AUGMENT_ROWS"); v != "" {
+		fmt.Sscanf(v, "%d", &initRows)
+	}
+	if v := os.Getenv("AUGMENT_COLS"); v != "" {
+		fmt.Sscanf(v, "%d", &initCols)
+	}
+	ptmx, err := pty.StartWithSize(c, &pty.Winsize{
+		Rows: uint16(initRows),
+		Cols: uint16(initCols),
+	})
 	if err != nil {
 		log.Fatalf("Failed to spawn pty: %v", err)
 	}

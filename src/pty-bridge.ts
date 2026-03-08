@@ -8,6 +8,8 @@ export interface PtyBridgeOptions {
   pluginDir: string;
   cwd: string;
   shellPath?: string;
+  initialRows?: number;
+  initialCols?: number;
   onData: (data: string) => void;
   onExit: (code: number, signal?: NodeJS.Signals | null) => void;
   onError?: (err: Error) => void;
@@ -54,6 +56,8 @@ export class PtyBridge {
   private pluginDir: string;
   private cwd: string;
   private shellPath: string;
+  private initialRows: number;
+  private initialCols: number;
   private onData: (data: string) => void;
   private onExit: (code: number, signal?: NodeJS.Signals | null) => void;
   private onError?: (err: Error) => void;
@@ -62,6 +66,8 @@ export class PtyBridge {
     this.pluginDir = opts.pluginDir;
     this.cwd = opts.cwd;
     this.shellPath = opts.shellPath || "";
+    this.initialRows = Number.isFinite(opts.initialRows) ? Math.max(0, Math.floor(opts.initialRows!)) : 0;
+    this.initialCols = Number.isFinite(opts.initialCols) ? Math.max(0, Math.floor(opts.initialCols!)) : 0;
     this.onData = opts.onData;
     this.onExit = opts.onExit;
     this.onError = opts.onError;
@@ -111,6 +117,11 @@ export class PtyBridge {
       LANG: process.env.LANG || "en_US.UTF-8",
       AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "powershell.exe" : "bash"),
       AUGMENT_CWD: this.cwd,
+      // Pass initial dimensions so the Go binary creates the PTY at the
+      // correct size — eliminates the race where the shell/TUI starts
+      // painting before the fd-3 resize command arrives.
+      AUGMENT_ROWS: this.initialRows > 0 ? String(this.initialRows) : undefined,
+      AUGMENT_COLS: this.initialCols > 0 ? String(this.initialCols) : undefined,
     };
 
     let candidateIndex = 0;
@@ -125,6 +136,9 @@ export class PtyBridge {
       });
 
       this.controlStream = this.process.stdio[3] as Writable;
+      if (this.initialRows > 0 && this.initialCols > 0) {
+        this.resize(this.initialRows, this.initialCols);
+      }
 
       this.process.stdout?.setEncoding("utf-8");
       this.process.stdout?.on("data", (data: string) => {
