@@ -136,6 +136,11 @@ export class TerminalManagerView extends ItemView {
         this.requestRefresh()
       )
     );
+    this.registerEvent(
+      (this.app.workspace as any).on("augment-bus:changed", () =>
+        this.requestRefresh()
+      )
+    );
 
     // Refresh timestamps every 30s so relative times stay current.
     this.registerInterval(window.setInterval(() => this.refreshTimestamps(), 30_000));

@@ -3,6 +3,7 @@ import { execFile } from "child_process";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
 import { InboxSuggest } from "./inbox-suggest";
+import { setBusNotifier } from "./inbox-bus";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
@@ -958,6 +959,10 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.registerEvent(
       this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
+    );
+
+    this.register(
+      setBusNotifier(this.app, () => (this.app.workspace as any).trigger("augment-bus:changed"))
     );
 
     this.app.workspace.onLayoutReady(() => {
