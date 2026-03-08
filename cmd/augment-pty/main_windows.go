@@ -53,8 +53,16 @@ func main() {
 	}()
 
 	go io.Copy(cpty, os.Stdin)
-	go io.Copy(os.Stdout, cpty)
+
+	// Drain ConPTY output before exiting. After the child exits,
+	// io.Copy will read remaining buffered data then get EOF.
+	done := make(chan struct{})
+	go func() {
+		io.Copy(os.Stdout, cpty)
+		close(done)
+	}()
 
 	exitCode, _ := cpty.Wait(context.Background())
+	<-done // wait for all output to be forwarded
 	os.Exit(int(exitCode))
 }

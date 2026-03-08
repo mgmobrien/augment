@@ -64,7 +64,7 @@ function translatePtyError(raw: string): string {
     return "Permission error — try running the install again.";
   }
   if (l.includes("sigkill") || l.includes("signal sigkill")) {
-    return "Terminal bridge was killed by macOS during launch.";
+    return "Terminal bridge was killed by the OS during launch.";
   }
   return "The terminal connection failed.";
 }
@@ -888,7 +888,10 @@ export class TerminalView extends ItemView {
         const runtimeMs = Date.now() - this.ptyStartedAtMs;
         const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
         if (exitedImmediately && this.startupRetryCount < 2) {
-          const fallbackShell = this.startupRetryCount === 0 ? "/bin/bash" : "/bin/zsh";
+          const isWin = process.platform === "win32";
+          const fallbackShell = this.startupRetryCount === 0
+            ? (isWin ? "powershell.exe" : "/bin/bash")
+            : (isWin ? "cmd.exe" : "/bin/zsh");
           this.startupRetryCount++;
           this.terminal?.write(
             `\r\n\x1b[2m[Shell exited quickly (${runtimeMs}ms); retrying with ${fallbackShell}]\x1b[0m\r\n`
@@ -1512,10 +1515,18 @@ export class TerminalView extends ItemView {
     const core = (this.terminal as Terminal & {
       _core?: {
         _charSizeService?: { measure?: () => void };
+        _renderService?: {
+          _renderer?: { value?: { _setDefaultSpacing?: () => void } };
+        };
       };
     })._core;
 
+    // Re-measure character dimensions from the DOM
     core?._charSizeService?.measure?.();
+    // Force the DOM renderer to recalculate letter-spacing from the
+    // updated measurements — without this, stale letter-spacing values
+    // persist even after _charSizeService.measure() updates cell widths.
+    core?._renderService?._renderer?.value?._setDefaultSpacing?.();
     this.handleResize();
     this.terminal.clearTextureAtlas();
 
@@ -1601,7 +1612,7 @@ export class TerminalView extends ItemView {
 
   private getTerminalFontFamily(): string {
     const themeMono = getComputedStyle(document.body).getPropertyValue("--font-monospace").trim();
-    return themeMono || "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace";
+    return themeMono || "'SF Mono', 'Cascadia Mono', Menlo, 'DejaVu Sans Mono', monospace";
   }
 
   async onClose(): Promise<void> {

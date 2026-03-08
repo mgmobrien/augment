@@ -53,6 +53,7 @@ export class PtyBridge {
   private process: ChildProcess | null = null;
   private controlStream: Writable | null = null;
   private stopping = false;
+  private didExit = false;
   private pluginDir: string;
   private cwd: string;
   private shellPath: string;
@@ -94,6 +95,7 @@ export class PtyBridge {
   // On process error (ENOENT, EACCES) it also falls back.
   start(): void {
     this.stopping = false;
+    this.didExit = false;
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
@@ -111,12 +113,27 @@ export class PtyBridge {
     }
     candidates.push(sourcePath);
 
+    // On Windows, skip process.env.SHELL — it can leak from WSL-integrated
+    // environments and would pass a Unix path like /bin/bash to ConPTY.
+    const shellFallback = platform === "win32"
+      ? "powershell.exe"
+      : (process.env.SHELL || "bash");
+
+    // When the shell is WSL, translate the CWD from Windows paths to /mnt/...
+    let effectiveCwd = this.cwd;
+    const effectiveShell = this.shellPath || shellFallback;
+    if (platform === "win32" && /^wsl(\.exe)?$/i.test(effectiveShell.split(/[\s/\\]/).pop() || "")) {
+      effectiveCwd = effectiveCwd
+        .replace(/^([A-Za-z]):\\/, (_, drive: string) => `/mnt/${drive.toLowerCase()}/`)
+        .replace(/\\/g, "/");
+    }
+
     const env: Record<string, string | undefined> = {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
-      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "powershell.exe" : "bash"),
-      AUGMENT_CWD: this.cwd,
+      AUGMENT_SHELL: effectiveShell,
+      AUGMENT_CWD: effectiveCwd,
       // Pass initial dimensions so the Go binary creates the PTY at the
       // correct size — eliminates the race where the shell/TUI starts
       // painting before the fd-3 resize command arrives.
@@ -166,6 +183,8 @@ export class PtyBridge {
           return;
         }
 
+        if (this.didExit) return;
+        this.didExit = true;
         this.onExit(code ?? 0, signal ?? null);
       });
 
@@ -182,6 +201,8 @@ export class PtyBridge {
           return;
         }
 
+        if (this.didExit) return;
+        this.didExit = true;
         this.onError?.(err);
         this.onExit(1);
       });

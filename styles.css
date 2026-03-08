@@ -43,9 +43,17 @@
 }
 
 /* The xterm DOM renderer lays out text on a fixed cell grid.
-   Ligatures collapse multiple cells into one glyph and break alignment. */
+   Ligatures collapse multiple cells into one glyph and break alignment.
+   CRITICAL: These must also apply to xterm's measurement elements
+   (.xterm-char-measure-element, .xterm-width-cache-measure-container)
+   which live in .xterm-helpers, NOT .xterm-rows. If measurement spans
+   see the font WITH ligatures but rendered spans see it WITHOUT,
+   the width delta corrupts letter-spacing and row height. */
 .augment-terminal-container .xterm .xterm-rows,
-.augment-terminal-container .xterm .xterm-rows span {
+.augment-terminal-container .xterm .xterm-rows span,
+.augment-terminal-container .xterm .xterm-char-measure-element,
+.augment-terminal-container .xterm .xterm-width-cache-measure-container,
+.augment-terminal-container .xterm .xterm-width-cache-measure-container span {
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0;
 }

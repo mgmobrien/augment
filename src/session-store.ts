@@ -38,7 +38,7 @@ export class SessionStore {
   // CC encodes cwd by replacing '/' and spaces with '-'.
   async findProjectDir(): Promise<string | null> {
     const home = process.env.HOME ?? os.homedir();
-    const encoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const encoded = this.vaultBasePath.replace(/[/\\ ]/g, "-");
     const dir = path.join(home, ".claude", "projects", encoded);
     try {
       if ((await fs.promises.stat(dir)).isDirectory()) return dir;

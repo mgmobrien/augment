@@ -87,9 +87,20 @@ func main() {
 	}()
 
 	go io.Copy(ptmx, os.Stdin)
-	go io.Copy(os.Stdout, ptmx)
 
-	if err := c.Wait(); err != nil {
+	// Drain PTY output before exiting. After the child exits the kernel
+	// closes the slave side; io.Copy will read remaining buffered data
+	// then get EOF/EIO on the master, at which point it returns.
+	done := make(chan struct{})
+	go func() {
+		io.Copy(os.Stdout, ptmx)
+		close(done)
+	}()
+
+	err = c.Wait()
+	<-done // wait for all PTY output to be forwarded
+
+	if err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exiterr.ExitCode())
 		}

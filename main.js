@@ -18366,6 +18366,7 @@ var PtyBridge = class {
     this.process = null;
     this.controlStream = null;
     this.stopping = false;
+    this.didExit = false;
     this.pluginDir = opts.pluginDir;
     this.cwd = opts.cwd;
     this.shellPath = opts.shellPath || "";
@@ -18396,6 +18397,7 @@ var PtyBridge = class {
   // On process error (ENOENT, EACCES) it also falls back.
   start() {
     this.stopping = false;
+    this.didExit = false;
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
@@ -18407,12 +18409,18 @@ var PtyBridge = class {
     } catch (e) {
     }
     candidates.push(sourcePath);
+    const shellFallback = platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+    let effectiveCwd = this.cwd;
+    const effectiveShell = this.shellPath || shellFallback;
+    if (platform === "win32" && /^wsl(\.exe)?$/i.test(effectiveShell.split(/[\s/\\]/).pop() || "")) {
+      effectiveCwd = effectiveCwd.replace(/^([A-Za-z]):\\/, (_, drive) => `/mnt/${drive.toLowerCase()}/`).replace(/\\/g, "/");
+    }
     const env = {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
-      AUGMENT_SHELL: this.shellPath || process.env.SHELL || (platform === "win32" ? "powershell.exe" : "bash"),
-      AUGMENT_CWD: this.cwd,
+      AUGMENT_SHELL: effectiveShell,
+      AUGMENT_CWD: effectiveCwd,
       // Pass initial dimensions so the Go binary creates the PTY at the
       // correct size — eliminates the race where the shell/TUI starts
       // painting before the fd-3 resize command arrives.
@@ -18451,6 +18459,8 @@ var PtyBridge = class {
           spawnCandidate();
           return;
         }
+        if (this.didExit) return;
+        this.didExit = true;
         this.onExit(code != null ? code : 0, signal != null ? signal : null);
       });
       this.process.on("error", (err) => {
@@ -18464,6 +18474,8 @@ var PtyBridge = class {
           spawnCandidate();
           return;
         }
+        if (this.didExit) return;
+        this.didExit = true;
         (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
         this.onExit(1);
       });
@@ -18728,7 +18740,7 @@ function translatePtyError(raw2) {
     return "Permission error \u2014 try running the install again.";
   }
   if (l.includes("sigkill") || l.includes("signal sigkill")) {
-    return "Terminal bridge was killed by macOS during launch.";
+    return "Terminal bridge was killed by the OS during launch.";
   }
   return "The terminal connection failed.";
 }
@@ -19472,7 +19484,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
         const runtimeMs = Date.now() - this.ptyStartedAtMs;
         const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
         if (exitedImmediately && this.startupRetryCount < 2) {
-          const fallbackShell = this.startupRetryCount === 0 ? "/bin/bash" : "/bin/zsh";
+          const isWin = process.platform === "win32";
+          const fallbackShell = this.startupRetryCount === 0 ? isWin ? "powershell.exe" : "/bin/bash" : isWin ? "cmd.exe" : "/bin/zsh";
           this.startupRetryCount++;
           (_a3 = this.terminal) == null ? void 0 : _a3.write(
             `\r
@@ -19969,10 +19982,11 @@ var TerminalView = class extends import_obsidian8.ItemView {
     }, delayMs);
   }
   refreshTerminalMetrics() {
-    var _a2, _b;
+    var _a2, _b, _c, _d, _e, _f;
     if (!this.terminal) return;
     const core = this.terminal._core;
     (_b = (_a2 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a2.measure) == null ? void 0 : _b.call(_a2);
+    (_f = (_e = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e._setDefaultSpacing) == null ? void 0 : _f.call(_e);
     this.handleResize();
     this.terminal.clearTextureAtlas();
     if (this.terminal.rows > 0) {
@@ -20031,7 +20045,7 @@ var TerminalView = class extends import_obsidian8.ItemView {
   }
   getTerminalFontFamily() {
     const themeMono = getComputedStyle(document.body).getPropertyValue("--font-monospace").trim();
-    return themeMono || "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace";
+    return themeMono || "'SF Mono', 'Cascadia Mono', Menlo, 'DejaVu Sans Mono', monospace";
   }
   async onClose() {
     var _a2, _b, _c, _d;
@@ -20076,7 +20090,7 @@ var SessionStore = class {
   async findProjectDir() {
     var _a2;
     const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
-    const encoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const encoded = this.vaultBasePath.replace(/[/\\ ]/g, "-");
     const dir = path3.join(home, ".claude", "projects", encoded);
     try {
       if ((await fs2.promises.stat(dir)).isDirectory()) return dir;
@@ -20809,7 +20823,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
     const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
     if (cwd) {
-      const cwdBasename = cwd.split("/").filter(Boolean).pop() || cwd;
+      const cwdBasename = cwd.split(/[/\\]/).filter(Boolean).pop() || cwd;
       line.createSpan({ cls: "augment-tm-cwd", text: cwdBasename });
     }
     line.createDiv({ cls: "augment-tm-spacer" });
@@ -22544,8 +22558,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T14:59:17.529Z";
-    this.gitSha = "nogit";
+    this.buildId = "2026-03-08T15:16:47.818Z";
+    this.gitSha = "657847d";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
