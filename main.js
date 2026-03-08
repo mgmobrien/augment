@@ -23566,9 +23566,6 @@ var TerminalView = class extends import_obsidian8.ItemView {
       (_f = (_e2 = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e2._setDefaultSpacing) == null ? void 0 : _f.call(_e2);
     }
     this.handleResize();
-    if (this.terminal.rows > 0) {
-      this.terminal.refresh(0, this.terminal.rows - 1);
-    }
   }
   registerTerminalMetricObservers() {
     this.registerDomEvent(window, "resize", () => this.scheduleMetricRefresh());
@@ -26137,8 +26134,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T15:44:17.582Z";
-    this.gitSha = "a6b1e12";
+    this.buildId = "2026-03-08T15:49:47.216Z";
+    this.gitSha = "c205cf9";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

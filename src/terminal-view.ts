@@ -1570,14 +1570,21 @@ export class TerminalView extends ItemView {
       core?._renderService?._renderer?.value?._setDefaultSpacing?.();
     }
     this.handleResize();
-    // Do NOT call clearTextureAtlas() here. The WebGL renderer shares
-    // the glyph atlas across terminals with matching config via
-    // CharAtlasCache. Clearing it from one pane invalidates siblings,
-    // leaving them visually corrupted until they repaint on focus.
-
-    if (this.terminal.rows > 0) {
-      this.terminal.refresh(0, this.terminal.rows - 1);
-    }
+    // Do NOT call clearTextureAtlas() or terminal.refresh() here.
+    //
+    // clearTextureAtlas(): WebGL shares the glyph atlas across terminals
+    // with matching config — clearing it from one pane corrupts siblings.
+    //
+    // terminal.refresh(0, rows-1): Forces a synchronous full-screen
+    // redraw from xterm's internal buffer. If a TUI app (Claude/Codex)
+    // is actively writing cursor-movement sequences to update the screen,
+    // refresh() captures a partially-updated buffer state — cleared lines
+    // that haven't been rewritten yet, cursor positions mid-sequence.
+    // This produces duplicated separators, double prompt lines, clipped
+    // text, and stale "Working..." rows. handleResize() → fit() →
+    // terminal.resize() already marks all rows dirty; the renderer
+    // redraws them on the next animation frame after all pending writes
+    // have been processed.
   }
 
   private registerTerminalMetricObservers(): void {
