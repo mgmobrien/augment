@@ -22393,64 +22393,32 @@ function generateTerminalName() {
   return `${adj}-${noun}`;
 }
 function stripAnsi(str) {
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "").replace(/\x1b[()][0-9A-B]/g, "");
+  return str.replace(/\x1b\[[0-9;?]*[a-zA-Z@`]/g, "").replace(/\x1b\](?:[^\x07\x1b]|\x1b[^\\])*(?:\x07|\x1b\\)/g, "").replace(/\x1b[()][0-9A-B]/g, "").replace(/\x1b[=>78DMEHNOcn]/g, "");
 }
-var FLUSH_TIMEOUT_MS = 2e3;
 var TeammateMessageFilter = class {
-  constructor(passthrough) {
-    this.buffer = "";
-    this.buffering = false;
-    this.flushTimer = null;
-    this.passthrough = passthrough;
+  constructor(emit) {
+    this.scanBuffer = "";
+    this.emit = emit;
   }
-  feed(data) {
-    const clean = stripAnsi(data);
-    if (this.buffering) {
-      this.buffer += data;
-      if (clean.includes("</teammate-message>")) {
-        this.clearTimer();
-        this.emitFormatted();
-      }
-      return;
+  // Scan stripped text for complete teammate-message blocks.
+  // Called AFTER data has already been written to the terminal.
+  detect(cleanChunk) {
+    this.scanBuffer += cleanChunk;
+    if (this.scanBuffer.length > 8e3) {
+      this.scanBuffer = this.scanBuffer.slice(-4e3);
     }
-    const openIdx = clean.indexOf("<teammate-message");
+    const closeIdx = this.scanBuffer.indexOf("</teammate-message>");
+    if (closeIdx === -1) return;
+    const openIdx = this.scanBuffer.lastIndexOf("<teammate-message", closeIdx);
     if (openIdx === -1) {
-      this.passthrough(data);
+      this.scanBuffer = this.scanBuffer.slice(closeIdx + 19);
       return;
     }
-    if (openIdx > 0) {
-      const rawBefore = this.findRawOffset(data, clean, openIdx);
-      this.passthrough(data.slice(0, rawBefore));
-      data = data.slice(rawBefore);
-    }
-    this.buffering = true;
-    this.buffer = data;
-    if (clean.includes("</teammate-message>")) {
-      this.emitFormatted();
-    } else {
-      this.startTimer();
-    }
+    const block = this.scanBuffer.slice(openIdx, closeIdx + 19);
+    this.scanBuffer = this.scanBuffer.slice(closeIdx + 19);
+    this.emitFormatted(block);
   }
-  findRawOffset(raw2, clean, cleanOffset) {
-    let ci2 = 0;
-    let ri2 = 0;
-    while (ri2 < raw2.length && ci2 < cleanOffset) {
-      if (raw2[ri2] === "\x1B") {
-        const m = raw2.slice(ri2).match(/^\x1b(?:\[[0-9;]*[a-zA-Z]|\][^\x07]*\x07|[()][0-9A-B])/);
-        if (m) {
-          ri2 += m[0].length;
-          continue;
-        }
-      }
-      ri2++;
-      ci2++;
-    }
-    return ri2;
-  }
-  emitFormatted() {
-    const clean = stripAnsi(this.buffer);
-    this.buffering = false;
-    this.buffer = "";
+  emitFormatted(clean) {
     const attr = (name) => {
       var _a5, _b;
       return (_b = (_a5 = clean.match(new RegExp(`${name}="([^"]*)"`))) == null ? void 0 : _a5[1]) != null ? _b : "";
@@ -22489,33 +22457,12 @@ var TeammateMessageFilter = class {
       default:
         line = `${DIM}\u2197 [${id}] ${summary || type}${RST}`;
     }
-    this.passthrough(`\r
+    this.emit(`\r
 ${line}\r
 `);
   }
-  startTimer() {
-    this.clearTimer();
-    this.flushTimer = setTimeout(() => {
-      if (this.buffering) {
-        this.passthrough(this.buffer);
-        this.buffering = false;
-        this.buffer = "";
-      }
-    }, FLUSH_TIMEOUT_MS);
-  }
-  clearTimer() {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
-  }
   destroy() {
-    this.clearTimer();
-    if (this.buffering) {
-      this.passthrough(this.buffer);
-      this.buffering = false;
-      this.buffer = "";
-    }
+    this.scanBuffer = "";
   }
 };
 var TOOL_PATTERN = /\b(?:Bash|Read|Edit|Write|Glob|Grep|WebFetch|WebSearch|NotebookEdit|Task|TeamCreate|SendMessage)\s*\(/;
@@ -22575,6 +22522,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.resizeFlightTimer = null;
     this.lastContainerWidth = 0;
     this.lastContainerHeight = 0;
+    this.pendingAnalysis = [];
+    this.analysisRaf = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -23012,7 +22961,6 @@ var TerminalView = class extends import_obsidian8.ItemView {
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
-          this.scheduleResize(50);
         }
       })
     );
@@ -23032,10 +22980,9 @@ var TerminalView = class extends import_obsidian8.ItemView {
     this.ptyStartedAtMs = Date.now();
     (_a5 = this.ptyBridge) == null ? void 0 : _a5.kill();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
-    this.messageFilter = new TeammateMessageFilter((filtered) => {
+    this.messageFilter = new TeammateMessageFilter((formatted) => {
       var _a6;
-      (_a6 = this.terminal) == null ? void 0 : _a6.write(filtered);
-      this.appendToScrollback(filtered);
+      (_a6 = this.terminal) == null ? void 0 : _a6.write(formatted);
     });
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
@@ -23044,10 +22991,23 @@ var TerminalView = class extends import_obsidian8.ItemView {
       initialRows: (_d = (_c = this.terminal) == null ? void 0 : _c.rows) != null ? _d : 0,
       initialCols: (_f = (_e2 = this.terminal) == null ? void 0 : _e2.cols) != null ? _f : 0,
       onData: (data) => {
-        this.messageFilter.feed(data);
-        this.detectStatus(data);
-        this.detectUserPromptTurns(data);
-        this.detectOrchestrationActivity(data);
+        var _a6;
+        (_a6 = this.terminal) == null ? void 0 : _a6.write(data);
+        this.appendToScrollback(data);
+        this.pendingAnalysis.push(data);
+        if (!this.analysisRaf) {
+          this.analysisRaf = requestAnimationFrame(() => {
+            var _a7;
+            this.analysisRaf = null;
+            const batch = this.pendingAnalysis.join("");
+            this.pendingAnalysis = [];
+            const clean = stripAnsi(batch);
+            (_a7 = this.messageFilter) == null ? void 0 : _a7.detect(clean);
+            this.detectStatus(clean);
+            this.detectUserPromptTurns(batch);
+            this.detectOrchestrationActivity(batch);
+          });
+        }
       },
       onError: (err) => {
         const friendly = translatePtyError(err.message);
@@ -23125,9 +23085,8 @@ var TerminalView = class extends import_obsidian8.ItemView {
       });
     }
   }
-  detectStatus(rawData) {
+  detectStatus(clean) {
     if (this.isExited) return;
-    const clean = stripAnsi(rawData);
     let detected = null;
     if (TOOL_PATTERN.test(clean)) {
       detected = "tool";
@@ -23669,6 +23628,11 @@ var TerminalView = class extends import_obsidian8.ItemView {
       clearTimeout(this.resizeFlightTimer);
       this.resizeFlightTimer = null;
     }
+    if (this.analysisRaf !== null) {
+      cancelAnimationFrame(this.analysisRaf);
+      this.analysisRaf = null;
+    }
+    this.pendingAnalysis = [];
     (_a5 = this.resizeObserver) == null ? void 0 : _a5.disconnect();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
     this.messageFilter = null;
@@ -26168,8 +26132,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T16:43:19.131Z";
-    this.gitSha = "09c15ed";
+    this.buildId = "2026-03-08T16:54:48.404Z";
+    this.gitSha = "8d8deca";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

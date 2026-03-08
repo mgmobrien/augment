@@ -108,92 +108,58 @@ function generateTerminalName(): string {
 // Strip ANSI escape sequences for pattern matching.
 function stripAnsi(str: string): string {
   return str
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-    .replace(/\x1b\][^\x07]*\x07/g, "")
-    .replace(/\x1b[()][0-9A-B]/g, "");
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z@`]/g, "")           // CSI (including private mode ?25h etc.)
+    .replace(/\x1b\](?:[^\x07\x1b]|\x1b[^\\])*(?:\x07|\x1b\\)/g, "")  // OSC (BEL or ST terminator)
+    .replace(/\x1b[()][0-9A-B]/g, "")                     // Charset designations
+    .replace(/\x1b[=>78DMEHNOcn]/g, "");                  // Simple two-character escapes
 }
 
-// ── Teammate-message XML filter ──
-// Intercepts <teammate-message> XML blocks in the PTY stream and reformats
-// them as compact ANSI-colored lines instead of raw XML.
-const FLUSH_TIMEOUT_MS = 2000;
-
+// ── Teammate-message XML detector ──
+// Non-blocking side-channel detector: NEVER buffers or delays the PTY data
+// stream. All data passes through to terminal.write() immediately. This
+// detector scans the stripped text for teammate-message blocks and emits
+// compact formatted summaries as ADDITIONAL terminal output after the raw
+// data has already been rendered.
 class TeammateMessageFilter {
-  private buffer: string = "";
-  private buffering = false;
-  private flushTimer: ReturnType<typeof setTimeout> | null = null;
-  private passthrough: (data: string) => void;
+  private scanBuffer: string = "";
+  private emit: (data: string) => void;
 
-  constructor(passthrough: (data: string) => void) {
-    this.passthrough = passthrough;
+  constructor(emit: (data: string) => void) {
+    this.emit = emit;
   }
 
-  feed(data: string): void {
-    const clean = stripAnsi(data);
-
-    if (this.buffering) {
-      this.buffer += data;
-      if (clean.includes("</teammate-message>")) {
-        this.clearTimer();
-        this.emitFormatted();
-      }
-      return;
+  // Scan stripped text for complete teammate-message blocks.
+  // Called AFTER data has already been written to the terminal.
+  detect(cleanChunk: string): void {
+    this.scanBuffer += cleanChunk;
+    // Keep scan buffer bounded
+    if (this.scanBuffer.length > 8000) {
+      this.scanBuffer = this.scanBuffer.slice(-4000);
     }
 
-    // Check for open tag in this chunk
-    const openIdx = clean.indexOf("<teammate-message");
+    // Look for complete blocks
+    const closeIdx = this.scanBuffer.indexOf("</teammate-message>");
+    if (closeIdx === -1) return;
+
+    const openIdx = this.scanBuffer.lastIndexOf("<teammate-message", closeIdx);
     if (openIdx === -1) {
-      this.passthrough(data);
+      // Closing tag without opening — discard up to closing tag
+      this.scanBuffer = this.scanBuffer.slice(closeIdx + 19);
       return;
     }
 
-    // Pass through everything before the tag
-    if (openIdx > 0) {
-      // Find corresponding position in raw data (approximate — match on the clean text offset)
-      const rawBefore = this.findRawOffset(data, clean, openIdx);
-      this.passthrough(data.slice(0, rawBefore));
-      data = data.slice(rawBefore);
-    }
-
-    this.buffering = true;
-    this.buffer = data;
-
-    if (clean.includes("</teammate-message>")) {
-      this.emitFormatted();
-    } else {
-      this.startTimer();
-    }
+    const block = this.scanBuffer.slice(openIdx, closeIdx + 19);
+    this.scanBuffer = this.scanBuffer.slice(closeIdx + 19);
+    this.emitFormatted(block);
   }
 
-  private findRawOffset(raw: string, clean: string, cleanOffset: number): number {
-    // Walk raw string counting non-ANSI characters until we reach cleanOffset
-    let ci = 0;
-    let ri = 0;
-    while (ri < raw.length && ci < cleanOffset) {
-      if (raw[ri] === "\x1b") {
-        // Skip ANSI sequence
-        const m = raw.slice(ri).match(/^\x1b(?:\[[0-9;]*[a-zA-Z]|\][^\x07]*\x07|[()][0-9A-B])/);
-        if (m) { ri += m[0].length; continue; }
-      }
-      ri++;
-      ci++;
-    }
-    return ri;
-  }
-
-  private emitFormatted(): void {
-    const clean = stripAnsi(this.buffer);
-    this.buffering = false;
-    this.buffer = "";
-
-    // Extract attributes
+  private emitFormatted(clean: string): void {
     const attr = (name: string): string =>
       clean.match(new RegExp(`${name}="([^"]*)"`))?.[1] ?? "";
     const type = attr("type") || "message";
     const id = attr("teammate_id") || attr("recipient") || "?";
     const summary = attr("summary").slice(0, 70);
 
-    // ANSI codes: dim = \x1b[2m, yellow = \x1b[33m, reset = \x1b[0m
     const DIM = "\x1b[2m";
     const WARN = "\x1b[33m";
     const RST = "\x1b[0m";
@@ -201,7 +167,6 @@ class TeammateMessageFilter {
     let line: string;
     switch (type) {
       case "message":
-        // Outgoing DM: ↗ [recipient] summary
         line = `${DIM}\u2197 [${id}] ${summary}${RST}`;
         break;
       case "broadcast":
@@ -228,35 +193,11 @@ class TeammateMessageFilter {
         line = `${DIM}\u2197 [${id}] ${summary || type}${RST}`;
     }
 
-    this.passthrough(`\r\n${line}\r\n`);
-  }
-
-  private startTimer(): void {
-    this.clearTimer();
-    this.flushTimer = setTimeout(() => {
-      // Timeout — flush buffer as-is (malformed XML)
-      if (this.buffering) {
-        this.passthrough(this.buffer);
-        this.buffering = false;
-        this.buffer = "";
-      }
-    }, FLUSH_TIMEOUT_MS);
-  }
-
-  private clearTimer(): void {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
+    this.emit(`\r\n${line}\r\n`);
   }
 
   destroy(): void {
-    this.clearTimer();
-    if (this.buffering) {
-      this.passthrough(this.buffer);
-      this.buffering = false;
-      this.buffer = "";
-    }
+    this.scanBuffer = "";
   }
 }
 
@@ -324,6 +265,8 @@ export class TerminalView extends ItemView {
   private resizeFlightTimer: ReturnType<typeof setTimeout> | null = null;
   private lastContainerWidth: number = 0;
   private lastContainerHeight: number = 0;
+  private pendingAnalysis: string[] = [];
+  private analysisRaf: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -876,10 +819,11 @@ export class TerminalView extends ItemView {
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf === this.leaf) {
           this.markActivityRead();
-          // Use the same debounced path as ResizeObserver — avoids
-          // bypassing the debounce via requestAnimationFrame, which
-          // caused double resizes and redundant SIGWINCH signals.
-          this.scheduleResize(50);
+          // Do NOT resize on focus change. Focus does not change container
+          // dimensions. ResizeObserver handles the case where a previously-
+          // hidden pane becomes visible and gets dimensions. Resizing on
+          // every focus change in a 2x2 layout fires 4 unnecessary resize
+          // cycles that interrupt TUI mid-paint.
         }
       })
     );
@@ -904,9 +848,8 @@ export class TerminalView extends ItemView {
     this.ptyStartedAtMs = Date.now();
     this.ptyBridge?.kill();
     this.messageFilter?.destroy();
-    this.messageFilter = new TeammateMessageFilter((filtered) => {
-      this.terminal?.write(filtered);
-      this.appendToScrollback(filtered);
+    this.messageFilter = new TeammateMessageFilter((formatted) => {
+      this.terminal?.write(formatted);
     });
     this.ptyBridge = new PtyBridge({
       pluginDir: this.pluginDir,
@@ -915,10 +858,25 @@ export class TerminalView extends ItemView {
       initialRows: this.terminal?.rows ?? 0,
       initialCols: this.terminal?.cols ?? 0,
       onData: (data) => {
-        this.messageFilter!.feed(data);
-        this.detectStatus(data);
-        this.detectUserPromptTurns(data);
-        this.detectOrchestrationActivity(data);
+        // ALWAYS write to terminal FIRST, immediately, with zero delay.
+        // Never let analysis or filtering block the data path.
+        this.terminal?.write(data);
+        this.appendToScrollback(data);
+        // Batch analysis into next animation frame so it never blocks
+        // the terminal write. Strip ANSI once for all consumers.
+        this.pendingAnalysis.push(data);
+        if (!this.analysisRaf) {
+          this.analysisRaf = requestAnimationFrame(() => {
+            this.analysisRaf = null;
+            const batch = this.pendingAnalysis.join("");
+            this.pendingAnalysis = [];
+            const clean = stripAnsi(batch);
+            this.messageFilter?.detect(clean);
+            this.detectStatus(clean);
+            this.detectUserPromptTurns(batch);
+            this.detectOrchestrationActivity(batch);
+          });
+        }
       },
       onError: (err) => {
         const friendly = translatePtyError(err.message);
@@ -998,10 +956,8 @@ export class TerminalView extends ItemView {
     }
   }
 
-  private detectStatus(rawData: string): void {
+  private detectStatus(clean: string): void {
     if (this.isExited) return;
-
-    const clean = stripAnsi(rawData);
 
     let detected: TerminalStatus | null = null;
 
@@ -1749,6 +1705,11 @@ export class TerminalView extends ItemView {
       clearTimeout(this.resizeFlightTimer);
       this.resizeFlightTimer = null;
     }
+    if (this.analysisRaf !== null) {
+      cancelAnimationFrame(this.analysisRaf);
+      this.analysisRaf = null;
+    }
+    this.pendingAnalysis = [];
 
     this.resizeObserver?.disconnect();
     this.messageFilter?.destroy();
