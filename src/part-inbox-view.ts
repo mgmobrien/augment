@@ -1,11 +1,11 @@
-import { App, ItemView, WorkspaceLeaf } from "obsidian";
+import { App, EventRef, ItemView, WorkspaceLeaf } from "obsidian";
 import {
   discoverVaultParts,
   getThread,
   HUMAN_ADDRESS,
   InboxMessage,
   InboxThreadSummary,
-  listHumanInboxThreads,
+  listHumanThreads,
   listPartThreads,
   markThreadRead,
   PartInfo,
@@ -28,7 +28,23 @@ type TerminalViewLike = {
   markActivityRead?: () => void;
 };
 
-type ResolvedPart = Pick<PartInfo, "name" | "address" | "habitat" | "isProjectPart">;
+type PartTerminalTarget = Pick<PartInfo, "name" | "address" | "habitat" | "isProjectPart">;
+type InboxLeafLike = WorkspaceLeaf & {
+  updateHeader?: () => void;
+  tabHeaderInnerTitleEl?: { setText?: (title: string) => void };
+};
+type InboxWorkspaceEvents = App["workspace"] & {
+  on(name: "augment-bus:changed" | "augment-terminal:changed", callback: () => void): EventRef;
+};
+
+function normalizeInboxAddress(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "human" || normalized === "user") {
+    return HUMAN_ADDRESS;
+  }
+  if (normalized === HUMAN_ADDRESS) return HUMAN_ADDRESS;
+  return normalized.includes("@") ? normalized : `${normalized}@vault`;
+}
 
 function splitAddress(address: string): { name: string; habitat: string } {
   const [name = address, habitat = "vault"] = address.split("@");
@@ -42,6 +58,25 @@ function formatAddressLabel(address: string): string {
   if (address === HUMAN_ADDRESS) return "You";
   const { name, habitat } = splitAddress(address);
   return habitat === "vault" ? name : `${name}@${habitat}`;
+}
+
+function formatMailboxLabel(
+  address: string,
+  part?: PartTerminalTarget | null
+): string {
+  if (normalizeInboxAddress(address) === HUMAN_ADDRESS) return "My inbox";
+  if (part) {
+    return part.habitat === "vault"
+      ? part.name
+      : `${part.name} @ ${part.habitat}`;
+  }
+
+  const { name, habitat } = splitAddress(address);
+  return habitat === "vault" ? name : `${name} @ ${habitat}`;
+}
+
+function formatPartQueueLabel(unread: number): string {
+  return unread > 0 ? `Part has ${unread} unread` : "Part inbox clear";
 }
 
 function formatTerminalStatus(status: string | null | undefined): string {
@@ -119,7 +154,7 @@ function getTerminalLeaves(app: App): WorkspaceLeaf[] {
   return found;
 }
 
-function scorePartMatch(leaf: WorkspaceLeaf, part: ResolvedPart): number {
+function scorePartMatch(leaf: WorkspaceLeaf, part: PartTerminalTarget): number {
   const view = leaf.view as TerminalViewLike;
   const identity = view.getAgentIdentity?.()?.trim().toLowerCase() ?? "";
   const name = view.getName?.()?.trim().toLowerCase() ?? "";
@@ -150,7 +185,7 @@ function scorePartMatch(leaf: WorkspaceLeaf, part: ResolvedPart): number {
   return 1;
 }
 
-function findTerminalLeafForPart(app: App, part: ResolvedPart): WorkspaceLeaf | null {
+export function findTerminalLeafForPart(app: App, part: PartTerminalTarget): WorkspaceLeaf | null {
   let bestLeaf: WorkspaceLeaf | null = null;
   let bestScore = 0;
   for (const leaf of getTerminalLeaves(app)) {
@@ -196,7 +231,7 @@ async function openPartInboxLeaf(
 export async function openPartInboxForPart(app: App, address: string): Promise<PartInboxView> {
   return openPartInboxLeaf(app, {
     mode: "part",
-    address: address.trim().toLowerCase(),
+    address: normalizeInboxAddress(address),
   });
 }
 
@@ -207,6 +242,7 @@ export async function openHumanInbox(app: App): Promise<PartInboxView> {
 export class PartInboxView extends ItemView {
   private viewState: PartInboxViewState = { mode: "human" };
   private refreshToken = 0;
+  private discoveredParts: PartTerminalTarget[] = [];
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -217,8 +253,7 @@ export class PartInboxView extends ItemView {
   }
 
   getDisplayText(): string {
-    if (this.viewState.mode === "human") return "My inbox";
-    return `Inbox: ${splitAddress(this.viewState.address).name}`;
+    return `Messages — ${this.getSelectedMailboxLabel()}`;
   }
 
   getIcon(): string {
@@ -230,31 +265,52 @@ export class PartInboxView extends ItemView {
   }
 
   async setState(state: PartInboxViewState): Promise<void> {
-    if (state.mode === "part") {
-      this.viewState = {
-        mode: "part",
-        address: state.address.trim().toLowerCase(),
-        selectedThreadId: state.selectedThreadId,
-      };
-    } else {
-      this.viewState = {
-        mode: "human",
-        selectedThreadId: state.selectedThreadId,
-      };
-    }
+    await this.setMode(state.mode === "human" ? HUMAN_ADDRESS : state.address, {
+      selectedThreadId: state.selectedThreadId,
+    });
+  }
 
-    await this.refresh();
+  async setMode(
+    modeOrAddress: "human" | string,
+    options: { selectedThreadId?: string } = {}
+  ): Promise<void> {
+    const address = normalizeInboxAddress(modeOrAddress);
+    const nextState: PartInboxViewState =
+      address === HUMAN_ADDRESS
+        ? { mode: "human", selectedThreadId: options.selectedThreadId }
+        : {
+            mode: "part",
+            address,
+            selectedThreadId: options.selectedThreadId,
+          };
+
+    const currentMode = this.viewState.mode;
+    const currentAddress = this.selectedAddress();
+    const currentThreadId = this.viewState.selectedThreadId;
+
+    this.viewState = nextState;
+    this.syncLeafTitle();
+
+    if (
+      currentMode !== nextState.mode ||
+      currentAddress !== address ||
+      currentThreadId !== nextState.selectedThreadId
+    ) {
+      await this.refresh();
+    }
   }
 
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("augment-part-inbox-view");
+    this.syncLeafTitle();
+    const workspaceEvents = this.app.workspace as InboxWorkspaceEvents;
 
     this.registerEvent(
-      (this.app.workspace as any).on("augment-bus:changed", () => void this.refresh())
+      workspaceEvents.on("augment-bus:changed", () => void this.refresh())
     );
     this.registerEvent(
-      this.app.workspace.on("augment-terminal:changed", () => void this.refresh())
+      workspaceEvents.on("augment-terminal:changed", () => void this.refresh())
     );
     this.registerEvent(
       this.app.workspace.on("layout-change", () => void this.refresh())
@@ -264,31 +320,90 @@ export class PartInboxView extends ItemView {
     await this.refresh();
   }
 
-  private resolvePart(): ResolvedPart | null {
-    if (this.viewState.mode !== "part") return null;
-    const resolved = discoverVaultParts(this.app).find(
-      (part) => part.address === this.viewState.address
-    );
-    if (resolved) return resolved;
+  private selectedAddress(): string {
+    return this.viewState.mode === "human" ? HUMAN_ADDRESS : this.viewState.address;
+  }
 
-    const { name, habitat } = splitAddress(this.viewState.address);
+  private fallbackPart(address: string): PartTerminalTarget {
+    const normalized = normalizeInboxAddress(address);
+    const { name, habitat } = splitAddress(normalized);
     return {
       name,
-      address: this.viewState.address,
+      address: normalized,
       habitat,
       isProjectPart: habitat !== "vault",
     };
   }
 
-  private currentThreads(): InboxThreadSummary[] {
-    if (this.viewState.mode === "human") {
-      return listHumanInboxThreads(this.app);
+  private refreshDiscoveredParts(): void {
+    const discovered = discoverVaultParts(this.app).map((part) => ({
+      name: part.name,
+      address: part.address,
+      habitat: part.habitat,
+      isProjectPart: part.isProjectPart,
+    }));
+
+    const currentAddress = this.selectedAddress();
+    if (
+      currentAddress !== HUMAN_ADDRESS &&
+      !discovered.some((part) => part.address === currentAddress)
+    ) {
+      discovered.push(this.fallbackPart(currentAddress));
     }
-    return listPartThreads(this.app, this.viewState.address);
+
+    this.discoveredParts = discovered;
+  }
+
+  private resolvePart(address = this.selectedAddress()): PartTerminalTarget | null {
+    const normalized = normalizeInboxAddress(address);
+    if (normalized === HUMAN_ADDRESS) return null;
+
+    const discovered =
+      this.discoveredParts.find((part) => part.address === normalized) ??
+      discoverVaultParts(this.app).find((part) => part.address === normalized);
+    if (discovered) {
+      return {
+        name: discovered.name,
+        address: discovered.address,
+        habitat: discovered.habitat,
+        isProjectPart: discovered.isProjectPart,
+      };
+    }
+
+    return this.fallbackPart(normalized);
+  }
+
+  private getSelectedMailboxLabel(): string {
+    return formatMailboxLabel(this.selectedAddress(), this.resolvePart());
+  }
+
+  private syncLeafTitle(): void {
+    const title = this.getDisplayText();
+    const leafLike = this.leaf as InboxLeafLike;
+
+    leafLike.updateHeader?.();
+
+    const headerTitleEl = this.contentEl
+      .closest(".workspace-leaf")
+      ?.querySelector(".view-header-title");
+    if (headerTitleEl instanceof HTMLElement) {
+      headerTitleEl.textContent = title;
+    }
+
+    leafLike.tabHeaderInnerTitleEl?.setText?.(title);
+  }
+
+  private currentThreads(): InboxThreadSummary[] {
+    if (this.selectedAddress() === HUMAN_ADDRESS) {
+      return listHumanThreads(this.app);
+    }
+    return listPartThreads(this.app, this.selectedAddress());
   }
 
   private async refresh(): Promise<void> {
     const token = ++this.refreshToken;
+    this.refreshDiscoveredParts();
+    this.syncLeafTitle();
     const threads = this.currentThreads();
     let selectedThreadId = this.viewState.selectedThreadId;
 
@@ -361,23 +476,40 @@ export class PartInboxView extends ItemView {
     const titleRow = titleBlock.createDiv({ cls: "augment-part-inbox-title-row" });
     const metaRow = titleBlock.createDiv({ cls: "augment-part-inbox-meta-row" });
     const actions = header.createDiv({ cls: "augment-part-inbox-actions" });
+    const activeAddress = this.selectedAddress();
+
+    titleRow.createDiv({ cls: "augment-part-inbox-title", text: "Messages" });
+    const selector = titleRow.createEl("select", {
+      cls: "dropdown augment-part-inbox-selector",
+      attr: { "aria-label": "Select inbox" },
+    }) as HTMLSelectElement;
+    selector.createEl("option", {
+      value: HUMAN_ADDRESS,
+      text: "My inbox",
+    });
+    for (const part of this.discoveredParts) {
+      selector.createEl("option", {
+        value: part.address,
+        text: formatMailboxLabel(part.address, part),
+      });
+    }
+    selector.value = activeAddress;
+    selector.addEventListener("change", () => {
+      void this.setMode(selector.value);
+    });
 
     if (this.viewState.mode === "human") {
-      titleRow.createDiv({ cls: "augment-part-inbox-title", text: "My inbox" });
       const unread = unreadCount(this.app, HUMAN_ADDRESS);
       metaRow.createSpan({
         cls: "augment-part-inbox-pill",
         text: unread > 0 ? `${unread} unread` : "No unread messages",
       });
     } else {
-      const part = this.resolvePart();
+      const part = this.resolvePart(activeAddress);
       if (!part) return;
-
       const terminalLeaf = findTerminalLeafForPart(this.app, part);
       const terminalStatus = (terminalLeaf?.view as TerminalViewLike | undefined)?.getStatus?.();
       const unread = unreadCount(this.app, part.address);
-
-      titleRow.createDiv({ cls: "augment-part-inbox-title", text: part.name });
       metaRow.createSpan({ cls: "augment-part-inbox-pill", text: part.habitat });
       metaRow.createSpan({
         cls:
@@ -387,7 +519,7 @@ export class PartInboxView extends ItemView {
       });
       metaRow.createSpan({
         cls: "augment-part-inbox-pill",
-        text: unread > 0 ? `${unread} unread` : "No unread messages",
+        text: formatPartQueueLabel(unread),
       });
 
       const newBtn = actions.createEl("button", {
@@ -434,13 +566,24 @@ export class PartInboxView extends ItemView {
 
     if (threads.length === 0) {
       const empty = list.createDiv({ cls: "augment-part-inbox-empty" });
-      empty.createDiv({
-        cls: "augment-part-inbox-empty-title",
-        text:
-          this.viewState.mode === "human"
-            ? "No messages addressed to you."
-            : "No threads with this part yet.",
-      });
+      if (this.viewState.mode === "human") {
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-title",
+          text: "No messages for you yet.",
+        });
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-copy",
+          text:
+            this.discoveredParts.length > 0
+              ? "Choose a part from the inbox menu above to start a conversation."
+              : "No parts found yet. Parts are AI agents that live in your vault.",
+        });
+      } else {
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-title",
+          text: "No threads with this part yet.",
+        });
+      }
 
       if (this.viewState.mode === "part") {
         const part = this.resolvePart();

@@ -780,9 +780,11 @@ export function listPartThreads(app: App, address: string): InboxThreadSummary[]
   );
 }
 
-export function listHumanInboxThreads(app: App): InboxThreadSummary[] {
+export function listHumanThreads(app: App): InboxThreadSummary[] {
   return buildThreadList(app, HUMAN_ADDRESS, (message) => message.to === HUMAN_ADDRESS);
 }
+
+export const listHumanInboxThreads = listHumanThreads;
 
 export async function getThread(app: App, threadId: string): Promise<InboxMessage[]> {
   const messages = getIndexedThreadMessages(getBusIndex(app), threadId);

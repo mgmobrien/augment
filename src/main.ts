@@ -105,6 +105,14 @@ Augment hosts Claude Code agent sessions in a panel alongside your notes. Each s
 `;
 }
 
+type ActiveGeneration = {
+  id: string;
+  abortController: AbortController;
+  cmView: EditorView;
+  insertPos: number;
+  showSpinner: boolean;
+};
+
 export default class AugmentTerminalPlugin extends Plugin {
   settings: AugmentSettings = { ...DEFAULT_SETTINGS };
   public availableModels: ModelInfo[] = [];
@@ -122,11 +130,8 @@ export default class AugmentTerminalPlugin extends Plugin {
   private readonly SPEND_PATH = "augment-spend.json";
   private waitingBadgeEl: HTMLElement | null = null;
   private waitingCursor: number = 0;
-  private activeGeneration: {
-    abortController: AbortController;
-    cmView: EditorView;
-    insertPos: number;
-  } | null = null;
+  private activeGenerations: Map<string, ActiveGeneration> = new Map();
+  private generationCounter = 0;
 
   private async maybeDefaultWindowsShellToWsl(): Promise<void> {
     if (process.platform !== "win32") return;
@@ -184,6 +189,10 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public refreshStatusBar(): void {
+    if (this.activeGenerations.size > 0) {
+      this.showStatusBarGenerating();
+      return;
+    }
     this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
     this.ribbonGenerateEl?.removeClass("is-generating");
     if (!this.statusBarEl) return;
@@ -200,14 +209,101 @@ export default class AugmentTerminalPlugin extends Plugin {
     return `${this.buildId} (${this.gitSha})`;
   }
 
+  private createGenerationId(): string {
+    this.generationCounter += 1;
+    return `generation-${this.generationCounter}`;
+  }
+
+  private getActiveGenerationsForView(cmView: EditorView): ActiveGeneration[] {
+    return Array.from(this.activeGenerations.values()).filter((generation) => generation.cmView === cmView);
+  }
+
+  private syncGenerationSpinners(cmView: EditorView, selectionPos?: number): void {
+    const effects = [
+      removeSpinnerEffect.of(null),
+      ...this.getActiveGenerationsForView(cmView)
+        .filter((generation) => generation.showSpinner)
+        .map((generation) => addSpinnerEffect.of(Math.min(generation.insertPos, cmView.state.doc.length))),
+    ];
+    const transaction: Parameters<EditorView["dispatch"]>[0] = { effects };
+    if (selectionPos != null) {
+      transaction.selection = EditorSelection.cursor(Math.min(selectionPos, cmView.state.doc.length), 1);
+    }
+    cmView.dispatch(transaction);
+  }
+
+  private registerGeneration(
+    cmView: EditorView,
+    insertPos: number,
+    abortController: AbortController,
+    showSpinner: boolean
+  ): ActiveGeneration {
+    const generation: ActiveGeneration = {
+      id: this.createGenerationId(),
+      abortController,
+      cmView,
+      insertPos,
+      showSpinner,
+    };
+    this.activeGenerations.set(generation.id, generation);
+    if (showSpinner) {
+      this.syncGenerationSpinners(cmView, insertPos);
+    }
+    this.refreshStatusBar();
+    return generation;
+  }
+
+  private unregisterGeneration(generationId: string): void {
+    const generation = this.activeGenerations.get(generationId);
+    if (!generation) {
+      this.refreshStatusBar();
+      return;
+    }
+    this.activeGenerations.delete(generationId);
+    this.syncGenerationSpinners(generation.cmView);
+    this.refreshStatusBar();
+  }
+
+  private insertTextAndShiftGenerations(
+    editor: Editor,
+    insertPos: number,
+    insertedText: string,
+    sourceGenerationId?: string
+  ): number {
+    if (insertedText.length === 0) return insertPos;
+
+    const safeInsertPos = Math.min(insertPos, editor.getValue().length);
+    editor.replaceRange(insertedText, editor.offsetToPos(safeInsertPos));
+    const delta = insertedText.length;
+
+    for (const generation of this.activeGenerations.values()) {
+      if (generation.id === sourceGenerationId) {
+        generation.insertPos = safeInsertPos + delta;
+      } else if (generation.insertPos >= safeInsertPos) {
+        generation.insertPos += delta;
+      }
+    }
+
+    return safeInsertPos + delta;
+  }
+
   private cancelGeneration(): void {
-    const gen = this.activeGeneration;
-    if (!gen) return;
-    gen.abortController.abort();
-    gen.cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-    // Restore cursor to the generation start position.
-    gen.cmView.dispatch({ selection: EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
-    this.activeGeneration = null;
+    if (this.activeGenerations.size === 0) return;
+
+    const generations = Array.from(this.activeGenerations.values());
+    const selectionsByView = new Map<EditorView, number>();
+    for (const generation of generations) {
+      generation.abortController.abort();
+      const existingPos = selectionsByView.get(generation.cmView);
+      const safePos = Math.min(generation.insertPos, generation.cmView.state.doc.length);
+      selectionsByView.set(generation.cmView, existingPos == null ? safePos : Math.min(existingPos, safePos));
+      this.activeGenerations.delete(generation.id);
+    }
+
+    for (const [cmView, selectionPos] of selectionsByView.entries()) {
+      this.syncGenerationSpinners(cmView, selectionPos);
+    }
+
     this.refreshStatusBar();
     console.log("[Augment] generation cancelled");
     new Notice("Augment: generation cancelled");
@@ -240,17 +336,15 @@ export default class AugmentTerminalPlugin extends Plugin {
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos: number;
     if (isBlock && cursor.ch > 0) {
-      editor.replaceRange("\n", cursor);
-      insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+      const cursorOffset = editor.posToOffset(cursor);
+      insertPos = this.insertTextAndShiftGenerations(editor, cursorOffset, "\n");
     } else {
       insertPos = editor.posToOffset(cursor);
     }
 
     const cmView = (editor as any).cm as EditorView;
-    cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
-
     const abortController = new AbortController();
-    this.activeGeneration = { abortController, cmView, insertPos };
+    const generation = this.registerGeneration(cmView, insertPos, abortController, true);
 
     void (async () => {
       try {
@@ -258,19 +352,17 @@ export default class AugmentTerminalPlugin extends Plugin {
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
         const builtSystemPrompt = await buildSystemPrompt(ctx, this.settings.systemPrompt || undefined, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || undefined);
+        if (abortController.signal.aborted) return;
         const { text: result, usage: genUsage } = await generateText(builtSystemPrompt, promptText, this.settings, resolvedModel, abortController.signal);
-        this.activeGeneration = null;
+        if (abortController.signal.aborted) return;
         void this.accumulateSpend(resolvedModel, genUsage);
-        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-        const insertPosLine = editor.offsetToPos(insertPos);
         if (isBlock) {
           const withTrail = formatted + "\n\n";
-          editor.replaceRange(withTrail, insertPosLine);
-          const lines = withTrail.split("\n");
-          editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+          const nextInsertPos = this.insertTextAndShiftGenerations(editor, generation.insertPos, withTrail, generation.id);
+          editor.setCursor(editor.offsetToPos(nextInsertPos));
         } else {
-          editor.replaceRange(formatted, insertPosLine);
+          this.insertTextAndShiftGenerations(editor, generation.insertPos, formatted, generation.id);
         }
         const entry: ContextEntry = {
           timestamp: Date.now(),
@@ -299,18 +391,13 @@ export default class AugmentTerminalPlugin extends Plugin {
           this.registerTieredCommands();
         }
       } catch (err) {
-        if (this.activeGeneration?.abortController === abortController) {
-          // Aborted by cancel — already handled, just clean up.
-          this.activeGeneration = null;
-        }
         if (abortController.signal.aborted) return; // Cancel — no error notice.
         console.error("[Augment] generation failed", err);
         logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
         new Notice(`Augment: ${errMsg}`);
       } finally {
-        this.refreshStatusBar();
+        this.unregisterGeneration(generation.id);
       }
     })();
   }
@@ -561,7 +648,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     const escapeKeymap = keymap.of([{
       key: "Escape",
       run: () => {
-        if (this.activeGeneration) {
+        if (this.activeGenerations.size > 0) {
           this.cancelGeneration();
           return true;
         }
@@ -685,30 +772,29 @@ export default class AugmentTerminalPlugin extends Plugin {
 
             const isCursorMode = targetMode === "cursor";
             const isBlock = this.settings.outputFormat !== "plain";
-            let insertPos = 0;
+            let insertPos = editor.posToOffset(cursor);
             const cmView = (editor as any).cm as EditorView;
 
             if (isCursorMode) {
               if (isBlock && cursor.ch > 0) {
-                editor.replaceRange("\n", cursor);
-                insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+                const cursorOffset = editor.posToOffset(cursor);
+                insertPos = this.insertTextAndShiftGenerations(editor, cursorOffset, "\n");
               } else {
                 insertPos = editor.posToOffset(cursor);
               }
-              cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: EditorSelection.cursor(insertPos, 1) });
             }
 
             const abortController = new AbortController();
-            this.activeGeneration = { abortController, cmView, insertPos };
+            const generation = this.registerGeneration(cmView, insertPos, abortController, isCursorMode);
 
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
               const builtSystemPrompt = await buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || undefined);
+              if (abortController.signal.aborted) return;
               const { text: result, usage: genUsage } = await generateText(builtSystemPrompt, rendered, this.settings, resolvedModel, abortController.signal);
-              this.activeGeneration = null;
+              if (abortController.signal.aborted) return;
               void this.accumulateSpend(resolvedModel, genUsage);
-              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
 
               // Route output
               if (targetMode === "clipboard") {
@@ -741,14 +827,12 @@ export default class AugmentTerminalPlugin extends Plugin {
               } else {
                 // cursor (default)
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-                const insertPosLine = editor.offsetToPos(insertPos);
                 if (isBlock) {
                   const withTrail = formatted + "\n\n";
-                  editor.replaceRange(withTrail, insertPosLine);
-                  const lines = withTrail.split("\n");
-                  editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+                  const nextInsertPos = this.insertTextAndShiftGenerations(editor, generation.insertPos, withTrail, generation.id);
+                  editor.setCursor(editor.offsetToPos(nextInsertPos));
                 } else {
-                  editor.replaceRange(formatted, insertPosLine);
+                  this.insertTextAndShiftGenerations(editor, generation.insertPos, formatted, generation.id);
                 }
                 console.log("[Augment] template generation done");
                 const notice = new Notice("", 5000);
@@ -784,17 +868,13 @@ export default class AugmentTerminalPlugin extends Plugin {
                 await this.saveData(this.settings);
               }
             } catch (err) {
-              if (this.activeGeneration?.abortController === abortController) {
-                this.activeGeneration = null;
-              }
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
               new Notice(`Augment: ${errMsg}`);
             } finally {
-              this.refreshStatusBar();
+              this.unregisterGeneration(generation.id);
             }
           };
 

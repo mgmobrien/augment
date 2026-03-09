@@ -17892,8 +17892,15 @@ function modelTier(id) {
   return 0;
 }
 function modelVersion(id) {
-  const m = id.match(/(\d+)[.-](\d+)/);
-  return m ? parseInt(m[1]) * 100 + parseInt(m[2]) : 0;
+  var _a2, _b;
+  const parts = (_b = (_a2 = id.match(/\d+/g)) == null ? void 0 : _a2.map((part) => parseInt(part, 10))) != null ? _b : [];
+  if (parts.length < 2) return 0;
+  const [major, second, third] = parts;
+  const isDateStamp = (value) => value !== void 0 && value > 99;
+  const minor = isDateStamp(second) ? 0 : second;
+  const releaseType = isDateStamp(second) ? 0 : isDateStamp(third) ? 1 : 2;
+  const date2 = isDateStamp(second) ? second : isDateStamp(third) ? third : 0;
+  return major * 1e12 + minor * 1e9 + releaseType * 1e8 + date2;
 }
 function bestModelId(models) {
   if (models.length === 0) return null;
@@ -17912,18 +17919,33 @@ function bestModelByTier(models, tier) {
   ).id;
 }
 async function fetchModels(apiKey) {
+  const fallbackModels = [
+    { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+    { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+    { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
+  ];
+  const mergeModels = (models) => {
+    const merged = /* @__PURE__ */ new Map();
+    for (const model of models) {
+      merged.set(model.id, model);
+    }
+    for (const model of fallbackModels) {
+      if (!merged.has(model.id)) merged.set(model.id, model);
+    }
+    return [...merged.values()];
+  };
   try {
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const result = await client.models.list();
-    return result.data.filter((m) => !m.id.startsWith("claude-3")).map((m) => {
+    return mergeModels(result.data.filter((m) => !m.id.startsWith("claude-3")).map((m) => {
       var _a2;
       return {
         id: m.id,
         display_name: (_a2 = m.display_name) != null ? _a2 : modelDisplayName(m.id)
       };
-    });
+    }));
   } catch (e) {
-    return [];
+    return mergeModels([]);
   }
 }
 function applyOutputFormat(text, settings, resolvedModelName) {
@@ -18669,7 +18691,7 @@ function listPartThreads(app, address) {
     (message) => message.from === normalized || message.to === normalized
   );
 }
-function listHumanInboxThreads(app) {
+function listHumanThreads(app) {
   return buildThreadList(app, HUMAN_ADDRESS, (message) => message.to === HUMAN_ADDRESS);
 }
 async function getThread(app, threadId) {
@@ -21233,6 +21255,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
 
 // src/part-inbox-view.ts
 var VIEW_TYPE_PART_INBOX = "augment-part-inbox";
+function normalizeInboxAddress(value) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "human" || normalized === "user") {
+    return HUMAN_ADDRESS;
+  }
+  if (normalized === HUMAN_ADDRESS) return HUMAN_ADDRESS;
+  return normalized.includes("@") ? normalized : `${normalized}@vault`;
+}
 function splitAddress(address) {
   const [name = address, habitat = "vault"] = address.split("@");
   return {
@@ -21244,6 +21274,17 @@ function formatAddressLabel(address) {
   if (address === HUMAN_ADDRESS) return "You";
   const { name, habitat } = splitAddress(address);
   return habitat === "vault" ? name : `${name}@${habitat}`;
+}
+function formatMailboxLabel(address, part) {
+  if (normalizeInboxAddress(address) === HUMAN_ADDRESS) return "My inbox";
+  if (part) {
+    return part.habitat === "vault" ? part.name : `${part.name} @ ${part.habitat}`;
+  }
+  const { name, habitat } = splitAddress(address);
+  return habitat === "vault" ? name : `${name} @ ${habitat}`;
+}
+function formatPartQueueLabel(unread) {
+  return unread > 0 ? `Part has ${unread} unread` : "Part inbox clear";
 }
 function formatTerminalStatus(status) {
   switch (status) {
@@ -21367,7 +21408,7 @@ async function openPartInboxLeaf(app, state) {
 async function openPartInboxForPart(app, address) {
   return openPartInboxLeaf(app, {
     mode: "part",
-    address: address.trim().toLowerCase()
+    address: normalizeInboxAddress(address)
   });
 }
 async function openHumanInbox(app) {
@@ -21378,13 +21419,13 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     super(leaf);
     this.viewState = { mode: "human" };
     this.refreshToken = 0;
+    this.discoveredParts = [];
   }
   getViewType() {
     return VIEW_TYPE_PART_INBOX;
   }
   getDisplayText() {
-    if (this.viewState.mode === "human") return "My inbox";
-    return `Inbox: ${splitAddress(this.viewState.address).name}`;
+    return `Messages \u2014 ${this.getSelectedMailboxLabel()}`;
   }
   getIcon() {
     return "inbox";
@@ -21393,28 +21434,36 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     return { ...this.viewState };
   }
   async setState(state) {
-    if (state.mode === "part") {
-      this.viewState = {
-        mode: "part",
-        address: state.address.trim().toLowerCase(),
-        selectedThreadId: state.selectedThreadId
-      };
-    } else {
-      this.viewState = {
-        mode: "human",
-        selectedThreadId: state.selectedThreadId
-      };
+    await this.setMode(state.mode === "human" ? HUMAN_ADDRESS : state.address, {
+      selectedThreadId: state.selectedThreadId
+    });
+  }
+  async setMode(modeOrAddress, options = {}) {
+    const address = normalizeInboxAddress(modeOrAddress);
+    const nextState = address === HUMAN_ADDRESS ? { mode: "human", selectedThreadId: options.selectedThreadId } : {
+      mode: "part",
+      address,
+      selectedThreadId: options.selectedThreadId
+    };
+    const currentMode = this.viewState.mode;
+    const currentAddress = this.selectedAddress();
+    const currentThreadId = this.viewState.selectedThreadId;
+    this.viewState = nextState;
+    this.syncLeafTitle();
+    if (currentMode !== nextState.mode || currentAddress !== address || currentThreadId !== nextState.selectedThreadId) {
+      await this.refresh();
     }
-    await this.refresh();
   }
   async onOpen() {
     this.contentEl.empty();
     this.contentEl.addClass("augment-part-inbox-view");
+    this.syncLeafTitle();
+    const workspaceEvents = this.app.workspace;
     this.registerEvent(
-      this.app.workspace.on("augment-bus:changed", () => void this.refresh())
+      workspaceEvents.on("augment-bus:changed", () => void this.refresh())
     );
     this.registerEvent(
-      this.app.workspace.on("augment-terminal:changed", () => void this.refresh())
+      workspaceEvents.on("augment-terminal:changed", () => void this.refresh())
     );
     this.registerEvent(
       this.app.workspace.on("layout-change", () => void this.refresh())
@@ -21422,28 +21471,71 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     this.registerInterval(window.setInterval(() => this.refreshRelativeTimes(), 3e4));
     await this.refresh();
   }
-  resolvePart() {
-    if (this.viewState.mode !== "part") return null;
-    const resolved = discoverVaultParts(this.app).find(
-      (part) => part.address === this.viewState.address
-    );
-    if (resolved) return resolved;
-    const { name, habitat } = splitAddress(this.viewState.address);
+  selectedAddress() {
+    return this.viewState.mode === "human" ? HUMAN_ADDRESS : this.viewState.address;
+  }
+  fallbackPart(address) {
+    const normalized = normalizeInboxAddress(address);
+    const { name, habitat } = splitAddress(normalized);
     return {
       name,
-      address: this.viewState.address,
+      address: normalized,
       habitat,
       isProjectPart: habitat !== "vault"
     };
   }
-  currentThreads() {
-    if (this.viewState.mode === "human") {
-      return listHumanInboxThreads(this.app);
+  refreshDiscoveredParts() {
+    const discovered = discoverVaultParts(this.app).map((part) => ({
+      name: part.name,
+      address: part.address,
+      habitat: part.habitat,
+      isProjectPart: part.isProjectPart
+    }));
+    const currentAddress = this.selectedAddress();
+    if (currentAddress !== HUMAN_ADDRESS && !discovered.some((part) => part.address === currentAddress)) {
+      discovered.push(this.fallbackPart(currentAddress));
     }
-    return listPartThreads(this.app, this.viewState.address);
+    this.discoveredParts = discovered;
+  }
+  resolvePart(address = this.selectedAddress()) {
+    var _a2;
+    const normalized = normalizeInboxAddress(address);
+    if (normalized === HUMAN_ADDRESS) return null;
+    const discovered = (_a2 = this.discoveredParts.find((part) => part.address === normalized)) != null ? _a2 : discoverVaultParts(this.app).find((part) => part.address === normalized);
+    if (discovered) {
+      return {
+        name: discovered.name,
+        address: discovered.address,
+        habitat: discovered.habitat,
+        isProjectPart: discovered.isProjectPart
+      };
+    }
+    return this.fallbackPart(normalized);
+  }
+  getSelectedMailboxLabel() {
+    return formatMailboxLabel(this.selectedAddress(), this.resolvePart());
+  }
+  syncLeafTitle() {
+    var _a2, _b, _c, _d;
+    const title = this.getDisplayText();
+    const leafLike = this.leaf;
+    (_a2 = leafLike.updateHeader) == null ? void 0 : _a2.call(leafLike);
+    const headerTitleEl = (_b = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _b.querySelector(".view-header-title");
+    if (headerTitleEl instanceof HTMLElement) {
+      headerTitleEl.textContent = title;
+    }
+    (_d = (_c = leafLike.tabHeaderInnerTitleEl) == null ? void 0 : _c.setText) == null ? void 0 : _d.call(_c, title);
+  }
+  currentThreads() {
+    if (this.selectedAddress() === HUMAN_ADDRESS) {
+      return listHumanThreads(this.app);
+    }
+    return listPartThreads(this.app, this.selectedAddress());
   }
   async refresh() {
     const token = ++this.refreshToken;
+    this.refreshDiscoveredParts();
+    this.syncLeafTitle();
     const threads = this.currentThreads();
     let selectedThreadId = this.viewState.selectedThreadId;
     if (selectedThreadId && !threads.some((thread) => thread.threadId === selectedThreadId)) {
@@ -21500,20 +21592,38 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     const titleRow = titleBlock.createDiv({ cls: "augment-part-inbox-title-row" });
     const metaRow = titleBlock.createDiv({ cls: "augment-part-inbox-meta-row" });
     const actions = header.createDiv({ cls: "augment-part-inbox-actions" });
+    const activeAddress = this.selectedAddress();
+    titleRow.createDiv({ cls: "augment-part-inbox-title", text: "Messages" });
+    const selector = titleRow.createEl("select", {
+      cls: "dropdown augment-part-inbox-selector",
+      attr: { "aria-label": "Select inbox" }
+    });
+    selector.createEl("option", {
+      value: HUMAN_ADDRESS,
+      text: "My inbox"
+    });
+    for (const part of this.discoveredParts) {
+      selector.createEl("option", {
+        value: part.address,
+        text: formatMailboxLabel(part.address, part)
+      });
+    }
+    selector.value = activeAddress;
+    selector.addEventListener("change", () => {
+      void this.setMode(selector.value);
+    });
     if (this.viewState.mode === "human") {
-      titleRow.createDiv({ cls: "augment-part-inbox-title", text: "My inbox" });
       const unread = unreadCount(this.app, HUMAN_ADDRESS);
       metaRow.createSpan({
         cls: "augment-part-inbox-pill",
         text: unread > 0 ? `${unread} unread` : "No unread messages"
       });
     } else {
-      const part = this.resolvePart();
+      const part = this.resolvePart(activeAddress);
       if (!part) return;
       const terminalLeaf = findTerminalLeafForPart(this.app, part);
       const terminalStatus = (_b = (_a2 = terminalLeaf == null ? void 0 : terminalLeaf.view) == null ? void 0 : _a2.getStatus) == null ? void 0 : _b.call(_a2);
       const unread = unreadCount(this.app, part.address);
-      titleRow.createDiv({ cls: "augment-part-inbox-title", text: part.name });
       metaRow.createSpan({ cls: "augment-part-inbox-pill", text: part.habitat });
       metaRow.createSpan({
         cls: "augment-part-inbox-pill augment-part-inbox-pill-terminal" + (terminalLeaf ? " is-live" : " is-offline"),
@@ -21521,7 +21631,7 @@ var PartInboxView = class extends import_obsidian6.ItemView {
       });
       metaRow.createSpan({
         cls: "augment-part-inbox-pill",
-        text: unread > 0 ? `${unread} unread` : "No unread messages"
+        text: formatPartQueueLabel(unread)
       });
       const newBtn = actions.createEl("button", {
         cls: "mod-cta",
@@ -21559,10 +21669,21 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     const list = container.createDiv({ cls: "augment-part-inbox-thread-list" });
     if (threads.length === 0) {
       const empty = list.createDiv({ cls: "augment-part-inbox-empty" });
-      empty.createDiv({
-        cls: "augment-part-inbox-empty-title",
-        text: this.viewState.mode === "human" ? "No messages addressed to you." : "No threads with this part yet."
-      });
+      if (this.viewState.mode === "human") {
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-title",
+          text: "No messages for you yet."
+        });
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-copy",
+          text: this.discoveredParts.length > 0 ? "Choose a part from the inbox menu above to start a conversation." : "No parts found yet. Parts are AI agents that live in your vault."
+        });
+      } else {
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-title",
+          text: "No threads with this part yet."
+        });
+      }
       if (this.viewState.mode === "part") {
         const part = this.resolvePart();
         if (part) {
@@ -23806,6 +23927,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
+    const parts = discoverVaultParts(this.app);
     const activeLeaf = this.app.workspace.activeLeaf;
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
@@ -23814,17 +23936,13 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
       emptyEl.createDiv({ text: "No terminals yet." });
       emptyEl.createDiv({ text: "Press + to open one." });
-      return;
     }
     if (hasOpen) {
       const teamGroups = this.computeTeamGroups(leaves);
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
     this.renderInboxSection();
-    const parts = discoverVaultParts(this.app);
-    if (parts.length > 0) {
-      this.renderPartsSection(parts);
-    }
+    this.renderPartsSection(parts);
     if (hasHistory) {
       const isExpanded = this.historyCollapseState === "open" || this.historyCollapseState === "auto" && !hasOpen;
       const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
@@ -24142,19 +24260,37 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       this.tooltipEl = null;
     }
   }
+  bindRowActivation(row, action, ariaLabel) {
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-label", ariaLabel);
+    row.tabIndex = 0;
+    row.addEventListener("click", () => action());
+    row.addEventListener("keydown", (evt) => {
+      if (evt.target !== row) return;
+      if (evt.key !== "Enter" && evt.key !== " ") return;
+      evt.preventDefault();
+      action();
+    });
+  }
   renderPartsSection(parts) {
     var _a2;
-    const totalUnread = parts.reduce((sum2, part) => sum2 + unreadCount(this.app, part.address), 0);
     const isExpanded = this.partsCollapseState !== "closed";
     const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
     divider.createSpan({ cls: "augment-tm-section-label", text: "PARTS" });
-    if (totalUnread > 0) {
-      divider.createSpan({ cls: "augment-tm-part-unread-total", text: String(totalUnread) });
-    }
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
     const partsContainer = this.listEl.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) partsContainer.style.display = "none";
+    partsContainer.createDiv({
+      cls: "augment-tm-part-helper",
+      text: "Click a part to see conversation history. Use the pen to send a message."
+    });
+    if (parts.length === 0) {
+      partsContainer.createDiv({
+        cls: "augment-tm-empty augment-tm-parts-empty",
+        text: "No parts found. Parts are AI agents that live in your vault."
+      });
+    }
     const groups = /* @__PURE__ */ new Map();
     for (const part of parts) {
       const group = (_a2 = groups.get(part.habitat)) != null ? _a2 : [];
@@ -24200,9 +24336,13 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     if (unread > 0) {
       line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
     }
-    row.addEventListener("click", () => {
-      void openHumanInbox(this.app);
-    });
+    this.bindRowActivation(
+      row,
+      () => {
+        void openHumanInbox(this.app);
+      },
+      "Open messages addressed to you"
+    );
     divider.addEventListener("click", () => {
       this.inboxCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
@@ -24210,9 +24350,9 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     });
   }
   renderPartRow(part, container) {
-    const count = unreadCount(this.app, part.address);
     const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
-    if (count > 0) row.addClass("has-unread");
+    const isLive = Boolean(findTerminalLeafForPart(this.app, part));
+    row.addClass(isLive ? "is-live" : "is-offline");
     const line = row.createDiv({ cls: "augment-tm-line" });
     line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
     line.createSpan({ cls: "augment-tm-name", text: part.name });
@@ -24236,12 +24376,17 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
         ""
       ).open();
     });
-    if (count > 0) {
-      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
-    }
-    row.addEventListener("click", () => {
-      void openPartInboxForPart(this.app, part.address);
+    row.createDiv({
+      cls: "augment-tm-subtext augment-tm-part-subtext",
+      text: `${part.habitat === "vault" ? "vault part" : part.habitat} \xB7 ${isLive ? "live" : "offline"}`
     });
+    this.bindRowActivation(
+      row,
+      () => {
+        void openPartInboxForPart(this.app, part.address);
+      },
+      `Open conversation with ${part.name}`
+    );
   }
   renderOtherProjectsSection(groups, container) {
     for (const group of groups) {
@@ -25805,8 +25950,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-09T16:38:48.364Z";
-    this.gitSha = "6603be7";
+    this.buildId = "2026-03-09T21:31:06.957Z";
+    this.gitSha = "749b12a";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -25818,7 +25963,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.SPEND_PATH = "augment-spend.json";
     this.waitingBadgeEl = null;
     this.waitingCursor = 0;
-    this.activeGeneration = null;
+    this.activeGenerations = /* @__PURE__ */ new Map();
+    this.generationCounter = 0;
   }
   async maybeDefaultWindowsShellToWsl() {
     if (process.platform !== "win32") return;
@@ -25874,6 +26020,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   }
   refreshStatusBar() {
     var _a2, _b;
+    if (this.activeGenerations.size > 0) {
+      this.showStatusBarGenerating();
+      return;
+    }
     (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.removeClass("augment-ribbon-generating");
     (_b = this.ribbonGenerateEl) == null ? void 0 : _b.removeClass("is-generating");
     if (!this.statusBarEl) return;
@@ -25887,13 +26037,77 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   getBuildFingerprint() {
     return `${this.buildId} (${this.gitSha})`;
   }
+  createGenerationId() {
+    this.generationCounter += 1;
+    return `generation-${this.generationCounter}`;
+  }
+  getActiveGenerationsForView(cmView) {
+    return Array.from(this.activeGenerations.values()).filter((generation) => generation.cmView === cmView);
+  }
+  syncGenerationSpinners(cmView, selectionPos) {
+    const effects = [
+      removeSpinnerEffect.of(null),
+      ...this.getActiveGenerationsForView(cmView).filter((generation) => generation.showSpinner).map((generation) => addSpinnerEffect.of(Math.min(generation.insertPos, cmView.state.doc.length)))
+    ];
+    const transaction = { effects };
+    if (selectionPos != null) {
+      transaction.selection = import_state2.EditorSelection.cursor(Math.min(selectionPos, cmView.state.doc.length), 1);
+    }
+    cmView.dispatch(transaction);
+  }
+  registerGeneration(cmView, insertPos, abortController, showSpinner) {
+    const generation = {
+      id: this.createGenerationId(),
+      abortController,
+      cmView,
+      insertPos,
+      showSpinner
+    };
+    this.activeGenerations.set(generation.id, generation);
+    if (showSpinner) {
+      this.syncGenerationSpinners(cmView, insertPos);
+    }
+    this.refreshStatusBar();
+    return generation;
+  }
+  unregisterGeneration(generationId) {
+    const generation = this.activeGenerations.get(generationId);
+    if (!generation) {
+      this.refreshStatusBar();
+      return;
+    }
+    this.activeGenerations.delete(generationId);
+    this.syncGenerationSpinners(generation.cmView);
+    this.refreshStatusBar();
+  }
+  insertTextAndShiftGenerations(editor, insertPos, insertedText, sourceGenerationId) {
+    if (insertedText.length === 0) return insertPos;
+    const safeInsertPos = Math.min(insertPos, editor.getValue().length);
+    editor.replaceRange(insertedText, editor.offsetToPos(safeInsertPos));
+    const delta = insertedText.length;
+    for (const generation of this.activeGenerations.values()) {
+      if (generation.id === sourceGenerationId) {
+        generation.insertPos = safeInsertPos + delta;
+      } else if (generation.insertPos >= safeInsertPos) {
+        generation.insertPos += delta;
+      }
+    }
+    return safeInsertPos + delta;
+  }
   cancelGeneration() {
-    const gen = this.activeGeneration;
-    if (!gen) return;
-    gen.abortController.abort();
-    gen.cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-    gen.cmView.dispatch({ selection: import_state2.EditorSelection.cursor(Math.min(gen.insertPos, gen.cmView.state.doc.length)) });
-    this.activeGeneration = null;
+    if (this.activeGenerations.size === 0) return;
+    const generations = Array.from(this.activeGenerations.values());
+    const selectionsByView = /* @__PURE__ */ new Map();
+    for (const generation of generations) {
+      generation.abortController.abort();
+      const existingPos = selectionsByView.get(generation.cmView);
+      const safePos = Math.min(generation.insertPos, generation.cmView.state.doc.length);
+      selectionsByView.set(generation.cmView, existingPos == null ? safePos : Math.min(existingPos, safePos));
+      this.activeGenerations.delete(generation.id);
+    }
+    for (const [cmView, selectionPos] of selectionsByView.entries()) {
+      this.syncGenerationSpinners(cmView, selectionPos);
+    }
     this.refreshStatusBar();
     console.log("[Augment] generation cancelled");
     new import_obsidian12.Notice("Augment: generation cancelled");
@@ -25923,35 +26137,32 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;
     if (isBlock && cursor.ch > 0) {
-      editor.replaceRange("\n", cursor);
-      insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+      const cursorOffset = editor.posToOffset(cursor);
+      insertPos = this.insertTextAndShiftGenerations(editor, cursorOffset, "\n");
     } else {
       insertPos = editor.posToOffset(cursor);
     }
     const cmView = editor.cm;
-    cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state2.EditorSelection.cursor(insertPos, 1) });
     const abortController = new AbortController();
-    this.activeGeneration = { abortController, cmView, insertPos };
+    const generation = this.registerGeneration(cmView, insertPos, abortController, true);
     void (async () => {
-      var _a2, _b;
+      var _a2;
       try {
         await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
         const resolvedModelName = this.resolveModelDisplayName();
         const builtSystemPrompt = await buildSystemPrompt(ctx, this.settings.systemPrompt || void 0, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0);
+        if (abortController.signal.aborted) return;
         const { text: result, usage: genUsage } = await generateText(builtSystemPrompt, promptText, this.settings, resolvedModel, abortController.signal);
-        this.activeGeneration = null;
+        if (abortController.signal.aborted) return;
         void this.accumulateSpend(resolvedModel, genUsage);
-        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-        const insertPosLine = editor.offsetToPos(insertPos);
         if (isBlock) {
           const withTrail = formatted + "\n\n";
-          editor.replaceRange(withTrail, insertPosLine);
-          const lines = withTrail.split("\n");
-          editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+          const nextInsertPos = this.insertTextAndShiftGenerations(editor, generation.insertPos, withTrail, generation.id);
+          editor.setCursor(editor.offsetToPos(nextInsertPos));
         } else {
-          editor.replaceRange(formatted, insertPosLine);
+          this.insertTextAndShiftGenerations(editor, generation.insertPos, formatted, generation.id);
         }
         const entry = {
           timestamp: Date.now(),
@@ -25980,17 +26191,13 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           this.registerTieredCommands();
         }
       } catch (err) {
-        if (((_a2 = this.activeGeneration) == null ? void 0 : _a2.abortController) === abortController) {
-          this.activeGeneration = null;
-        }
         if (abortController.signal.aborted) return;
         console.error("[Augment] generation failed", err);
         logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-        cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-        const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
+        const errMsg = (_a2 = friendlyApiError(err)) != null ? _a2 : err instanceof Error ? err.message : String(err);
         new import_obsidian12.Notice(`Augment: ${errMsg}`);
       } finally {
-        this.refreshStatusBar();
+        this.unregisterGeneration(generation.id);
       }
     })();
   }
@@ -26226,7 +26433,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     const escapeKeymap = import_view2.keymap.of([{
       key: "Escape",
       run: () => {
-        if (this.activeGeneration) {
+        if (this.activeGenerations.size > 0) {
           this.cancelGeneration();
           return true;
         }
@@ -26333,31 +26540,30 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           }
           const rendered = await substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
-            var _a4, _b, _c;
+            var _a4, _b;
             this.showStatusBarGenerating();
             const isCursorMode = targetMode === "cursor";
             const isBlock = this.settings.outputFormat !== "plain";
-            let insertPos = 0;
+            let insertPos = editor.posToOffset(cursor);
             const cmView = editor.cm;
             if (isCursorMode) {
               if (isBlock && cursor.ch > 0) {
-                editor.replaceRange("\n", cursor);
-                insertPos = editor.posToOffset({ line: cursor.line + 1, ch: 0 });
+                const cursorOffset = editor.posToOffset(cursor);
+                insertPos = this.insertTextAndShiftGenerations(editor, cursorOffset, "\n");
               } else {
                 insertPos = editor.posToOffset(cursor);
               }
-              cmView.dispatch({ effects: addSpinnerEffect.of(insertPos), selection: import_state2.EditorSelection.cursor(insertPos, 1) });
             }
             const abortController = new AbortController();
-            this.activeGeneration = { abortController, cmView, insertPos };
+            const generation = this.registerGeneration(cmView, insertPos, abortController, isCursorMode);
             try {
               const resolvedModel = this.resolveModel();
               const resolvedModelName = this.resolveModelDisplayName();
               const builtSystemPrompt = await buildSystemPrompt(ctx, systemPromptOverride, this.settings.workspaceScope, this.settings.defaultWorkingDirectory || void 0);
+              if (abortController.signal.aborted) return;
               const { text: result, usage: genUsage } = await generateText(builtSystemPrompt, rendered, this.settings, resolvedModel, abortController.signal);
-              this.activeGeneration = null;
+              if (abortController.signal.aborted) return;
               void this.accumulateSpend(resolvedModel, genUsage);
-              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               if (targetMode === "clipboard") {
                 await navigator.clipboard.writeText(result);
                 new import_obsidian12.Notice("Augment: copied to clipboard", 5e3);
@@ -26388,14 +26594,12 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                 new import_obsidian12.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
               } else {
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
-                const insertPosLine = editor.offsetToPos(insertPos);
                 if (isBlock) {
                   const withTrail = formatted + "\n\n";
-                  editor.replaceRange(withTrail, insertPosLine);
-                  const lines = withTrail.split("\n");
-                  editor.setCursor({ line: insertPosLine.line + lines.length - 1, ch: 0 });
+                  const nextInsertPos = this.insertTextAndShiftGenerations(editor, generation.insertPos, withTrail, generation.id);
+                  editor.setCursor(editor.offsetToPos(nextInsertPos));
                 } else {
-                  editor.replaceRange(formatted, insertPosLine);
+                  this.insertTextAndShiftGenerations(editor, generation.insertPos, formatted, generation.id);
                 }
                 console.log("[Augment] template generation done");
                 const notice = new import_obsidian12.Notice("", 5e3);
@@ -26429,17 +26633,13 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                 await this.saveData(this.settings);
               }
             } catch (err) {
-              if (((_b = this.activeGeneration) == null ? void 0 : _b.abortController) === abortController) {
-                this.activeGeneration = null;
-              }
               if (abortController.signal.aborted) return;
               console.error("[Augment] template generation failed", err);
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-              if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
-              const errMsg = (_c = friendlyApiError(err)) != null ? _c : err instanceof Error ? err.message : String(err);
+              const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
               new import_obsidian12.Notice(`Augment: ${errMsg}`);
             } finally {
-              this.refreshStatusBar();
+              this.unregisterGeneration(generation.id);
             }
           };
           if (!this.settings.showTemplatePreview) {

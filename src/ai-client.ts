@@ -146,8 +146,16 @@ function modelTier(id: string): number {
 }
 
 function modelVersion(id: string): number {
-  const m = id.match(/(\d+)[.-](\d+)/);
-  return m ? parseInt(m[1]) * 100 + parseInt(m[2]) : 0;
+  const parts = id.match(/\d+/g)?.map(part => parseInt(part, 10)) ?? [];
+  if (parts.length < 2) return 0;
+
+  const [major, second, third] = parts;
+  const isDateStamp = (value: number | undefined): value is number => value !== undefined && value > 99;
+  const minor = isDateStamp(second) ? 0 : second;
+  const releaseType = isDateStamp(second) ? 0 : isDateStamp(third) ? 1 : 2;
+  const date = isDateStamp(second) ? second : isDateStamp(third) ? third : 0;
+
+  return major * 1_000_000_000_000 + minor * 1_000_000_000 + releaseType * 100_000_000 + date;
 }
 
 // Returns the ID of the best available model, or null if the list is empty.
@@ -170,19 +178,35 @@ export function bestModelByTier(models: ModelInfo[], tier: "opus" | "sonnet" | "
   ).id;
 }
 
-// Fetch available models from the Anthropic API. Returns [] on failure.
+// Fetch available models from the Anthropic API and merge them with curated fallbacks.
 export async function fetchModels(apiKey: string): Promise<ModelInfo[]> {
+  const fallbackModels: ModelInfo[] = [
+    { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+    { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+    { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
+  ];
+  const mergeModels = (models: ModelInfo[]): ModelInfo[] => {
+    const merged = new Map<string, ModelInfo>();
+    for (const model of models) {
+      merged.set(model.id, model);
+    }
+    for (const model of fallbackModels) {
+      if (!merged.has(model.id)) merged.set(model.id, model);
+    }
+    return [...merged.values()];
+  };
+
   try {
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const result = await client.models.list();
-    return result.data
+    return mergeModels(result.data
       .filter((m: any) => !m.id.startsWith("claude-3"))
       .map((m: any) => ({
         id: m.id,
         display_name: m.display_name ?? modelDisplayName(m.id),
-      }));
+      })));
   } catch {
-    return [];
+    return mergeModels([]);
   }
 }
 

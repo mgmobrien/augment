@@ -1,16 +1,23 @@
-import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
+import { EventRef, ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 import type { PartInfo } from "./inbox-bus";
 import { discoverVaultParts, HUMAN_ADDRESS, unreadCount } from "./inbox-bus";
 import { ComposeModal } from "./inbox-suggest";
-import { openHumanInbox, openPartInboxForPart } from "./part-inbox-view";
+import {
+  findTerminalLeafForPart,
+  openHumanInbox,
+  openPartInboxForPart,
+} from "./part-inbox-view";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
 
 type ActivityState = "thinking" | "bash" | "read" | "write" | "mcp" | "waiting" | "idle" | null;
 type CurrentActivity = { state: ActivityState; detail: string | null } | null;
+type TerminalManagerWorkspaceEvents = ItemView["app"]["workspace"] & {
+  on(name: "augment-terminal:changed" | "augment-bus:changed", callback: () => void): EventRef;
+};
 
 type TerminalViewLike = {
   getStatus?: () => string;
@@ -135,12 +142,12 @@ export class TerminalManagerView extends ItemView {
       this.app.workspace.on("active-leaf-change", () => this.requestRefresh())
     );
     this.registerEvent(
-      (this.app.workspace as any).on("augment-terminal:changed", () =>
+      (this.app.workspace as TerminalManagerWorkspaceEvents).on("augment-terminal:changed", () =>
         this.requestRefresh()
       )
     );
     this.registerEvent(
-      (this.app.workspace as any).on("augment-bus:changed", () =>
+      (this.app.workspace as TerminalManagerWorkspaceEvents).on("augment-bus:changed", () =>
         this.requestRefresh()
       )
     );
@@ -355,6 +362,7 @@ export class TerminalManagerView extends ItemView {
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
+    const parts = discoverVaultParts(this.app);
     const activeLeaf = this.app.workspace.activeLeaf;
 
     const hasOpen = leaves.length > 0;
@@ -365,7 +373,6 @@ export class TerminalManagerView extends ItemView {
       const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
       emptyEl.createDiv({ text: "No terminals yet." });
       emptyEl.createDiv({ text: "Press + to open one." });
-      return;
     }
 
     // ── Live sessions (no section label — header already says TERMINALS) ──
@@ -378,10 +385,7 @@ export class TerminalManagerView extends ItemView {
     this.renderInboxSection();
 
     // ── PARTS section ─────────────────────────────────────────
-    const parts = discoverVaultParts(this.app);
-    if (parts.length > 0) {
-      this.renderPartsSection(parts);
-    }
+    this.renderPartsSection(parts);
 
     // ── RECENT section with collapse ──────────────────────────
     if (hasHistory) {
@@ -764,20 +768,45 @@ export class TerminalManagerView extends ItemView {
     }
   }
 
+  private bindRowActivation(
+    row: HTMLElement,
+    action: () => void,
+    ariaLabel: string
+  ): void {
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-label", ariaLabel);
+    row.tabIndex = 0;
+    row.addEventListener("click", () => action());
+    row.addEventListener("keydown", (evt) => {
+      if (evt.target !== row) return;
+      if (evt.key !== "Enter" && evt.key !== " ") return;
+      evt.preventDefault();
+      action();
+    });
+  }
+
   private renderPartsSection(parts: PartInfo[]): void {
-    const totalUnread = parts.reduce((sum, part) => sum + unreadCount(this.app, part.address), 0);
     const isExpanded = this.partsCollapseState !== "closed";
 
     const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
     divider.createSpan({ cls: "augment-tm-section-label", text: "PARTS" });
-    if (totalUnread > 0) {
-      divider.createSpan({ cls: "augment-tm-part-unread-total", text: String(totalUnread) });
-    }
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
     const partsContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) partsContainer.style.display = "none";
+
+    partsContainer.createDiv({
+      cls: "augment-tm-part-helper",
+      text: "Click a part to see conversation history. Use the pen to send a message.",
+    });
+
+    if (parts.length === 0) {
+      partsContainer.createDiv({
+        cls: "augment-tm-empty augment-tm-parts-empty",
+        text: "No parts found. Parts are AI agents that live in your vault.",
+      });
+    }
 
     const groups = new Map<string, PartInfo[]>();
     for (const part of parts) {
@@ -833,9 +862,13 @@ export class TerminalManagerView extends ItemView {
       line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
     }
 
-    row.addEventListener("click", () => {
-      void openHumanInbox(this.app);
-    });
+    this.bindRowActivation(
+      row,
+      () => {
+        void openHumanInbox(this.app);
+      },
+      "Open messages addressed to you"
+    );
 
     divider.addEventListener("click", () => {
       this.inboxCollapseState = isExpanded ? "closed" : "open";
@@ -845,9 +878,9 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderPartRow(part: PartInfo, container: HTMLElement): void {
-    const count = unreadCount(this.app, part.address);
     const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
-    if (count > 0) row.addClass("has-unread");
+    const isLive = Boolean(findTerminalLeafForPart(this.app, part));
+    row.addClass(isLive ? "is-live" : "is-offline");
 
     const line = row.createDiv({ cls: "augment-tm-line" });
     line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
@@ -873,13 +906,20 @@ export class TerminalManagerView extends ItemView {
       ).open();
     });
 
-    if (count > 0) {
-      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
-    }
-
-    row.addEventListener("click", () => {
-      void openPartInboxForPart(this.app, part.address);
+    row.createDiv({
+      cls: "augment-tm-subtext augment-tm-part-subtext",
+      text: `${part.habitat === "vault" ? "vault part" : part.habitat} · ${
+        isLive ? "live" : "offline"
+      }`,
     });
+
+    this.bindRowActivation(
+      row,
+      () => {
+        void openPartInboxForPart(this.app, part.address);
+      },
+      `Open conversation with ${part.name}`
+    );
   }
 
   private renderOtherProjectsSection(groups: ProjectGroup[], container: HTMLElement): void {
