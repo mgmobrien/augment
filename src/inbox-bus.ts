@@ -6,8 +6,10 @@ type EventType = "delivered" | "read" | "acked";
 
 const BUS_ROOT = "agents/bus";
 const PARTS_ROOT = "agents/parts";
+const SIGNALS_ROOT = `${BUS_ROOT}/derived/signals`;
 const SOURCE_NOTE_PREFIX = "<!-- source_note:";
 const SOURCE_NOTE_SUFFIX = "-->";
+export const HUMAN_ADDRESS = "user@vault";
 
 export interface InboxMessage {
   msgId: string;
@@ -44,6 +46,17 @@ export interface PartInfo {
   habitat: string;
   workspacePath: string;
   isProjectPart: boolean;
+}
+
+export interface InboxThreadSummary {
+  threadId: string;
+  subject: string;
+  lastSender: string;
+  counterparty: string;
+  lastActivityAt: string;
+  lastActivityAge: number;
+  messageCount: number;
+  hasUnread: boolean;
 }
 
 interface IndexedMessage {
@@ -89,8 +102,8 @@ const cacheByApp = new WeakMap<App, CacheState>();
 
 function normalizeAddress(raw: string, kind: "to" | "from"): string {
   const trimmed = raw.trim().toLowerCase();
-  if (!trimmed) return kind === "from" ? "user@vault" : "@vault";
-  if (kind === "from" && trimmed === "user") return "user@vault";
+  if (!trimmed) return kind === "from" ? HUMAN_ADDRESS : "@vault";
+  if (kind === "from" && trimmed === "user") return HUMAN_ADDRESS;
   if (trimmed.includes("@")) return trimmed;
   return `${trimmed}@vault`;
 }
@@ -151,6 +164,30 @@ function messageFilePath(privacy: PrivacyTier, createdAt: string, msgId: string)
   return normalizePath(`${folder}/${filenameTimestamp(createdAt)}__${msgId}.md`);
 }
 
+function signalSlug(address: string): string {
+  return address.replace(/@/g, "_at_");
+}
+
+function signalFilePath(address: string): string {
+  return normalizePath(`${SIGNALS_ROOT}/${signalSlug(address)}.json`);
+}
+
+function legacyInboxFolderPath(address: string): string {
+  const [partName, habitat] = address.split("@");
+  if (habitat && habitat !== "vault") {
+    // Project parts: agents/parts/{habitat}/{partName}/inbox
+    return normalizePath(`${PARTS_ROOT}/${habitat}/${partName}/inbox`);
+  }
+  // Vault parts: agents/parts/{partName}/inbox
+  return normalizePath(`${PARTS_ROOT}/${partName}/inbox`);
+}
+
+function legacyInboxFilePath(address: string, createdAt: string, msgId: string): string {
+  const folder = legacyInboxFolderPath(address);
+  const shortId = msgId.slice(0, 8);
+  return normalizePath(`${folder}/${filenameTimestamp(createdAt)}-${shortId}.md`);
+}
+
 function eventFilePath(
   privacy: PrivacyTier,
   createdAt: string,
@@ -201,6 +238,11 @@ function stripFrontmatter(raw: string): string {
 
 function eventKey(msgId: string, actor: string): string {
   return `${msgId}::${actor}`;
+}
+
+function parseTimestampMs(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function asString(value: unknown): string {
@@ -320,7 +362,10 @@ function buildBusIndex(app: App): BusIndex {
 
       const key = eventKey(event.msgId, event.actor);
       if (event.eventType === "delivered") deliveredKeys.add(key);
-      if (event.eventType === "read") readKeys.add(key);
+      if (event.eventType === "read" || event.eventType === "acked") {
+        deliveredKeys.add(key);
+        readKeys.add(key);
+      }
     }
   }
 
@@ -442,7 +487,8 @@ function recordEventWrite(app: App, event: IndexedEvent): void {
     return;
   }
 
-  if (event.eventType === "read") {
+  if (event.eventType === "read" || event.eventType === "acked") {
+    state.index.deliveredKeys.add(key);
     if (state.index.readKeys.has(key)) return;
     state.index.readKeys.add(key);
     removeUnreadMessage(state.index, event.msgId, event.actor);
@@ -498,6 +544,19 @@ function buildEventFrontmatter(eventId: string, message: IndexedMessage, eventTy
   ].join("\n");
 }
 
+function buildSignalContent(message: IndexedMessage, createdAt = canonicalTimestamp()): string {
+  return `${JSON.stringify(
+    {
+      to: message.to,
+      msg_id: message.msgId,
+      thread_id: message.threadId,
+      created_at: createdAt,
+    },
+    null,
+    2
+  )}\n`;
+}
+
 function toInboxMessage(message: IndexedMessage, rawBody: string): InboxMessage {
   const parsed = decodeSourceNoteBody(rawBody);
   return {
@@ -515,6 +574,84 @@ function toInboxMessage(message: IndexedMessage, rawBody: string): InboxMessage 
     body: parsed.body,
     filePath: message.filePath,
   };
+}
+
+function listIndexedMessages(index: BusIndex): IndexedMessage[] {
+  return sortMessages([...index.messagesById.values()]);
+}
+
+function getIndexedThreadMessages(index: BusIndex, threadId: string): IndexedMessage[] {
+  const normalized = normalizeReplyTo(threadId);
+  return listIndexedMessages(index).filter((message) => message.threadId === normalized);
+}
+
+function buildThreadSummary(
+  index: BusIndex,
+  threadId: string,
+  messages: IndexedMessage[],
+  primaryAddress: string
+): InboxThreadSummary | null {
+  if (messages.length === 0) return null;
+
+  const ordered = sortMessages([...messages]);
+  const first = ordered[0];
+  const last = ordered[ordered.length - 1];
+  const lastActivityAt = last.createdAt;
+  const participants = new Set<string>();
+
+  for (const message of ordered) {
+    participants.add(message.from);
+    participants.add(message.to);
+  }
+
+  const counterparty =
+    [...participants].find((address) => address !== primaryAddress) ?? last.from;
+
+  return {
+    threadId,
+    subject: first.subject || last.subject || "Message",
+    lastSender: last.from,
+    counterparty,
+    lastActivityAt,
+    lastActivityAge: Math.max(0, Date.now() - parseTimestampMs(lastActivityAt)),
+    messageCount: ordered.length,
+    hasUnread: ordered.some(
+      (message) =>
+        message.to === primaryAddress &&
+        !index.readKeys.has(eventKey(message.msgId, primaryAddress))
+    ),
+  };
+}
+
+function sortThreadSummaries(threads: InboxThreadSummary[]): InboxThreadSummary[] {
+  return threads.sort((a, b) => {
+    const activityCompare = parseTimestampMs(b.lastActivityAt) - parseTimestampMs(a.lastActivityAt);
+    return activityCompare !== 0 ? activityCompare : a.threadId.localeCompare(b.threadId);
+  });
+}
+
+function buildThreadList(
+  app: App,
+  primaryAddress: string,
+  includeMessage: (message: IndexedMessage) => boolean
+): InboxThreadSummary[] {
+  const index = getBusIndex(app);
+  const threadIds = new Set<string>();
+
+  for (const message of listIndexedMessages(index)) {
+    if (includeMessage(message)) {
+      threadIds.add(message.threadId);
+    }
+  }
+
+  const summaries: InboxThreadSummary[] = [];
+  for (const threadId of threadIds) {
+    const messages = getIndexedThreadMessages(index, threadId);
+    const summary = buildThreadSummary(index, threadId, messages, primaryAddress);
+    if (summary) summaries.push(summary);
+  }
+
+  return sortThreadSummaries(summaries);
 }
 
 async function writeEvent(app: App, message: IndexedMessage, eventType: EventType, actor: string, createdAt: string): Promise<void> {
@@ -570,6 +707,15 @@ export async function writeMessage(app: App, opts: WriteMessageOptions): Promise
   message.file = file;
   message.filePath = path;
   recordMessageWrite(app, message);
+
+  await ensureFolder(app, SIGNALS_ROOT);
+  await app.vault.adapter.write(signalFilePath(message.to), buildSignalContent(message));
+
+  // Compatibility shim for legacy part inbox readers. Remove after migration to agents/bus/.
+  const legacyInboxFolder = legacyInboxFolderPath(message.to);
+  await ensureFolder(app, legacyInboxFolder);
+  await app.vault.create(legacyInboxFilePath(message.to, createdAt, msgId), content);
+
   return path;
 }
 
@@ -623,6 +769,65 @@ export async function readAndAcknowledgeInbox(app: App, partName: string): Promi
   }
 
   return messages;
+}
+
+export function listPartThreads(app: App, address: string): InboxThreadSummary[] {
+  const normalized = normalizeAddress(address, "to");
+  return buildThreadList(
+    app,
+    normalized,
+    (message) => message.from === normalized || message.to === normalized
+  );
+}
+
+export function listHumanInboxThreads(app: App): InboxThreadSummary[] {
+  return buildThreadList(app, HUMAN_ADDRESS, (message) => message.to === HUMAN_ADDRESS);
+}
+
+export async function getThread(app: App, threadId: string): Promise<InboxMessage[]> {
+  const messages = getIndexedThreadMessages(getBusIndex(app), threadId);
+  if (messages.length === 0) return [];
+
+  const transcript: InboxMessage[] = [];
+  for (const message of messages) {
+    try {
+      const raw = await app.vault.cachedRead(message.file);
+      const body = stripFrontmatter(raw).trim();
+      transcript.push(toInboxMessage(message, body));
+    } catch {
+      // Ignore files that disappeared or became unreadable.
+    }
+  }
+
+  return transcript.sort((a, b) => {
+    const createdCompare = a.createdAt.localeCompare(b.createdAt);
+    return createdCompare !== 0 ? createdCompare : a.msgId.localeCompare(b.msgId);
+  });
+}
+
+export async function markThreadRead(
+  app: App,
+  threadId: string,
+  actor = HUMAN_ADDRESS
+): Promise<void> {
+  const normalizedActor = normalizeAddress(actor, "to");
+  const index = getBusIndex(app);
+  const messages = getIndexedThreadMessages(index, threadId).filter(
+    (message) => message.to === normalizedActor
+  );
+  if (messages.length === 0) return;
+
+  for (const message of messages) {
+    const key = eventKey(message.msgId, normalizedActor);
+    const hadDelivered = index.deliveredKeys.has(key);
+    if (!hadDelivered) {
+      await writeEvent(app, message, "delivered", normalizedActor, canonicalTimestamp());
+    }
+
+    if (!index.readKeys.has(key)) {
+      await writeEvent(app, message, "read", normalizedActor, canonicalTimestamp());
+    }
+  }
 }
 
 export function unreadCount(app: App, partName: string): number {

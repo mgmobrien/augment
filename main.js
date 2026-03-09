@@ -8304,7 +8304,7 @@ __export(main_exports, {
   default: () => AugmentTerminalPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 var import_child_process3 = require("child_process");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
@@ -18142,13 +18142,15 @@ var import_obsidian3 = require("obsidian");
 var import_obsidian2 = require("obsidian");
 var BUS_ROOT = "agents/bus";
 var PARTS_ROOT = "agents/parts";
+var SIGNALS_ROOT = `${BUS_ROOT}/derived/signals`;
 var SOURCE_NOTE_PREFIX = "<!-- source_note:";
 var SOURCE_NOTE_SUFFIX = "-->";
+var HUMAN_ADDRESS = "user@vault";
 var cacheByApp = /* @__PURE__ */ new WeakMap();
 function normalizeAddress(raw2, kind) {
   const trimmed = raw2.trim().toLowerCase();
-  if (!trimmed) return kind === "from" ? "user@vault" : "@vault";
-  if (kind === "from" && trimmed === "user") return "user@vault";
+  if (!trimmed) return kind === "from" ? HUMAN_ADDRESS : "@vault";
+  if (kind === "from" && trimmed === "user") return HUMAN_ADDRESS;
   if (trimmed.includes("@")) return trimmed;
   return `${trimmed}@vault`;
 }
@@ -18189,9 +18191,38 @@ function messageFolderPath(privacy, createdAt) {
     `${BUS_ROOT}/${privacy}/messages/${createdAt.slice(0, 4)}/${createdAt.slice(5, 7)}`
   );
 }
+function eventFolderPath(privacy, createdAt) {
+  return (0, import_obsidian2.normalizePath)(
+    `${BUS_ROOT}/${privacy}/events/${createdAt.slice(0, 4)}/${createdAt.slice(5, 7)}`
+  );
+}
 function messageFilePath(privacy, createdAt, msgId) {
   const folder = messageFolderPath(privacy, createdAt);
   return (0, import_obsidian2.normalizePath)(`${folder}/${filenameTimestamp(createdAt)}__${msgId}.md`);
+}
+function signalSlug(address) {
+  return address.replace(/@/g, "_at_");
+}
+function signalFilePath(address) {
+  return (0, import_obsidian2.normalizePath)(`${SIGNALS_ROOT}/${signalSlug(address)}.json`);
+}
+function legacyInboxFolderPath(address) {
+  const [partName, habitat] = address.split("@");
+  if (habitat && habitat !== "vault") {
+    return (0, import_obsidian2.normalizePath)(`${PARTS_ROOT}/${habitat}/${partName}/inbox`);
+  }
+  return (0, import_obsidian2.normalizePath)(`${PARTS_ROOT}/${partName}/inbox`);
+}
+function legacyInboxFilePath(address, createdAt, msgId) {
+  const folder = legacyInboxFolderPath(address);
+  const shortId = msgId.slice(0, 8);
+  return (0, import_obsidian2.normalizePath)(`${folder}/${filenameTimestamp(createdAt)}-${shortId}.md`);
+}
+function eventFilePath(privacy, createdAt, eventType, msgId, eventId) {
+  const folder = eventFolderPath(privacy, createdAt);
+  return (0, import_obsidian2.normalizePath)(
+    `${folder}/${filenameTimestamp(createdAt)}__${eventType}__${msgId}__${eventId}.md`
+  );
 }
 function yamlQuote(value) {
   return `'${value.replace(/'/g, "''")}'`;
@@ -18205,8 +18236,28 @@ function encodeSourceNoteBody(sourceNote, body) {
 
 ${body}` : prefix;
 }
+function decodeSourceNoteBody(rawBody) {
+  if (!rawBody.startsWith(SOURCE_NOTE_PREFIX)) {
+    return { sourceNote: "", body: rawBody };
+  }
+  const end = rawBody.indexOf(SOURCE_NOTE_SUFFIX);
+  if (end === -1) {
+    return { sourceNote: "", body: rawBody };
+  }
+  const sourceNote = rawBody.slice(SOURCE_NOTE_PREFIX.length, end).trim().replace(/-- >/g, "-->");
+  const remainder = rawBody.slice(end + SOURCE_NOTE_SUFFIX.length).replace(/^\s*\n/, "");
+  return { sourceNote, body: remainder };
+}
+function stripFrontmatter(raw2) {
+  const match = raw2.match(/^---\n[\s\S]*?\n---\n?/);
+  return match ? raw2.slice(match[0].length) : raw2;
+}
 function eventKey(msgId, actor) {
   return `${msgId}::${actor}`;
+}
+function parseTimestampMs(value) {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 function asString(value) {
   if (typeof value === "string") return value.trim();
@@ -18307,7 +18358,10 @@ function buildBusIndex(app) {
       if (!event) continue;
       const key = eventKey(event.msgId, event.actor);
       if (event.eventType === "delivered") deliveredKeys.add(key);
-      if (event.eventType === "read") readKeys.add(key);
+      if (event.eventType === "read" || event.eventType === "acked") {
+        deliveredKeys.add(key);
+        readKeys.add(key);
+      }
     }
   }
   for (const message of messagesById.values()) {
@@ -18379,6 +18433,19 @@ function insertUnreadMessage(index, message) {
   index.unreadByActor.set(message.to, unread);
   index.unreadCounts.set(message.to, ((_b = index.unreadCounts.get(message.to)) != null ? _b : 0) + 1);
 }
+function removeUnreadMessage(index, msgId, actor) {
+  const unread = index.unreadByActor.get(actor);
+  if (!unread) return;
+  const next = unread.filter((message) => message.msgId !== msgId);
+  if (next.length === unread.length) return;
+  if (next.length === 0) {
+    index.unreadByActor.delete(actor);
+    index.unreadCounts.delete(actor);
+    return;
+  }
+  index.unreadByActor.set(actor, next);
+  index.unreadCounts.set(actor, next.length);
+}
 function recordMessageWrite(app, message) {
   const state = getCacheState(app);
   if (!state.index) {
@@ -18387,6 +18454,24 @@ function recordMessageWrite(app, message) {
   state.dirty = false;
   state.index.messagesById.set(message.msgId, message);
   insertUnreadMessage(state.index, message);
+}
+function recordEventWrite(app, event) {
+  const state = getCacheState(app);
+  if (!state.index) {
+    state.index = buildBusIndex(app);
+  }
+  state.dirty = false;
+  const key = eventKey(event.msgId, event.actor);
+  if (event.eventType === "delivered") {
+    state.index.deliveredKeys.add(key);
+    return;
+  }
+  if (event.eventType === "read" || event.eventType === "acked") {
+    state.index.deliveredKeys.add(key);
+    if (state.index.readKeys.has(key)) return;
+    state.index.readKeys.add(key);
+    removeUnreadMessage(state.index, event.msgId, event.actor);
+  }
 }
 async function ensureFolder(app, folderPath) {
   const normalized = (0, import_obsidian2.normalizePath)(folderPath);
@@ -18418,6 +18503,121 @@ function buildMessageFrontmatter(message) {
     `reply_to: ${message.replyTo || "null"}`,
     "---"
   ].join("\n");
+}
+function buildEventFrontmatter(eventId, message, eventType, actor, createdAt) {
+  return [
+    "---",
+    `event_id: ${eventId}`,
+    `msg_id: ${message.msgId}`,
+    `thread_id: ${message.threadId}`,
+    `event_type: ${eventType}`,
+    `actor: ${actor}`,
+    "via: augment-ui",
+    `created_at: ${createdAt}`,
+    "---"
+  ].join("\n");
+}
+function buildSignalContent(message, createdAt = canonicalTimestamp()) {
+  return `${JSON.stringify(
+    {
+      to: message.to,
+      msg_id: message.msgId,
+      thread_id: message.threadId,
+      created_at: createdAt
+    },
+    null,
+    2
+  )}
+`;
+}
+function toInboxMessage(message, rawBody) {
+  const parsed = decodeSourceNoteBody(rawBody);
+  return {
+    msgId: message.msgId,
+    threadId: message.threadId,
+    from: message.from,
+    to: message.to,
+    msgType: message.msgType,
+    subject: message.subject,
+    replyTo: message.replyTo,
+    createdAt: message.createdAt,
+    habitat: message.habitat,
+    privacy: message.privacy,
+    sourceNote: parsed.sourceNote || message.sourceNote,
+    body: parsed.body,
+    filePath: message.filePath
+  };
+}
+function listIndexedMessages(index) {
+  return sortMessages([...index.messagesById.values()]);
+}
+function getIndexedThreadMessages(index, threadId) {
+  const normalized = normalizeReplyTo(threadId);
+  return listIndexedMessages(index).filter((message) => message.threadId === normalized);
+}
+function buildThreadSummary(index, threadId, messages, primaryAddress) {
+  var _a2;
+  if (messages.length === 0) return null;
+  const ordered = sortMessages([...messages]);
+  const first2 = ordered[0];
+  const last2 = ordered[ordered.length - 1];
+  const lastActivityAt = last2.createdAt;
+  const participants = /* @__PURE__ */ new Set();
+  for (const message of ordered) {
+    participants.add(message.from);
+    participants.add(message.to);
+  }
+  const counterparty = (_a2 = [...participants].find((address) => address !== primaryAddress)) != null ? _a2 : last2.from;
+  return {
+    threadId,
+    subject: first2.subject || last2.subject || "Message",
+    lastSender: last2.from,
+    counterparty,
+    lastActivityAt,
+    lastActivityAge: Math.max(0, Date.now() - parseTimestampMs(lastActivityAt)),
+    messageCount: ordered.length,
+    hasUnread: ordered.some(
+      (message) => message.to === primaryAddress && !index.readKeys.has(eventKey(message.msgId, primaryAddress))
+    )
+  };
+}
+function sortThreadSummaries(threads) {
+  return threads.sort((a, b) => {
+    const activityCompare = parseTimestampMs(b.lastActivityAt) - parseTimestampMs(a.lastActivityAt);
+    return activityCompare !== 0 ? activityCompare : a.threadId.localeCompare(b.threadId);
+  });
+}
+function buildThreadList(app, primaryAddress, includeMessage) {
+  const index = getBusIndex(app);
+  const threadIds = /* @__PURE__ */ new Set();
+  for (const message of listIndexedMessages(index)) {
+    if (includeMessage(message)) {
+      threadIds.add(message.threadId);
+    }
+  }
+  const summaries = [];
+  for (const threadId of threadIds) {
+    const messages = getIndexedThreadMessages(index, threadId);
+    const summary = buildThreadSummary(index, threadId, messages, primaryAddress);
+    if (summary) summaries.push(summary);
+  }
+  return sortThreadSummaries(summaries);
+}
+async function writeEvent(app, message, eventType, actor, createdAt) {
+  const eventId = crypto.randomUUID().toLowerCase();
+  const folder = eventFolderPath(message.privacy, createdAt);
+  await ensureFolder(app, folder);
+  const path4 = eventFilePath(message.privacy, createdAt, eventType, message.msgId, eventId);
+  const content = `${buildEventFrontmatter(eventId, message, eventType, actor, createdAt)}
+`;
+  await app.vault.create(path4, content);
+  recordEventWrite(app, {
+    msgId: message.msgId,
+    threadId: message.threadId,
+    eventType,
+    actor,
+    privacy: message.privacy
+  });
 }
 async function writeMessage(app, opts) {
   var _a2, _b, _c;
@@ -18454,7 +18654,58 @@ ${body}`;
   message.file = file;
   message.filePath = path4;
   recordMessageWrite(app, message);
+  await ensureFolder(app, SIGNALS_ROOT);
+  await app.vault.adapter.write(signalFilePath(message.to), buildSignalContent(message));
+  const legacyInboxFolder = legacyInboxFolderPath(message.to);
+  await ensureFolder(app, legacyInboxFolder);
+  await app.vault.create(legacyInboxFilePath(message.to, createdAt, msgId), content);
   return path4;
+}
+function listPartThreads(app, address) {
+  const normalized = normalizeAddress(address, "to");
+  return buildThreadList(
+    app,
+    normalized,
+    (message) => message.from === normalized || message.to === normalized
+  );
+}
+function listHumanInboxThreads(app) {
+  return buildThreadList(app, HUMAN_ADDRESS, (message) => message.to === HUMAN_ADDRESS);
+}
+async function getThread(app, threadId) {
+  const messages = getIndexedThreadMessages(getBusIndex(app), threadId);
+  if (messages.length === 0) return [];
+  const transcript = [];
+  for (const message of messages) {
+    try {
+      const raw2 = await app.vault.cachedRead(message.file);
+      const body = stripFrontmatter(raw2).trim();
+      transcript.push(toInboxMessage(message, body));
+    } catch (e) {
+    }
+  }
+  return transcript.sort((a, b) => {
+    const createdCompare = a.createdAt.localeCompare(b.createdAt);
+    return createdCompare !== 0 ? createdCompare : a.msgId.localeCompare(b.msgId);
+  });
+}
+async function markThreadRead(app, threadId, actor = HUMAN_ADDRESS) {
+  const normalizedActor = normalizeAddress(actor, "to");
+  const index = getBusIndex(app);
+  const messages = getIndexedThreadMessages(index, threadId).filter(
+    (message) => message.to === normalizedActor
+  );
+  if (messages.length === 0) return;
+  for (const message of messages) {
+    const key = eventKey(message.msgId, normalizedActor);
+    const hadDelivered = index.deliveredKeys.has(key);
+    if (!hadDelivered) {
+      await writeEvent(app, message, "delivered", normalizedActor, canonicalTimestamp());
+    }
+    if (!index.readKeys.has(key)) {
+      await writeEvent(app, message, "read", normalizedActor, canonicalTimestamp());
+    }
+  }
 }
 function unreadCount(app, partName) {
   var _a2;
@@ -18560,12 +18811,13 @@ var InboxSuggest = class extends import_obsidian3.EditorSuggest {
   }
 };
 var ComposeModal = class extends import_obsidian3.Modal {
-  constructor(app, recipientAddress, recipientLabel, sourceNote, initialBody) {
+  constructor(app, recipientAddress, recipientLabel, sourceNote, initialBody, options = {}) {
     super(app);
     this.recipientAddress = recipientAddress;
     this.recipientLabel = recipientLabel;
     this.sourceNote = sourceNote;
     this.initialBody = initialBody;
+    this.options = options;
   }
   onOpen() {
     const { contentEl } = this;
@@ -18601,13 +18853,17 @@ var ComposeModal = class extends import_obsidian3.Modal {
     sendBtn.addEventListener("click", () => this.submit(textarea.value));
   }
   submit(body) {
-    const subject = body.trim().slice(0, 80) || "Message";
+    var _a2, _b;
+    const trimmedBody = body.trim();
+    const subject = ((_a2 = this.options.subject) == null ? void 0 : _a2.trim()) || trimmedBody.slice(0, 80) || "Message";
     void writeMessage(this.app, {
       to: this.recipientAddress,
-      from: "user",
+      from: (_b = this.options.from) != null ? _b : "user",
       subject,
-      body: body.trim(),
-      sourceNote: this.sourceNote
+      body: trimmedBody,
+      sourceNote: this.sourceNote,
+      threadId: this.options.threadId,
+      replyTo: this.options.replyTo
     }).then(() => {
       new import_obsidian3.Notice(`Sent to ${this.recipientLabel}`);
     }).catch((err) => {
@@ -18967,12 +19223,185 @@ ${key}: ${valStr}`;
   }
 };
 
-// src/settings-tab.ts
+// src/part-inbox-view.ts
 var import_obsidian6 = require("obsidian");
 
-// src/deps.ts
+// src/terminal-view.ts
+var import_obsidian5 = require("obsidian");
+var import_xterm = __toESM(require_xterm());
+var import_addon_fit = __toESM(require_addon_fit());
+var import_addon_web_links = __toESM(require_addon_web_links());
+var import_addon_canvas = __toESM(require_addon_canvas());
+
+// src/pty-bridge.ts
 var import_child_process = require("child_process");
+var import_path8 = require("path");
 var import_fs = require("fs");
+var import_os = require("os");
+var STAGING_DIR = (0, import_path8.join)((0, import_os.tmpdir)(), "augment-pty");
+function stageBinary(sourcePath, binaryName) {
+  if (!(0, import_fs.existsSync)(STAGING_DIR)) (0, import_fs.mkdirSync)(STAGING_DIR, { recursive: true });
+  const staged = (0, import_path8.join)(STAGING_DIR, binaryName);
+  let needsCopy = !(0, import_fs.existsSync)(staged);
+  if (!needsCopy) {
+    try {
+      const sourceStat = (0, import_fs.statSync)(sourcePath);
+      const stagedStat = (0, import_fs.statSync)(staged);
+      needsCopy = sourceStat.mtimeMs > stagedStat.mtimeMs;
+    } catch (e) {
+      needsCopy = true;
+    }
+  }
+  if (needsCopy) {
+    (0, import_fs.copyFileSync)(sourcePath, staged);
+    (0, import_fs.chmodSync)(staged, 493);
+    if (process.platform === "darwin") {
+      try {
+        (0, import_child_process.execFileSync)("codesign", ["-s", "-", "-f", staged], { stdio: "ignore" });
+      } catch (e) {
+      }
+    }
+  }
+  return staged;
+}
+var PtyBridge = class {
+  constructor(opts) {
+    this.process = null;
+    this.controlStream = null;
+    this.stopping = false;
+    this.didExit = false;
+    this.pluginDir = opts.pluginDir;
+    this.cwd = opts.cwd;
+    this.shellPath = opts.shellPath || "";
+    this.initialRows = Number.isFinite(opts.initialRows) ? Math.max(0, Math.floor(opts.initialRows)) : 0;
+    this.initialCols = Number.isFinite(opts.initialCols) ? Math.max(0, Math.floor(opts.initialCols)) : 0;
+    this.onData = opts.onData;
+    this.onExit = opts.onExit;
+    this.onError = opts.onError;
+  }
+  // Launch strategy: staged path first, source path as fallback.
+  //
+  // macOS may SIGKILL binaries executed from certain paths. Two common cases:
+  //
+  //   1. Normal local install: plugin is in ~/.obsidian/plugins/ on a local
+  //      APFS volume. macOS typically allows execution, but staging to $TMPDIR
+  //      and applying an ad-hoc codesign adds an extra layer of reliability —
+  //      the ad-hoc signature replaces the bare linker signature and satisfies
+  //      Gatekeeper's ad-hoc path checks. codesign takes ~15ms on first launch
+  //      (blocked synchronously); subsequent launches skip it via mtime check.
+  //
+  //   2. Synced vault (iCloud, Dropbox, etc.): plugin path may be under
+  //      ~/Library/Mobile Documents/ or a cloud provider directory. macOS
+  //      (and the cloud provider's file-provider daemon) may kill binaries
+  //      executed from those paths. stageBinary() copies to $TMPDIR/augment-pty/
+  //      which is always a local, non-cloud volume — execution succeeds there.
+  //
+  // On SIGKILL within 1.2s the spawn loop falls back from staged → source.
+  // On process error (ENOENT, EACCES) it also falls back.
+  start() {
+    this.stopping = false;
+    this.didExit = false;
+    this.controlStream = null;
+    const platform = process.platform;
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
+    const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
+    const candidates = [];
+    try {
+      const stagedPath = stageBinary(sourcePath, binaryName);
+      candidates.push(stagedPath);
+    } catch (e) {
+    }
+    candidates.push(sourcePath);
+    const shellFallback = platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+    const effectiveShell = this.shellPath || shellFallback;
+    const env = {
+      ...process.env,
+      TERM: "xterm-256color",
+      LANG: process.env.LANG || "en_US.UTF-8",
+      AUGMENT_SHELL: effectiveShell,
+      AUGMENT_CWD: this.cwd,
+      // Pass initial dimensions so the Go binary creates the PTY at the
+      // correct size — eliminates the race where the shell/TUI starts
+      // painting before the fd-3 resize command arrives.
+      AUGMENT_ROWS: this.initialRows > 0 ? String(this.initialRows) : void 0,
+      AUGMENT_COLS: this.initialCols > 0 ? String(this.initialCols) : void 0
+    };
+    let candidateIndex = 0;
+    const spawnCandidate = () => {
+      var _a2, _b, _c, _d;
+      const binaryPath = candidates[candidateIndex];
+      const startedAt = Date.now();
+      this.process = (0, import_child_process.spawn)(binaryPath, [], {
+        cwd: this.cwd,
+        env,
+        stdio: ["pipe", "pipe", "pipe", "pipe"]
+      });
+      this.controlStream = this.process.stdio[3];
+      (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
+      (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
+        this.onData(data);
+      });
+      (_c = this.process.stderr) == null ? void 0 : _c.setEncoding("utf-8");
+      (_d = this.process.stderr) == null ? void 0 : _d.on("data", (data) => {
+        console.error("[augment-pty]", data);
+      });
+      this.process.on("exit", (code, signal) => {
+        const runtimeMs = Date.now() - startedAt;
+        this.process = null;
+        this.controlStream = null;
+        const shouldFallback = !this.stopping && candidateIndex + 1 < candidates.length && signal === "SIGKILL" && runtimeMs < 1200;
+        if (shouldFallback) {
+          candidateIndex++;
+          spawnCandidate();
+          return;
+        }
+        if (this.didExit) return;
+        this.didExit = true;
+        this.onExit(code != null ? code : 0, signal != null ? signal : null);
+      });
+      this.process.on("error", (err) => {
+        var _a3;
+        console.error("[augment-pty] Process error:", err);
+        this.process = null;
+        this.controlStream = null;
+        const shouldFallback = !this.stopping && candidateIndex + 1 < candidates.length;
+        if (shouldFallback) {
+          candidateIndex++;
+          spawnCandidate();
+          return;
+        }
+        if (this.didExit) return;
+        this.didExit = true;
+        (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
+        this.onExit(1);
+      });
+    };
+    spawnCandidate();
+  }
+  write(data) {
+    var _a2, _b;
+    (_b = (_a2 = this.process) == null ? void 0 : _a2.stdin) == null ? void 0 : _b.write(data);
+  }
+  resize(rows, cols) {
+    var _a2;
+    (_a2 = this.controlStream) == null ? void 0 : _a2.write(`R${rows},${cols}
+`);
+  }
+  kill() {
+    this.stopping = true;
+    if (this.process) {
+      this.process.kill("SIGTERM");
+    }
+  }
+  isRunning() {
+    return this.process !== null;
+  }
+};
+
+// src/deps.ts
+var import_child_process2 = require("child_process");
+var import_fs2 = require("fs");
 var path2 = __toESM(require("path"));
 var DETECT_DEPS_SUCCESS_TTL_MS = 6e4;
 var cachedRuntimeDeps = null;
@@ -18986,13 +19415,13 @@ function shellEnv() {
     // nvm
     "/usr/local/bin",
     "/opt/homebrew/bin"
-  ].filter((p) => (0, import_fs.existsSync)(p));
+  ].filter((p) => (0, import_fs2.existsSync)(p));
   const current = process.env.PATH || "";
   return { ...process.env, PATH: [...extra, current].join(path2.delimiter) };
 }
 function execAsync(cmd, env) {
   return new Promise((resolve2, reject2) => {
-    (0, import_child_process.exec)(cmd, { timeout: 1e4, env }, (err, stdout, stderr) => {
+    (0, import_child_process2.exec)(cmd, { timeout: 1e4, env }, (err, stdout, stderr) => {
       if (err) reject2(err);
       else resolve2({ stdout, stderr });
     });
@@ -19135,1720 +19564,6 @@ Prompt templates live in \`${templateFolder}\`. Run with Cmd+Shift+Enter.
     await app.vault.create(exampleTemplatePath, exampleContent);
   }
 }
-
-// src/template-picker.ts
-var import_obsidian5 = require("obsidian");
-function getTemplateFiles(app, folderPath) {
-  const folder = app.vault.getAbstractFileByPath(folderPath);
-  if (!(folder instanceof import_obsidian5.TFolder)) return [];
-  return folder.children.filter(
-    (f) => f instanceof import_obsidian5.TFile && f.extension === "md"
-  );
-}
-var TemplatePicker = class extends import_obsidian5.FuzzySuggestModal {
-  constructor(app, files, onChoose) {
-    super(app);
-    this.files = files;
-    this.onChoose = onChoose;
-    this.setPlaceholder("Select a template...");
-  }
-  getItems() {
-    return this.files;
-  }
-  getItemText(file) {
-    return file.basename;
-  }
-  renderSuggestion(match, el) {
-    var _a2, _b;
-    el.createEl("div", { text: match.item.basename });
-    const desc = (_b = (_a2 = this.app.metadataCache.getFileCache(match.item)) == null ? void 0 : _a2.frontmatter) == null ? void 0 : _b["description"];
-    if (desc && typeof desc === "string") {
-      el.createEl("div", { cls: "augment-tpl-desc", text: desc });
-    }
-  }
-  onChooseItem(file) {
-    this.onChoose(file);
-  }
-};
-var TemplatePreviewModal = class extends import_obsidian5.Modal {
-  constructor(app, renderedPrompt, ctx, onConfirm) {
-    super(app);
-    this.skipPreview = false;
-    this.renderedPrompt = renderedPrompt;
-    this.ctx = ctx;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("augment-gen-preview-modal");
-    const pre = contentEl.createEl("pre", { cls: "augment-gen-preview-prompt" });
-    pre.setText(this.renderedPrompt);
-    const linkedCount = this.ctx.linkedNotes.length;
-    const summaryText = linkedCount > 0 ? `Will include: ${this.ctx.title} + ${linkedCount} linked note${linkedCount > 1 ? "s" : ""}` : `Will include: ${this.ctx.title}`;
-    contentEl.createEl("p", { text: summaryText, cls: "augment-gen-context-hint" });
-    const charCount = this.renderedPrompt.length;
-    const approxTokens = Math.round(charCount / 4);
-    const isLarge = this.renderedPrompt.includes("{{note_content}}") || this.renderedPrompt.includes("{{linked_notes_full}}") || charCount > 4e3;
-    if (isLarge || charCount > 2e3) {
-      contentEl.createEl("p", {
-        cls: "augment-gen-token-estimate" + (approxTokens > 4e3 ? " is-large" : ""),
-        text: `~${approxTokens.toLocaleString()} tokens (${charCount.toLocaleString()} chars)`
-      });
-    }
-    new import_obsidian5.Setting(contentEl).setName("Don't show preview").addToggle((toggle) => {
-      toggle.setValue(false).onChange((val) => {
-        this.skipPreview = val;
-      });
-    });
-    const submit = () => {
-      this.close();
-      this.onConfirm(this.skipPreview);
-    };
-    new import_obsidian5.Setting(contentEl).addButton((btn) => {
-      btn.setButtonText("Cancel").onClick(() => this.close());
-    }).addButton((btn) => {
-      btn.setButtonText("Generate").setCta().onClick(submit);
-      btn.buttonEl.focus();
-    });
-    this.scope.register([], "Enter", (e) => {
-      e.preventDefault();
-      submit();
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var NO_FILES_ERROR = "no-files";
-var FolderSuggestModal = class extends import_obsidian5.FuzzySuggestModal {
-  constructor(app, onChoose) {
-    super(app);
-    this.setPlaceholder("Select folder to scan\u2026");
-    this.onChoose = onChoose;
-  }
-  getItems() {
-    const folders = [];
-    const collect = (folder) => {
-      for (const child of folder.children) {
-        if (child instanceof import_obsidian5.TFolder) {
-          folders.push(child);
-          collect(child);
-        }
-      }
-    };
-    collect(this.app.vault.getRoot());
-    return folders.sort((a, b) => a.path.localeCompare(b.path));
-  }
-  getItemText(folder) {
-    return folder.path;
-  }
-  onChooseItem(folder) {
-    this.onChoose(folder);
-  }
-};
-async function analyzeFolderContents(app, folder) {
-  const files = folder.children.filter((f) => f instanceof import_obsidian5.TFile && f.extension === "md").slice(0, 15);
-  const keyFreq = /* @__PURE__ */ new Map();
-  const headingFreq = /* @__PURE__ */ new Map();
-  const samples = [];
-  await Promise.all(files.map(async (file) => {
-    var _a2, _b;
-    try {
-      const content = await app.vault.cachedRead(file);
-      const cache = app.metadataCache.getFileCache(file);
-      if (cache == null ? void 0 : cache.frontmatter) {
-        for (const key of Object.keys(cache.frontmatter)) {
-          if (key === "position") continue;
-          keyFreq.set(key, ((_a2 = keyFreq.get(key)) != null ? _a2 : 0) + 1);
-        }
-      }
-      if (cache == null ? void 0 : cache.headings) {
-        for (const h of cache.headings) {
-          if (h.level <= 3) {
-            headingFreq.set(h.heading, ((_b = headingFreq.get(h.heading)) != null ? _b : 0) + 1);
-          }
-        }
-      }
-      const excerpt = content.replace(/^---[\s\S]*?---\n?/, "").replace(/^#+\s.+$/gm, "").replace(/\s+/g, " ").trim().slice(0, 150);
-      if (excerpt) samples.push({ title: file.basename, excerpt });
-    } catch (e) {
-    }
-  }));
-  const frontmatterKeys = [...keyFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k);
-  const headings = [...headingFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([h]) => h);
-  return { folderPath: folder.path, fileCount: files.length, frontmatterKeys, headings, samples: samples.slice(0, 5) };
-}
-async function generateTemplatesFromFolder(app, folder, settings, resolvedModel) {
-  const analysis = await analyzeFolderContents(app, folder);
-  if (analysis.fileCount === 0) throw new Error(NO_FILES_ERROR);
-  const lines = [
-    `Folder: "${analysis.folderPath}" (${analysis.fileCount} notes scanned)`
-  ];
-  if (analysis.frontmatterKeys.length > 0) {
-    lines.push(`Frontmatter fields: ${analysis.frontmatterKeys.join(", ")}`);
-  }
-  if (analysis.headings.length > 0) {
-    lines.push(`Common headings: ${analysis.headings.join(", ")}`);
-  }
-  if (analysis.samples.length > 0) {
-    lines.push("Sample notes:");
-    for (const s of analysis.samples) {
-      lines.push(`  "${s.title}": ${s.excerpt}`);
-    }
-  }
-  lines.push(
-    "",
-    "Generate 2\u20133 Liquid prompt templates for working with notes in this folder. Available variables: {{ title }}, {{ note_content }}, {{ selection }}, {{ linked_notes }}, {{ frontmatter.KEY }}. For per-linked-note formatting use: {% for note in linked_notes_array %}{{ note.title }}: {{ note.content }}{% endfor %}. Filters: {{ title | truncate: 60 }}, {{ linked_notes_array | map: 'title' | join: ', ' }}. Conditionals: {% if frontmatter.status %}...{% endif %}.",
-    "",
-    'Return ONLY a JSON array, no code fences: [{"name": string, "description": string, "system_prompt": string | null, "body": string}]',
-    'The "body" is the prompt text (30\u2013120 words). The "system_prompt" is an optional custom instruction for Claude (null if not needed).'
-  );
-  const systemPrompt = "You generate Obsidian Augment prompt templates. Return ONLY valid JSON \u2014 an array of template objects, no other text, no code fences.";
-  const raw2 = await generateText(systemPrompt, lines.join("\n"), settings, resolvedModel, void 0, 2048);
-  const cleaned = raw2.replace(/```(?:json)?\n?/g, "").replace(/```/g, "").trim();
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1) throw new Error("Response did not contain a JSON array");
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
-  if (!Array.isArray(parsed)) throw new Error("Parsed value is not an array");
-  return parsed.filter((t) => typeof (t == null ? void 0 : t.name) === "string" && typeof (t == null ? void 0 : t.body) === "string").map((t) => ({
-    name: t.name.trim(),
-    description: typeof t.description === "string" ? t.description.trim() : "",
-    system_prompt: typeof t.system_prompt === "string" ? t.system_prompt.trim() : null,
-    body: t.body.trim()
-  })).slice(0, 5);
-}
-function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
-  new FolderSuggestModal(app, async (folder) => {
-    const notice = new import_obsidian5.Notice("Scanning folder and generating templates\u2026", 0);
-    try {
-      const templates = await generateTemplatesFromFolder(app, folder, settings, resolvedModel);
-      notice.hide();
-      const targetFolder = settings.templateFolder || "Augment/templates";
-      new GeneratedTemplatesModal(app, templates, targetFolder, async (ts) => {
-        if (!app.vault.getAbstractFileByPath(targetFolder)) {
-          try {
-            await app.vault.createFolder(targetFolder);
-          } catch (e) {
-          }
-        }
-        let created = 0;
-        for (const t of ts) {
-          const path4 = `${targetFolder}/${t.name}.md`;
-          if (!app.vault.getAbstractFileByPath(path4)) {
-            await app.vault.create(path4, buildTemplateFileContent(t));
-            created++;
-          }
-        }
-        if (created > 0) {
-          new import_obsidian5.Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
-          onComplete == null ? void 0 : onComplete();
-        } else {
-          new import_obsidian5.Notice("All generated templates already exist \u2014 no files created");
-        }
-      }).open();
-    } catch (err) {
-      notice.hide();
-      if ((err == null ? void 0 : err.message) === NO_FILES_ERROR) {
-        new import_obsidian5.Notice("No .md notes found in that folder");
-      } else {
-        new import_obsidian5.Notice("Template generation failed \u2014 see console for details");
-        console.error("[Augment] generate-templates-from-folder failed", err);
-      }
-    }
-  }).open();
-}
-function buildTemplateFileContent(t) {
-  const lines = ["---", `name: ${t.name}`];
-  if (t.description) lines.push(`description: ${t.description}`);
-  if (t.system_prompt) {
-    lines.push("system_prompt: |");
-    for (const l of t.system_prompt.split("\n")) {
-      lines.push(`  ${l}`);
-    }
-  }
-  lines.push("---", t.body);
-  return lines.join("\n");
-}
-var GeneratedTemplatesModal = class extends import_obsidian5.Modal {
-  constructor(app, templates, templateFolder, onConfirm) {
-    super(app);
-    this.templates = templates;
-    this.templateFolder = templateFolder;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("augment-scan-modal");
-    contentEl.createEl("h2", { text: "Generated templates" });
-    contentEl.createEl("p", {
-      cls: "augment-gen-context-hint",
-      text: `${this.templates.length} template${this.templates.length !== 1 ? "s" : ""} ready. Will be created in \u201C${this.templateFolder}\u201D. Existing files won\u2019t be overwritten.`
-    });
-    for (const t of this.templates) {
-      const card = contentEl.createDiv({ cls: "augment-scan-template-card" });
-      card.createEl("div", { cls: "augment-scan-template-name", text: t.name });
-      if (t.description) {
-        card.createEl("div", { cls: "augment-scan-template-desc", text: t.description });
-      }
-      const pre = card.createEl("pre", { cls: "augment-scan-template-body" });
-      pre.textContent = t.body.length > 240 ? t.body.slice(0, 240) + "\u2026" : t.body;
-    }
-    new import_obsidian5.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => {
-      btn.setButtonText("Create templates").setCta().onClick(async () => {
-        btn.setDisabled(true);
-        btn.setButtonText("Creating\u2026");
-        await this.onConfirm(this.templates);
-        this.close();
-      });
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var TEMPLATE_ASSISTANT_PILLS = [
-  "Summarize this note and its linked notes as bullet points",
-  "Extract all action items from this note and its linked notes",
-  "Write a synthesis from the linked notes that supports the thesis of this note",
-  "Create a meeting notes template with agenda, attendees, decisions, and next steps"
-];
-var TEMPLATE_ASSISTANT_SYSTEM_PROMPT = `You write Liquid templates for the Augment Obsidian plugin.
-
-Available variables:
-- {{ title }} \u2014 note title (string)
-- {{ note_content }} \u2014 full note text (string)
-- {{ selection }} \u2014 currently selected text (string, may be empty)
-- {{ context }} \u2014 text above cursor (string)
-- {{ frontmatter.KEY }} \u2014 any frontmatter field (string). Example: {{ frontmatter.status }}
-- {{ linked_notes }} \u2014 linked notes as a formatted text block (string)
-- {{ linked_notes_full }} \u2014 linked notes with full content (string)
-- {{ linked_notes_array }} \u2014 array of linked notes; each has .title (string), .frontmatter (object), .content (string)
-
-Liquid syntax:
-- Loop: {% for note in linked_notes_array %}{{ note.title }}: {{ note.content | truncate: 200 }}{% endfor %}
-- Filter: {{ title | truncate: 60 }}
-- Conditional: {% if frontmatter.status == "done" %}...{% endif %}
-- Join filter: {{ linked_notes_array | map: "title" | join: ", " }}
-
-Return ONLY the raw template text. No markdown fences, no explanation, no preamble.`;
-var TemplateAssistantModal = class extends import_obsidian5.Modal {
-  constructor(app, settings, resolvedModel, targetFolder, onSave) {
-    super(app);
-    this.settings = settings;
-    this.resolvedModel = resolvedModel;
-    this.targetFolder = targetFolder;
-    this.onSave = onSave;
-    this.descriptionEl = null;
-    this.templateEditorEl = null;
-    this.previewEl = null;
-    this.saveBtnEl = null;
-    this.generatedTemplate = "";
-    this.isGenerating = false;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("augment-tpl-assistant-modal");
-    contentEl.createEl("h2", { text: "Generate template" });
-    contentEl.createEl("label", { cls: "augment-tpl-assistant-label", text: "Describe what you want" });
-    const textarea = contentEl.createEl("textarea", { cls: "augment-tpl-assistant-desc" });
-    textarea.placeholder = "Summarize this note and its linked notes as bullet points\u2026";
-    textarea.rows = 3;
-    this.descriptionEl = textarea;
-    setTimeout(() => textarea.focus(), 50);
-    const pillsEl = contentEl.createDiv({ cls: "augment-tpl-assistant-pills" });
-    for (const pill of TEMPLATE_ASSISTANT_PILLS) {
-      const btn = pillsEl.createEl("button", { cls: "augment-tpl-pill", text: pill });
-      btn.addEventListener("click", () => {
-        if (this.descriptionEl) {
-          this.descriptionEl.value = pill;
-          this.descriptionEl.focus();
-        }
-      });
-    }
-    const generateBtn = contentEl.createEl("button", {
-      cls: "augment-tpl-assistant-generate mod-cta",
-      text: "Generate template"
-    });
-    generateBtn.addEventListener("click", () => void this.runGenerate(generateBtn));
-    textarea.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        void this.runGenerate(generateBtn);
-      }
-    });
-    const previewSection = contentEl.createDiv({ cls: "augment-tpl-assistant-preview-section" });
-    previewSection.createDiv({ cls: "augment-tpl-assistant-sep" }).createSpan({ text: "Preview" });
-    previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Generated template" });
-    this.templateEditorEl = previewSection.createEl("textarea", { cls: "augment-tpl-editor" });
-    this.templateEditorEl.rows = 6;
-    this.templateEditorEl.placeholder = "Generated template will appear here\u2026";
-    this.templateEditorEl.addEventListener("input", () => void this.renderPreview());
-    previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Rendered output (against active note)" });
-    this.previewEl = previewSection.createDiv({ cls: "augment-tpl-rendered-preview" });
-    this.previewEl.textContent = "Generate a template to see a preview.";
-    const footer = contentEl.createDiv({ cls: "augment-tpl-assistant-footer" });
-    const cancelBtn = footer.createEl("button", { text: "Cancel" });
-    cancelBtn.addEventListener("click", () => this.close());
-    const saveBtn = footer.createEl("button", { cls: "mod-cta", text: "Save" });
-    saveBtn.disabled = true;
-    this.saveBtnEl = saveBtn;
-    saveBtn.addEventListener("click", () => void this.runSave());
-  }
-  async runGenerate(generateBtn) {
-    var _a2, _b;
-    const description = (_a2 = this.descriptionEl) == null ? void 0 : _a2.value.trim();
-    if (!description || this.isGenerating) return;
-    this.isGenerating = true;
-    generateBtn.disabled = true;
-    generateBtn.textContent = "Generating\u2026";
-    if (this.previewEl) this.previewEl.textContent = "Generating\u2026";
-    if (this.templateEditorEl) this.templateEditorEl.value = "";
-    if (this.saveBtnEl) this.saveBtnEl.disabled = true;
-    try {
-      const result = await generateText(
-        TEMPLATE_ASSISTANT_SYSTEM_PROMPT,
-        description,
-        this.settings,
-        this.resolvedModel,
-        void 0,
-        1024
-      );
-      this.generatedTemplate = result.text.trim();
-      if (this.templateEditorEl) this.templateEditorEl.value = this.generatedTemplate;
-      await this.renderPreview();
-      if (this.saveBtnEl) this.saveBtnEl.disabled = false;
-    } catch (err) {
-      const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
-      if (this.previewEl) this.previewEl.textContent = `Error: ${errMsg}`;
-    } finally {
-      this.isGenerating = false;
-      generateBtn.disabled = false;
-      generateBtn.textContent = "Generate template";
-    }
-  }
-  async renderPreview() {
-    var _a2;
-    if (!this.previewEl) return;
-    const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
-    if (!template) return;
-    const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile) {
-      this.previewEl.textContent = template;
-      return;
-    }
-    try {
-      const ctx = await assembleNoteContext(this.app, activeFile, this.settings);
-      await populateLinkedNoteContent(this.app, ctx, 1e3);
-      const rendered = await substituteVariables(template, ctx);
-      this.previewEl.textContent = rendered;
-    } catch (e) {
-      this.previewEl.textContent = template;
-    }
-  }
-  async runSave() {
-    var _a2, _b, _c;
-    const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
-    if (!template) return;
-    const description = (_c = (_b = this.descriptionEl) == null ? void 0 : _b.value.trim()) != null ? _c : "";
-    new TemplateSaveNameModal(this.app, async (name) => {
-      const folder = this.targetFolder || "Augment/templates";
-      if (!this.app.vault.getAbstractFileByPath(folder)) {
-        try {
-          await this.app.vault.createFolder(folder);
-        } catch (e) {
-        }
-      }
-      const path4 = `${folder}/${name}.md`;
-      if (this.app.vault.getAbstractFileByPath(path4)) {
-        new import_obsidian5.Notice(`Template "${name}" already exists`);
-        return;
-      }
-      await this.app.vault.create(path4, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
-      new import_obsidian5.Notice(`Template "${name}" saved`);
-      this.onSave();
-      this.close();
-    }).open();
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var TemplateSaveNameModal = class extends import_obsidian5.Modal {
-  constructor(app, onConfirm) {
-    super(app);
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("h2", { text: "Name your template" });
-    let name = "";
-    const setting = new import_obsidian5.Setting(contentEl).setName("Template name").addText((text) => {
-      text.setPlaceholder("My template").onChange((val) => {
-        name = val;
-      });
-      setTimeout(() => text.inputEl.focus(), 50);
-      text.inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          void save();
-        }
-      });
-    });
-    const save = async () => {
-      const trimmed = name.trim();
-      if (!trimmed) return;
-      await this.onConfirm(trimmed);
-      this.close();
-    };
-    new import_obsidian5.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(save));
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-
-// src/settings-tab.ts
-function addInfoTooltip(descEl, tipText) {
-  descEl.appendChild(
-    createFragment((frag) => {
-      frag.appendText("\xA0");
-      const icon = frag.createEl("span", { cls: "augment-api-key-info", text: "\u24D8" });
-      let tip = null;
-      icon.addEventListener("mouseenter", () => {
-        tip = document.createElement("div");
-        tip.className = "augment-api-key-tip";
-        tip.textContent = tipText;
-        document.body.appendChild(tip);
-        const rect = icon.getBoundingClientRect();
-        tip.style.top = `${rect.bottom + 6}px`;
-        tip.style.left = `${rect.left}px`;
-      });
-      icon.addEventListener("mouseleave", () => {
-        tip == null ? void 0 : tip.remove();
-        tip = null;
-      });
-    })
-  );
-}
-function formatHotkeyStr(mods, key, isMac) {
-  const parts = [];
-  for (const m of mods) {
-    if (m === "Mod") parts.push(isMac ? "Cmd" : "Ctrl");
-    else if (m === "Ctrl") parts.push("Ctrl");
-    else if (m === "Shift") parts.push("Shift");
-    else if (m === "Alt") parts.push(isMac ? "Opt" : "Alt");
-  }
-  parts.push(key === "Enter" ? "Enter" : key.toUpperCase());
-  return parts.join("+");
-}
-function getSetupStep(deps, isWsl) {
-  if (!deps.node) {
-    return {
-      title: "Install AI tools",
-      desc: isWsl ? "Node.js is needed to run Claude Code. Install it inside WSL using Linux commands \u2014 not the Windows installer." : "Node.js is needed to run Claude Code. Download and run the installer from nodejs.org.",
-      action: "link",
-      actionLabel: "Open nodejs.org \u2197",
-      actionUrl: "https://nodejs.org"
-    };
-  }
-  if (!deps.cc) {
-    return {
-      title: "Set up your AI assistant",
-      desc: isWsl ? "A terminal will open and install Claude Code automatically. This runs inside WSL \u2014 use Linux commands." : "A terminal will open and install Claude Code automatically.",
-      action: "terminal",
-      actionLabel: "Install",
-      terminalCmd: "npm install -g @anthropic-ai/claude-code\n"
-    };
-  }
-  if (!deps.authed) {
-    return {
-      title: "Connect your Claude account",
-      desc: "A terminal will open and your browser will launch for sign-in. Use the same account as claude.ai.",
-      action: "terminal",
-      actionLabel: "Sign in",
-      terminalCmd: "claude auth login\n"
-    };
-  }
-  if (!deps.vaultConfigured) {
-    return {
-      title: "Prepare your notes for AI",
-      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
-      action: "vault",
-      actionLabel: "Set up vault"
-    };
-  }
-  return null;
-}
-function getStepIndex(deps) {
-  const total = 4;
-  if (!deps.node) return { current: 1, total };
-  if (!deps.cc) return { current: 2, total };
-  if (!deps.authed) return { current: 3, total };
-  if (!deps.vaultConfigured) return { current: 4, total };
-  return { current: total, total };
-}
-var DEP_ROWS = [
-  { label: "Node.js", done: (d) => d.node, readyText: "ready", pendingText: "\u2014" },
-  { label: "Claude Code", done: (d) => d.cc, readyText: "ready", pendingText: "\u2014" },
-  { label: "Sign in", done: (d) => d.authed, readyText: "signed in", pendingText: "\u2014" },
-  { label: "Vault", done: (d) => d.vaultConfigured, readyText: "ready", pendingText: "\u2014" }
-];
-var TEMPLATE_SCAFFOLD = `---
-name:
-description:
----
-Your task instruction here.
-
-{{note_content}}
-`;
-var BUILTIN_CALLOUT_TYPES = [
-  "note",
-  "abstract",
-  "info",
-  "todo",
-  "tip",
-  "success",
-  "question",
-  "warning",
-  "failure",
-  "danger",
-  "bug",
-  "example",
-  "quote"
-].sort();
-function detectCalloutTypes() {
-  const custom = /* @__PURE__ */ new Set();
-  try {
-    for (const sheet of Array.from(document.styleSheets)) {
-      try {
-        for (const rule of Array.from(sheet.cssRules || [])) {
-          for (const match of rule.cssText.matchAll(/\[data-callout="([^"]+)"\]/g)) {
-            const t = match[1];
-            if (t !== "ai" && !BUILTIN_CALLOUT_TYPES.includes(t)) custom.add(t);
-          }
-        }
-      } catch (e) {
-      }
-    }
-  } catch (e) {
-  }
-  return ["ai", ...BUILTIN_CALLOUT_TYPES, ...Array.from(custom).sort()];
-}
-var AugmentSettingTab = class extends import_obsidian6.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-  /** Render a compact hotkey cheat-sheet box in the top-right of a settings pane. */
-  renderHotkeyBox(pane, items) {
-    const wrapper = pane.createEl("div", { cls: "augment-hotkey-cheatsheet-wrapper" });
-    const box = wrapper.createEl("div", { cls: "augment-hotkey-cheatsheet" });
-    box.createEl("div", { cls: "augment-hotkey-cheatsheet-title", text: "Keyboard shortcuts" });
-    for (const { label, commandId } of items) {
-      const row = box.createEl("div", { cls: "augment-hotkey-cheatsheet-row" });
-      row.createEl("span", { cls: "augment-hotkey-cheatsheet-label", text: label });
-      row.createEl("kbd", { cls: "augment-hotkey-cheatsheet-pill", text: this.formatHotkey(commandId) });
-    }
-    const customize = box.createEl("a", { cls: "augment-hotkey-cheatsheet-customize", text: "customize \u2197" });
-    customize.href = "#";
-    customize.addEventListener("click", (e) => {
-      e.preventDefault();
-      this.app.setting.openTabById("hotkeys");
-    });
-  }
-  /** Read the current hotkey binding for a command and format for display. */
-  formatHotkey(commandId) {
-    var _a2, _b;
-    const hm = this.app.hotkeyManager;
-    const isMac = process.platform === "darwin";
-    const custom = (_a2 = hm == null ? void 0 : hm.customKeys) == null ? void 0 : _a2[commandId];
-    if (Array.isArray(custom) && custom.length > 0) {
-      const h = custom[0];
-      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
-    }
-    const defaults = (_b = hm == null ? void 0 : hm.defaultKeys) == null ? void 0 : _b[commandId];
-    if (Array.isArray(defaults) && defaults.length > 0) {
-      const h = defaults[0];
-      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
-    }
-    if (commandId.includes("template")) return isMac ? "Cmd+Shift+Enter" : "Ctrl+Shift+Enter";
-    return isMac ? "Cmd+Enter" : "Ctrl+Enter";
-  }
-  display() {
-    var _a2;
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.addClass("augment-settings-container");
-    const header = containerEl.createEl("div", { cls: "augment-settings-header" });
-    const iconEl = header.createEl("div", { cls: "augment-settings-header-icon" });
-    (0, import_obsidian6.setIcon)(iconEl, "radio-tower");
-    const wordmark = header.createEl("div", { cls: "augment-settings-header-text" });
-    wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
-    wordmark.createEl("div", {
-      cls: "augment-settings-tagline",
-      text: "In-editor AI generation and a terminal system for Claude Code."
-    });
-    const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
-    const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
-    const continuationTab = this.plugin.settings.hasGenerated ? tabNav.createEl("button", { cls: "augment-tab", text: "Generate" }) : null;
-    const templatesTab = this.plugin.settings.hasGenerated ? tabNav.createEl("button", { cls: "augment-tab", text: "Templates" }) : null;
-    const terminalTab = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
-    const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const continuationPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const templatesPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    const terminalPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
-    continuationPane.style.display = "none";
-    templatesPane.style.display = "none";
-    terminalPane.style.display = "none";
-    const tabs = [
-      { btn: overviewTab, pane: overviewPane },
-      ...continuationTab ? [{ btn: continuationTab, pane: continuationPane }] : [],
-      ...templatesTab ? [{ btn: templatesTab, pane: templatesPane }] : [],
-      { btn: terminalTab, pane: terminalPane }
-    ];
-    tabs.forEach(({ btn, pane }) => {
-      btn.addEventListener("click", () => {
-        tabs.forEach(({ btn: b, pane: p }) => {
-          b.removeClass("is-active");
-          p.style.display = "none";
-        });
-        btn.addClass("is-active");
-        pane.style.display = "";
-      });
-    });
-    let apiKeyInputEl;
-    let templateFolderInputEl;
-    const jumpToTab = (targetBtn, targetPane) => {
-      tabs.forEach(({ btn: b, pane: p }) => {
-        b.removeClass("is-active");
-        p.style.display = "none";
-      });
-      targetBtn.addClass("is-active");
-      targetPane.style.display = "";
-    };
-    const isMac = process.platform === "darwin";
-    {
-      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
-      const overviewIntro = overviewHeader.createDiv({ cls: "augment-tab-intro" });
-      const welcomeEl = overviewIntro.createDiv({ cls: "augment-welcome" });
-      const copyEl = welcomeEl.createDiv({ cls: "augment-welcome-copy" });
-      copyEl.createDiv({
-        cls: "augment-welcome-line1",
-        text: "Augment \u2014 AI generation and Claude Code terminals for Obsidian."
-      });
-      copyEl.createDiv({
-        cls: "augment-welcome-line2",
-        text: `Press ${isMac ? "Cmd" : "Ctrl"}+Enter to generate text, or Ctrl+T to open a terminal.`
-      });
-      this.renderHotkeyBox(overviewHeader, [
-        { label: "Generate", commandId: "augment-terminal:augment-generate" },
-        { label: "Open terminal", commandId: "augment-terminal:open-terminal" }
-      ]);
-    }
-    const apiKeySetting = new import_obsidian6.Setting(overviewPane).setName("API key").addText((text) => {
-      apiKeyInputEl = text.inputEl;
-      text.inputEl.type = "password";
-      text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
-        this.plugin.settings.apiKey = value;
-        await this.plugin.saveData(this.plugin.settings);
-      });
-    });
-    apiKeySetting.descEl.appendChild(
-      createFragment((frag) => {
-        frag.appendText("Anthropic API key. ");
-        const a = frag.createEl("a", {
-          text: "Get your API key",
-          href: "https://console.anthropic.com/settings/api-keys"
-        });
-        a.target = "_blank";
-        a.rel = "noopener";
-        frag.appendText("\xA0");
-        const infoIcon = frag.createEl("span", {
-          cls: "augment-api-key-info",
-          text: "\u24D8"
-        });
-        let tip = null;
-        infoIcon.addEventListener("mouseenter", () => {
-          tip = document.createElement("div");
-          tip.className = "augment-api-key-tip";
-          tip.textContent = "Claude Max/Pro subscriptions don\u2019t work here \u2014 Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with sk-ant-api03-. Billing is separate from any subscription.";
-          document.body.appendChild(tip);
-          const rect = infoIcon.getBoundingClientRect();
-          tip.style.top = `${rect.bottom + 6}px`;
-          tip.style.left = `${rect.left}px`;
-        });
-        infoIcon.addEventListener("mouseleave", () => {
-          tip == null ? void 0 : tip.remove();
-          tip = null;
-        });
-      })
-    );
-    const FALLBACK_MODELS = [
-      { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
-      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
-      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
-    ];
-    const modelList = this.plugin.availableModels.length > 0 ? this.plugin.availableModels : FALLBACK_MODELS;
-    const modelSetting = new import_obsidian6.Setting(overviewPane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
-      drop.addOption("auto", "Auto (best available)");
-      drop.addOption("auto-opus", "Latest Opus");
-      drop.addOption("auto-sonnet", "Latest Sonnet");
-      drop.addOption("auto-haiku", "Latest Haiku");
-      for (const m of modelList) {
-        drop.addOption(m.id, m.display_name);
-      }
-      drop.setValue(this.plugin.settings.model).onChange(async (value) => {
-        this.plugin.settings.model = value;
-        await this.plugin.saveData(this.plugin.settings);
-        this.plugin.refreshStatusBar();
-      });
-    });
-    addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
-    {
-      const shortcutsDetails = overviewPane.createEl("details", { cls: "augment-advanced-details" });
-      shortcutsDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Keyboard shortcuts" });
-      const AUGMENT_CMDS = [
-        { id: "augment-generate", label: "Generate", defaultKeys: [{ modifiers: ["Mod"], key: "Enter" }] },
-        { id: "augment-generate-from-template", label: "Generate from template", defaultKeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }] },
-        { id: "open-terminal", label: "Open terminal (default location)", defaultKeys: [{ modifiers: ["Ctrl"], key: "t" }] },
-        { id: "open-terminal-tab", label: "Open terminal in new tab", defaultKeys: [] },
-        { id: "open-terminal-right", label: "Open terminal to the right", defaultKeys: [] },
-        { id: "open-terminal-down", label: "Open terminal below", defaultKeys: [] },
-        { id: "open-terminal-sidebar-right-top", label: "Open terminal in right sidebar (top)", defaultKeys: [] },
-        { id: "open-terminal-sidebar-right-bottom", label: "Open terminal in right sidebar (bottom)", defaultKeys: [] },
-        { id: "open-terminal-sidebar-left-top", label: "Open terminal in left sidebar (top)", defaultKeys: [] },
-        { id: "open-terminal-sidebar-left-bottom", label: "Open terminal in left sidebar (bottom)", defaultKeys: [] },
-        { id: "open-terminal-manager", label: "Show terminal manager", defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
-        { id: "switch-terminal", label: "Switch terminal", defaultKeys: [] },
-        { id: "rename-terminal", label: "Rename terminal", defaultKeys: [] },
-        { id: "augment-view-context", label: "Open context inspector", defaultKeys: [] },
-        { id: "jump-to-next-waiting-session", label: "Jump to next waiting session", defaultKeys: [] },
-        { id: "augment-open-settings", label: "Open settings", defaultKeys: [] }
-      ];
-      const renderHotkeyStr = (hk) => formatHotkeyStr(hk.modifiers, hk.key, isMac);
-      const hm = this.app.hotkeyManager;
-      const customKeys = (_a2 = hm == null ? void 0 : hm.customKeys) != null ? _a2 : {};
-      const kbTable = shortcutsDetails.createEl("table", { cls: "augment-var-table" });
-      const kbTbody = kbTable.createEl("tbody");
-      for (const cmd of AUGMENT_CMDS) {
-        const fullId = "augment-terminal:" + cmd.id;
-        const effectiveKeys = fullId in customKeys ? customKeys[fullId] : cmd.defaultKeys;
-        const tr = kbTbody.createEl("tr");
-        tr.createEl("td", { cls: "augment-shortcuts-label", text: cmd.label });
-        const keyTd = tr.createEl("td", { cls: "augment-shortcuts-keys" });
-        if (effectiveKeys.length > 0) {
-          for (const hk of effectiveKeys) {
-            keyTd.createEl("kbd", { cls: "augment-onboarding-hotkey", text: renderHotkeyStr(hk) });
-          }
-        } else {
-          keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
-        }
-      }
-      const customizeEl = shortcutsDetails.createEl("div", { cls: "augment-shortcuts-customize" });
-      const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
-      customizeLink.href = "#";
-      customizeLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.app.setting.openTabById("hotkeys");
-      });
-    }
-    if (this.plugin.settings.hasGenerated) {
-      const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
-      const header2 = spendSection.createDiv({ cls: "augment-spend-header" });
-      const titleWrap = header2.createDiv({ cls: "augment-spend-title-wrap" });
-      titleWrap.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
-      const spend = this.plugin.spendData;
-      if (spend == null ? void 0 : spend.since) {
-        const sinceDate = new Date(spend.since);
-        const sinceStr = sinceDate.toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" });
-        titleWrap.createSpan({ cls: "augment-spend-since", text: `since ${sinceStr}` });
-      }
-      const headerActions = header2.createDiv({ cls: "augment-spend-header-actions" });
-      const consoleLink = headerActions.createEl("a", { cls: "augment-spend-console-link", text: "Anthropic console \u2197" });
-      consoleLink.href = "https://console.anthropic.com/usage";
-      consoleLink.target = "_blank";
-      consoleLink.rel = "noopener noreferrer";
-      const resetLink = headerActions.createEl("a", { cls: "augment-spend-reset-link", text: "Reset" });
-      resetLink.href = "#";
-      resetLink.addEventListener("click", async (e) => {
-        e.preventDefault();
-        await this.plugin.resetSpendData();
-        this.display();
-      });
-      const models = spend ? Object.keys(spend.byModel) : [];
-      if (models.length === 0) {
-        const emptyEl = spendSection.createDiv({ cls: "augment-spend-empty" });
-        emptyEl.createEl("p", { text: "No generations tracked yet." });
-        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Try Cmd+Enter in any note to generate text with AI." });
-        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Or use Run template (Cmd+Shift+Enter) to apply a saved template." });
-      } else {
-        let totalCost = 0;
-        let totalGens = 0;
-        for (const [modelId, entry] of Object.entries(spend.byModel)) {
-          totalCost += calculateCost(modelId, entry.inputTokens, entry.outputTokens);
-          totalGens += entry.generations;
-        }
-        const card = spendSection.createDiv({ cls: "augment-spend-card" });
-        const totals = card.createDiv({ cls: "augment-spend-totals" });
-        totals.createSpan({ cls: "augment-spend-total-amount", text: `$${totalCost.toFixed(4)} estimated` });
-        totals.createSpan({ cls: "augment-spend-total-meta", text: `across ${totalGens} generation${totalGens === 1 ? "" : "s"}` });
-        const table = card.createEl("table", { cls: "augment-var-table augment-spend-table" });
-        const tbody = table.createEl("tbody");
-        for (const [modelId, entry] of Object.entries(spend.byModel)) {
-          const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
-          const tr = tbody.createEl("tr");
-          tr.createEl("td", { text: modelDisplayName(modelId) });
-          tr.createEl("td", { cls: "augment-spend-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
-          tr.createEl("td", { cls: "augment-spend-ms", text: `$${cost.toFixed(4)}` });
-        }
-      }
-      const infobox = spendSection.createDiv({ cls: "augment-spend-infobox" });
-      infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
-      infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
-    }
-    {
-      const contHeader = continuationPane.createDiv({ cls: "augment-tab-header" });
-      const contIntro = contHeader.createDiv({ cls: "augment-tab-intro" });
-      contIntro.createEl("p", {
-        cls: "augment-context-intro",
-        text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it \u2014 the AI sees your note title, frontmatter, surrounding context, and linked notes."
-      });
-      this.renderHotkeyBox(contHeader, [
-        { label: "Generate", commandId: "augment-terminal:augment-generate" },
-        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
-      ]);
-    }
-    const RIBBON_ICONS = {
-      "augment-pyramid": "Augment pyramid (default)",
-      "radio-tower": "Sensor tower",
-      "wand-2": "Wand",
-      "sparkles": "Sparkles",
-      "brain": "Brain",
-      "zap": "Zap",
-      "bot": "Bot",
-      "pencil": "Pencil",
-      "type": "Type",
-      "message-square": "Message square",
-      "cpu": "CPU",
-      "code-2": "Code",
-      "terminal": "Terminal"
-    };
-    const ribbonIconSetting = new import_obsidian6.Setting(continuationPane).setName("Generate ribbon icon").setDesc("Icon shown on the Generate ribbon button.").addDropdown((dd) => {
-      for (const [id, label] of Object.entries(RIBBON_ICONS)) {
-        dd.addOption(id, label);
-      }
-      dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
-      dd.onChange(async (val) => {
-        this.plugin.settings.ribbonIcon = val;
-        await this.plugin.saveData(this.plugin.settings);
-        this.plugin.applyRibbonIcon();
-        if (ribbonPreviewEl) (0, import_obsidian6.setIcon)(ribbonPreviewEl, val);
-      });
-    });
-    const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
-    ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    (0, import_obsidian6.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
-    new import_obsidian6.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
-        this.plugin.settings.coloredRibbonIcon = val;
-        await this.plugin.saveData(this.plugin.settings);
-        this.plugin.applyRibbonColoredClass();
-      });
-    });
-    const calloutTypes = detectCalloutTypes();
-    const formatSetting = new import_obsidian6.Setting(continuationPane).setName("Output format").setDesc("How generated text is wrapped when inserted.").addDropdown((drop) => {
-      drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
-        this.plugin.settings.outputFormat = value;
-        await this.plugin.saveData(this.plugin.settings);
-        updateSecondarySlot(value);
-      });
-    });
-    addInfoTooltip(formatSetting.descEl, "Plain: text appears inline. Callout: wrapped in an Obsidian callout box (e.g. > [!ai]+). Blockquote: indented with >. Heading: text follows a new heading. Code block: text inside a fenced code block. The secondary dropdown sets the heading level or callout type.");
-    const secondaryWrapper = formatSetting.controlEl.createEl("div", {
-      cls: "dropdown augment-format-secondary"
-    });
-    secondaryWrapper.style.marginLeft = "8px";
-    const secondarySelect = secondaryWrapper.createEl("select");
-    const tertiaryWrapper = formatSetting.controlEl.createEl("div", {
-      cls: "dropdown augment-format-tertiary"
-    });
-    tertiaryWrapper.style.marginLeft = "6px";
-    const tertiarySelect = tertiaryWrapper.createEl("select");
-    const updateSecondarySlot = (format2) => {
-      secondarySelect.empty();
-      if (format2 === "heading") {
-        secondaryWrapper.removeClass("is-placeholder");
-        secondarySelect.disabled = false;
-        for (let i = 1; i <= 7; i++) {
-          const opt = secondarySelect.createEl("option", { value: String(i), text: `H${i}` });
-          if (i === this.plugin.settings.headingLevel) opt.selected = true;
-        }
-      } else if (format2 === "callout") {
-        secondaryWrapper.removeClass("is-placeholder");
-        secondarySelect.disabled = false;
-        for (const t of calloutTypes) {
-          const opt = secondarySelect.createEl("option", { value: t, text: t });
-          if (t === this.plugin.settings.calloutType) opt.selected = true;
-        }
-      } else {
-        secondaryWrapper.addClass("is-placeholder");
-        secondarySelect.disabled = true;
-        secondarySelect.createEl("option", { value: "", text: "\u2014" });
-      }
-      tertiarySelect.empty();
-      if (format2 === "callout") {
-        tertiaryWrapper.removeClass("is-placeholder");
-        tertiarySelect.disabled = false;
-        tertiarySelect.createEl("option", { value: "expanded", text: "Expanded" });
-        tertiarySelect.createEl("option", { value: "collapsed", text: "Collapsed" });
-        tertiarySelect.value = this.plugin.settings.calloutExpanded !== false ? "expanded" : "collapsed";
-      } else {
-        tertiaryWrapper.addClass("is-placeholder");
-        tertiarySelect.disabled = true;
-        tertiarySelect.createEl("option", { value: "", text: "\u2014" });
-      }
-    };
-    updateSecondarySlot(this.plugin.settings.outputFormat);
-    continuationPane.createDiv({ cls: "augment-pane-section", text: "Context" });
-    secondarySelect.addEventListener("change", async () => {
-      const format2 = this.plugin.settings.outputFormat;
-      if (format2 === "heading") {
-        this.plugin.settings.headingLevel = parseInt(secondarySelect.value, 10);
-      } else if (format2 === "callout") {
-        this.plugin.settings.calloutType = secondarySelect.value;
-      }
-      await this.plugin.saveData(this.plugin.settings);
-    });
-    tertiarySelect.addEventListener("change", async () => {
-      this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
-      await this.plugin.saveData(this.plugin.settings);
-    });
-    const linkedNotesSetting = new import_obsidian6.Setting(continuationPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
-      text.inputEl.type = "number";
-      text.inputEl.min = "0";
-      text.inputEl.max = "10";
-      text.setPlaceholder("3").setValue(String(this.plugin.settings.linkedNoteCount)).onChange(async (value) => {
-        const n = parseInt(value, 10);
-        if (!isNaN(n) && n >= 0 && n <= 10) {
-          this.plugin.settings.linkedNoteCount = n;
-          await this.plugin.saveData(this.plugin.settings);
-        }
-      });
-    });
-    addInfoTooltip(linkedNotesSetting.descEl, "Outgoing wikilinks only \u2014 notes the current note links to, not notes that link back to it. Frontmatter (tags, aliases, custom properties) is included; note body is not. Use {{linked_notes_full}} in a template if you need the full body content.");
-    new import_obsidian6.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.").addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.showGenerationToast).onChange(async (value) => {
-        this.plugin.settings.showGenerationToast = value;
-        await this.plugin.saveData(this.plugin.settings);
-      });
-    });
-    {
-      const contextLimitSetting = new import_obsidian6.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
-        text.inputEl.type = "number";
-        text.inputEl.min = "1";
-        text.setPlaceholder("2000").setValue(String(this.plugin.settings.maxContextTokens)).onChange(async (value) => {
-          const n = parseInt(value, 10);
-          if (!isNaN(n) && n > 0) {
-            this.plugin.settings.maxContextTokens = n;
-            await this.plugin.saveData(this.plugin.settings);
-          }
-        });
-      });
-      addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
-      const systemPromptSetting = new import_obsidian6.Setting(continuationPane).setName("System prompt").setDesc("Sent to Claude before every generation. Supports LiquidJS variables \u2014 {{ now }} inserts the current date and time.").addTextArea((text) => {
-        text.setPlaceholder("The current date and time is {{ now }}.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
-          this.plugin.settings.systemPrompt = value;
-          await this.plugin.saveData(this.plugin.settings);
-        });
-        text.inputEl.rows = 5;
-        text.inputEl.style.width = "100%";
-        text.inputEl.style.fontFamily = "var(--font-monospace)";
-      });
-      addInfoTooltip(systemPromptSetting.descEl, "Sent to Claude before every generation. Supports LiquidJS: {{ now }} \u2192 current date and time. Use to set a persona, language, or domain focus for the entire vault. Individual templates can override this via system_prompt: in their frontmatter.");
-      const inspectorBtn = continuationPane.createEl("button", {
-        cls: "augment-ctx-preview-btn",
-        text: "Open context inspector"
-      });
-      inspectorBtn.addEventListener("click", () => {
-        const leaf = this.plugin.app.workspace.getRightLeaf(false);
-        if (leaf) {
-          leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
-          this.plugin.app.workspace.revealLeaf(leaf);
-        }
-      });
-      {
-        const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
-        const openHotkeysPage = () => {
-          this.app.setting.open();
-          this.app.setting.openTabById("hotkeys");
-        };
-        if (this.plugin.settings.clearedLinkHotkey) {
-          const desc = document.createDocumentFragment();
-          desc.appendText("Displaced: Open link in new tab.  ");
-          const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
-          link.style.cursor = "pointer";
-          link.addEventListener("click", () => openHotkeysPage());
-          new import_obsidian6.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc(desc).addButton((btn) => {
-            btn.setButtonText("Restore original").onClick(async () => {
-              await this.plugin.restoreObsidianLinkHotkey();
-              this.display();
-            });
-          });
-        } else {
-          const desc2 = document.createDocumentFragment();
-          desc2.appendText(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
-          const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
-          link2.style.cursor = "pointer";
-          link2.addEventListener("click", () => openHotkeysPage());
-          new import_obsidian6.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(desc2).addButton((btn) => {
-            btn.setButtonText(`Claim ${generateHotkey}`).setCta().onClick(async () => {
-              await this.plugin.clearObsidianLinkHotkey();
-              this.display();
-            });
-          });
-        }
-      }
-    }
-    {
-      const tplHeader = templatesPane.createDiv({ cls: "augment-tab-header" });
-      const tplIntro = tplHeader.createDiv({ cls: "augment-tab-intro" });
-      tplIntro.createEl("p", {
-        cls: "augment-context-intro",
-        text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
-      });
-      this.renderHotkeyBox(tplHeader, [
-        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
-      ]);
-    }
-    const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
-    eli5Details.createEl("summary", { cls: "augment-hbs-summary", text: "What is a template?" });
-    const eli5Body = eli5Details.createDiv({ cls: "augment-hbs-body augment-eli5-body" });
-    eli5Body.createEl("p", {
-      cls: "augment-hbs-intro",
-      text: "A template is a Markdown file with instructions for Claude and variables that pull in content from your note."
-    });
-    eli5Body.createEl("pre", {
-      cls: "augment-format-example",
-      text: "---\nname: Meeting summary\ndescription: Summarises a note into action items\n---\nExtract the key action items from this note:\n\n{{note_content}}"
-    });
-    const eli5Footer = eli5Body.createEl("p", { cls: "augment-eli5-footer" });
-    eli5Footer.appendText("When you run a template, Augment fills in the variables and sends the instructions to Claude. Use ");
-    eli5Footer.createEl("strong", { text: "Generate template" });
-    eli5Footer.appendText(" below to create one with AI, or ");
-    eli5Footer.createEl("strong", { text: "+ New template" });
-    eli5Footer.appendText(" to start from scratch.");
-    const templateFolderSetting = new import_obsidian6.Setting(templatesPane).setName("Template folder").setDesc("Vault path to the folder containing .md prompt templates.").addText((text) => {
-      templateFolderInputEl = text.inputEl;
-      text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
-        this.plugin.settings.templateFolder = value;
-        await this.plugin.saveData(this.plugin.settings);
-        renderTemplateList();
-      });
-    });
-    addInfoTooltip(templateFolderSetting.descEl, "Path relative to your vault root (e.g. 'Augment/templates'). Each .md file in this folder appears as a template in the picker. Use the frontmatter fields name and description to control how templates are displayed.");
-    const folderLinkEl = templatesPane.createDiv({ cls: "augment-folder-link" });
-    const openFolderEl = folderLinkEl.createEl("a", {
-      cls: "augment-folder-open",
-      text: "Reveal in file explorer \u2197"
-    });
-    openFolderEl.href = "#";
-    openFolderEl.addEventListener("click", (e) => {
-      var _a3, _b, _c;
-      e.preventDefault();
-      const folderPath = this.plugin.settings.templateFolder;
-      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
-      if (folder) {
-        const fe = (_b = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
-        (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
-      } else {
-        console.log(`[Augment] folder not found: "${folderPath}"`);
-        new import_obsidian6.Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
-      }
-    });
-    new import_obsidian6.Setting(templatesPane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.showTemplatePreview).onChange(async (value) => {
-        this.plugin.settings.showTemplatePreview = value;
-        await this.plugin.saveData(this.plugin.settings);
-      });
-    });
-    new import_obsidian6.Setting(templatesPane).setName("Generate template").setDesc("Describe what you want in plain English and Augment will write a Liquid template for you.").addButton((btn) => {
-      btn.setButtonText("Generate template\u2026").setCta().onClick(() => {
-        const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
-        new TemplateAssistantModal(
-          this.app,
-          this.plugin.settings,
-          this.plugin.resolveModel(),
-          targetFolder,
-          () => renderTemplateList()
-        ).open();
-      });
-    });
-    templatesPane.createDiv({ cls: "augment-pane-section", text: "Your templates" });
-    const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
-    const renderTemplateList = () => {
-      var _a3;
-      templateListEl.empty();
-      const folderPath = this.plugin.settings.templateFolder;
-      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
-      if (!folder || !(folder instanceof import_obsidian6.TFolder)) {
-        templateListEl.createDiv({
-          cls: "augment-template-empty",
-          text: "No templates found. Check the folder path above or create a template."
-        });
-        return;
-      }
-      const files = folder.children.filter((f) => f instanceof import_obsidian6.TFile && f.extension === "md").sort((a, b) => a.basename.localeCompare(b.basename));
-      if (files.length === 0) {
-        templateListEl.createDiv({
-          cls: "augment-template-empty",
-          text: "No templates in this folder."
-        });
-        return;
-      }
-      for (const file of files) {
-        const meta = (_a3 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a3.frontmatter;
-        const name = (meta == null ? void 0 : meta.name) || file.basename;
-        const desc = (meta == null ? void 0 : meta.description) || "";
-        const row = templateListEl.createDiv({ cls: "augment-template-row" });
-        const info = row.createDiv({ cls: "augment-template-row-info" });
-        info.createSpan({ cls: "augment-template-name", text: name });
-        if (desc) {
-          info.createSpan({ cls: "augment-template-desc", text: desc });
-        }
-        const openBtn = row.createEl("button", {
-          cls: "augment-template-open clickable-icon",
-          text: "Open \u2197"
-        });
-        openBtn.addEventListener("click", () => {
-          this.plugin.app.workspace.openLinkText(file.basename, "", false);
-        });
-      }
-    };
-    renderTemplateList();
-    const newTemplateBtn = templatesPane.createEl("button", {
-      cls: "augment-template-new-btn",
-      text: "+ New template"
-    });
-    newTemplateBtn.addEventListener("click", async () => {
-      const folder = this.plugin.settings.templateFolder || "Augment/templates";
-      const newPath = `${folder}/New template.md`;
-      try {
-        const file = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
-        await this.plugin.app.workspace.getLeaf().openFile(file);
-        renderTemplateList();
-      } catch (e) {
-        const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
-        if (existing instanceof import_obsidian6.TFile) {
-          await this.plugin.app.workspace.getLeaf().openFile(existing);
-        } else {
-          console.log("[Augment] could not create template");
-          new import_obsidian6.Notice("Could not create template");
-        }
-      }
-    });
-    if (this.plugin.settings.hasUsedTemplate) {
-      const genTplSetting = new import_obsidian6.Setting(templatesPane).setName("Generate templates from folder").setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.").addButton((btn) => {
-        btn.setButtonText("Choose folder\u2026").onClick(async () => {
-          if (!this.plugin.settings.apiKey) {
-            new import_obsidian6.Notice("Add an API key in the Overview tab first");
-            return;
-          }
-          runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
-        });
-      });
-      genTplSetting.descEl.appendChild(
-        createFragment((frag) => {
-          frag.appendText("\xA0");
-          const infoIcon = frag.createEl("span", {
-            cls: "augment-api-key-info",
-            text: "\u24D8"
-          });
-          let tip = null;
-          infoIcon.addEventListener("mouseenter", () => {
-            tip = document.createElement("div");
-            tip.className = "augment-api-key-tip";
-            tip.textContent = "This feature calls Claude to analyse your notes and write templates. It uses your API key and will incur charges. Larger folders or complex notes cost more.";
-            document.body.appendChild(tip);
-            const rect = infoIcon.getBoundingClientRect();
-            tip.style.top = `${rect.bottom + 6}px`;
-            tip.style.left = `${rect.left}px`;
-          });
-          infoIcon.addEventListener("mouseleave", () => {
-            tip == null ? void 0 : tip.remove();
-            tip = null;
-          });
-        })
-      );
-      templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
-      templatesPane.createDiv({ cls: "augment-section-label", text: "Variables" });
-      const varRef = templatesPane.createDiv({ cls: "augment-ref-block augment-variable-ref" });
-      const varTable = varRef.createEl("table", { cls: "augment-var-table" });
-      const varTbody = varTable.createEl("tbody");
-      const varRows = [
-        { name: "{{title}}", desc: "Note filename (without extension)" },
-        { name: "{{selection}}", desc: "Current editor selection" },
-        { name: "{{context}}", desc: "~50 lines around the cursor" },
-        { name: "{{note_content}}", desc: "Full note text" },
-        { name: "{{linked_notes}}", desc: "Linked notes: title + frontmatter" },
-        { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
-        { name: "{{frontmatter.KEY}}", desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" }
-      ];
-      for (const v of varRows) {
-        const tr = varTbody.createEl("tr");
-        const td1 = tr.createEl("td");
-        td1.createEl("code", { text: v.name });
-        tr.createEl("td", { text: v.desc });
-      }
-      templatesPane.createDiv({ cls: "augment-section-label", style: "margin-top: 16px;", text: "Template format" });
-      const formatGuide = templatesPane.createDiv({ cls: "augment-ref-block augment-template-format" });
-      formatGuide.createDiv({ cls: "augment-section-label", style: "margin-bottom: 6px;", text: "Frontmatter fields" });
-      const fmTable = formatGuide.createEl("table", { cls: "augment-frontmatter-table" });
-      const fmTbody = fmTable.createEl("tbody");
-      const fmRows = [
-        { key: "name", desc: "Required. Shown in the template picker." },
-        { key: "description", desc: "Optional. Shown below the name in the picker." },
-        { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Generate tab \u2192 System prompt)." }
-      ];
-      for (const r of fmRows) {
-        const tr = fmTbody.createEl("tr");
-        tr.createEl("td", { text: r.key });
-        tr.createEl("td", { text: r.desc });
-      }
-      formatGuide.createDiv({ cls: "augment-section-label", style: "margin-top: 12px; margin-bottom: 6px;", text: "Template body" });
-      formatGuide.createEl("pre", {
-        cls: "augment-format-example",
-        text: "Summarise the following note and its linked notes as bullet points.\n\n{{note_content}}\n\n{% if linked_notes %}Linked context:\n{{ linked_notes }}{% endif %}"
-      });
-      const hbsDetails = templatesPane.createEl("details", { cls: "augment-hbs-details" });
-      hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Syntax reference (LiquidJS)" });
-      const hbsBody = hbsDetails.createDiv({ cls: "augment-hbs-body" });
-      hbsBody.createEl("p", {
-        cls: "augment-hbs-intro",
-        text: "Templates use LiquidJS. Use {{ }} for variables, {% %} for logic, and | filters to transform values."
-      });
-      const syntaxRows = [
-        { syntax: "{{ variable }}", desc: "Insert variable value" },
-        { syntax: "{% if selection %}\u2026{% endif %}", desc: "Include block only when non-empty" },
-        { syntax: "{% if selection %}\u2026{% else %}\u2026{% endif %}", desc: "Conditional with fallback" },
-        { syntax: "{% unless selection %}\u2026{% endunless %}", desc: "Include when empty / falsy" },
-        { syntax: "{% for tag in tags %}{{ tag }}{% endfor %}", desc: "Loop over an array" },
-        { syntax: "{{ note_content | truncate: 500 }}", desc: "Trim to 500 characters" },
-        { syntax: "{{ note_content | truncatewords: 100 }}", desc: "Trim to 100 words" },
-        { syntax: "{{ tags | join: ', ' }}", desc: "Join array with separator" },
-        { syntax: "{{ variable | upcase }}", desc: "Upper-case a string" },
-        { syntax: "{{ variable | default: 'fallback' }}", desc: "Use fallback when empty" }
-      ];
-      const hbsTable = hbsBody.createEl("table", { cls: "augment-var-table" });
-      const hbsTbody = hbsTable.createEl("tbody");
-      for (const row of syntaxRows) {
-        const tr = hbsTbody.createEl("tr");
-        tr.createEl("td").createEl("code", { text: row.syntax });
-        tr.createEl("td", { text: row.desc });
-      }
-      hbsBody.createDiv({ cls: "augment-section-label augment-hbs-example-label", text: "Example \u2014 use selection when present, fall back to full note" });
-      hbsBody.createEl("pre", {
-        cls: "augment-format-example",
-        text: "Summarise the following:\n\n{% if selection %}{{ selection }}{% else %}{{ note_content }}{% endif %}"
-      });
-      const hbsLink = hbsBody.createEl("a", {
-        cls: "augment-hbs-docs-link",
-        text: "See the full LiquidJS guide \u2192",
-        href: "https://liquidjs.com/tags/overview.html"
-      });
-      hbsLink.target = "_blank";
-      hbsLink.rel = "noopener";
-    }
-    {
-      const termHeader = terminalPane.createDiv({ cls: "augment-tab-header" });
-      const termIntro = termHeader.createDiv({ cls: "augment-tab-intro" });
-      termIntro.createEl("p", {
-        cls: "augment-context-intro",
-        text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
-      });
-      this.renderHotkeyBox(termHeader, [
-        { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
-        { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
-        { label: "Next waiting", commandId: "augment-terminal:jump-to-next-waiting-session" }
-      ]);
-    }
-    const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
-    const wizardBody = wizardSection.createDiv();
-    const setupVault = async () => {
-      const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
-      await setupVaultForClaude(this.app, templateFolder);
-    };
-    const renderStatusCard = async () => {
-      wizardBody.empty();
-      wizardBody.createDiv({ cls: "augment-cc-detecting", text: "Checking your setup\u2026" });
-      const deps = await detectDeps(this.app, { forceFresh: true });
-      wizardBody.empty();
-      const depRows = DEP_ROWS;
-      const activeStep = getSetupStep(deps, this.plugin.settings.shellPath === "wsl.exe");
-      const allReady = activeStep === null;
-      wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
-      if (!allReady && activeStep) {
-        const stepIdx = getStepIndex(deps);
-        wizardBody.createEl("div", {
-          cls: "augment-cc-step-progress",
-          text: `Step ${stepIdx.current} of ${stepIdx.total}: ${activeStep.title}`
-        });
-      }
-      const list = wizardBody.createEl("div", { cls: "augment-cc-dep-list" });
-      let activeFound = false;
-      for (const row of depRows) {
-        const isDone = row.done(deps);
-        const isActive = !isDone && !activeFound;
-        if (isActive) activeFound = true;
-        const isPending = !isDone && !isActive;
-        const rowEl = list.createEl("div", {
-          cls: "augment-cc-dep-row" + (isDone ? " is-done" : isActive ? " is-active" : " is-pending")
-        });
-        rowEl.createEl("span", {
-          cls: "augment-cc-dep-icon",
-          text: isDone ? "\u2713" : isActive ? "\u203A" : "\u25CB"
-        });
-        rowEl.createEl("span", { cls: "augment-cc-dep-label", text: row.label });
-        if (isDone) {
-          rowEl.createEl("span", { cls: "augment-cc-dep-status", text: row.readyText });
-        } else if (isActive && activeStep) {
-          const actionEl = rowEl.createEl("span", { cls: "augment-cc-dep-action" });
-          if (activeStep.action === "link") {
-            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
-            btn.addEventListener("click", () => window.open(activeStep.actionUrl, "_blank"));
-            if (activeStep.secondaryLabel && activeStep.secondaryUrl) {
-              const sec = actionEl.createEl("a", { cls: "augment-cc-dep-secondary", text: activeStep.secondaryLabel });
-              sec.href = activeStep.secondaryUrl;
-              sec.target = "_blank";
-              sec.rel = "noopener";
-            }
-          } else if (activeStep.action === "terminal") {
-            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
-            btn.addEventListener("click", async () => {
-              invalidateDepsCache();
-              const view = await this.plugin.openFocusedTerminal();
-              setTimeout(() => view.write(activeStep.terminalCmd), 800);
-            });
-          } else if (activeStep.action === "copy") {
-            actionEl.createEl("code", { cls: "augment-cc-dep-copy-text", text: activeStep.copyText });
-            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
-            btn.addEventListener("click", () => {
-              navigator.clipboard.writeText(activeStep.copyText);
-              btn.textContent = "Copied!";
-              setTimeout(() => {
-                btn.textContent = activeStep.actionLabel;
-              }, 1500);
-            });
-          } else if (activeStep.action === "vault") {
-            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
-            btn.addEventListener("click", async () => {
-              btn.textContent = "Setting up\u2026";
-              btn.disabled = true;
-              await setupVault();
-              void renderStatusCard();
-            });
-          }
-          if (activeStep.desc) {
-            rowEl.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
-          }
-        } else if (isPending) {
-          rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
-        }
-      }
-      if (allReady && !this.plugin.settings.terminalSetupDone) {
-        this.plugin.settings.terminalSetupDone = true;
-        void this.plugin.saveData(this.plugin.settings);
-        this.plugin.registerTieredCommands();
-        this.plugin.addTerminalRibbonIfNeeded();
-      }
-      const footer = wizardBody.createEl("div", { cls: "augment-cc-status-footer" });
-      if (allReady) {
-        footer.createEl("span", { cls: "augment-cc-all-ready", text: "Claude Code sessions are ready." });
-      } else if (activeStep && activeStep.action !== "vault") {
-        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 verify \u21BA" });
-        doneLink.href = "#";
-        doneLink.addEventListener("click", (e) => {
-          e.preventDefault();
-          doneLink.textContent = "Checking\u2026";
-          doneLink.style.pointerEvents = "none";
-          setTimeout(() => void renderStatusCard(), 300);
-        });
-      }
-      const recheck = footer.createEl("a", { cls: "augment-cc-recheck-always", text: "Re-check \u21BA" });
-      recheck.href = "#";
-      recheck.addEventListener("click", (e) => {
-        e.preventDefault();
-        void renderStatusCard();
-      });
-    };
-    void renderStatusCard();
-    if (this.plugin.settings.terminalSetupDone) {
-      const terminalLocationSetting = new import_obsidian6.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
-        var _a3;
-        drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
-          this.plugin.settings.defaultTerminalLocation = value;
-          await this.plugin.saveData(this.plugin.settings);
-        });
-      });
-      addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
-      new import_obsidian6.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
-          this.plugin.settings.showOtherProjects = value;
-          await this.plugin.saveData(this.plugin.settings);
-          this.plugin.app.workspace.trigger("augment-terminal:changed");
-        });
-      });
-      new import_obsidian6.Setting(terminalPane).setName("Workspace scope").setDesc("Controls how the agent treats this workspace's paths relative to other workspaces.").addDropdown((drop) => {
-        var _a3;
-        drop.addOption("open", "No restrictions").addOption("focused", "Focus on this workspace").addOption("restricted", "Treat as private workspace").setValue((_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open").onChange(async (value) => {
-          this.plugin.settings.workspaceScope = value;
-          await this.plugin.saveData(this.plugin.settings);
-          renderScopeExtras();
-        });
-      });
-      const scopeExtrasEl = terminalPane.createDiv({ cls: "augment-scope-extras" });
-      const renderScopeExtras = () => {
-        var _a3;
-        scopeExtrasEl.empty();
-        const scope = (_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open";
-        const path4 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
-        const descMap = {
-          open: "The agent works across your full vault without scope guidance.",
-          focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
-          restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it."
-        };
-        scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
-        if (path4 && scope !== "open") {
-          const verb = scope === "focused" ? "focus on" : "treat as private";
-          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path4}` });
-        }
-        if (scope !== "open") {
-          const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
-          box.createSpan({ cls: "augment-scope-infobox-icon", text: "\u2139" });
-          box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions \u2014 the agent is told to apply this, not technically prevented from other access." });
-        }
-        if (scope !== "open" && !path4) {
-          scopeExtrasEl.createDiv({
-            cls: "augment-scope-validation",
-            text: "Set a working directory (Terminal \u2192 Advanced \u2192 Working directory) to apply scope guidance."
-          });
-        }
-      };
-      renderScopeExtras();
-      const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
-      advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
-      if (process.platform === "win32") {
-        new import_obsidian6.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
-          const knownValues = ["", "wsl.exe", "cmd.exe"];
-          const current = this.plugin.settings.shellPath;
-          dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt");
-          if (current && !knownValues.includes(current)) {
-            dropdown.addOption(current, current);
-          }
-          dropdown.setValue(current).onChange(async (value) => {
-            this.plugin.settings.shellPath = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-        });
-      } else {
-        const defaultShell = process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
-        new import_obsidian6.Setting(advancedDetails).setName("Shell").setDesc("Custom shell path. Leave blank to use the system default.").addText((text) => {
-          text.setPlaceholder(defaultShell).setValue(this.plugin.settings.shellPath).onChange(async (value) => {
-            this.plugin.settings.shellPath = value;
-            await this.plugin.saveData(this.plugin.settings);
-          });
-        });
-      }
-      new import_obsidian6.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
-        text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
-          this.plugin.settings.defaultWorkingDirectory = value;
-          await this.plugin.saveData(this.plugin.settings);
-        });
-      });
-    }
-    terminalPane.createEl("p", {
-      cls: "augment-terminal-notice",
-      text: "Claude Code reads and writes vault files directly via the filesystem. Do not use CC to rename or move files \u2014 use Obsidian\u2019s built-in rename to preserve wikilinks."
-    });
-    containerEl.createEl("div", {
-      cls: "augment-settings-version",
-      text: `v${this.plugin.manifest.version} \xB7 build ${this.plugin.getBuildFingerprint()}`
-    });
-  }
-};
-
-// src/terminal-view.ts
-var import_obsidian7 = require("obsidian");
-var import_xterm = __toESM(require_xterm());
-var import_addon_fit = __toESM(require_addon_fit());
-var import_addon_web_links = __toESM(require_addon_web_links());
-var import_addon_canvas = __toESM(require_addon_canvas());
-
-// src/pty-bridge.ts
-var import_child_process2 = require("child_process");
-var import_path8 = require("path");
-var import_fs2 = require("fs");
-var import_os = require("os");
-var STAGING_DIR = (0, import_path8.join)((0, import_os.tmpdir)(), "augment-pty");
-function stageBinary(sourcePath, binaryName) {
-  if (!(0, import_fs2.existsSync)(STAGING_DIR)) (0, import_fs2.mkdirSync)(STAGING_DIR, { recursive: true });
-  const staged = (0, import_path8.join)(STAGING_DIR, binaryName);
-  let needsCopy = !(0, import_fs2.existsSync)(staged);
-  if (!needsCopy) {
-    try {
-      const sourceStat = (0, import_fs2.statSync)(sourcePath);
-      const stagedStat = (0, import_fs2.statSync)(staged);
-      needsCopy = sourceStat.mtimeMs > stagedStat.mtimeMs;
-    } catch (e) {
-      needsCopy = true;
-    }
-  }
-  if (needsCopy) {
-    (0, import_fs2.copyFileSync)(sourcePath, staged);
-    (0, import_fs2.chmodSync)(staged, 493);
-    if (process.platform === "darwin") {
-      try {
-        (0, import_child_process2.execFileSync)("codesign", ["-s", "-", "-f", staged], { stdio: "ignore" });
-      } catch (e) {
-      }
-    }
-  }
-  return staged;
-}
-var PtyBridge = class {
-  constructor(opts) {
-    this.process = null;
-    this.controlStream = null;
-    this.stopping = false;
-    this.didExit = false;
-    this.pluginDir = opts.pluginDir;
-    this.cwd = opts.cwd;
-    this.shellPath = opts.shellPath || "";
-    this.initialRows = Number.isFinite(opts.initialRows) ? Math.max(0, Math.floor(opts.initialRows)) : 0;
-    this.initialCols = Number.isFinite(opts.initialCols) ? Math.max(0, Math.floor(opts.initialCols)) : 0;
-    this.onData = opts.onData;
-    this.onExit = opts.onExit;
-    this.onError = opts.onError;
-  }
-  // Launch strategy: staged path first, source path as fallback.
-  //
-  // macOS may SIGKILL binaries executed from certain paths. Two common cases:
-  //
-  //   1. Normal local install: plugin is in ~/.obsidian/plugins/ on a local
-  //      APFS volume. macOS typically allows execution, but staging to $TMPDIR
-  //      and applying an ad-hoc codesign adds an extra layer of reliability —
-  //      the ad-hoc signature replaces the bare linker signature and satisfies
-  //      Gatekeeper's ad-hoc path checks. codesign takes ~15ms on first launch
-  //      (blocked synchronously); subsequent launches skip it via mtime check.
-  //
-  //   2. Synced vault (iCloud, Dropbox, etc.): plugin path may be under
-  //      ~/Library/Mobile Documents/ or a cloud provider directory. macOS
-  //      (and the cloud provider's file-provider daemon) may kill binaries
-  //      executed from those paths. stageBinary() copies to $TMPDIR/augment-pty/
-  //      which is always a local, non-cloud volume — execution succeeds there.
-  //
-  // On SIGKILL within 1.2s the spawn loop falls back from staged → source.
-  // On process error (ENOENT, EACCES) it also falls back.
-  start() {
-    this.stopping = false;
-    this.didExit = false;
-    this.controlStream = null;
-    const platform = process.platform;
-    const arch = process.arch === "arm64" ? "arm64" : "x64";
-    const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
-    const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
-    const candidates = [];
-    try {
-      const stagedPath = stageBinary(sourcePath, binaryName);
-      candidates.push(stagedPath);
-    } catch (e) {
-    }
-    candidates.push(sourcePath);
-    const shellFallback = platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
-    const effectiveShell = this.shellPath || shellFallback;
-    const env = {
-      ...process.env,
-      TERM: "xterm-256color",
-      LANG: process.env.LANG || "en_US.UTF-8",
-      AUGMENT_SHELL: effectiveShell,
-      AUGMENT_CWD: this.cwd,
-      // Pass initial dimensions so the Go binary creates the PTY at the
-      // correct size — eliminates the race where the shell/TUI starts
-      // painting before the fd-3 resize command arrives.
-      AUGMENT_ROWS: this.initialRows > 0 ? String(this.initialRows) : void 0,
-      AUGMENT_COLS: this.initialCols > 0 ? String(this.initialCols) : void 0
-    };
-    let candidateIndex = 0;
-    const spawnCandidate = () => {
-      var _a2, _b, _c, _d;
-      const binaryPath = candidates[candidateIndex];
-      const startedAt = Date.now();
-      this.process = (0, import_child_process2.spawn)(binaryPath, [], {
-        cwd: this.cwd,
-        env,
-        stdio: ["pipe", "pipe", "pipe", "pipe"]
-      });
-      this.controlStream = this.process.stdio[3];
-      (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
-      (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
-        this.onData(data);
-      });
-      (_c = this.process.stderr) == null ? void 0 : _c.setEncoding("utf-8");
-      (_d = this.process.stderr) == null ? void 0 : _d.on("data", (data) => {
-        console.error("[augment-pty]", data);
-      });
-      this.process.on("exit", (code, signal) => {
-        const runtimeMs = Date.now() - startedAt;
-        this.process = null;
-        this.controlStream = null;
-        const shouldFallback = !this.stopping && candidateIndex + 1 < candidates.length && signal === "SIGKILL" && runtimeMs < 1200;
-        if (shouldFallback) {
-          candidateIndex++;
-          spawnCandidate();
-          return;
-        }
-        if (this.didExit) return;
-        this.didExit = true;
-        this.onExit(code != null ? code : 0, signal != null ? signal : null);
-      });
-      this.process.on("error", (err) => {
-        var _a3;
-        console.error("[augment-pty] Process error:", err);
-        this.process = null;
-        this.controlStream = null;
-        const shouldFallback = !this.stopping && candidateIndex + 1 < candidates.length;
-        if (shouldFallback) {
-          candidateIndex++;
-          spawnCandidate();
-          return;
-        }
-        if (this.didExit) return;
-        this.didExit = true;
-        (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
-        this.onExit(1);
-      });
-    };
-    spawnCandidate();
-  }
-  write(data) {
-    var _a2, _b;
-    (_b = (_a2 = this.process) == null ? void 0 : _a2.stdin) == null ? void 0 : _b.write(data);
-  }
-  resize(rows, cols) {
-    var _a2;
-    (_a2 = this.controlStream) == null ? void 0 : _a2.write(`R${rows},${cols}
-`);
-  }
-  kill() {
-    this.stopping = true;
-    if (this.process) {
-      this.process.kill("SIGTERM");
-    }
-  }
-  isRunning() {
-    return this.process !== null;
-  }
-};
 
 // node_modules/@xterm/xterm/css/xterm.css
 var xterm_default = `/**
@@ -21276,7 +19991,7 @@ var AGENT_ID_GLOBAL_PATTERN = /\bagentId\s*[:=]\s*["']?([a-zA-Z0-9._-]+)@([a-zA-
 var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/ig;
 var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
 var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
-var TerminalView = class extends import_obsidian7.ItemView {
+var TerminalView = class extends import_obsidian5.ItemView {
   constructor(leaf, pluginDir, getShellPath = () => "", getDefaultWorkingDirectory = () => "") {
     super(leaf);
     this.terminal = null;
@@ -21551,13 +20266,13 @@ var TerminalView = class extends import_obsidian7.ItemView {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
       text: "Skip for now"
     });
-    (0, import_obsidian7.setIcon)(continueBtn, "play");
+    (0, import_obsidian5.setIcon)(continueBtn, "play");
     continueBtn.addEventListener("click", () => dismiss());
     const bypassBtn = actions.createEl("button", {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
       text: "Disable setup checks"
     });
-    (0, import_obsidian7.setIcon)(bypassBtn, "eye-off");
+    (0, import_obsidian5.setIcon)(bypassBtn, "eye-off");
     bypassBtn.addEventListener("click", () => {
       this.setSetupBypassed(true);
       dismiss();
@@ -21570,7 +20285,7 @@ var TerminalView = class extends import_obsidian7.ItemView {
     wrapper.createEl("h2", { text: title, cls: "augment-bootstrapper-title" });
     wrapper.createEl("p", { text: desc, cls: "augment-bootstrapper-desc" });
     const verifyBtn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Verify" });
-    (0, import_obsidian7.setIcon)(verifyBtn, "check");
+    (0, import_obsidian5.setIcon)(verifyBtn, "check");
     verifyBtn.onclick = () => {
       verifyBtn.disabled = true;
       verifyBtn.textContent = "Checking\u2026";
@@ -21616,13 +20331,13 @@ var TerminalView = class extends import_obsidian7.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
-      (0, import_obsidian7.setIcon)(btn, "download");
+      (0, import_obsidian5.setIcon)(btn, "download");
       btn.onclick = () => window.open("https://nodejs.org");
       const checkBtn = wrapper.createEl("button", {
         cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
         text: "Check again"
       });
-      (0, import_obsidian7.setIcon)(checkBtn, "refresh-cw");
+      (0, import_obsidian5.setIcon)(checkBtn, "refresh-cw");
       checkBtn.onclick = () => {
         checkBtn.disabled = true;
         checkBtn.textContent = "Checking\u2026";
@@ -21645,7 +20360,7 @@ var TerminalView = class extends import_obsidian7.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
-      (0, import_obsidian7.setIcon)(btn, "terminal");
+      (0, import_obsidian5.setIcon)(btn, "terminal");
       btn.onclick = () => {
         var _a2;
         invalidateDepsCache();
@@ -21665,7 +20380,7 @@ var TerminalView = class extends import_obsidian7.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
-      (0, import_obsidian7.setIcon)(btn, "log-in");
+      (0, import_obsidian5.setIcon)(btn, "log-in");
       btn.onclick = () => {
         var _a2;
         invalidateDepsCache();
@@ -21685,7 +20400,7 @@ var TerminalView = class extends import_obsidian7.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Set up vault" });
-      (0, import_obsidian7.setIcon)(btn, "folder-plus");
+      (0, import_obsidian5.setIcon)(btn, "folder-plus");
       btn.onclick = async () => {
         var _a2, _b, _c;
         btn.disabled = true;
@@ -21697,19 +20412,19 @@ var TerminalView = class extends import_obsidian7.ItemView {
           invalidateDepsCache();
           this.markTerminalSetupDone();
           dismiss();
-          new import_obsidian7.Notice("Vault setup complete.");
+          new import_obsidian5.Notice("Vault setup complete.");
         } catch (error) {
           console.error("[Augment] vault scaffold failed from terminal bootstrapper", error);
           btn.disabled = false;
           btn.textContent = "Set up vault";
-          new import_obsidian7.Notice("Vault setup failed. Open Terminal settings to try again.");
+          new import_obsidian5.Notice("Vault setup failed. Open Terminal settings to try again.");
         }
       };
       const settingsBtn = wrapper.createEl("button", {
         cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
         text: "Open Terminal settings"
       });
-      (0, import_obsidian7.setIcon)(settingsBtn, "settings");
+      (0, import_obsidian5.setIcon)(settingsBtn, "settings");
       settingsBtn.onclick = () => this.openTerminalSettings();
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
@@ -22516,8 +21231,2018 @@ var TerminalView = class extends import_obsidian7.ItemView {
   }
 };
 
-// src/terminal-manager-view.ts
+// src/part-inbox-view.ts
+var VIEW_TYPE_PART_INBOX = "augment-part-inbox";
+function splitAddress(address) {
+  const [name = address, habitat = "vault"] = address.split("@");
+  return {
+    name: name.trim() || address,
+    habitat: habitat.trim() || "vault"
+  };
+}
+function formatAddressLabel(address) {
+  if (address === HUMAN_ADDRESS) return "You";
+  const { name, habitat } = splitAddress(address);
+  return habitat === "vault" ? name : `${name}@${habitat}`;
+}
+function formatTerminalStatus(status) {
+  switch (status) {
+    case "active":
+      return "Live terminal \xB7 active";
+    case "tool":
+      return "Live terminal \xB7 tool";
+    case "waiting":
+      return "Live terminal \xB7 waiting";
+    case "idle":
+    case "shell":
+    case "running":
+      return "Live terminal";
+    case "crashed":
+      return "Terminal crashed";
+    case "exited":
+      return "Terminal exited";
+    default:
+      return "No live terminal";
+  }
+}
+function parseTimestampMs2(value) {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function relativeTime(timestampMs) {
+  if (!timestampMs) return "";
+  const diff = Date.now() - timestampMs;
+  const mins = Math.floor(diff / 6e4);
+  const hours = Math.floor(diff / 36e5);
+  const days = Math.floor(diff / 864e5);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+function absoluteTime(iso) {
+  const ms = parseTimestampMs2(iso);
+  if (!ms) return iso;
+  return new Date(ms).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+function getTerminalLeaves(app) {
+  const byType = app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+  if (byType.length > 0) {
+    return byType;
+  }
+  const found = [];
+  const workspaceAny = app.workspace;
+  if (typeof workspaceAny.iterateAllLeaves === "function") {
+    workspaceAny.iterateAllLeaves((leaf) => {
+      const viewAny = leaf.view;
+      const viewType = typeof (viewAny == null ? void 0 : viewAny.getViewType) === "function" ? viewAny.getViewType() : viewAny == null ? void 0 : viewAny.getViewType;
+      if (viewType === VIEW_TYPE_TERMINAL) {
+        found.push(leaf);
+      }
+    });
+  }
+  return found;
+}
+function scorePartMatch(leaf, part) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h;
+  const view = leaf.view;
+  const identity = (_c = (_b = (_a2 = view.getAgentIdentity) == null ? void 0 : _a2.call(view)) == null ? void 0 : _b.trim().toLowerCase()) != null ? _c : "";
+  const name = (_f = (_e = (_d = view.getName) == null ? void 0 : _d.call(view)) == null ? void 0 : _e.trim().toLowerCase()) != null ? _f : "";
+  const cwd = ((_h = (_g = view.getWorkingDirectory) == null ? void 0 : _g.call(view)) != null ? _h : "").toLowerCase().replace(/\\/g, "/");
+  const partName = part.name.toLowerCase();
+  const partAddress = part.address.toLowerCase();
+  const habitat = part.habitat.toLowerCase();
+  if (identity === partAddress || name === partAddress) {
+    return 3;
+  }
+  const nameMatch = identity === partName || name === partName;
+  if (!nameMatch) return 0;
+  if (habitat === "vault") return 2;
+  if (cwd.endsWith(`/${habitat}`) || cwd.includes(`/${habitat}/`)) {
+    return 2;
+  }
+  return 1;
+}
+function findTerminalLeafForPart(app, part) {
+  let bestLeaf = null;
+  let bestScore = 0;
+  for (const leaf of getTerminalLeaves(app)) {
+    const score = scorePartMatch(leaf, part);
+    if (score > bestScore) {
+      bestScore = score;
+      bestLeaf = leaf;
+    }
+  }
+  return bestLeaf;
+}
+function focusLeaf(app, leaf) {
+  var _a2;
+  app.workspace.revealLeaf(leaf);
+  const view = leaf.view;
+  (_a2 = view.markActivityRead) == null ? void 0 : _a2.call(view);
+}
+async function openPartInboxLeaf(app, state) {
+  var _a2, _b, _c;
+  const workspace = app.workspace;
+  const existing = workspace.getLeavesOfType(VIEW_TYPE_PART_INBOX);
+  let leaf = existing[0];
+  if (!leaf) {
+    const baseLeaf = (_a2 = workspace.getMostRecentLeaf()) != null ? _a2 : workspace.getLeaf("tab");
+    leaf = (_c = (_b = workspace.createLeafBySplit) == null ? void 0 : _b.call(workspace, baseLeaf, "vertical")) != null ? _c : workspace.getLeaf("split", "vertical");
+  }
+  await leaf.setViewState({
+    type: VIEW_TYPE_PART_INBOX,
+    active: true,
+    state
+  });
+  workspace.revealLeaf(leaf);
+  return leaf.view;
+}
+async function openPartInboxForPart(app, address) {
+  return openPartInboxLeaf(app, {
+    mode: "part",
+    address: address.trim().toLowerCase()
+  });
+}
+async function openHumanInbox(app) {
+  return openPartInboxLeaf(app, { mode: "human" });
+}
+var PartInboxView = class extends import_obsidian6.ItemView {
+  constructor(leaf) {
+    super(leaf);
+    this.viewState = { mode: "human" };
+    this.refreshToken = 0;
+  }
+  getViewType() {
+    return VIEW_TYPE_PART_INBOX;
+  }
+  getDisplayText() {
+    if (this.viewState.mode === "human") return "My inbox";
+    return `Inbox: ${splitAddress(this.viewState.address).name}`;
+  }
+  getIcon() {
+    return "inbox";
+  }
+  getState() {
+    return { ...this.viewState };
+  }
+  async setState(state) {
+    if (state.mode === "part") {
+      this.viewState = {
+        mode: "part",
+        address: state.address.trim().toLowerCase(),
+        selectedThreadId: state.selectedThreadId
+      };
+    } else {
+      this.viewState = {
+        mode: "human",
+        selectedThreadId: state.selectedThreadId
+      };
+    }
+    await this.refresh();
+  }
+  async onOpen() {
+    this.contentEl.empty();
+    this.contentEl.addClass("augment-part-inbox-view");
+    this.registerEvent(
+      this.app.workspace.on("augment-bus:changed", () => void this.refresh())
+    );
+    this.registerEvent(
+      this.app.workspace.on("augment-terminal:changed", () => void this.refresh())
+    );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => void this.refresh())
+    );
+    this.registerInterval(window.setInterval(() => this.refreshRelativeTimes(), 3e4));
+    await this.refresh();
+  }
+  resolvePart() {
+    if (this.viewState.mode !== "part") return null;
+    const resolved = discoverVaultParts(this.app).find(
+      (part) => part.address === this.viewState.address
+    );
+    if (resolved) return resolved;
+    const { name, habitat } = splitAddress(this.viewState.address);
+    return {
+      name,
+      address: this.viewState.address,
+      habitat,
+      isProjectPart: habitat !== "vault"
+    };
+  }
+  currentThreads() {
+    if (this.viewState.mode === "human") {
+      return listHumanInboxThreads(this.app);
+    }
+    return listPartThreads(this.app, this.viewState.address);
+  }
+  async refresh() {
+    const token = ++this.refreshToken;
+    const threads = this.currentThreads();
+    let selectedThreadId = this.viewState.selectedThreadId;
+    if (selectedThreadId && !threads.some((thread) => thread.threadId === selectedThreadId)) {
+      selectedThreadId = void 0;
+    }
+    if (!selectedThreadId && threads.length > 0) {
+      selectedThreadId = threads[0].threadId;
+    }
+    if (this.viewState.mode === "part") {
+      this.viewState = {
+        ...this.viewState,
+        selectedThreadId
+      };
+    } else {
+      this.viewState = {
+        mode: "human",
+        selectedThreadId
+      };
+    }
+    if (selectedThreadId && this.viewState.mode === "human") {
+      await markThreadRead(this.app, selectedThreadId, HUMAN_ADDRESS);
+      if (token !== this.refreshToken) return;
+    }
+    const refreshedThreads = this.currentThreads();
+    const transcript = selectedThreadId && refreshedThreads.some((thread) => thread.threadId === selectedThreadId) ? await getThread(this.app, selectedThreadId) : [];
+    if (token !== this.refreshToken) return;
+    this.render(refreshedThreads, transcript);
+  }
+  refreshRelativeTimes() {
+    this.contentEl.querySelectorAll("[data-augment-ts]").forEach((el) => {
+      var _a2;
+      const timestampMs = Number((_a2 = el.dataset.augmentTs) != null ? _a2 : "0");
+      el.textContent = relativeTime(timestampMs);
+    });
+  }
+  render(threads, transcript) {
+    var _a2, _b;
+    const selectedThread = (_a2 = threads.find((thread) => thread.threadId === this.viewState.selectedThreadId)) != null ? _a2 : null;
+    this.contentEl.empty();
+    this.contentEl.addClass("augment-part-inbox-view");
+    this.renderHeader(selectedThread, transcript);
+    const layout = this.contentEl.createDiv({
+      cls: "augment-part-inbox-layout" + (this.viewState.mode === "human" ? " is-human-mode" : "")
+    });
+    const threadPane = layout.createDiv({ cls: "augment-part-inbox-threads" });
+    const transcriptPane = layout.createDiv({ cls: "augment-part-inbox-transcript" });
+    this.renderThreadList(threadPane, threads, (_b = selectedThread == null ? void 0 : selectedThread.threadId) != null ? _b : "");
+    this.renderTranscript(transcriptPane, selectedThread, transcript);
+  }
+  renderHeader(selectedThread, transcript) {
+    var _a2, _b;
+    const header = this.contentEl.createDiv({ cls: "augment-part-inbox-header" });
+    const titleBlock = header.createDiv({ cls: "augment-part-inbox-title-block" });
+    const titleRow = titleBlock.createDiv({ cls: "augment-part-inbox-title-row" });
+    const metaRow = titleBlock.createDiv({ cls: "augment-part-inbox-meta-row" });
+    const actions = header.createDiv({ cls: "augment-part-inbox-actions" });
+    if (this.viewState.mode === "human") {
+      titleRow.createDiv({ cls: "augment-part-inbox-title", text: "My inbox" });
+      const unread = unreadCount(this.app, HUMAN_ADDRESS);
+      metaRow.createSpan({
+        cls: "augment-part-inbox-pill",
+        text: unread > 0 ? `${unread} unread` : "No unread messages"
+      });
+    } else {
+      const part = this.resolvePart();
+      if (!part) return;
+      const terminalLeaf = findTerminalLeafForPart(this.app, part);
+      const terminalStatus = (_b = (_a2 = terminalLeaf == null ? void 0 : terminalLeaf.view) == null ? void 0 : _a2.getStatus) == null ? void 0 : _b.call(_a2);
+      const unread = unreadCount(this.app, part.address);
+      titleRow.createDiv({ cls: "augment-part-inbox-title", text: part.name });
+      metaRow.createSpan({ cls: "augment-part-inbox-pill", text: part.habitat });
+      metaRow.createSpan({
+        cls: "augment-part-inbox-pill augment-part-inbox-pill-terminal" + (terminalLeaf ? " is-live" : " is-offline"),
+        text: formatTerminalStatus(terminalStatus)
+      });
+      metaRow.createSpan({
+        cls: "augment-part-inbox-pill",
+        text: unread > 0 ? `${unread} unread` : "No unread messages"
+      });
+      const newBtn = actions.createEl("button", {
+        cls: "mod-cta",
+        text: "New message",
+        attr: { type: "button" }
+      });
+      newBtn.addEventListener("click", () => {
+        this.openCompose(part.address);
+      });
+      if (terminalLeaf) {
+        const jumpBtn = actions.createEl("button", {
+          text: "Jump to terminal",
+          attr: { type: "button" }
+        });
+        jumpBtn.addEventListener("click", () => focusLeaf(this.app, terminalLeaf));
+      }
+    }
+    const replyTarget = this.getReplyTarget(selectedThread);
+    const replyTo = transcript.length > 0 ? transcript[transcript.length - 1].msgId : "";
+    if (selectedThread && replyTarget && replyTo) {
+      const replyBtn = actions.createEl("button", {
+        text: "Reply",
+        attr: { type: "button" }
+      });
+      replyBtn.addEventListener("click", () => {
+        this.openCompose(replyTarget, {
+          threadId: selectedThread.threadId,
+          replyTo,
+          subject: selectedThread.subject
+        });
+      });
+    }
+  }
+  renderThreadList(container, threads, selectedThreadId) {
+    const list = container.createDiv({ cls: "augment-part-inbox-thread-list" });
+    if (threads.length === 0) {
+      const empty = list.createDiv({ cls: "augment-part-inbox-empty" });
+      empty.createDiv({
+        cls: "augment-part-inbox-empty-title",
+        text: this.viewState.mode === "human" ? "No messages addressed to you." : "No threads with this part yet."
+      });
+      if (this.viewState.mode === "part") {
+        const part = this.resolvePart();
+        if (part) {
+          const cta = empty.createEl("button", {
+            cls: "mod-cta",
+            text: "Start a conversation",
+            attr: { type: "button" }
+          });
+          cta.addEventListener("click", () => this.openCompose(part.address));
+        }
+      }
+      return;
+    }
+    for (const thread of threads) {
+      const row = list.createEl("button", {
+        cls: "augment-part-inbox-thread-row" + (thread.threadId === selectedThreadId ? " is-selected" : "") + (thread.hasUnread ? " has-unread" : ""),
+        attr: { type: "button" }
+      });
+      const rowTop = row.createDiv({ cls: "augment-part-inbox-thread-top" });
+      rowTop.createSpan({
+        cls: "augment-part-inbox-thread-dot" + (thread.hasUnread ? " is-unread" : " is-read")
+      });
+      rowTop.createSpan({
+        cls: "augment-part-inbox-thread-title",
+        text: this.viewState.mode === "human" ? formatAddressLabel(thread.counterparty) : thread.subject
+      });
+      const age = rowTop.createSpan({ cls: "augment-part-inbox-thread-age" });
+      age.dataset.augmentTs = String(parseTimestampMs2(thread.lastActivityAt));
+      age.textContent = relativeTime(parseTimestampMs2(thread.lastActivityAt));
+      row.createDiv({
+        cls: "augment-part-inbox-thread-subline",
+        text: this.viewState.mode === "human" ? thread.subject : `${formatAddressLabel(thread.lastSender)} \xB7 ${thread.messageCount} messages`
+      });
+      row.addEventListener("click", () => {
+        if (this.viewState.mode === "part") {
+          this.viewState = {
+            ...this.viewState,
+            selectedThreadId: thread.threadId
+          };
+        } else {
+          this.viewState = {
+            mode: "human",
+            selectedThreadId: thread.threadId
+          };
+        }
+        void this.refresh();
+      });
+    }
+  }
+  renderTranscript(container, selectedThread, transcript) {
+    if (!selectedThread || transcript.length === 0) {
+      const empty = container.createDiv({ cls: "augment-part-inbox-empty" });
+      empty.createDiv({
+        cls: "augment-part-inbox-empty-title",
+        text: selectedThread ? "Thread is empty." : "Select a thread."
+      });
+      if (!selectedThread && this.viewState.mode === "part") {
+        const part = this.resolvePart();
+        if (part) {
+          const cta = empty.createEl("button", {
+            cls: "mod-cta",
+            text: "New message",
+            attr: { type: "button" }
+          });
+          cta.addEventListener("click", () => this.openCompose(part.address));
+        }
+      }
+      return;
+    }
+    const transcriptHeader = container.createDiv({ cls: "augment-part-inbox-transcript-header" });
+    transcriptHeader.createDiv({
+      cls: "augment-part-inbox-transcript-title",
+      text: selectedThread.subject
+    });
+    transcriptHeader.createDiv({
+      cls: "augment-part-inbox-transcript-subtitle",
+      text: this.viewState.mode === "human" ? formatAddressLabel(selectedThread.counterparty) : `${selectedThread.messageCount} messages`
+    });
+    const messages = container.createDiv({ cls: "augment-part-inbox-messages" });
+    for (const message of transcript) {
+      this.renderMessage(messages, message);
+    }
+  }
+  renderMessage(container, message) {
+    const outbound = message.from === HUMAN_ADDRESS;
+    const wrapper = container.createDiv({
+      cls: "augment-part-inbox-message" + (outbound ? " is-outbound" : " is-inbound")
+    });
+    const bubble = wrapper.createDiv({ cls: "augment-part-inbox-bubble" });
+    const meta = bubble.createDiv({ cls: "augment-part-inbox-message-meta" });
+    meta.createSpan({
+      cls: "augment-part-inbox-message-sender",
+      text: formatAddressLabel(message.from)
+    });
+    meta.createSpan({
+      cls: "augment-part-inbox-message-time",
+      text: absoluteTime(message.createdAt)
+    });
+    if (message.privacy === "shared") {
+      meta.createSpan({
+        cls: "augment-part-inbox-message-privacy",
+        text: "Shared"
+      });
+    }
+    if (message.sourceNote) {
+      bubble.createDiv({
+        cls: "augment-part-inbox-message-source",
+        text: message.sourceNote
+      });
+    }
+    bubble.createDiv({
+      cls: "augment-part-inbox-message-body",
+      text: message.body || " "
+    });
+  }
+  getReplyTarget(selectedThread) {
+    if (!selectedThread) return null;
+    if (this.viewState.mode === "part") {
+      return this.viewState.address;
+    }
+    return selectedThread.counterparty === HUMAN_ADDRESS ? null : selectedThread.counterparty;
+  }
+  openCompose(recipientAddress, options = {}) {
+    new ComposeModal(
+      this.app,
+      recipientAddress,
+      formatAddressLabel(recipientAddress),
+      "",
+      "",
+      options
+    ).open();
+  }
+};
+
+// src/settings-tab.ts
 var import_obsidian8 = require("obsidian");
+
+// src/template-picker.ts
+var import_obsidian7 = require("obsidian");
+function getTemplateFiles(app, folderPath) {
+  const folder = app.vault.getAbstractFileByPath(folderPath);
+  if (!(folder instanceof import_obsidian7.TFolder)) return [];
+  return folder.children.filter(
+    (f) => f instanceof import_obsidian7.TFile && f.extension === "md"
+  );
+}
+var TemplatePicker = class extends import_obsidian7.FuzzySuggestModal {
+  constructor(app, files, onChoose) {
+    super(app);
+    this.files = files;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Select a template...");
+  }
+  getItems() {
+    return this.files;
+  }
+  getItemText(file) {
+    return file.basename;
+  }
+  renderSuggestion(match, el) {
+    var _a2, _b;
+    el.createEl("div", { text: match.item.basename });
+    const desc = (_b = (_a2 = this.app.metadataCache.getFileCache(match.item)) == null ? void 0 : _a2.frontmatter) == null ? void 0 : _b["description"];
+    if (desc && typeof desc === "string") {
+      el.createEl("div", { cls: "augment-tpl-desc", text: desc });
+    }
+  }
+  onChooseItem(file) {
+    this.onChoose(file);
+  }
+};
+var TemplatePreviewModal = class extends import_obsidian7.Modal {
+  constructor(app, renderedPrompt, ctx, onConfirm) {
+    super(app);
+    this.skipPreview = false;
+    this.renderedPrompt = renderedPrompt;
+    this.ctx = ctx;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("augment-gen-preview-modal");
+    const pre = contentEl.createEl("pre", { cls: "augment-gen-preview-prompt" });
+    pre.setText(this.renderedPrompt);
+    const linkedCount = this.ctx.linkedNotes.length;
+    const summaryText = linkedCount > 0 ? `Will include: ${this.ctx.title} + ${linkedCount} linked note${linkedCount > 1 ? "s" : ""}` : `Will include: ${this.ctx.title}`;
+    contentEl.createEl("p", { text: summaryText, cls: "augment-gen-context-hint" });
+    const charCount = this.renderedPrompt.length;
+    const approxTokens = Math.round(charCount / 4);
+    const isLarge = this.renderedPrompt.includes("{{note_content}}") || this.renderedPrompt.includes("{{linked_notes_full}}") || charCount > 4e3;
+    if (isLarge || charCount > 2e3) {
+      contentEl.createEl("p", {
+        cls: "augment-gen-token-estimate" + (approxTokens > 4e3 ? " is-large" : ""),
+        text: `~${approxTokens.toLocaleString()} tokens (${charCount.toLocaleString()} chars)`
+      });
+    }
+    new import_obsidian7.Setting(contentEl).setName("Don't show preview").addToggle((toggle) => {
+      toggle.setValue(false).onChange((val) => {
+        this.skipPreview = val;
+      });
+    });
+    const submit = () => {
+      this.close();
+      this.onConfirm(this.skipPreview);
+    };
+    new import_obsidian7.Setting(contentEl).addButton((btn) => {
+      btn.setButtonText("Cancel").onClick(() => this.close());
+    }).addButton((btn) => {
+      btn.setButtonText("Generate").setCta().onClick(submit);
+      btn.buttonEl.focus();
+    });
+    this.scope.register([], "Enter", (e) => {
+      e.preventDefault();
+      submit();
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var NO_FILES_ERROR = "no-files";
+var FolderSuggestModal = class extends import_obsidian7.FuzzySuggestModal {
+  constructor(app, onChoose) {
+    super(app);
+    this.setPlaceholder("Select folder to scan\u2026");
+    this.onChoose = onChoose;
+  }
+  getItems() {
+    const folders = [];
+    const collect = (folder) => {
+      for (const child of folder.children) {
+        if (child instanceof import_obsidian7.TFolder) {
+          folders.push(child);
+          collect(child);
+        }
+      }
+    };
+    collect(this.app.vault.getRoot());
+    return folders.sort((a, b) => a.path.localeCompare(b.path));
+  }
+  getItemText(folder) {
+    return folder.path;
+  }
+  onChooseItem(folder) {
+    this.onChoose(folder);
+  }
+};
+async function analyzeFolderContents(app, folder) {
+  const files = folder.children.filter((f) => f instanceof import_obsidian7.TFile && f.extension === "md").slice(0, 15);
+  const keyFreq = /* @__PURE__ */ new Map();
+  const headingFreq = /* @__PURE__ */ new Map();
+  const samples = [];
+  await Promise.all(files.map(async (file) => {
+    var _a2, _b;
+    try {
+      const content = await app.vault.cachedRead(file);
+      const cache = app.metadataCache.getFileCache(file);
+      if (cache == null ? void 0 : cache.frontmatter) {
+        for (const key of Object.keys(cache.frontmatter)) {
+          if (key === "position") continue;
+          keyFreq.set(key, ((_a2 = keyFreq.get(key)) != null ? _a2 : 0) + 1);
+        }
+      }
+      if (cache == null ? void 0 : cache.headings) {
+        for (const h of cache.headings) {
+          if (h.level <= 3) {
+            headingFreq.set(h.heading, ((_b = headingFreq.get(h.heading)) != null ? _b : 0) + 1);
+          }
+        }
+      }
+      const excerpt = content.replace(/^---[\s\S]*?---\n?/, "").replace(/^#+\s.+$/gm, "").replace(/\s+/g, " ").trim().slice(0, 150);
+      if (excerpt) samples.push({ title: file.basename, excerpt });
+    } catch (e) {
+    }
+  }));
+  const frontmatterKeys = [...keyFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k);
+  const headings = [...headingFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([h]) => h);
+  return { folderPath: folder.path, fileCount: files.length, frontmatterKeys, headings, samples: samples.slice(0, 5) };
+}
+async function generateTemplatesFromFolder(app, folder, settings, resolvedModel) {
+  const analysis = await analyzeFolderContents(app, folder);
+  if (analysis.fileCount === 0) throw new Error(NO_FILES_ERROR);
+  const lines = [
+    `Folder: "${analysis.folderPath}" (${analysis.fileCount} notes scanned)`
+  ];
+  if (analysis.frontmatterKeys.length > 0) {
+    lines.push(`Frontmatter fields: ${analysis.frontmatterKeys.join(", ")}`);
+  }
+  if (analysis.headings.length > 0) {
+    lines.push(`Common headings: ${analysis.headings.join(", ")}`);
+  }
+  if (analysis.samples.length > 0) {
+    lines.push("Sample notes:");
+    for (const s of analysis.samples) {
+      lines.push(`  "${s.title}": ${s.excerpt}`);
+    }
+  }
+  lines.push(
+    "",
+    "Generate 2\u20133 Liquid prompt templates for working with notes in this folder. Available variables: {{ title }}, {{ note_content }}, {{ selection }}, {{ linked_notes }}, {{ frontmatter.KEY }}. For per-linked-note formatting use: {% for note in linked_notes_array %}{{ note.title }}: {{ note.content }}{% endfor %}. Filters: {{ title | truncate: 60 }}, {{ linked_notes_array | map: 'title' | join: ', ' }}. Conditionals: {% if frontmatter.status %}...{% endif %}.",
+    "",
+    'Return ONLY a JSON array, no code fences: [{"name": string, "description": string, "system_prompt": string | null, "body": string}]',
+    'The "body" is the prompt text (30\u2013120 words). The "system_prompt" is an optional custom instruction for Claude (null if not needed).'
+  );
+  const systemPrompt = "You generate Obsidian Augment prompt templates. Return ONLY valid JSON \u2014 an array of template objects, no other text, no code fences.";
+  const raw2 = await generateText(systemPrompt, lines.join("\n"), settings, resolvedModel, void 0, 2048);
+  const cleaned = raw2.replace(/```(?:json)?\n?/g, "").replace(/```/g, "").trim();
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
+  if (start === -1 || end === -1) throw new Error("Response did not contain a JSON array");
+  const parsed = JSON.parse(cleaned.slice(start, end + 1));
+  if (!Array.isArray(parsed)) throw new Error("Parsed value is not an array");
+  return parsed.filter((t) => typeof (t == null ? void 0 : t.name) === "string" && typeof (t == null ? void 0 : t.body) === "string").map((t) => ({
+    name: t.name.trim(),
+    description: typeof t.description === "string" ? t.description.trim() : "",
+    system_prompt: typeof t.system_prompt === "string" ? t.system_prompt.trim() : null,
+    body: t.body.trim()
+  })).slice(0, 5);
+}
+function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
+  new FolderSuggestModal(app, async (folder) => {
+    const notice = new import_obsidian7.Notice("Scanning folder and generating templates\u2026", 0);
+    try {
+      const templates = await generateTemplatesFromFolder(app, folder, settings, resolvedModel);
+      notice.hide();
+      const targetFolder = settings.templateFolder || "Augment/templates";
+      new GeneratedTemplatesModal(app, templates, targetFolder, async (ts) => {
+        if (!app.vault.getAbstractFileByPath(targetFolder)) {
+          try {
+            await app.vault.createFolder(targetFolder);
+          } catch (e) {
+          }
+        }
+        let created = 0;
+        for (const t of ts) {
+          const path4 = `${targetFolder}/${t.name}.md`;
+          if (!app.vault.getAbstractFileByPath(path4)) {
+            await app.vault.create(path4, buildTemplateFileContent(t));
+            created++;
+          }
+        }
+        if (created > 0) {
+          new import_obsidian7.Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
+          onComplete == null ? void 0 : onComplete();
+        } else {
+          new import_obsidian7.Notice("All generated templates already exist \u2014 no files created");
+        }
+      }).open();
+    } catch (err) {
+      notice.hide();
+      if ((err == null ? void 0 : err.message) === NO_FILES_ERROR) {
+        new import_obsidian7.Notice("No .md notes found in that folder");
+      } else {
+        new import_obsidian7.Notice("Template generation failed \u2014 see console for details");
+        console.error("[Augment] generate-templates-from-folder failed", err);
+      }
+    }
+  }).open();
+}
+function buildTemplateFileContent(t) {
+  const lines = ["---", `name: ${t.name}`];
+  if (t.description) lines.push(`description: ${t.description}`);
+  if (t.system_prompt) {
+    lines.push("system_prompt: |");
+    for (const l of t.system_prompt.split("\n")) {
+      lines.push(`  ${l}`);
+    }
+  }
+  lines.push("---", t.body);
+  return lines.join("\n");
+}
+var GeneratedTemplatesModal = class extends import_obsidian7.Modal {
+  constructor(app, templates, templateFolder, onConfirm) {
+    super(app);
+    this.templates = templates;
+    this.templateFolder = templateFolder;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("augment-scan-modal");
+    contentEl.createEl("h2", { text: "Generated templates" });
+    contentEl.createEl("p", {
+      cls: "augment-gen-context-hint",
+      text: `${this.templates.length} template${this.templates.length !== 1 ? "s" : ""} ready. Will be created in \u201C${this.templateFolder}\u201D. Existing files won\u2019t be overwritten.`
+    });
+    for (const t of this.templates) {
+      const card = contentEl.createDiv({ cls: "augment-scan-template-card" });
+      card.createEl("div", { cls: "augment-scan-template-name", text: t.name });
+      if (t.description) {
+        card.createEl("div", { cls: "augment-scan-template-desc", text: t.description });
+      }
+      const pre = card.createEl("pre", { cls: "augment-scan-template-body" });
+      pre.textContent = t.body.length > 240 ? t.body.slice(0, 240) + "\u2026" : t.body;
+    }
+    new import_obsidian7.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => {
+      btn.setButtonText("Create templates").setCta().onClick(async () => {
+        btn.setDisabled(true);
+        btn.setButtonText("Creating\u2026");
+        await this.onConfirm(this.templates);
+        this.close();
+      });
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var TEMPLATE_ASSISTANT_PILLS = [
+  "Summarize this note and its linked notes as bullet points",
+  "Extract all action items from this note and its linked notes",
+  "Write a synthesis from the linked notes that supports the thesis of this note",
+  "Create a meeting notes template with agenda, attendees, decisions, and next steps"
+];
+var TEMPLATE_ASSISTANT_SYSTEM_PROMPT = `You write Liquid templates for the Augment Obsidian plugin.
+
+Available variables:
+- {{ title }} \u2014 note title (string)
+- {{ note_content }} \u2014 full note text (string)
+- {{ selection }} \u2014 currently selected text (string, may be empty)
+- {{ context }} \u2014 text above cursor (string)
+- {{ frontmatter.KEY }} \u2014 any frontmatter field (string). Example: {{ frontmatter.status }}
+- {{ linked_notes }} \u2014 linked notes as a formatted text block (string)
+- {{ linked_notes_full }} \u2014 linked notes with full content (string)
+- {{ linked_notes_array }} \u2014 array of linked notes; each has .title (string), .frontmatter (object), .content (string)
+
+Liquid syntax:
+- Loop: {% for note in linked_notes_array %}{{ note.title }}: {{ note.content | truncate: 200 }}{% endfor %}
+- Filter: {{ title | truncate: 60 }}
+- Conditional: {% if frontmatter.status == "done" %}...{% endif %}
+- Join filter: {{ linked_notes_array | map: "title" | join: ", " }}
+
+Return ONLY the raw template text. No markdown fences, no explanation, no preamble.`;
+var TemplateAssistantModal = class extends import_obsidian7.Modal {
+  constructor(app, settings, resolvedModel, targetFolder, onSave) {
+    super(app);
+    this.settings = settings;
+    this.resolvedModel = resolvedModel;
+    this.targetFolder = targetFolder;
+    this.onSave = onSave;
+    this.descriptionEl = null;
+    this.templateEditorEl = null;
+    this.previewEl = null;
+    this.saveBtnEl = null;
+    this.generatedTemplate = "";
+    this.isGenerating = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("augment-tpl-assistant-modal");
+    contentEl.createEl("h2", { text: "Generate template" });
+    contentEl.createEl("label", { cls: "augment-tpl-assistant-label", text: "Describe what you want" });
+    const textarea = contentEl.createEl("textarea", { cls: "augment-tpl-assistant-desc" });
+    textarea.placeholder = "Summarize this note and its linked notes as bullet points\u2026";
+    textarea.rows = 3;
+    this.descriptionEl = textarea;
+    setTimeout(() => textarea.focus(), 50);
+    const pillsEl = contentEl.createDiv({ cls: "augment-tpl-assistant-pills" });
+    for (const pill of TEMPLATE_ASSISTANT_PILLS) {
+      const btn = pillsEl.createEl("button", { cls: "augment-tpl-pill", text: pill });
+      btn.addEventListener("click", () => {
+        if (this.descriptionEl) {
+          this.descriptionEl.value = pill;
+          this.descriptionEl.focus();
+        }
+      });
+    }
+    const generateBtn = contentEl.createEl("button", {
+      cls: "augment-tpl-assistant-generate mod-cta",
+      text: "Generate template"
+    });
+    generateBtn.addEventListener("click", () => void this.runGenerate(generateBtn));
+    textarea.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        void this.runGenerate(generateBtn);
+      }
+    });
+    const previewSection = contentEl.createDiv({ cls: "augment-tpl-assistant-preview-section" });
+    previewSection.createDiv({ cls: "augment-tpl-assistant-sep" }).createSpan({ text: "Preview" });
+    previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Generated template" });
+    this.templateEditorEl = previewSection.createEl("textarea", { cls: "augment-tpl-editor" });
+    this.templateEditorEl.rows = 6;
+    this.templateEditorEl.placeholder = "Generated template will appear here\u2026";
+    this.templateEditorEl.addEventListener("input", () => void this.renderPreview());
+    previewSection.createEl("label", { cls: "augment-tpl-assistant-label", text: "Rendered output (against active note)" });
+    this.previewEl = previewSection.createDiv({ cls: "augment-tpl-rendered-preview" });
+    this.previewEl.textContent = "Generate a template to see a preview.";
+    const footer = contentEl.createDiv({ cls: "augment-tpl-assistant-footer" });
+    const cancelBtn = footer.createEl("button", { text: "Cancel" });
+    cancelBtn.addEventListener("click", () => this.close());
+    const saveBtn = footer.createEl("button", { cls: "mod-cta", text: "Save" });
+    saveBtn.disabled = true;
+    this.saveBtnEl = saveBtn;
+    saveBtn.addEventListener("click", () => void this.runSave());
+  }
+  async runGenerate(generateBtn) {
+    var _a2, _b;
+    const description = (_a2 = this.descriptionEl) == null ? void 0 : _a2.value.trim();
+    if (!description || this.isGenerating) return;
+    this.isGenerating = true;
+    generateBtn.disabled = true;
+    generateBtn.textContent = "Generating\u2026";
+    if (this.previewEl) this.previewEl.textContent = "Generating\u2026";
+    if (this.templateEditorEl) this.templateEditorEl.value = "";
+    if (this.saveBtnEl) this.saveBtnEl.disabled = true;
+    try {
+      const result = await generateText(
+        TEMPLATE_ASSISTANT_SYSTEM_PROMPT,
+        description,
+        this.settings,
+        this.resolvedModel,
+        void 0,
+        1024
+      );
+      this.generatedTemplate = result.text.trim();
+      if (this.templateEditorEl) this.templateEditorEl.value = this.generatedTemplate;
+      await this.renderPreview();
+      if (this.saveBtnEl) this.saveBtnEl.disabled = false;
+    } catch (err) {
+      const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
+      if (this.previewEl) this.previewEl.textContent = `Error: ${errMsg}`;
+    } finally {
+      this.isGenerating = false;
+      generateBtn.disabled = false;
+      generateBtn.textContent = "Generate template";
+    }
+  }
+  async renderPreview() {
+    var _a2;
+    if (!this.previewEl) return;
+    const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
+    if (!template) return;
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      this.previewEl.textContent = template;
+      return;
+    }
+    try {
+      const ctx = await assembleNoteContext(this.app, activeFile, this.settings);
+      await populateLinkedNoteContent(this.app, ctx, 1e3);
+      const rendered = await substituteVariables(template, ctx);
+      this.previewEl.textContent = rendered;
+    } catch (e) {
+      this.previewEl.textContent = template;
+    }
+  }
+  async runSave() {
+    var _a2, _b, _c;
+    const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
+    if (!template) return;
+    const description = (_c = (_b = this.descriptionEl) == null ? void 0 : _b.value.trim()) != null ? _c : "";
+    new TemplateSaveNameModal(this.app, async (name) => {
+      const folder = this.targetFolder || "Augment/templates";
+      if (!this.app.vault.getAbstractFileByPath(folder)) {
+        try {
+          await this.app.vault.createFolder(folder);
+        } catch (e) {
+        }
+      }
+      const path4 = `${folder}/${name}.md`;
+      if (this.app.vault.getAbstractFileByPath(path4)) {
+        new import_obsidian7.Notice(`Template "${name}" already exists`);
+        return;
+      }
+      await this.app.vault.create(path4, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
+      new import_obsidian7.Notice(`Template "${name}" saved`);
+      this.onSave();
+      this.close();
+    }).open();
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var TemplateSaveNameModal = class extends import_obsidian7.Modal {
+  constructor(app, onConfirm) {
+    super(app);
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: "Name your template" });
+    let name = "";
+    const setting = new import_obsidian7.Setting(contentEl).setName("Template name").addText((text) => {
+      text.setPlaceholder("My template").onChange((val) => {
+        name = val;
+      });
+      setTimeout(() => text.inputEl.focus(), 50);
+      text.inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          void save();
+        }
+      });
+    });
+    const save = async () => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      await this.onConfirm(trimmed);
+      this.close();
+    };
+    new import_obsidian7.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(save));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/settings-tab.ts
+function addInfoTooltip(descEl, tipText) {
+  descEl.appendChild(
+    createFragment((frag) => {
+      frag.appendText("\xA0");
+      const icon = frag.createEl("span", { cls: "augment-api-key-info", text: "\u24D8" });
+      let tip = null;
+      icon.addEventListener("mouseenter", () => {
+        tip = document.createElement("div");
+        tip.className = "augment-api-key-tip";
+        tip.textContent = tipText;
+        document.body.appendChild(tip);
+        const rect = icon.getBoundingClientRect();
+        tip.style.top = `${rect.bottom + 6}px`;
+        tip.style.left = `${rect.left}px`;
+      });
+      icon.addEventListener("mouseleave", () => {
+        tip == null ? void 0 : tip.remove();
+        tip = null;
+      });
+    })
+  );
+}
+function formatHotkeyStr(mods, key, isMac) {
+  const parts = [];
+  for (const m of mods) {
+    if (m === "Mod") parts.push(isMac ? "Cmd" : "Ctrl");
+    else if (m === "Ctrl") parts.push("Ctrl");
+    else if (m === "Shift") parts.push("Shift");
+    else if (m === "Alt") parts.push(isMac ? "Opt" : "Alt");
+  }
+  parts.push(key === "Enter" ? "Enter" : key.toUpperCase());
+  return parts.join("+");
+}
+function getSetupStep(deps, isWsl) {
+  if (!deps.node) {
+    return {
+      title: "Install AI tools",
+      desc: isWsl ? "Node.js is needed to run Claude Code. Install it inside WSL using Linux commands \u2014 not the Windows installer." : "Node.js is needed to run Claude Code. Download and run the installer from nodejs.org.",
+      action: "link",
+      actionLabel: "Open nodejs.org \u2197",
+      actionUrl: "https://nodejs.org"
+    };
+  }
+  if (!deps.cc) {
+    return {
+      title: "Set up your AI assistant",
+      desc: isWsl ? "A terminal will open and install Claude Code automatically. This runs inside WSL \u2014 use Linux commands." : "A terminal will open and install Claude Code automatically.",
+      action: "terminal",
+      actionLabel: "Install",
+      terminalCmd: "npm install -g @anthropic-ai/claude-code\n"
+    };
+  }
+  if (!deps.authed) {
+    return {
+      title: "Connect your Claude account",
+      desc: "A terminal will open and your browser will launch for sign-in. Use the same account as claude.ai.",
+      action: "terminal",
+      actionLabel: "Sign in",
+      terminalCmd: "claude auth login\n"
+    };
+  }
+  if (!deps.vaultConfigured) {
+    return {
+      title: "Prepare your notes for AI",
+      desc: "Creates a CLAUDE.md file so Claude Code understands your vault, and an agents/skills/ folder for agent skills.",
+      action: "vault",
+      actionLabel: "Set up vault"
+    };
+  }
+  return null;
+}
+function getStepIndex(deps) {
+  const total = 4;
+  if (!deps.node) return { current: 1, total };
+  if (!deps.cc) return { current: 2, total };
+  if (!deps.authed) return { current: 3, total };
+  if (!deps.vaultConfigured) return { current: 4, total };
+  return { current: total, total };
+}
+var DEP_ROWS = [
+  { label: "Node.js", done: (d) => d.node, readyText: "ready", pendingText: "\u2014" },
+  { label: "Claude Code", done: (d) => d.cc, readyText: "ready", pendingText: "\u2014" },
+  { label: "Sign in", done: (d) => d.authed, readyText: "signed in", pendingText: "\u2014" },
+  { label: "Vault", done: (d) => d.vaultConfigured, readyText: "ready", pendingText: "\u2014" }
+];
+var TEMPLATE_SCAFFOLD = `---
+name:
+description:
+---
+Your task instruction here.
+
+{{note_content}}
+`;
+var BUILTIN_CALLOUT_TYPES = [
+  "note",
+  "abstract",
+  "info",
+  "todo",
+  "tip",
+  "success",
+  "question",
+  "warning",
+  "failure",
+  "danger",
+  "bug",
+  "example",
+  "quote"
+].sort();
+function detectCalloutTypes() {
+  const custom = /* @__PURE__ */ new Set();
+  try {
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          for (const match of rule.cssText.matchAll(/\[data-callout="([^"]+)"\]/g)) {
+            const t = match[1];
+            if (t !== "ai" && !BUILTIN_CALLOUT_TYPES.includes(t)) custom.add(t);
+          }
+        }
+      } catch (e) {
+      }
+    }
+  } catch (e) {
+  }
+  return ["ai", ...BUILTIN_CALLOUT_TYPES, ...Array.from(custom).sort()];
+}
+var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  /** Render a compact hotkey cheat-sheet box in the top-right of a settings pane. */
+  renderHotkeyBox(pane, items) {
+    const wrapper = pane.createEl("div", { cls: "augment-hotkey-cheatsheet-wrapper" });
+    const box = wrapper.createEl("div", { cls: "augment-hotkey-cheatsheet" });
+    box.createEl("div", { cls: "augment-hotkey-cheatsheet-title", text: "Keyboard shortcuts" });
+    for (const { label, commandId } of items) {
+      const row = box.createEl("div", { cls: "augment-hotkey-cheatsheet-row" });
+      row.createEl("span", { cls: "augment-hotkey-cheatsheet-label", text: label });
+      row.createEl("kbd", { cls: "augment-hotkey-cheatsheet-pill", text: this.formatHotkey(commandId) });
+    }
+    const customize = box.createEl("a", { cls: "augment-hotkey-cheatsheet-customize", text: "customize \u2197" });
+    customize.href = "#";
+    customize.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.app.setting.openTabById("hotkeys");
+    });
+  }
+  /** Read the current hotkey binding for a command and format for display. */
+  formatHotkey(commandId) {
+    var _a2, _b;
+    const hm = this.app.hotkeyManager;
+    const isMac = process.platform === "darwin";
+    const custom = (_a2 = hm == null ? void 0 : hm.customKeys) == null ? void 0 : _a2[commandId];
+    if (Array.isArray(custom) && custom.length > 0) {
+      const h = custom[0];
+      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
+    }
+    const defaults = (_b = hm == null ? void 0 : hm.defaultKeys) == null ? void 0 : _b[commandId];
+    if (Array.isArray(defaults) && defaults.length > 0) {
+      const h = defaults[0];
+      return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
+    }
+    if (commandId.includes("template")) return isMac ? "Cmd+Shift+Enter" : "Ctrl+Shift+Enter";
+    return isMac ? "Cmd+Enter" : "Ctrl+Enter";
+  }
+  display() {
+    var _a2;
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.addClass("augment-settings-container");
+    const header = containerEl.createEl("div", { cls: "augment-settings-header" });
+    const iconEl = header.createEl("div", { cls: "augment-settings-header-icon" });
+    (0, import_obsidian8.setIcon)(iconEl, "radio-tower");
+    const wordmark = header.createEl("div", { cls: "augment-settings-header-text" });
+    wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
+    wordmark.createEl("div", {
+      cls: "augment-settings-tagline",
+      text: "In-editor AI generation and a terminal system for Claude Code."
+    });
+    const tabNav = containerEl.createEl("div", { cls: "augment-tab-nav" });
+    const overviewTab = tabNav.createEl("button", { cls: "augment-tab is-active", text: "Overview" });
+    const continuationTab = this.plugin.settings.hasGenerated ? tabNav.createEl("button", { cls: "augment-tab", text: "Generate" }) : null;
+    const templatesTab = this.plugin.settings.hasGenerated ? tabNav.createEl("button", { cls: "augment-tab", text: "Templates" }) : null;
+    const terminalTab = tabNav.createEl("button", { cls: "augment-tab", text: "Terminal" });
+    const overviewPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const continuationPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const templatesPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    const terminalPane = containerEl.createEl("div", { cls: "augment-tab-pane" });
+    continuationPane.style.display = "none";
+    templatesPane.style.display = "none";
+    terminalPane.style.display = "none";
+    const tabs = [
+      { btn: overviewTab, pane: overviewPane },
+      ...continuationTab ? [{ btn: continuationTab, pane: continuationPane }] : [],
+      ...templatesTab ? [{ btn: templatesTab, pane: templatesPane }] : [],
+      { btn: terminalTab, pane: terminalPane }
+    ];
+    tabs.forEach(({ btn, pane }) => {
+      btn.addEventListener("click", () => {
+        tabs.forEach(({ btn: b, pane: p }) => {
+          b.removeClass("is-active");
+          p.style.display = "none";
+        });
+        btn.addClass("is-active");
+        pane.style.display = "";
+      });
+    });
+    let apiKeyInputEl;
+    let templateFolderInputEl;
+    const jumpToTab = (targetBtn, targetPane) => {
+      tabs.forEach(({ btn: b, pane: p }) => {
+        b.removeClass("is-active");
+        p.style.display = "none";
+      });
+      targetBtn.addClass("is-active");
+      targetPane.style.display = "";
+    };
+    const isMac = process.platform === "darwin";
+    {
+      const overviewHeader = overviewPane.createDiv({ cls: "augment-tab-header" });
+      const overviewIntro = overviewHeader.createDiv({ cls: "augment-tab-intro" });
+      const welcomeEl = overviewIntro.createDiv({ cls: "augment-welcome" });
+      const copyEl = welcomeEl.createDiv({ cls: "augment-welcome-copy" });
+      copyEl.createDiv({
+        cls: "augment-welcome-line1",
+        text: "Augment \u2014 AI generation and Claude Code terminals for Obsidian."
+      });
+      copyEl.createDiv({
+        cls: "augment-welcome-line2",
+        text: `Press ${isMac ? "Cmd" : "Ctrl"}+Enter to generate text, or Ctrl+T to open a terminal.`
+      });
+      this.renderHotkeyBox(overviewHeader, [
+        { label: "Generate", commandId: "augment-terminal:augment-generate" },
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" }
+      ]);
+    }
+    const apiKeySetting = new import_obsidian8.Setting(overviewPane).setName("API key").addText((text) => {
+      apiKeyInputEl = text.inputEl;
+      text.inputEl.type = "password";
+      text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
+        this.plugin.settings.apiKey = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    apiKeySetting.descEl.appendChild(
+      createFragment((frag) => {
+        frag.appendText("Anthropic API key. ");
+        const a = frag.createEl("a", {
+          text: "Get your API key",
+          href: "https://console.anthropic.com/settings/api-keys"
+        });
+        a.target = "_blank";
+        a.rel = "noopener";
+        frag.appendText("\xA0");
+        const infoIcon = frag.createEl("span", {
+          cls: "augment-api-key-info",
+          text: "\u24D8"
+        });
+        let tip = null;
+        infoIcon.addEventListener("mouseenter", () => {
+          tip = document.createElement("div");
+          tip.className = "augment-api-key-tip";
+          tip.textContent = "Claude Max/Pro subscriptions don\u2019t work here \u2014 Anthropic prohibits OAuth tokens in third-party tools (Feb 2026). You need a pay-per-token console key starting with sk-ant-api03-. Billing is separate from any subscription.";
+          document.body.appendChild(tip);
+          const rect = infoIcon.getBoundingClientRect();
+          tip.style.top = `${rect.bottom + 6}px`;
+          tip.style.left = `${rect.left}px`;
+        });
+        infoIcon.addEventListener("mouseleave", () => {
+          tip == null ? void 0 : tip.remove();
+          tip = null;
+        });
+      })
+    );
+    const FALLBACK_MODELS = [
+      { id: "claude-opus-4-6", display_name: "Claude Opus 4.6" },
+      { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+      { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
+    ];
+    const modelList = this.plugin.availableModels.length > 0 ? this.plugin.availableModels : FALLBACK_MODELS;
+    const modelSetting = new import_obsidian8.Setting(overviewPane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
+      drop.addOption("auto", "Auto (best available)");
+      drop.addOption("auto-opus", "Latest Opus");
+      drop.addOption("auto-sonnet", "Latest Sonnet");
+      drop.addOption("auto-haiku", "Latest Haiku");
+      for (const m of modelList) {
+        drop.addOption(m.id, m.display_name);
+      }
+      drop.setValue(this.plugin.settings.model).onChange(async (value) => {
+        this.plugin.settings.model = value;
+        await this.plugin.saveData(this.plugin.settings);
+        this.plugin.refreshStatusBar();
+      });
+    });
+    addInfoTooltip(modelSetting.descEl, "Auto: picks the best model your API key can access. Latest Opus/Sonnet/Haiku: always uses the newest model in that tier without pinning to a specific version. Named models: pins to that exact version.");
+    {
+      const shortcutsDetails = overviewPane.createEl("details", { cls: "augment-advanced-details" });
+      shortcutsDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Keyboard shortcuts" });
+      const AUGMENT_CMDS = [
+        { id: "augment-generate", label: "Generate", defaultKeys: [{ modifiers: ["Mod"], key: "Enter" }] },
+        { id: "augment-generate-from-template", label: "Generate from template", defaultKeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }] },
+        { id: "open-terminal", label: "Open terminal (default location)", defaultKeys: [{ modifiers: ["Ctrl"], key: "t" }] },
+        { id: "open-terminal-tab", label: "Open terminal in new tab", defaultKeys: [] },
+        { id: "open-terminal-right", label: "Open terminal to the right", defaultKeys: [] },
+        { id: "open-terminal-down", label: "Open terminal below", defaultKeys: [] },
+        { id: "open-terminal-sidebar-right-top", label: "Open terminal in right sidebar (top)", defaultKeys: [] },
+        { id: "open-terminal-sidebar-right-bottom", label: "Open terminal in right sidebar (bottom)", defaultKeys: [] },
+        { id: "open-terminal-sidebar-left-top", label: "Open terminal in left sidebar (top)", defaultKeys: [] },
+        { id: "open-terminal-sidebar-left-bottom", label: "Open terminal in left sidebar (bottom)", defaultKeys: [] },
+        { id: "open-terminal-manager", label: "Show terminal manager", defaultKeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }] },
+        { id: "switch-terminal", label: "Switch terminal", defaultKeys: [] },
+        { id: "rename-terminal", label: "Rename terminal", defaultKeys: [] },
+        { id: "augment-view-context", label: "Open context inspector", defaultKeys: [] },
+        { id: "jump-to-next-waiting-session", label: "Jump to next waiting session", defaultKeys: [] },
+        { id: "augment-open-settings", label: "Open settings", defaultKeys: [] }
+      ];
+      const renderHotkeyStr = (hk) => formatHotkeyStr(hk.modifiers, hk.key, isMac);
+      const hm = this.app.hotkeyManager;
+      const customKeys = (_a2 = hm == null ? void 0 : hm.customKeys) != null ? _a2 : {};
+      const kbTable = shortcutsDetails.createEl("table", { cls: "augment-var-table" });
+      const kbTbody = kbTable.createEl("tbody");
+      for (const cmd of AUGMENT_CMDS) {
+        const fullId = "augment-terminal:" + cmd.id;
+        const effectiveKeys = fullId in customKeys ? customKeys[fullId] : cmd.defaultKeys;
+        const tr = kbTbody.createEl("tr");
+        tr.createEl("td", { cls: "augment-shortcuts-label", text: cmd.label });
+        const keyTd = tr.createEl("td", { cls: "augment-shortcuts-keys" });
+        if (effectiveKeys.length > 0) {
+          for (const hk of effectiveKeys) {
+            keyTd.createEl("kbd", { cls: "augment-onboarding-hotkey", text: renderHotkeyStr(hk) });
+          }
+        } else {
+          keyTd.createEl("span", { cls: "augment-shortcuts-unset", text: "\u2014" });
+        }
+      }
+      const customizeEl = shortcutsDetails.createEl("div", { cls: "augment-shortcuts-customize" });
+      const customizeLink = customizeEl.createEl("a", { text: "Customize in Settings \u2192 Keyboard shortcuts" });
+      customizeLink.href = "#";
+      customizeLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.app.setting.openTabById("hotkeys");
+      });
+    }
+    if (this.plugin.settings.hasGenerated) {
+      const spendSection = overviewPane.createDiv({ cls: "augment-spend-section" });
+      const header2 = spendSection.createDiv({ cls: "augment-spend-header" });
+      const titleWrap = header2.createDiv({ cls: "augment-spend-title-wrap" });
+      titleWrap.createSpan({ cls: "augment-spend-title", text: "Estimated API usage" });
+      const spend = this.plugin.spendData;
+      if (spend == null ? void 0 : spend.since) {
+        const sinceDate = new Date(spend.since);
+        const sinceStr = sinceDate.toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" });
+        titleWrap.createSpan({ cls: "augment-spend-since", text: `since ${sinceStr}` });
+      }
+      const headerActions = header2.createDiv({ cls: "augment-spend-header-actions" });
+      const consoleLink = headerActions.createEl("a", { cls: "augment-spend-console-link", text: "Anthropic console \u2197" });
+      consoleLink.href = "https://console.anthropic.com/usage";
+      consoleLink.target = "_blank";
+      consoleLink.rel = "noopener noreferrer";
+      const resetLink = headerActions.createEl("a", { cls: "augment-spend-reset-link", text: "Reset" });
+      resetLink.href = "#";
+      resetLink.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await this.plugin.resetSpendData();
+        this.display();
+      });
+      const models = spend ? Object.keys(spend.byModel) : [];
+      if (models.length === 0) {
+        const emptyEl = spendSection.createDiv({ cls: "augment-spend-empty" });
+        emptyEl.createEl("p", { text: "No generations tracked yet." });
+        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Try Cmd+Enter in any note to generate text with AI." });
+        emptyEl.createEl("p", { cls: "augment-spend-cta", text: "Or use Run template (Cmd+Shift+Enter) to apply a saved template." });
+      } else {
+        let totalCost = 0;
+        let totalGens = 0;
+        for (const [modelId, entry] of Object.entries(spend.byModel)) {
+          totalCost += calculateCost(modelId, entry.inputTokens, entry.outputTokens);
+          totalGens += entry.generations;
+        }
+        const card = spendSection.createDiv({ cls: "augment-spend-card" });
+        const totals = card.createDiv({ cls: "augment-spend-totals" });
+        totals.createSpan({ cls: "augment-spend-total-amount", text: `$${totalCost.toFixed(4)} estimated` });
+        totals.createSpan({ cls: "augment-spend-total-meta", text: `across ${totalGens} generation${totalGens === 1 ? "" : "s"}` });
+        const table = card.createEl("table", { cls: "augment-var-table augment-spend-table" });
+        const tbody = table.createEl("tbody");
+        for (const [modelId, entry] of Object.entries(spend.byModel)) {
+          const cost = calculateCost(modelId, entry.inputTokens, entry.outputTokens);
+          const tr = tbody.createEl("tr");
+          tr.createEl("td", { text: modelDisplayName(modelId) });
+          tr.createEl("td", { cls: "augment-spend-ms", text: `${entry.generations} gen${entry.generations === 1 ? "" : "s"}` });
+          tr.createEl("td", { cls: "augment-spend-ms", text: `$${cost.toFixed(4)}` });
+        }
+      }
+      const infobox = spendSection.createDiv({ cls: "augment-spend-infobox" });
+      infobox.createSpan({ cls: "augment-spend-infobox-icon", text: "\u2139" });
+      infobox.createSpan({ cls: "augment-spend-infobox-text", text: "Terminal (Claude Code) session costs aren\u2019t tracked here \u2014 they appear in your Anthropic console. Figures shown are estimates; actual charges may differ due to caching and rounding." });
+    }
+    {
+      const contHeader = continuationPane.createDiv({ cls: "augment-tab-header" });
+      const contIntro = contHeader.createDiv({ cls: "augment-tab-intro" });
+      contIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "Generate inserts AI-written text at your cursor in any open note. Press Cmd+Enter (Ctrl+Enter on Windows/Linux) to trigger it \u2014 the AI sees your note title, frontmatter, surrounding context, and linked notes."
+      });
+      this.renderHotkeyBox(contHeader, [
+        { label: "Generate", commandId: "augment-terminal:augment-generate" },
+        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
+      ]);
+    }
+    const RIBBON_ICONS = {
+      "augment-pyramid": "Augment pyramid (default)",
+      "radio-tower": "Sensor tower",
+      "wand-2": "Wand",
+      "sparkles": "Sparkles",
+      "brain": "Brain",
+      "zap": "Zap",
+      "bot": "Bot",
+      "pencil": "Pencil",
+      "type": "Type",
+      "message-square": "Message square",
+      "cpu": "CPU",
+      "code-2": "Code",
+      "terminal": "Terminal"
+    };
+    const ribbonIconSetting = new import_obsidian8.Setting(continuationPane).setName("Generate ribbon icon").setDesc("Icon shown on the Generate ribbon button.").addDropdown((dd) => {
+      for (const [id, label] of Object.entries(RIBBON_ICONS)) {
+        dd.addOption(id, label);
+      }
+      dd.setValue(this.plugin.settings.ribbonIcon || "augment-pyramid");
+      dd.onChange(async (val) => {
+        this.plugin.settings.ribbonIcon = val;
+        await this.plugin.saveData(this.plugin.settings);
+        this.plugin.applyRibbonIcon();
+        if (ribbonPreviewEl) (0, import_obsidian8.setIcon)(ribbonPreviewEl, val);
+      });
+    });
+    const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
+    ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
+    (0, import_obsidian8.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+    new import_obsidian8.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
+        this.plugin.settings.coloredRibbonIcon = val;
+        await this.plugin.saveData(this.plugin.settings);
+        this.plugin.applyRibbonColoredClass();
+      });
+    });
+    const calloutTypes = detectCalloutTypes();
+    const formatSetting = new import_obsidian8.Setting(continuationPane).setName("Output format").setDesc("How generated text is wrapped when inserted.").addDropdown((drop) => {
+      drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
+        this.plugin.settings.outputFormat = value;
+        await this.plugin.saveData(this.plugin.settings);
+        updateSecondarySlot(value);
+      });
+    });
+    addInfoTooltip(formatSetting.descEl, "Plain: text appears inline. Callout: wrapped in an Obsidian callout box (e.g. > [!ai]+). Blockquote: indented with >. Heading: text follows a new heading. Code block: text inside a fenced code block. The secondary dropdown sets the heading level or callout type.");
+    const secondaryWrapper = formatSetting.controlEl.createEl("div", {
+      cls: "dropdown augment-format-secondary"
+    });
+    secondaryWrapper.style.marginLeft = "8px";
+    const secondarySelect = secondaryWrapper.createEl("select");
+    const tertiaryWrapper = formatSetting.controlEl.createEl("div", {
+      cls: "dropdown augment-format-tertiary"
+    });
+    tertiaryWrapper.style.marginLeft = "6px";
+    const tertiarySelect = tertiaryWrapper.createEl("select");
+    const updateSecondarySlot = (format2) => {
+      secondarySelect.empty();
+      if (format2 === "heading") {
+        secondaryWrapper.removeClass("is-placeholder");
+        secondarySelect.disabled = false;
+        for (let i = 1; i <= 7; i++) {
+          const opt = secondarySelect.createEl("option", { value: String(i), text: `H${i}` });
+          if (i === this.plugin.settings.headingLevel) opt.selected = true;
+        }
+      } else if (format2 === "callout") {
+        secondaryWrapper.removeClass("is-placeholder");
+        secondarySelect.disabled = false;
+        for (const t of calloutTypes) {
+          const opt = secondarySelect.createEl("option", { value: t, text: t });
+          if (t === this.plugin.settings.calloutType) opt.selected = true;
+        }
+      } else {
+        secondaryWrapper.addClass("is-placeholder");
+        secondarySelect.disabled = true;
+        secondarySelect.createEl("option", { value: "", text: "\u2014" });
+      }
+      tertiarySelect.empty();
+      if (format2 === "callout") {
+        tertiaryWrapper.removeClass("is-placeholder");
+        tertiarySelect.disabled = false;
+        tertiarySelect.createEl("option", { value: "expanded", text: "Expanded" });
+        tertiarySelect.createEl("option", { value: "collapsed", text: "Collapsed" });
+        tertiarySelect.value = this.plugin.settings.calloutExpanded !== false ? "expanded" : "collapsed";
+      } else {
+        tertiaryWrapper.addClass("is-placeholder");
+        tertiarySelect.disabled = true;
+        tertiarySelect.createEl("option", { value: "", text: "\u2014" });
+      }
+    };
+    updateSecondarySlot(this.plugin.settings.outputFormat);
+    continuationPane.createDiv({ cls: "augment-pane-section", text: "Context" });
+    secondarySelect.addEventListener("change", async () => {
+      const format2 = this.plugin.settings.outputFormat;
+      if (format2 === "heading") {
+        this.plugin.settings.headingLevel = parseInt(secondarySelect.value, 10);
+      } else if (format2 === "callout") {
+        this.plugin.settings.calloutType = secondarySelect.value;
+      }
+      await this.plugin.saveData(this.plugin.settings);
+    });
+    tertiarySelect.addEventListener("change", async () => {
+      this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
+      await this.plugin.saveData(this.plugin.settings);
+    });
+    const linkedNotesSetting = new import_obsidian8.Setting(continuationPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text.inputEl.max = "10";
+      text.setPlaceholder("3").setValue(String(this.plugin.settings.linkedNoteCount)).onChange(async (value) => {
+        const n = parseInt(value, 10);
+        if (!isNaN(n) && n >= 0 && n <= 10) {
+          this.plugin.settings.linkedNoteCount = n;
+          await this.plugin.saveData(this.plugin.settings);
+        }
+      });
+    });
+    addInfoTooltip(linkedNotesSetting.descEl, "Outgoing wikilinks only \u2014 notes the current note links to, not notes that link back to it. Frontmatter (tags, aliases, custom properties) is included; note body is not. Use {{linked_notes_full}} in a template if you need the full body content.");
+    new import_obsidian8.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.showGenerationToast).onChange(async (value) => {
+        this.plugin.settings.showGenerationToast = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    {
+      const contextLimitSetting = new import_obsidian8.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "1";
+        text.setPlaceholder("2000").setValue(String(this.plugin.settings.maxContextTokens)).onChange(async (value) => {
+          const n = parseInt(value, 10);
+          if (!isNaN(n) && n > 0) {
+            this.plugin.settings.maxContextTokens = n;
+            await this.plugin.saveData(this.plugin.settings);
+          }
+        });
+      });
+      addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
+      const systemPromptSetting = new import_obsidian8.Setting(continuationPane).setName("System prompt").setDesc("Sent to Claude before every generation. Supports LiquidJS variables \u2014 {{ now }} inserts the current date and time.").addTextArea((text) => {
+        text.setPlaceholder("The current date and time is {{ now }}.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
+          this.plugin.settings.systemPrompt = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+        text.inputEl.rows = 5;
+        text.inputEl.style.width = "100%";
+        text.inputEl.style.fontFamily = "var(--font-monospace)";
+      });
+      addInfoTooltip(systemPromptSetting.descEl, "Sent to Claude before every generation. Supports LiquidJS: {{ now }} \u2192 current date and time. Use to set a persona, language, or domain focus for the entire vault. Individual templates can override this via system_prompt: in their frontmatter.");
+      const inspectorBtn = continuationPane.createEl("button", {
+        cls: "augment-ctx-preview-btn",
+        text: "Open context inspector"
+      });
+      inspectorBtn.addEventListener("click", () => {
+        const leaf = this.plugin.app.workspace.getRightLeaf(false);
+        if (leaf) {
+          leaf.setViewState({ type: VIEW_TYPE_CONTEXT_INSPECTOR, active: true });
+          this.plugin.app.workspace.revealLeaf(leaf);
+        }
+      });
+      {
+        const generateHotkey = this.formatHotkey("augment-terminal:augment-generate");
+        const openHotkeysPage = () => {
+          this.app.setting.open();
+          this.app.setting.openTabById("hotkeys");
+        };
+        if (this.plugin.settings.clearedLinkHotkey) {
+          const desc = document.createDocumentFragment();
+          desc.appendText("Displaced: Open link in new tab.  ");
+          const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
+          link.style.cursor = "pointer";
+          link.addEventListener("click", () => openHotkeysPage());
+          new import_obsidian8.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc(desc).addButton((btn) => {
+            btn.setButtonText("Restore original").onClick(async () => {
+              await this.plugin.restoreObsidianLinkHotkey();
+              this.display();
+            });
+          });
+        } else {
+          const desc2 = document.createDocumentFragment();
+          desc2.appendText(`Obsidian\u2019s \u201COpen link in new tab\u201D uses ${generateHotkey} by default, which blocks Augment\u2019s generate command.  `);
+          const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
+          link2.style.cursor = "pointer";
+          link2.addEventListener("click", () => openHotkeysPage());
+          new import_obsidian8.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(desc2).addButton((btn) => {
+            btn.setButtonText(`Claim ${generateHotkey}`).setCta().onClick(async () => {
+              await this.plugin.clearObsidianLinkHotkey();
+              this.display();
+            });
+          });
+        }
+      }
+    }
+    {
+      const tplHeader = templatesPane.createDiv({ cls: "augment-tab-header" });
+      const tplIntro = tplHeader.createDiv({ cls: "augment-tab-intro" });
+      tplIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "Templates let you define reusable prompts for common generation tasks. Each template is a Markdown file in your templates folder. Use Cmd+Shift+Enter (or right-click \u2192 Run template) to pick and run a template on the current note."
+      });
+      this.renderHotkeyBox(tplHeader, [
+        { label: "Run template", commandId: "augment-terminal:augment-generate-from-template" }
+      ]);
+    }
+    const eli5Details = templatesPane.createEl("details", { cls: "augment-hbs-details augment-eli5-details" });
+    eli5Details.createEl("summary", { cls: "augment-hbs-summary", text: "What is a template?" });
+    const eli5Body = eli5Details.createDiv({ cls: "augment-hbs-body augment-eli5-body" });
+    eli5Body.createEl("p", {
+      cls: "augment-hbs-intro",
+      text: "A template is a Markdown file with instructions for Claude and variables that pull in content from your note."
+    });
+    eli5Body.createEl("pre", {
+      cls: "augment-format-example",
+      text: "---\nname: Meeting summary\ndescription: Summarises a note into action items\n---\nExtract the key action items from this note:\n\n{{note_content}}"
+    });
+    const eli5Footer = eli5Body.createEl("p", { cls: "augment-eli5-footer" });
+    eli5Footer.appendText("When you run a template, Augment fills in the variables and sends the instructions to Claude. Use ");
+    eli5Footer.createEl("strong", { text: "Generate template" });
+    eli5Footer.appendText(" below to create one with AI, or ");
+    eli5Footer.createEl("strong", { text: "+ New template" });
+    eli5Footer.appendText(" to start from scratch.");
+    const templateFolderSetting = new import_obsidian8.Setting(templatesPane).setName("Template folder").setDesc("Vault path to the folder containing .md prompt templates.").addText((text) => {
+      templateFolderInputEl = text.inputEl;
+      text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
+        this.plugin.settings.templateFolder = value;
+        await this.plugin.saveData(this.plugin.settings);
+        renderTemplateList();
+      });
+    });
+    addInfoTooltip(templateFolderSetting.descEl, "Path relative to your vault root (e.g. 'Augment/templates'). Each .md file in this folder appears as a template in the picker. Use the frontmatter fields name and description to control how templates are displayed.");
+    const folderLinkEl = templatesPane.createDiv({ cls: "augment-folder-link" });
+    const openFolderEl = folderLinkEl.createEl("a", {
+      cls: "augment-folder-open",
+      text: "Reveal in file explorer \u2197"
+    });
+    openFolderEl.href = "#";
+    openFolderEl.addEventListener("click", (e) => {
+      var _a3, _b, _c;
+      e.preventDefault();
+      const folderPath = this.plugin.settings.templateFolder;
+      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+      if (folder) {
+        const fe = (_b = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
+        (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
+      } else {
+        console.log(`[Augment] folder not found: "${folderPath}"`);
+        new import_obsidian8.Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
+      }
+    });
+    new import_obsidian8.Setting(templatesPane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.showTemplatePreview).onChange(async (value) => {
+        this.plugin.settings.showTemplatePreview = value;
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
+    new import_obsidian8.Setting(templatesPane).setName("Generate template").setDesc("Describe what you want in plain English and Augment will write a Liquid template for you.").addButton((btn) => {
+      btn.setButtonText("Generate template\u2026").setCta().onClick(() => {
+        const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
+        new TemplateAssistantModal(
+          this.app,
+          this.plugin.settings,
+          this.plugin.resolveModel(),
+          targetFolder,
+          () => renderTemplateList()
+        ).open();
+      });
+    });
+    templatesPane.createDiv({ cls: "augment-pane-section", text: "Your templates" });
+    const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
+    const renderTemplateList = () => {
+      var _a3;
+      templateListEl.empty();
+      const folderPath = this.plugin.settings.templateFolder;
+      const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+      if (!folder || !(folder instanceof import_obsidian8.TFolder)) {
+        templateListEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates found. Check the folder path above or create a template."
+        });
+        return;
+      }
+      const files = folder.children.filter((f) => f instanceof import_obsidian8.TFile && f.extension === "md").sort((a, b) => a.basename.localeCompare(b.basename));
+      if (files.length === 0) {
+        templateListEl.createDiv({
+          cls: "augment-template-empty",
+          text: "No templates in this folder."
+        });
+        return;
+      }
+      for (const file of files) {
+        const meta = (_a3 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a3.frontmatter;
+        const name = (meta == null ? void 0 : meta.name) || file.basename;
+        const desc = (meta == null ? void 0 : meta.description) || "";
+        const row = templateListEl.createDiv({ cls: "augment-template-row" });
+        const info = row.createDiv({ cls: "augment-template-row-info" });
+        info.createSpan({ cls: "augment-template-name", text: name });
+        if (desc) {
+          info.createSpan({ cls: "augment-template-desc", text: desc });
+        }
+        const openBtn = row.createEl("button", {
+          cls: "augment-template-open clickable-icon",
+          text: "Open \u2197"
+        });
+        openBtn.addEventListener("click", () => {
+          this.plugin.app.workspace.openLinkText(file.basename, "", false);
+        });
+      }
+    };
+    renderTemplateList();
+    const newTemplateBtn = templatesPane.createEl("button", {
+      cls: "augment-template-new-btn",
+      text: "+ New template"
+    });
+    newTemplateBtn.addEventListener("click", async () => {
+      const folder = this.plugin.settings.templateFolder || "Augment/templates";
+      const newPath = `${folder}/New template.md`;
+      try {
+        const file = await this.plugin.app.vault.create(newPath, TEMPLATE_SCAFFOLD);
+        await this.plugin.app.workspace.getLeaf().openFile(file);
+        renderTemplateList();
+      } catch (e) {
+        const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
+        if (existing instanceof import_obsidian8.TFile) {
+          await this.plugin.app.workspace.getLeaf().openFile(existing);
+        } else {
+          console.log("[Augment] could not create template");
+          new import_obsidian8.Notice("Could not create template");
+        }
+      }
+    });
+    if (this.plugin.settings.hasUsedTemplate) {
+      const genTplSetting = new import_obsidian8.Setting(templatesPane).setName("Generate templates from folder").setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.").addButton((btn) => {
+        btn.setButtonText("Choose folder\u2026").onClick(async () => {
+          if (!this.plugin.settings.apiKey) {
+            new import_obsidian8.Notice("Add an API key in the Overview tab first");
+            return;
+          }
+          runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
+        });
+      });
+      genTplSetting.descEl.appendChild(
+        createFragment((frag) => {
+          frag.appendText("\xA0");
+          const infoIcon = frag.createEl("span", {
+            cls: "augment-api-key-info",
+            text: "\u24D8"
+          });
+          let tip = null;
+          infoIcon.addEventListener("mouseenter", () => {
+            tip = document.createElement("div");
+            tip.className = "augment-api-key-tip";
+            tip.textContent = "This feature calls Claude to analyse your notes and write templates. It uses your API key and will incur charges. Larger folders or complex notes cost more.";
+            document.body.appendChild(tip);
+            const rect = infoIcon.getBoundingClientRect();
+            tip.style.top = `${rect.bottom + 6}px`;
+            tip.style.left = `${rect.left}px`;
+          });
+          infoIcon.addEventListener("mouseleave", () => {
+            tip == null ? void 0 : tip.remove();
+            tip = null;
+          });
+        })
+      );
+      templatesPane.createDiv({ cls: "augment-pane-section", text: "Reference" });
+      templatesPane.createDiv({ cls: "augment-section-label", text: "Variables" });
+      const varRef = templatesPane.createDiv({ cls: "augment-ref-block augment-variable-ref" });
+      const varTable = varRef.createEl("table", { cls: "augment-var-table" });
+      const varTbody = varTable.createEl("tbody");
+      const varRows = [
+        { name: "{{title}}", desc: "Note filename (without extension)" },
+        { name: "{{selection}}", desc: "Current editor selection" },
+        { name: "{{context}}", desc: "~50 lines around the cursor" },
+        { name: "{{note_content}}", desc: "Full note text" },
+        { name: "{{linked_notes}}", desc: "Linked notes: title + frontmatter" },
+        { name: "{{linked_notes_full}}", desc: "Linked notes with full body content \u2014 can be large" },
+        { name: "{{frontmatter.KEY}}", desc: "Any frontmatter value \u2014 e.g. {{frontmatter.status}}" }
+      ];
+      for (const v of varRows) {
+        const tr = varTbody.createEl("tr");
+        const td1 = tr.createEl("td");
+        td1.createEl("code", { text: v.name });
+        tr.createEl("td", { text: v.desc });
+      }
+      templatesPane.createDiv({ cls: "augment-section-label", style: "margin-top: 16px;", text: "Template format" });
+      const formatGuide = templatesPane.createDiv({ cls: "augment-ref-block augment-template-format" });
+      formatGuide.createDiv({ cls: "augment-section-label", style: "margin-bottom: 6px;", text: "Frontmatter fields" });
+      const fmTable = formatGuide.createEl("table", { cls: "augment-frontmatter-table" });
+      const fmTbody = fmTable.createEl("tbody");
+      const fmRows = [
+        { key: "name", desc: "Required. Shown in the template picker." },
+        { key: "description", desc: "Optional. Shown below the name in the picker." },
+        { key: "system_prompt", desc: "Optional. Overrides Claude\u2019s default persona for this template only. Omit to use the vault-wide system prompt (Generate tab \u2192 System prompt)." }
+      ];
+      for (const r of fmRows) {
+        const tr = fmTbody.createEl("tr");
+        tr.createEl("td", { text: r.key });
+        tr.createEl("td", { text: r.desc });
+      }
+      formatGuide.createDiv({ cls: "augment-section-label", style: "margin-top: 12px; margin-bottom: 6px;", text: "Template body" });
+      formatGuide.createEl("pre", {
+        cls: "augment-format-example",
+        text: "Summarise the following note and its linked notes as bullet points.\n\n{{note_content}}\n\n{% if linked_notes %}Linked context:\n{{ linked_notes }}{% endif %}"
+      });
+      const hbsDetails = templatesPane.createEl("details", { cls: "augment-hbs-details" });
+      hbsDetails.createEl("summary", { cls: "augment-hbs-summary", text: "Syntax reference (LiquidJS)" });
+      const hbsBody = hbsDetails.createDiv({ cls: "augment-hbs-body" });
+      hbsBody.createEl("p", {
+        cls: "augment-hbs-intro",
+        text: "Templates use LiquidJS. Use {{ }} for variables, {% %} for logic, and | filters to transform values."
+      });
+      const syntaxRows = [
+        { syntax: "{{ variable }}", desc: "Insert variable value" },
+        { syntax: "{% if selection %}\u2026{% endif %}", desc: "Include block only when non-empty" },
+        { syntax: "{% if selection %}\u2026{% else %}\u2026{% endif %}", desc: "Conditional with fallback" },
+        { syntax: "{% unless selection %}\u2026{% endunless %}", desc: "Include when empty / falsy" },
+        { syntax: "{% for tag in tags %}{{ tag }}{% endfor %}", desc: "Loop over an array" },
+        { syntax: "{{ note_content | truncate: 500 }}", desc: "Trim to 500 characters" },
+        { syntax: "{{ note_content | truncatewords: 100 }}", desc: "Trim to 100 words" },
+        { syntax: "{{ tags | join: ', ' }}", desc: "Join array with separator" },
+        { syntax: "{{ variable | upcase }}", desc: "Upper-case a string" },
+        { syntax: "{{ variable | default: 'fallback' }}", desc: "Use fallback when empty" }
+      ];
+      const hbsTable = hbsBody.createEl("table", { cls: "augment-var-table" });
+      const hbsTbody = hbsTable.createEl("tbody");
+      for (const row of syntaxRows) {
+        const tr = hbsTbody.createEl("tr");
+        tr.createEl("td").createEl("code", { text: row.syntax });
+        tr.createEl("td", { text: row.desc });
+      }
+      hbsBody.createDiv({ cls: "augment-section-label augment-hbs-example-label", text: "Example \u2014 use selection when present, fall back to full note" });
+      hbsBody.createEl("pre", {
+        cls: "augment-format-example",
+        text: "Summarise the following:\n\n{% if selection %}{{ selection }}{% else %}{{ note_content }}{% endif %}"
+      });
+      const hbsLink = hbsBody.createEl("a", {
+        cls: "augment-hbs-docs-link",
+        text: "See the full LiquidJS guide \u2192",
+        href: "https://liquidjs.com/tags/overview.html"
+      });
+      hbsLink.target = "_blank";
+      hbsLink.rel = "noopener";
+    }
+    {
+      const termHeader = terminalPane.createDiv({ cls: "augment-tab-header" });
+      const termIntro = termHeader.createDiv({ cls: "augment-tab-intro" });
+      termIntro.createEl("p", {
+        cls: "augment-context-intro",
+        text: "The Terminals panel runs Claude Code sessions alongside your notes. Open a terminal with the + button in the Terminals panel, or via the command palette."
+      });
+      this.renderHotkeyBox(termHeader, [
+        { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
+        { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
+        { label: "Next waiting", commandId: "augment-terminal:jump-to-next-waiting-session" }
+      ]);
+    }
+    const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
+    const wizardBody = wizardSection.createDiv();
+    const setupVault = async () => {
+      const templateFolder = this.plugin.settings.templateFolder || "Augment/templates";
+      await setupVaultForClaude(this.app, templateFolder);
+    };
+    const renderStatusCard = async () => {
+      wizardBody.empty();
+      wizardBody.createDiv({ cls: "augment-cc-detecting", text: "Checking your setup\u2026" });
+      const deps = await detectDeps(this.app, { forceFresh: true });
+      wizardBody.empty();
+      const depRows = DEP_ROWS;
+      const activeStep = getSetupStep(deps, this.plugin.settings.shellPath === "wsl.exe");
+      const allReady = activeStep === null;
+      wizardBody.createEl("div", { cls: "augment-cc-status-title", text: "Set up Claude Code" });
+      if (!allReady && activeStep) {
+        const stepIdx = getStepIndex(deps);
+        wizardBody.createEl("div", {
+          cls: "augment-cc-step-progress",
+          text: `Step ${stepIdx.current} of ${stepIdx.total}: ${activeStep.title}`
+        });
+      }
+      const list = wizardBody.createEl("div", { cls: "augment-cc-dep-list" });
+      let activeFound = false;
+      for (const row of depRows) {
+        const isDone = row.done(deps);
+        const isActive = !isDone && !activeFound;
+        if (isActive) activeFound = true;
+        const isPending = !isDone && !isActive;
+        const rowEl = list.createEl("div", {
+          cls: "augment-cc-dep-row" + (isDone ? " is-done" : isActive ? " is-active" : " is-pending")
+        });
+        rowEl.createEl("span", {
+          cls: "augment-cc-dep-icon",
+          text: isDone ? "\u2713" : isActive ? "\u203A" : "\u25CB"
+        });
+        rowEl.createEl("span", { cls: "augment-cc-dep-label", text: row.label });
+        if (isDone) {
+          rowEl.createEl("span", { cls: "augment-cc-dep-status", text: row.readyText });
+        } else if (isActive && activeStep) {
+          const actionEl = rowEl.createEl("span", { cls: "augment-cc-dep-action" });
+          if (activeStep.action === "link") {
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", () => window.open(activeStep.actionUrl, "_blank"));
+            if (activeStep.secondaryLabel && activeStep.secondaryUrl) {
+              const sec = actionEl.createEl("a", { cls: "augment-cc-dep-secondary", text: activeStep.secondaryLabel });
+              sec.href = activeStep.secondaryUrl;
+              sec.target = "_blank";
+              sec.rel = "noopener";
+            }
+          } else if (activeStep.action === "terminal") {
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", async () => {
+              invalidateDepsCache();
+              const view = await this.plugin.openFocusedTerminal();
+              setTimeout(() => view.write(activeStep.terminalCmd), 800);
+            });
+          } else if (activeStep.action === "copy") {
+            actionEl.createEl("code", { cls: "augment-cc-dep-copy-text", text: activeStep.copyText });
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", () => {
+              navigator.clipboard.writeText(activeStep.copyText);
+              btn.textContent = "Copied!";
+              setTimeout(() => {
+                btn.textContent = activeStep.actionLabel;
+              }, 1500);
+            });
+          } else if (activeStep.action === "vault") {
+            const btn = actionEl.createEl("button", { cls: "mod-cta augment-cc-dep-btn", text: activeStep.actionLabel });
+            btn.addEventListener("click", async () => {
+              btn.textContent = "Setting up\u2026";
+              btn.disabled = true;
+              await setupVault();
+              void renderStatusCard();
+            });
+          }
+          if (activeStep.desc) {
+            rowEl.createEl("div", { cls: "augment-cc-step-desc", text: activeStep.desc });
+          }
+        } else if (isPending) {
+          rowEl.createEl("span", { cls: "augment-cc-dep-status is-pending", text: row.pendingText });
+        }
+      }
+      if (allReady && !this.plugin.settings.terminalSetupDone) {
+        this.plugin.settings.terminalSetupDone = true;
+        void this.plugin.saveData(this.plugin.settings);
+        this.plugin.registerTieredCommands();
+        this.plugin.addTerminalRibbonIfNeeded();
+      }
+      const footer = wizardBody.createEl("div", { cls: "augment-cc-status-footer" });
+      if (allReady) {
+        footer.createEl("span", { cls: "augment-cc-all-ready", text: "Claude Code sessions are ready." });
+      } else if (activeStep && activeStep.action !== "vault") {
+        const doneLink = footer.createEl("a", { cls: "augment-cc-recheck", text: "Done \u2014 verify \u21BA" });
+        doneLink.href = "#";
+        doneLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          doneLink.textContent = "Checking\u2026";
+          doneLink.style.pointerEvents = "none";
+          setTimeout(() => void renderStatusCard(), 300);
+        });
+      }
+      const recheck = footer.createEl("a", { cls: "augment-cc-recheck-always", text: "Re-check \u21BA" });
+      recheck.href = "#";
+      recheck.addEventListener("click", (e) => {
+        e.preventDefault();
+        void renderStatusCard();
+      });
+    };
+    void renderStatusCard();
+    if (this.plugin.settings.terminalSetupDone) {
+      const terminalLocationSetting = new import_obsidian8.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
+        var _a3;
+        drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
+          this.plugin.settings.defaultTerminalLocation = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+      addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
+      new import_obsidian8.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
+          this.plugin.settings.showOtherProjects = value;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.app.workspace.trigger("augment-terminal:changed");
+        });
+      });
+      new import_obsidian8.Setting(terminalPane).setName("Workspace scope").setDesc("Controls how the agent treats this workspace's paths relative to other workspaces.").addDropdown((drop) => {
+        var _a3;
+        drop.addOption("open", "No restrictions").addOption("focused", "Focus on this workspace").addOption("restricted", "Treat as private workspace").setValue((_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open").onChange(async (value) => {
+          this.plugin.settings.workspaceScope = value;
+          await this.plugin.saveData(this.plugin.settings);
+          renderScopeExtras();
+        });
+      });
+      const scopeExtrasEl = terminalPane.createDiv({ cls: "augment-scope-extras" });
+      const renderScopeExtras = () => {
+        var _a3;
+        scopeExtrasEl.empty();
+        const scope = (_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open";
+        const path4 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
+        const descMap = {
+          open: "The agent works across your full vault without scope guidance.",
+          focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
+          restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it."
+        };
+        scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
+        if (path4 && scope !== "open") {
+          const verb = scope === "focused" ? "focus on" : "treat as private";
+          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path4}` });
+        }
+        if (scope !== "open") {
+          const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
+          box.createSpan({ cls: "augment-scope-infobox-icon", text: "\u2139" });
+          box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions \u2014 the agent is told to apply this, not technically prevented from other access." });
+        }
+        if (scope !== "open" && !path4) {
+          scopeExtrasEl.createDiv({
+            cls: "augment-scope-validation",
+            text: "Set a working directory (Terminal \u2192 Advanced \u2192 Working directory) to apply scope guidance."
+          });
+        }
+      };
+      renderScopeExtras();
+      const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
+      advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
+      if (process.platform === "win32") {
+        new import_obsidian8.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
+          const knownValues = ["", "wsl.exe", "cmd.exe"];
+          const current = this.plugin.settings.shellPath;
+          dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt");
+          if (current && !knownValues.includes(current)) {
+            dropdown.addOption(current, current);
+          }
+          dropdown.setValue(current).onChange(async (value) => {
+            this.plugin.settings.shellPath = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+        });
+      } else {
+        const defaultShell = process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
+        new import_obsidian8.Setting(advancedDetails).setName("Shell").setDesc("Custom shell path. Leave blank to use the system default.").addText((text) => {
+          text.setPlaceholder(defaultShell).setValue(this.plugin.settings.shellPath).onChange(async (value) => {
+            this.plugin.settings.shellPath = value;
+            await this.plugin.saveData(this.plugin.settings);
+          });
+        });
+      }
+      new import_obsidian8.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
+        text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
+          this.plugin.settings.defaultWorkingDirectory = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+    }
+    terminalPane.createEl("p", {
+      cls: "augment-terminal-notice",
+      text: "Claude Code reads and writes vault files directly via the filesystem. Do not use CC to rename or move files \u2014 use Obsidian\u2019s built-in rename to preserve wikilinks."
+    });
+    containerEl.createEl("div", {
+      cls: "augment-settings-version",
+      text: `v${this.plugin.manifest.version} \xB7 build ${this.plugin.getBuildFingerprint()}`
+    });
+  }
+};
+
+// src/terminal-manager-view.ts
+var import_obsidian9 = require("obsidian");
 
 // src/session-store.ts
 var fs2 = __toESM(require("fs"));
@@ -22828,7 +23553,7 @@ var SessionStore = class {
 
 // src/terminal-manager-view.ts
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
-var TerminalManagerView = class extends import_obsidian8.ItemView {
+var TerminalManagerView = class extends import_obsidian9.ItemView {
   constructor(leaf) {
     super(leaf);
     this.listEl = null;
@@ -22850,6 +23575,7 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     // "auto": expand when no live sessions, collapse otherwise.
     // "open" / "closed": explicit user preference.
     this.historyCollapseState = "auto";
+    this.inboxCollapseState = "open";
     this.partsCollapseState = "open";
     // Hover tooltip for session activity.
     this.tooltipEl = null;
@@ -22873,7 +23599,7 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     const addBtn = header.createEl("button", {
       cls: "augment-tm-add clickable-icon"
     });
-    (0, import_obsidian8.setIcon)(addBtn, "plus");
+    (0, import_obsidian9.setIcon)(addBtn, "plus");
     addBtn.addEventListener("click", () => {
       this.app.commands.executeCommandById(
         "augment-terminal:open-terminal"
@@ -23094,6 +23820,7 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
       const teamGroups = this.computeTeamGroups(leaves);
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
+    this.renderInboxSection();
     const parts = discoverVaultParts(this.app);
     if (parts.length > 0) {
       this.renderPartsSection(parts);
@@ -23347,7 +24074,7 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     row.addEventListener("click", () => this.focusLeaf(leaf));
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
-      const menu = new import_obsidian8.Menu();
+      const menu = new import_obsidian9.Menu();
       menu.addItem(
         (item) => item.setTitle("Focus").setIcon("eye").onClick(() => this.focusLeaf(leaf))
       );
@@ -23449,6 +24176,39 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
       partsContainer.style.display = isExpanded ? "none" : "";
     });
   }
+  renderInboxSection() {
+    const unread = unreadCount(this.app, HUMAN_ADDRESS);
+    const isExpanded = this.inboxCollapseState !== "closed";
+    const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+    if (isExpanded) divider.addClass("is-open");
+    divider.createSpan({ cls: "augment-tm-section-label", text: "INBOX" });
+    if (unread > 0) {
+      divider.createSpan({
+        cls: "augment-tm-section-count",
+        text: `(${unread} unread)`
+      });
+    }
+    divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
+    const inboxContainer = this.listEl.createDiv({ cls: "augment-tm-parts-container" });
+    if (!isExpanded) inboxContainer.style.display = "none";
+    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-part-row augment-tm-inbox-row" });
+    if (unread > 0) row.addClass("has-unread");
+    const line = row.createDiv({ cls: "augment-tm-line" });
+    line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
+    line.createSpan({ cls: "augment-tm-name", text: "My inbox" });
+    line.createDiv({ cls: "augment-tm-spacer" });
+    if (unread > 0) {
+      line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
+    }
+    row.addEventListener("click", () => {
+      void openHumanInbox(this.app);
+    });
+    divider.addEventListener("click", () => {
+      this.inboxCollapseState = isExpanded ? "closed" : "open";
+      divider.toggleClass("is-open", !isExpanded);
+      inboxContainer.style.display = isExpanded ? "none" : "";
+    });
+  }
   renderPartRow(part, container) {
     const count = unreadCount(this.app, part.address);
     const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
@@ -23457,11 +24217,15 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
     line.createSpan({ cls: "augment-tm-name", text: part.name });
     line.createDiv({ cls: "augment-tm-spacer" });
-    if (count > 0) {
-      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
-    }
-    row.addEventListener("click", () => {
+    const composeBtn = line.createEl("button", {
+      cls: "augment-tm-part-compose clickable-icon",
+      attr: { type: "button", "aria-label": `Compose to ${part.name}` }
+    });
+    (0, import_obsidian9.setIcon)(composeBtn, "square-pen");
+    composeBtn.addEventListener("click", (evt) => {
       var _a2;
+      evt.preventDefault();
+      evt.stopPropagation();
       const activeFile = this.app.workspace.getActiveFile();
       const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
       new ComposeModal(
@@ -23471,6 +24235,12 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
         sourceNote,
         ""
       ).open();
+    });
+    if (count > 0) {
+      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
+    }
+    row.addEventListener("click", () => {
+      void openPartInboxForPart(this.app, part.address);
     });
   }
   renderOtherProjectsSection(groups, container) {
@@ -23586,7 +24356,7 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
     });
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
-      const menu = new import_obsidian8.Menu();
+      const menu = new import_obsidian9.Menu();
       menu.addItem(
         (item) => item.setTitle("Resume in terminal").setIcon("terminal").onClick(async () => {
           const plugin = this.getPlugin();
@@ -23670,8 +24440,8 @@ var TerminalManagerView = class extends import_obsidian8.ItemView {
 };
 
 // src/terminal-switcher.ts
-var import_obsidian9 = require("obsidian");
-var TerminalSwitcherModal = class extends import_obsidian9.FuzzySuggestModal {
+var import_obsidian10 = require("obsidian");
+var TerminalSwitcherModal = class extends import_obsidian10.FuzzySuggestModal {
   constructor(app) {
     super(app);
     this.setPlaceholder("Switch to terminal...");
@@ -24108,7 +24878,7 @@ var agentWidgetField = import_state.StateField.define({
 });
 
 // src/terminal-modals.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/team-scaffold.ts
 var fs3 = __toESM(require("fs"));
@@ -24841,7 +25611,7 @@ function refreshTeamSkills(projectRoot) {
 }
 
 // src/terminal-modals.ts
-var RenameModal = class extends import_obsidian10.Modal {
+var RenameModal = class extends import_obsidian11.Modal {
   constructor(app, view) {
     super(app);
     this.view = view;
@@ -24850,7 +25620,7 @@ var RenameModal = class extends import_obsidian10.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h3", { text: "Rename terminal" });
-    new import_obsidian10.Setting(contentEl).setName("Name").addText((text) => {
+    new import_obsidian11.Setting(contentEl).setName("Name").addText((text) => {
       text.setValue(this.newName);
       text.onChange((value) => {
         this.newName = value;
@@ -24865,7 +25635,7 @@ var RenameModal = class extends import_obsidian10.Modal {
         text.inputEl.select();
       }, 10);
     });
-    new import_obsidian10.Setting(contentEl).addButton((btn) => {
+    new import_obsidian11.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Rename").setCta().onClick(() => this.submit());
     });
   }
@@ -24880,7 +25650,7 @@ var RenameModal = class extends import_obsidian10.Modal {
     this.contentEl.empty();
   }
 };
-var InitTeamModal = class extends import_obsidian10.Modal {
+var InitTeamModal = class extends import_obsidian11.Modal {
   constructor(app, refreshOnly) {
     super(app);
     this.projectPath = "";
@@ -24895,7 +25665,7 @@ var InitTeamModal = class extends import_obsidian10.Modal {
       text: desc,
       cls: "setting-item-description"
     });
-    new import_obsidian10.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
+    new import_obsidian11.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
       text.setPlaceholder("/Users/you/Development/my-project");
       text.onChange((value) => {
         this.projectPath = value;
@@ -24906,38 +25676,38 @@ var InitTeamModal = class extends import_obsidian10.Modal {
       });
       setTimeout(() => text.inputEl.focus(), 10);
     });
-    new import_obsidian10.Setting(contentEl).addButton((btn) => {
+    new import_obsidian11.Setting(contentEl).addButton((btn) => {
       btn.setButtonText(this.refreshOnly ? "Refresh skills" : "Init team").setCta().onClick(() => this.submit());
     });
   }
   submit() {
     const root = this.projectPath.trim();
     if (!root) {
-      new import_obsidian10.Notice("Project path is required.");
+      new import_obsidian11.Notice("Project path is required.");
       return;
     }
     try {
       const fs4 = require("fs");
       if (!fs4.existsSync(root)) {
-        new import_obsidian10.Notice(`Directory not found: ${root}`);
+        new import_obsidian11.Notice(`Directory not found: ${root}`);
         return;
       }
       let result;
       if (this.refreshOnly) {
         const partsDir = require("path").join(root, ".parts");
         if (!fs4.existsSync(partsDir)) {
-          new import_obsidian10.Notice("No .parts/ directory found. Run Init team first.");
+          new import_obsidian11.Notice("No .parts/ directory found. Run Init team first.");
           return;
         }
         result = refreshTeamSkills(root);
-        new import_obsidian10.Notice(`Refreshed ${result.created.length} skill files.`);
+        new import_obsidian11.Notice(`Refreshed ${result.created.length} skill files.`);
       } else {
         result = scaffoldTeam(root);
         const msg = result.created.length > 0 ? `Created ${result.created.length} files. ${result.skipped.length} skipped (already exist).` : "Everything already exists \u2014 nothing to do.";
-        new import_obsidian10.Notice(msg);
+        new import_obsidian11.Notice(msg);
       }
     } catch (err) {
-      new import_obsidian10.Notice(`Error: ${err.message}`);
+      new import_obsidian11.Notice(`Error: ${err.message}`);
       console.error("init-team error:", err);
     }
     this.close();
@@ -25029,14 +25799,14 @@ Augment hosts Claude Code agent sessions in a panel alongside your notes. Each s
 *This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette \u2192 \`Augment: Open welcome\`.*
 `;
 }
-var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
+var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-08T21:56:57.523Z";
-    this.gitSha = "db050e8";
+    this.buildId = "2026-03-09T16:38:20.898Z";
+    this.gitSha = "3f55fb1";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -25100,7 +25870,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
   /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
   applyRibbonIcon() {
     if (!this.ribbonGenerateEl) return;
-    (0, import_obsidian11.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
+    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
   refreshStatusBar() {
     var _a2, _b;
@@ -25126,7 +25896,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
     this.activeGeneration = null;
     this.refreshStatusBar();
     console.log("[Augment] generation cancelled");
-    new import_obsidian11.Notice("Augment: generation cancelled");
+    new import_obsidian12.Notice("Augment: generation cancelled");
   }
   showStatusBarGenerating() {
     var _a2, _b;
@@ -25148,7 +25918,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
     const ctx = assembleVaultContext(this.app, editor, this.settings);
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      const genNotice = new import_obsidian11.Notice("Generating\u2026", 3e3);
+      const genNotice = new import_obsidian12.Notice("Generating\u2026", 3e3);
     }
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;
@@ -25192,7 +25962,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
         };
         this.pushContextHistory(entry);
         console.log("[Augment] generation done");
-        const notice = new import_obsidian11.Notice("", 5e3);
+        const notice = new import_obsidian12.Notice("", 5e3);
         notice.noticeEl.empty();
         notice.noticeEl.createEl("span", { text: "Augment: done" });
         notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -25218,7 +25988,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
         logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
         cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
         const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
-        new import_obsidian11.Notice(`Augment: ${errMsg}`);
+        new import_obsidian12.Notice(`Augment: ${errMsg}`);
       } finally {
         this.refreshStatusBar();
       }
@@ -25305,7 +26075,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
     }
   }
   showHotkeyClaimedNotice() {
-    const notice = new import_obsidian11.Notice("", 0);
+    const notice = new import_obsidian12.Notice("", 0);
     notice.noticeEl.empty();
     notice.noticeEl.createEl("span", { text: "Augment claimed Ctrl+Enter \u2014 " });
     const link = notice.noticeEl.createEl("a", { text: "Restore Obsidian\u2019s default", href: "#" });
@@ -25369,7 +26139,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
   }
   async onload() {
     var _a2;
-    (0, import_obsidian11.addIcon)("augment-pyramid", `
+    (0, import_obsidian12.addIcon)("augment-pyramid", `
       <circle cx="50" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
@@ -25447,6 +26217,9 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
     });
+    this.registerView(VIEW_TYPE_PART_INBOX, (leaf) => {
+      return new PartInboxView(leaf);
+    });
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
     });
@@ -25473,15 +26246,15 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian11.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate");
-          new import_obsidian11.Notice("Open a note to generate");
+          new import_obsidian12.Notice("Open a note to generate");
           return;
         }
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian11.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian12.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -25498,16 +26271,16 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian11.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate-from-template");
-          new import_obsidian11.Notice("Open a note to generate");
+          new import_obsidian12.Notice("Open a note to generate");
           return;
         }
         const editor = view.editor;
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian11.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian12.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -25518,7 +26291,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
         }
         if (!this.settings.templateFolder) {
           console.log("[Augment] no template folder set");
-          const notice = new import_obsidian11.Notice("Augment: no template folder set \u2014 click to configure", 0);
+          const notice = new import_obsidian12.Notice("Augment: no template folder set \u2014 click to configure", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -25530,7 +26303,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
           console.log("[Augment] no templates found in", this.settings.templateFolder);
-          new import_obsidian11.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
+          new import_obsidian12.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
         const cursor = editor.getCursor();
@@ -25587,10 +26360,10 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               if (targetMode === "clipboard") {
                 await navigator.clipboard.writeText(result);
-                new import_obsidian11.Notice("Augment: copied to clipboard", 5e3);
+                new import_obsidian12.Notice("Augment: copied to clipboard", 5e3);
               } else if (targetMode === "file" && targetFilePath) {
                 const destFile = this.app.vault.getAbstractFileByPath(targetFilePath);
-                if (destFile instanceof import_obsidian11.TFile) {
+                if (destFile instanceof import_obsidian12.TFile) {
                   const prev = await this.app.vault.read(destFile);
                   await this.app.vault.modify(destFile, prev + "\n\n" + result);
                 } else {
@@ -25604,7 +26377,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
                   await this.app.vault.create(targetFilePath, result);
                 }
                 const shortName = (_a4 = targetFilePath.split("/").pop()) != null ? _a4 : targetFilePath;
-                new import_obsidian11.Notice(`Augment: appended to ${shortName}`, 5e3);
+                new import_obsidian12.Notice(`Augment: appended to ${shortName}`, 5e3);
               } else if (targetMode === "frontmatter" && targetField) {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) {
@@ -25612,7 +26385,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
                     fm[targetField] = result;
                   });
                 }
-                new import_obsidian11.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
+                new import_obsidian12.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
               } else {
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
                 const insertPosLine = editor.offsetToPos(insertPos);
@@ -25625,7 +26398,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
                   editor.replaceRange(formatted, insertPosLine);
                 }
                 console.log("[Augment] template generation done");
-                const notice = new import_obsidian11.Notice("", 5e3);
+                const notice = new import_obsidian12.Notice("", 5e3);
                 notice.noticeEl.empty();
                 notice.noticeEl.createEl("span", { text: "Augment: done" });
                 notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -25664,7 +26437,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
               if (isCursorMode) cmView.dispatch({ effects: removeSpinnerEffect.of(null) });
               const errMsg = (_c = friendlyApiError(err)) != null ? _c : err instanceof Error ? err.message : String(err);
-              new import_obsidian11.Notice(`Augment: ${errMsg}`);
+              new import_obsidian12.Notice(`Augment: ${errMsg}`);
             } finally {
               this.refreshStatusBar();
             }
@@ -25688,7 +26461,7 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
       name: "Generate templates from folder\u2026",
       callback: () => {
         if (!this.settings.apiKey) {
-          new import_obsidian11.Notice("Augment: add an API key in Settings \u2192 Augment first");
+          new import_obsidian12.Notice("Augment: add an API key in Settings \u2192 Augment first");
           return;
         }
         runGenerateTemplatesFlow(this.app, this.settings, this.resolveModel());
@@ -25749,9 +26522,9 @@ var AugmentTerminalPlugin = class extends import_obsidian11.Plugin {
       })
     );
     this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian11.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
       if (!view) {
-        new import_obsidian11.Notice("Open a note to generate");
+        new import_obsidian12.Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);

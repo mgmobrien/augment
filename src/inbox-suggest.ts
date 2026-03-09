@@ -2,6 +2,13 @@ import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, Edito
 import type { PartInfo } from "./inbox-bus";
 import { discoverVaultParts, writeMessage } from "./inbox-bus";
 
+interface ComposeModalOptions {
+  threadId?: string;
+  replyTo?: string;
+  subject?: string;
+  from?: string;
+}
+
 /**
  * InboxSuggest — @-mention dispatch to vault part inboxes.
  *
@@ -78,19 +85,22 @@ export class ComposeModal extends Modal {
   private recipientLabel: string;
   private sourceNote: string;
   private initialBody: string;
+  private options: ComposeModalOptions;
 
   constructor(
     app: App,
     recipientAddress: string,
     recipientLabel: string,
     sourceNote: string,
-    initialBody: string
+    initialBody: string,
+    options: ComposeModalOptions = {}
   ) {
     super(app);
     this.recipientAddress = recipientAddress;
     this.recipientLabel = recipientLabel;
     this.sourceNote = sourceNote;
     this.initialBody = initialBody;
+    this.options = options;
   }
 
   onOpen(): void {
@@ -142,13 +152,16 @@ export class ComposeModal extends Modal {
   }
 
   private submit(body: string): void {
-    const subject = body.trim().slice(0, 80) || "Message";
+    const trimmedBody = body.trim();
+    const subject = this.options.subject?.trim() || trimmedBody.slice(0, 80) || "Message";
     void writeMessage(this.app, {
       to: this.recipientAddress,
-      from: "user",
+      from: this.options.from ?? "user",
       subject,
-      body: body.trim(),
+      body: trimmedBody,
       sourceNote: this.sourceNote,
+      threadId: this.options.threadId,
+      replyTo: this.options.replyTo,
     }).then(() => {
       new Notice(`Sent to ${this.recipientLabel}`);
     }).catch((err: unknown) => {

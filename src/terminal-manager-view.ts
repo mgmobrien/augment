@@ -2,8 +2,9 @@ import { ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
 import type { PartInfo } from "./inbox-bus";
-import { discoverVaultParts, unreadCount } from "./inbox-bus";
+import { discoverVaultParts, HUMAN_ADDRESS, unreadCount } from "./inbox-bus";
 import { ComposeModal } from "./inbox-suggest";
+import { openHumanInbox, openPartInboxForPart } from "./part-inbox-view";
 
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
@@ -52,6 +53,7 @@ export class TerminalManagerView extends ItemView {
   // "auto": expand when no live sessions, collapse otherwise.
   // "open" / "closed": explicit user preference.
   private historyCollapseState: "auto" | "open" | "closed" = "auto";
+  private inboxCollapseState: "open" | "closed" = "open";
   private partsCollapseState: "open" | "closed" = "open";
 
 
@@ -371,6 +373,9 @@ export class TerminalManagerView extends ItemView {
       const teamGroups = this.computeTeamGroups(leaves);
       this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
     }
+
+    // ── INBOX section ─────────────────────────────────────────
+    this.renderInboxSection();
 
     // ── PARTS section ─────────────────────────────────────────
     const parts = discoverVaultParts(this.app);
@@ -798,6 +803,47 @@ export class TerminalManagerView extends ItemView {
     });
   }
 
+  private renderInboxSection(): void {
+    const unread = unreadCount(this.app, HUMAN_ADDRESS);
+    const isExpanded = this.inboxCollapseState !== "closed";
+
+    const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
+    if (isExpanded) divider.addClass("is-open");
+    divider.createSpan({ cls: "augment-tm-section-label", text: "INBOX" });
+    if (unread > 0) {
+      divider.createSpan({
+        cls: "augment-tm-section-count",
+        text: `(${unread} unread)`,
+      });
+    }
+    divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+
+    const inboxContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
+    if (!isExpanded) inboxContainer.style.display = "none";
+
+    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-part-row augment-tm-inbox-row" });
+    if (unread > 0) row.addClass("has-unread");
+
+    const line = row.createDiv({ cls: "augment-tm-line" });
+    line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
+    line.createSpan({ cls: "augment-tm-name", text: "My inbox" });
+    line.createDiv({ cls: "augment-tm-spacer" });
+
+    if (unread > 0) {
+      line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
+    }
+
+    row.addEventListener("click", () => {
+      void openHumanInbox(this.app);
+    });
+
+    divider.addEventListener("click", () => {
+      this.inboxCollapseState = isExpanded ? "closed" : "open";
+      divider.toggleClass("is-open", !isExpanded);
+      inboxContainer.style.display = isExpanded ? "none" : "";
+    });
+  }
+
   private renderPartRow(part: PartInfo, container: HTMLElement): void {
     const count = unreadCount(this.app, part.address);
     const row = container.createDiv({ cls: "augment-tm-item augment-tm-part-row" });
@@ -808,11 +854,14 @@ export class TerminalManagerView extends ItemView {
     line.createSpan({ cls: "augment-tm-name", text: part.name });
     line.createDiv({ cls: "augment-tm-spacer" });
 
-    if (count > 0) {
-      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
-    }
-
-    row.addEventListener("click", () => {
+    const composeBtn = line.createEl("button", {
+      cls: "augment-tm-part-compose clickable-icon",
+      attr: { type: "button", "aria-label": `Compose to ${part.name}` },
+    });
+    setIcon(composeBtn, "square-pen");
+    composeBtn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
       const activeFile = this.app.workspace.getActiveFile();
       const sourceNote = activeFile?.basename ?? "";
       new ComposeModal(
@@ -822,6 +871,14 @@ export class TerminalManagerView extends ItemView {
         sourceNote,
         ""
       ).open();
+    });
+
+    if (count > 0) {
+      line.createSpan({ cls: "augment-tm-part-badge", text: String(count) });
+    }
+
+    row.addEventListener("click", () => {
+      void openPartInboxForPart(this.app, part.address);
     });
   }
 

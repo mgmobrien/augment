@@ -5,6 +5,7 @@ import { AgentSuggest } from "./agent-suggest";
 import { InboxSuggest } from "./inbox-suggest";
 import { setBusNotifier } from "./inbox-bus";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
+import { PartInboxView, VIEW_TYPE_PART_INBOX } from "./part-inbox-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, populateLinkedNoteContent, SessionRecord, SpendData, TerminalOpenLocation } from "./vault-context";
@@ -549,6 +550,9 @@ export default class AugmentTerminalPlugin extends Plugin {
     });
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
+    });
+    this.registerView(VIEW_TYPE_PART_INBOX, (leaf) => {
+      return new PartInboxView(leaf);
     });
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
