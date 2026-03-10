@@ -33,10 +33,35 @@ type TerminalViewLike = {
   getLastActivityMs?: () => number;
   getAutoNamed?: () => boolean;
   getWorkingDirectory?: () => string;
+  getManagedTeamId?: () => string | null;
+  getManagedRoleId?: () => string | null;
   setName?: (name: string) => void;
 };
 
-type TeamContext = { isTeamMember: boolean; isSubAgent: boolean };
+type TeamContext = {
+  isTeamMember: boolean;
+  isSubAgent: boolean;
+  isManagedTeamMember?: boolean;
+  managedRoleId?: string | null;
+};
+type ManagedTeamGroup = {
+  teamId: string;
+  displayName: string;
+  members: WorkspaceLeaf[];
+  status: string;
+  lastActivityMs: number;
+};
+
+const STATUS_PRIORITY: Record<string, number> = {
+  crashed: 7,
+  waiting: 6,
+  active: 5,
+  tool: 4,
+  running: 3,
+  shell: 2,
+  idle: 1,
+  exited: 0,
+};
 
 export class TerminalManagerView extends ItemView {
   private listEl: HTMLElement | null = null;
@@ -62,6 +87,7 @@ export class TerminalManagerView extends ItemView {
   private historyCollapseState: "auto" | "open" | "closed" = "auto";
   private inboxCollapseState: "open" | "closed" = "open";
   private partsCollapseState: "open" | "closed" = "open";
+  private collapsedManagedTeams: Set<string> = new Set();
 
 
   // Hover tooltip for session activity.
@@ -90,10 +116,34 @@ export class TerminalManagerView extends ItemView {
 
     // Header.
     const header = container.createDiv({ cls: "augment-tm-header" });
-    header.createSpan({ cls: "augment-tm-title", text: "TERMINALS" });
-    const addBtn = header.createEl("button", {
-      cls: "augment-tm-add clickable-icon",
+    header.createSpan({ cls: "augment-tm-title", text: "AUGMENT" });
+    const headerActions = header.createDiv({ cls: "augment-tm-header-actions" });
+
+    const launchBtn = headerActions.createEl("button", {
+      cls: "augment-tm-launch clickable-icon",
+      attr: { type: "button", "aria-label": "Launch managed team" },
     });
+    launchBtn.setAttribute("title", "Launch managed team");
+    setIcon(launchBtn, "rocket");
+    launchBtn.addEventListener("click", () => {
+      void this.getPlugin()?.openTeamLaunchPicker?.();
+    });
+
+    const ccLaunchBtn = headerActions.createEl("button", {
+      cls: "augment-tm-launch augment-tm-launch-cc clickable-icon",
+      attr: { type: "button", "aria-label": "Launch CC team" },
+    });
+    ccLaunchBtn.setAttribute("title", "Launch CC team");
+    setIcon(ccLaunchBtn, "terminal");
+    ccLaunchBtn.addEventListener("click", () => {
+      void (this.getPlugin() as any)?.openCCTeamLaunchPicker?.();
+    });
+
+    const addBtn = headerActions.createEl("button", {
+      cls: "augment-tm-add clickable-icon",
+      attr: { type: "button", "aria-label": "Open terminal" },
+    });
+    addBtn.setAttribute("title", "Open terminal");
     setIcon(addBtn, "plus");
     addBtn.addEventListener("click", () => {
       (this.app as any).commands.executeCommandById(
@@ -348,6 +398,37 @@ export class TerminalManagerView extends ItemView {
     return result;
   }
 
+  private computeManagedTeamGroups(leaves: WorkspaceLeaf[]): ManagedTeamGroup[] {
+    const byTeam = new Map<string, WorkspaceLeaf[]>();
+
+    for (const leaf of leaves) {
+      const view = leaf.view as TerminalViewLike;
+      const teamId = this.getManagedTeamId(view);
+      if (!teamId) continue;
+      const group = byTeam.get(teamId) ?? [];
+      group.push(leaf);
+      byTeam.set(teamId, group);
+    }
+
+    return Array.from(byTeam.entries())
+      .map(([teamId, members]) => {
+        const sortedMembers = members.sort((a, b) => this.compareManagedTeamMembers(a, b));
+        return {
+          teamId,
+          displayName: this.getManagedTeamDisplayName(teamId, sortedMembers),
+          members: sortedMembers,
+          status: this.getGroupStatus(sortedMembers),
+          lastActivityMs: this.getGroupLastActivityMs(sortedMembers),
+        };
+      })
+      .sort((a, b) => {
+        const statusDiff = this.getStatusPriority(b.status) - this.getStatusPriority(a.status);
+        if (statusDiff !== 0) return statusDiff;
+        if (a.lastActivityMs !== b.lastActivityMs) return b.lastActivityMs - a.lastActivityMs;
+        return a.displayName.localeCompare(b.displayName);
+      });
+  }
+
   private refresh(): void {
     if (!this.listEl) return;
     this.listEl.empty();
@@ -369,16 +450,31 @@ export class TerminalManagerView extends ItemView {
     const hasHistory = sessions.length > 0;
     const hasOtherProjects = otherGroups.length > 0;
 
+    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
+
     if (!hasOpen && !hasHistory && !hasOtherProjects) {
       const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
       emptyEl.createDiv({ text: "No terminals yet." });
       emptyEl.createDiv({ text: "Press + to open one." });
     }
 
-    // ── Live sessions (no section label — header already says TERMINALS) ──
+    // ── Live sessions ─────────────────────────────────────────
     if (hasOpen) {
-      const teamGroups = this.computeTeamGroups(leaves);
-      this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
+      const managedTeamGroups = this.computeManagedTeamGroups(leaves);
+      const managedLeaves = new Set<WorkspaceLeaf>();
+      for (const group of managedTeamGroups) {
+        for (const member of group.members) {
+          managedLeaves.add(member);
+        }
+      }
+
+      if (managedTeamGroups.length > 0) {
+        this.renderManagedTeamCards(managedTeamGroups, activeLeaf);
+      }
+
+      const unmanagedLeaves = leaves.filter((leaf) => !managedLeaves.has(leaf));
+      const teamGroups = this.computeTeamGroups(unmanagedLeaves);
+      this.renderOpenSectionWithGroups(this.listEl!, unmanagedLeaves, teamGroups, activeLeaf);
     }
 
     // ── INBOX section ─────────────────────────────────────────
@@ -482,6 +578,7 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderOpenSectionWithGroups(
+    container: HTMLElement,
     leaves: WorkspaceLeaf[],
     teamGroups: Map<string, WorkspaceLeaf[]>,
     activeLeaf: WorkspaceLeaf | null
@@ -492,13 +589,13 @@ export class TerminalManagerView extends ItemView {
 
     for (const [teamName, members] of teamGroups) {
       // Team header.
-      const teamHeader = this.listEl!.createDiv({ cls: "augment-tm-team-header" });
+      const teamHeader = container.createDiv({ cls: "augment-tm-team-label" });
       teamHeader.createSpan({ text: teamName });
 
       // Leader (most teamMembers).
       const leader = members[0];
       assignedLeaves.add(leader);
-      this.renderOpenRow(leader, activeLeaf, {
+      this.renderOpenRow(container, leader, activeLeaf, {
         isTeamMember: true,
         isSubAgent: false,
       });
@@ -506,20 +603,20 @@ export class TerminalManagerView extends ItemView {
       // Sub-agents.
       for (const member of members.slice(1)) {
         assignedLeaves.add(member);
-        this.renderOpenRow(member, activeLeaf, {
+        this.renderOpenRow(container, member, activeLeaf, {
           isTeamMember: true,
           isSubAgent: true,
         });
       }
 
       // Gap after group.
-      this.listEl!.createDiv({ cls: "augment-tm-team-gap" });
+      container.createDiv({ cls: "augment-tm-team-gap" });
     }
 
     // Ungrouped leaves.
     for (const leaf of leaves) {
       if (!assignedLeaves.has(leaf)) {
-        this.renderOpenRow(leaf, activeLeaf, {
+        this.renderOpenRow(container, leaf, activeLeaf, {
           isTeamMember: false,
           isSubAgent: false,
         });
@@ -528,38 +625,45 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderOpenRow(
+    container: HTMLElement,
     leaf: WorkspaceLeaf,
     activeLeaf: WorkspaceLeaf | null,
     teamContext: TeamContext = { isTeamMember: false, isSubAgent: false }
   ): void {
     const view = leaf.view as TerminalViewLike;
-    const row = this.listEl!.createDiv({ cls: "augment-tm-item" });
+    const row = container.createDiv({ cls: "augment-tm-item" });
 
     if (leaf === activeLeaf) row.addClass("is-active");
     if (teamContext.isTeamMember) row.addClass("augment-tm-team-member");
     if (teamContext.isSubAgent) row.addClass("is-sub-agent");
+    if (teamContext.isManagedTeamMember) row.addClass("is-managed-team-member");
 
     const line = row.createDiv({ cls: "augment-tm-line" });
 
     const dot = line.createDiv({ cls: "augment-tm-dot" });
-    const status =
-      typeof view.getStatus === "function" ? view.getStatus() : "shell";
+    const status = this.getLeafStatus(view);
     dot.addClass(status);
     // Left-accent border keyed to status — suppressed on team member rows (they use their own border).
     if (!teamContext.isTeamMember) row.addClass("status-" + status);
-    const dotLabel: Record<string, string> = {
-      active: "Generating (yellow)", tool: "Using tool (blue)", waiting: "Waiting for input (orange)",
-      idle: "Idle", shell: "Open", running: "Running", crashed: "Crashed", exited: "Exited",
-    };
-    dot.setAttribute("title", dotLabel[status] ?? status);
+    dot.setAttribute("title", this.getStatusTooltipLabel(status));
 
     const name = this.getLeafTerminalName(leaf, view);
+    const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
+    const managedRoleId = teamContext.managedRoleId?.trim()
+      ? teamContext.managedRoleId.trim()
+      : null;
+    const primaryName =
+      managedRoleId ??
+      (teamContext.isManagedTeamMember ? identity ?? name : name);
     const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
-    const nameEl = line.createSpan({ cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""), text: name });
+    const nameEl = line.createSpan({
+      cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""),
+      text: primaryName,
+    });
     if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
 
     // Click-to-rename: clicking the name span opens an inline text input.
-    if (typeof view.setName === "function") {
+    if (!teamContext.isManagedTeamMember && typeof view.setName === "function") {
       nameEl.addEventListener("click", (evt) => {
         evt.preventDefault();
         evt.stopPropagation();
@@ -589,14 +693,26 @@ export class TerminalManagerView extends ItemView {
         input.addEventListener("blur", commit);
       });
     }
-    const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
-    if (identity && identity.toLowerCase() !== name.toLowerCase()) {
-      line.createSpan({ cls: "augment-tm-role", text: identity });
+    const secondaryLabel = teamContext.isManagedTeamMember
+      ? primaryName.toLowerCase() !== name.toLowerCase()
+        ? name
+        : null
+      : identity && identity.toLowerCase() !== name.toLowerCase()
+        ? identity
+        : null;
+    if (secondaryLabel) {
+      line.createSpan({ cls: "augment-tm-role", text: secondaryLabel });
+    }
+    if (teamContext.isManagedTeamMember) {
+      line.createSpan({
+        cls: "augment-tm-managed-state",
+        text: this.getMemberActivityLabel(view),
+      });
     }
 
     // Working directory basename label.
     const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
-    if (cwd) {
+    if (cwd && !teamContext.isManagedTeamMember) {
       const cwdBasename = cwd.split(/[/\\]/).filter(Boolean).pop() || cwd;
       line.createSpan({ cls: "augment-tm-cwd", text: cwdBasename });
     }
@@ -655,7 +771,7 @@ export class TerminalManagerView extends ItemView {
     const members =
       typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
 
-    if (teams.length > 0 || members.length > 0) {
+    if (!teamContext.isManagedTeamMember && (teams.length > 0 || members.length > 0)) {
       const meta = row.createDiv({ cls: "augment-tm-meta" });
       if (teams.length > 0) {
         meta.createSpan({
@@ -701,6 +817,71 @@ export class TerminalManagerView extends ItemView {
       );
       menu.showAtMouseEvent(evt);
     });
+  }
+
+  private renderManagedTeamCards(
+    groups: ManagedTeamGroup[],
+    activeLeaf: WorkspaceLeaf | null
+  ): void {
+    for (const group of groups) {
+      const isExpanded = !this.collapsedManagedTeams.has(group.teamId);
+      const card = this.listEl!.createDiv({ cls: "augment-tm-team-card" });
+      if (isExpanded) card.addClass("is-open");
+
+      const header = card.createDiv({ cls: "augment-tm-team-header" });
+      const headerMain = header.createDiv({ cls: "augment-tm-team-header-main" });
+
+      const dot = headerMain.createDiv({ cls: "augment-tm-dot" });
+      dot.addClass(group.status);
+      dot.setAttribute("title", this.getStatusTooltipLabel(group.status));
+
+      const headerCopy = headerMain.createDiv({ cls: "augment-tm-team-header-copy" });
+      headerCopy.createDiv({ cls: "augment-tm-team-title", text: group.displayName });
+      headerCopy.createDiv({
+        cls: "augment-tm-team-meta",
+        text: `${group.members.length} member${group.members.length === 1 ? "" : "s"}`,
+      });
+
+      const headerTrailing = header.createDiv({ cls: "augment-tm-team-header-trailing" });
+      const actions = headerTrailing.createDiv({ cls: "augment-tm-team-actions" });
+      const shutdownBtn = actions.createEl("button", {
+        cls: "augment-tm-team-action clickable-icon",
+        attr: { type: "button", "aria-label": "Shutdown team" },
+      });
+      shutdownBtn.setAttribute("title", "Shutdown team");
+      setIcon(shutdownBtn, "square");
+      shutdownBtn.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        void this.getPlugin()?.shutdownManagedTeam?.(group.teamId);
+      });
+
+      headerTrailing.createSpan({ cls: "augment-tm-team-chevron", text: "›" });
+
+      const body = card.createDiv({ cls: "augment-tm-team-body" });
+      if (!isExpanded) body.style.display = "none";
+
+      for (const member of group.members) {
+        const memberView = member.view as TerminalViewLike;
+        this.renderOpenRow(body, member, activeLeaf, {
+          isTeamMember: true,
+          isSubAgent: false,
+          isManagedTeamMember: true,
+          managedRoleId: this.getManagedRoleId(memberView),
+        });
+      }
+
+      header.addEventListener("click", () => {
+        const nextExpanded = this.collapsedManagedTeams.has(group.teamId);
+        if (nextExpanded) {
+          this.collapsedManagedTeams.delete(group.teamId);
+        } else {
+          this.collapsedManagedTeams.add(group.teamId);
+        }
+        card.toggleClass("is-open", nextExpanded);
+        body.style.display = nextExpanded ? "" : "none";
+      });
+    }
   }
 
   private showActivityTooltip(evt: MouseEvent, view: TerminalViewLike): void {
@@ -1115,6 +1296,153 @@ export class TerminalManagerView extends ItemView {
     const age = this.relativeTime(mtimeMs, true);
     if (msgCount > 0) return `${msgCount} msg${msgCount !== 1 ? "s" : ""} · ${age}`;
     return age;
+  }
+
+  private getManagedTeamId(view: TerminalViewLike): string | null {
+    const value =
+      typeof view.getManagedTeamId === "function" ? view.getManagedTeamId() : null;
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private getManagedRoleId(view: TerminalViewLike): string | null {
+    const value =
+      typeof view.getManagedRoleId === "function" ? view.getManagedRoleId() : null;
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private getLeafStatus(view: TerminalViewLike): string {
+    return typeof view.getStatus === "function" ? view.getStatus() ?? "shell" : "shell";
+  }
+
+  private getStatusPriority(status: string | null): number {
+    return STATUS_PRIORITY[status ?? ""] ?? 0;
+  }
+
+  private getStatusTooltipLabel(status: string): string {
+    const labels: Record<string, string> = {
+      active: "Generating (yellow)",
+      tool: "Using tool (blue)",
+      waiting: "Waiting for input (orange)",
+      idle: "Idle",
+      shell: "Open",
+      running: "Running",
+      crashed: "Crashed",
+      exited: "Exited",
+    };
+    return labels[status] ?? status;
+  }
+
+  private getMemberActivityLabel(view: TerminalViewLike): string {
+    const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
+    switch (activity?.state) {
+      case "thinking":
+        return "Thinking";
+      case "bash":
+        return "Running Bash";
+      case "read":
+        return "Reading";
+      case "write":
+        return "Writing";
+      case "mcp":
+        return "Using tool";
+      case "waiting":
+        return "Waiting";
+      case "idle":
+        return "Idle";
+    }
+
+    const status = this.getLeafStatus(view);
+    const statusLabels: Record<string, string> = {
+      active: "Generating",
+      tool: "Using tool",
+      waiting: "Waiting",
+      idle: "Idle",
+      shell: "Open",
+      running: "Running",
+      crashed: "Crashed",
+      exited: "Exited",
+    };
+    return statusLabels[status] ?? "Open";
+  }
+
+  private compareManagedTeamMembers(a: WorkspaceLeaf, b: WorkspaceLeaf): number {
+    const aView = a.view as TerminalViewLike;
+    const bView = b.view as TerminalViewLike;
+    const aRole = this.getManagedRoleId(aView) ?? "";
+    const bRole = this.getManagedRoleId(bView) ?? "";
+    const aIsLead = /\bceo\b/i.test(aRole);
+    const bIsLead = /\bceo\b/i.test(bRole);
+    if (aIsLead !== bIsLead) return aIsLead ? -1 : 1;
+
+    const activityDiff = this.getStatusPriority(this.getLeafStatus(bView)) - this.getStatusPriority(this.getLeafStatus(aView));
+    if (activityDiff !== 0) return activityDiff;
+
+    const aName = aRole || this.getLeafTerminalName(a, aView);
+    const bName = bRole || this.getLeafTerminalName(b, bView);
+    return aName.localeCompare(bName);
+  }
+
+  private getManagedTeamDisplayName(teamId: string, members: WorkspaceLeaf[]): string {
+    const encodedDisplayName = teamId.split("::")[1];
+    if (encodedDisplayName) {
+      try {
+        const decoded = decodeURIComponent(encodedDisplayName);
+        if (decoded.trim()) {
+          return decoded.trim();
+        }
+      } catch {
+        // Fall through to legacy heuristics for malformed IDs.
+      }
+    }
+
+    const cwdBasenames = members
+      .map((leaf) => {
+        const view = leaf.view as TerminalViewLike;
+        const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
+        return cwd.split(/[/\\]/).filter(Boolean).pop() ?? "";
+      })
+      .filter((name) => name.length > 0);
+
+    if (cwdBasenames.length > 0) {
+      const [first] = cwdBasenames;
+      if (cwdBasenames.every((name) => name === first)) {
+        return first;
+      }
+    }
+
+    const fallback = teamId.split(/[/\\]/).filter(Boolean).pop() || teamId;
+    try {
+      return decodeURIComponent(fallback);
+    } catch {
+      return fallback;
+    }
+  }
+
+  private getGroupStatus(members: WorkspaceLeaf[]): string {
+    let bestStatus = "exited";
+    for (const leaf of members) {
+      const view = leaf.view as TerminalViewLike;
+      const status = this.getLeafStatus(view);
+      if (this.getStatusPriority(status) > this.getStatusPriority(bestStatus)) {
+        bestStatus = status;
+      }
+    }
+    return bestStatus;
+  }
+
+  private getGroupLastActivityMs(members: WorkspaceLeaf[]): number {
+    let lastActivityMs = 0;
+    for (const leaf of members) {
+      const view = leaf.view as TerminalViewLike;
+      const currentMs =
+        typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
+      lastActivityMs = Math.max(lastActivityMs, currentMs);
+    }
+    return lastActivityMs;
   }
 
   private relativeTime(mtimeMs: number, abbreviated = false): string {

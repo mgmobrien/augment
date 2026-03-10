@@ -283,6 +283,12 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
+.augment-tm-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .augment-tm-title {
   font-size: var(--font-small);
   font-weight: var(--font-semibold);
@@ -291,13 +297,19 @@
   letter-spacing: 0.05em;
 }
 
-.augment-tm-add {
+.augment-tm-add,
+.augment-tm-launch {
   color: var(--text-muted);
   padding: 2px;
 }
 
-.augment-tm-add:hover {
+.augment-tm-add:hover,
+.augment-tm-launch:hover {
   color: var(--text-normal);
+}
+
+.augment-tm-launch-cc {
+  margin-left: 2px;
 }
 
 .augment-tm-list {
@@ -2434,7 +2446,104 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
 }
 
 /* ── Terminal Manager: team grouping ─────────────────────────────────────── */
+.augment-tm-team-card {
+  margin: 6px 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  overflow: hidden;
+}
+
 .augment-tm-team-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.augment-tm-team-header:hover {
+  background: var(--background-modifier-hover);
+}
+
+.augment-tm-team-card.is-open .augment-tm-team-header {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.augment-tm-team-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.augment-tm-team-header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.augment-tm-team-title {
+  font-size: var(--font-small);
+  font-weight: var(--font-medium);
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.augment-tm-team-meta {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.augment-tm-team-header-trailing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.augment-tm-team-actions {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.augment-tm-team-header:hover .augment-tm-team-actions,
+.augment-tm-team-header:focus-within .augment-tm-team-actions {
+  opacity: 1;
+}
+
+.augment-tm-team-action {
+  color: var(--text-muted);
+  padding: 2px;
+}
+
+.augment-tm-team-action:hover {
+  color: var(--text-normal);
+}
+
+.augment-tm-team-chevron {
+  color: var(--text-faint);
+  font-size: 0.8em;
+  transition: transform 100ms ease;
+}
+
+.augment-tm-team-card.is-open .augment-tm-team-chevron {
+  transform: rotate(90deg);
+}
+
+.augment-tm-team-body {
+  padding: 2px 0;
+}
+
+.augment-tm-team-label {
   font-size: 10px;
   font-weight: 600;
   color: var(--text-muted);
@@ -2443,17 +2552,47 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   padding: 6px 10px 2px;
   opacity: 0.7;
 }
+
 .augment-tm-team-member {
   border-left: 2px solid var(--interactive-accent);
   padding-left: 10px;
   margin-left: 0;
+  border-radius: 0;
 }
+
+.augment-tm-team-card .augment-tm-item {
+  margin: 0;
+  border-radius: 0;
+}
+
+.augment-tm-team-card .augment-tm-team-member + .augment-tm-team-member {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
 .augment-tm-team-member.is-sub-agent {
   padding-left: 18px;
 }
+
+.augment-tm-team-member.is-managed-team-member {
+  padding-left: 10px;
+}
+
 .augment-tm-team-gap {
   height: 8px;
 }
+
+.augment-tm-managed-state {
+  font-size: 0.72em;
+  color: var(--text-faint);
+  margin-left: 5px;
+  white-space: nowrap;
+}
+
+.augment-tm-managed-state::before {
+  content: "·";
+  margin-right: 4px;
+}
+
 .augment-tm-role {
   font-size: 0.75em;
   color: var(--text-muted);

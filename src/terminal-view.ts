@@ -44,6 +44,9 @@ type OrchestrationState = {
 type TerminalViewState = {
   name?: string;
   snapshot?: string;
+  launchCwd?: string;
+  managedTeamId?: string;
+  managedRoleId?: string;
   orchestration?: OrchestrationState;
 };
 
@@ -270,6 +273,13 @@ export class TerminalView extends ItemView {
   private pendingAnalysis: string[] = [];
   private analysisRaf: number | null = null;
   private analysisTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingInput: string[] = [];
+  private pendingInputFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingInputFlushInFlight: boolean = false;
+  private hasSeenPtyOutput: boolean = false;
+  private launchCwd: string | null = null;
+  private managedTeamId: string | null = null;
+  private managedRoleId: string | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -306,6 +316,14 @@ export class TerminalView extends ItemView {
 
   getWorkingDirectory(): string {
     return this.resolvedCwd;
+  }
+
+  public getManagedTeamId(): string | null {
+    return this.managedTeamId;
+  }
+
+  public getManagedRoleId(): string | null {
+    return this.managedRoleId;
   }
 
   getStatus(): TerminalStatus {
@@ -371,6 +389,9 @@ export class TerminalView extends ItemView {
     return {
       name: this.terminalName,
       snapshot,
+      launchCwd: this.launchCwd ?? undefined,
+      managedTeamId: this.managedTeamId ?? undefined,
+      managedRoleId: this.managedRoleId ?? undefined,
       orchestration: {
         teams: this.getTeamNames(),
         members: this.getTeamMembers(),
@@ -388,6 +409,18 @@ export class TerminalView extends ItemView {
     if (typeof state?.snapshot === "string") {
       this.restoredSnapshot = state.snapshot;
     }
+    this.launchCwd =
+      typeof state?.launchCwd === "string" && state.launchCwd.trim()
+        ? state.launchCwd.trim()
+        : null;
+    this.managedTeamId =
+      typeof state?.managedTeamId === "string" && state.managedTeamId.trim()
+        ? state.managedTeamId.trim()
+        : null;
+    this.managedRoleId =
+      typeof state?.managedRoleId === "string" && state.managedRoleId.trim()
+        ? state.managedRoleId.trim()
+        : null;
 
     const orchestration = state?.orchestration;
     if (orchestration) {
@@ -849,10 +882,12 @@ export class TerminalView extends ItemView {
 
   private startPtyBridge(forcedShellPath?: string): void {
     const vaultPath = (this.app.vault.adapter as any).basePath || ".";
-    const customCwd = this.getDefaultWorkingDirectory();
+    const customCwd = this.launchCwd ?? this.getDefaultWorkingDirectory();
     this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath ?? this.getShellPath();
     this.ptyStartedAtMs = Date.now();
+    this.hasSeenPtyOutput = false;
+    this.clearPendingInputFlushTimer();
     this.ptyBridge?.kill();
     this.messageFilter?.destroy();
     this.messageFilter = new TeammateMessageFilter((formatted) => {
@@ -876,6 +911,7 @@ export class TerminalView extends ItemView {
         // Never let analysis or filtering block the data path.
         this.terminal?.write(data);
         this.appendToScrollback(data);
+        this.markPtyReady();
         // Batch analysis using rAF (preferred) with setTimeout fallback.
         // rAF is throttled/paused when the Electron window is hidden, so
         // the fallback ensures analysis drains even for background sessions
@@ -938,6 +974,7 @@ export class TerminalView extends ItemView {
       },
     });
     this.ptyBridge.start();
+    this.ensurePendingInputFlushTimer();
   }
 
   private showErrorBanner(friendly: string, raw?: string): void {
@@ -1151,6 +1188,16 @@ export class TerminalView extends ItemView {
     return this.startedAt;
   }
 
+  // Queue a command to be sent after shell is ready
+  public enqueueInitialInput(cmd: string): void {
+    this.pendingInput.push(cmd);
+    if (this.hasSeenPtyOutput) {
+      void this.flushPendingInputQueue();
+    } else {
+      this.ensurePendingInputFlushTimer();
+    }
+  }
+
   write(data: string): void {
     this.ptyBridge?.write(data);
   }
@@ -1168,6 +1215,67 @@ export class TerminalView extends ItemView {
   getExchangeCount(): number { return this.exchangeCount; }
   getLastActivityMs(): number { return this.lastActivityMs; }
   getAutoNamed(): boolean { return this.autoNamedThisTurn; }
+
+  private markPtyReady(): void {
+    if (this.hasSeenPtyOutput) return;
+    this.hasSeenPtyOutput = true;
+    this.clearPendingInputFlushTimer();
+    void this.flushPendingInputQueue();
+  }
+
+  private ensurePendingInputFlushTimer(): void {
+    if (
+      this.ptyBridge === null ||
+      this.pendingInput.length === 0 ||
+      this.hasSeenPtyOutput ||
+      this.pendingInputFlushTimer !== null
+    ) {
+      return;
+    }
+
+    this.pendingInputFlushTimer = setTimeout(() => {
+      this.pendingInputFlushTimer = null;
+      void this.flushPendingInputQueue();
+    }, 2000);
+  }
+
+  private clearPendingInputFlushTimer(): void {
+    if (this.pendingInputFlushTimer === null) return;
+    clearTimeout(this.pendingInputFlushTimer);
+    this.pendingInputFlushTimer = null;
+  }
+
+  private async flushPendingInputQueue(): Promise<void> {
+    if (this.pendingInput.length === 0 || this.pendingInputFlushInFlight) return;
+
+    this.clearPendingInputFlushTimer();
+    this.pendingInputFlushInFlight = true;
+
+    try {
+      while (this.pendingInput.length > 0) {
+        const cmd = this.pendingInput.shift();
+        if (cmd !== undefined) {
+          this.write(cmd);
+        }
+
+        if (this.pendingInput.length > 0) {
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 200);
+          });
+        }
+      }
+    } finally {
+      this.pendingInputFlushInFlight = false;
+
+      if (this.pendingInput.length > 0) {
+        if (this.hasSeenPtyOutput) {
+          void this.flushPendingInputQueue();
+        } else {
+          this.ensurePendingInputFlushTimer();
+        }
+      }
+    }
+  }
 
   private detectOrchestrationActivity(rawData: string): void {
     if (this.isExited) return;
@@ -1769,6 +1877,7 @@ export class TerminalView extends ItemView {
       clearTimeout(this.resizeFlightTimer);
       this.resizeFlightTimer = null;
     }
+    this.clearPendingInputFlushTimer();
     this.flushPendingAnalysis();
 
     this.resizeObserver?.disconnect();

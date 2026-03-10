@@ -1,4 +1,4 @@
-import { addIcon, Editor, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, App, Editor, FuzzySuggestModal, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import { execFile } from "child_process";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
@@ -12,6 +12,14 @@ import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntr
 import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-view";
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
+import {
+  buildBusWatcherCommand,
+  buildCeoOnlyBootPrompt,
+  buildPostLaunchWatcherSetup,
+  buildTeamLaunchSpec,
+  computeTeamLayout,
+} from "./team-launch";
+import { discoverTeamProjects, TeamRosterProject } from "./team-roster";
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 import { SCAFFOLD_FOLDER, SCAFFOLD_TEMPLATES, SCAFFOLD_SKILLS_FOLDER, SCAFFOLD_SKILLS } from "./scaffold-data";
@@ -23,6 +31,7 @@ declare const __AUGMENT_BUILD_ID__: string;
 declare const __AUGMENT_GIT_SHA__: string;
 
 const execFileAsync = promisify(execFile);
+const CC_NATIVE_TEAM_ID_PREFIX = "cc-native-team::";
 
 async function isWslAvailable(): Promise<boolean> {
   try {
@@ -103,6 +112,36 @@ Augment hosts Claude Code agent sessions in a panel alongside your notes. Each s
 
 *This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette → \`Augment: Open welcome\`.*
 `;
+}
+
+class TeamProjectPickerModal extends FuzzySuggestModal<TeamRosterProject> {
+  private projects: TeamRosterProject[];
+  private onChoose: (project: TeamRosterProject) => void;
+
+  constructor(app: App, projects: TeamRosterProject[], onChoose: (project: TeamRosterProject) => void) {
+    super(app);
+    this.projects = projects;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Launch project team...");
+  }
+
+  getItems(): TeamRosterProject[] {
+    return this.projects;
+  }
+
+  getItemText(project: TeamRosterProject): string {
+    return `${project.projectDisplayName} (${project.projectId})`;
+  }
+
+  renderSuggestion(project: { item: TeamRosterProject; match: any }, el: HTMLElement): void {
+    const wrapper = el.createDiv({ cls: "augment-ts-suggestion" });
+    wrapper.createSpan({ cls: "augment-ts-name", text: project.item.projectDisplayName });
+    wrapper.createEl("small", { text: project.item.projectId });
+  }
+
+  onChooseItem(project: TeamRosterProject): void {
+    this.onChoose(project);
+  }
 }
 
 type ActiveGeneration = {
@@ -1173,6 +1212,16 @@ export default class AugmentTerminalPlugin extends Plugin {
         name: "Open terminal grid (2x2)",
         callback: () => { this.openTerminalGrid(); },
       });
+      this.addCommand({
+        id: "launch-team",
+        name: "Launch project team",
+        callback: () => { void this.openTeamLaunchPicker(); },
+      });
+      this.addCommand({
+        id: "launch-cc-team",
+        name: "Launch CC project team",
+        callback: () => { void this.openCCTeamLaunchPicker(); },
+      });
 
       // Terminal manager
       this.addCommand({
@@ -1396,7 +1445,271 @@ export default class AugmentTerminalPlugin extends Plugin {
     workspace.revealLeaf(topLeft);
   }
 
+  private getTeamLaunchCodeRoot(): string {
+    const configuredCwd = this.settings.defaultWorkingDirectory.trim();
+    if (configuredCwd) return configuredCwd;
+
+    const activeTerminal = this.app.workspace.getActiveViewOfType(TerminalView);
+    const activeTerminalCwd = activeTerminal?.getWorkingDirectory().trim() ?? "";
+    if (activeTerminalCwd) return activeTerminalCwd;
+
+    try {
+      const cwd = process.cwd().trim();
+      if (cwd) return cwd;
+    } catch {
+      // Ignore missing process cwd access and fall back to vault path.
+    }
+
+    const vaultBase = (((this.app.vault.adapter as any).basePath as string | undefined) ?? "").trim();
+    return vaultBase || ".";
+  }
+
+  public async openTeamLaunchPicker(): Promise<void> {
+    const vaultBase = (((this.app.vault.adapter as any).basePath as string | undefined) ?? "").trim();
+    if (!vaultBase) {
+      new Notice("Augment: vault path unavailable");
+      return;
+    }
+
+    const projects = await discoverTeamProjects(vaultBase);
+    if (projects.length === 0) {
+      new Notice("Augment: no team projects found in agents/parts/");
+      return;
+    }
+
+    if (projects.length === 1) {
+      await this.launchProjectTeam(projects[0].projectId);
+      return;
+    }
+
+    new TeamProjectPickerModal(this.app, projects, (project) => {
+      void this.launchProjectTeam(project.projectId);
+    }).open();
+  }
+
+  public async openCCTeamLaunchPicker(): Promise<void> {
+    const vaultBase = (((this.app.vault.adapter as any).basePath as string | undefined) ?? "").trim();
+    if (!vaultBase) {
+      new Notice("Augment: vault path unavailable");
+      return;
+    }
+
+    const projects = await discoverTeamProjects(vaultBase);
+    if (projects.length === 0) {
+      new Notice("Augment: no team projects found in agents/parts/");
+      return;
+    }
+
+    if (projects.length === 1) {
+      await this.launchCCProjectTeam(projects[0].projectId);
+      return;
+    }
+
+    new TeamProjectPickerModal(this.app, projects, (project) => {
+      void this.launchCCProjectTeam(project.projectId);
+    }).open();
+  }
+
+  public async launchProjectTeam(projectId: string, userBrief?: string): Promise<void> {
+    const targetProjectId = projectId.trim();
+    if (!targetProjectId) return;
+
+    const vaultBase = (((this.app.vault.adapter as any).basePath as string | undefined) ?? "").trim();
+    if (!vaultBase) {
+      new Notice("Augment: vault path unavailable");
+      return;
+    }
+
+    const projects = await discoverTeamProjects(vaultBase);
+    const project = projects.find((candidate) => candidate.projectId === targetProjectId);
+    if (!project) {
+      new Notice(`Augment: team project not found: ${targetProjectId}`);
+      return;
+    }
+
+    const codeRoot = project.codeRoot ?? this.getTeamLaunchCodeRoot();
+    const launchSpec = buildTeamLaunchSpec(
+      project,
+      codeRoot,
+      vaultBase,
+      userBrief
+    );
+    const layoutSlots = computeTeamLayout(launchSpec.specs.map((spec) => spec.member));
+    if (layoutSlots.length === 0) {
+      new Notice(`Augment: no team members found for ${project.projectDisplayName}`);
+      return;
+    }
+
+    const orderedSlots = layoutSlots
+      .slice()
+      .sort((a, b) => a.column - b.column || a.row - b.row);
+    const specByRoleId = new Map(launchSpec.specs.map((spec) => [spec.member.roleId, spec]));
+    const watcherSetupByRoleId = new Map(
+      buildPostLaunchWatcherSetup(project, vaultBase).map((entry) => [entry.roleId, entry.address])
+    );
+    const workspace = this.app.workspace;
+    const workspaceAny = workspace as any;
+    let ceoLeaf: WorkspaceLeaf | null = null;
+    let middleColumnLeaf: WorkspaceLeaf | null = null;
+    let rightColumnLeaf: WorkspaceLeaf | null = null;
+    const createdTerminals: Array<{
+      bootPrompt: string;
+      roleId: string;
+      view: Partial<TerminalView>;
+    }> = [];
+
+    for (const slot of orderedSlots) {
+      const spec = specByRoleId.get(slot.member.roleId);
+      if (!spec) continue;
+
+      let leaf: WorkspaceLeaf;
+      if (slot.column === 0) {
+        leaf = workspace.getLeaf("tab");
+        ceoLeaf = leaf;
+      } else if (slot.column === 1) {
+        if (middleColumnLeaf === null) {
+          const anchorLeaf = ceoLeaf ?? workspace.getLeaf("tab");
+          ceoLeaf = ceoLeaf ?? anchorLeaf;
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          middleColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = middleColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(middleColumnLeaf, "horizontal");
+        }
+      } else {
+        const anchorLeaf = middleColumnLeaf ?? ceoLeaf ?? workspace.getLeaf("tab");
+        ceoLeaf = ceoLeaf ?? anchorLeaf;
+        if (rightColumnLeaf === null) {
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          rightColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = rightColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(rightColumnLeaf, "horizontal");
+        }
+      }
+
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
+        active: slot.column === 0 && slot.row === 0,
+        state: {
+          name: spec.member.address,
+          launchCwd: spec.cwd,
+          managedTeamId: launchSpec.teamId,
+          managedRoleId: spec.member.roleId,
+        } as any,
+      });
+
+      const view = leaf.view as Partial<TerminalView>;
+      if (typeof view.setName === "function") {
+        view.setName(spec.member.address);
+      }
+      createdTerminals.push({
+        bootPrompt: spec.bootPrompt,
+        roleId: spec.member.roleId,
+        view,
+      });
+    }
+
+    // Resolve the pane id inside the terminal session so the watcher binds
+    // to the pane Claude Code is actually running in.
+    const paneIdExpression = "${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}";
+    for (const { bootPrompt, roleId, view } of createdTerminals) {
+      if (typeof view.enqueueInitialInput !== "function") continue;
+
+      const watcherAddress = watcherSetupByRoleId.get(roleId);
+      if (watcherAddress) {
+        view.enqueueInitialInput(
+          `${buildBusWatcherCommand(watcherAddress, paneIdExpression, vaultBase)}\n`
+        );
+      }
+
+      view.enqueueInitialInput(bootPrompt);
+    }
+
+    if (ceoLeaf) {
+      workspace.revealLeaf(ceoLeaf);
+    }
+    workspace.trigger("augment-terminal:changed");
+  }
+
+  public async launchCCProjectTeam(projectId: string, userBrief?: string): Promise<void> {
+    const targetProjectId = projectId.trim();
+    if (!targetProjectId) return;
+
+    const vaultBase = (((this.app.vault.adapter as any).basePath as string | undefined) ?? "").trim();
+    if (!vaultBase) {
+      new Notice("Augment: vault path unavailable");
+      return;
+    }
+
+    const projects = await discoverTeamProjects(vaultBase);
+    const project = projects.find((candidate) => candidate.projectId === targetProjectId);
+    if (!project) {
+      new Notice(`Augment: team project not found: ${targetProjectId}`);
+      return;
+    }
+
+    const cwd = (project.codeRoot ?? this.getTeamLaunchCodeRoot()).trim();
+    const terminalName = `ceo@${project.projectId}`;
+    const bootPrompt = buildCeoOnlyBootPrompt(project, cwd, vaultBase, userBrief);
+    const managedTeamId = `${CC_NATIVE_TEAM_ID_PREFIX}${project.projectId}::${Date.now()}`;
+    const leaf = this.app.workspace.getLeaf("tab");
+
+    await leaf.setViewState({
+      type: VIEW_TYPE_TERMINAL,
+      active: true,
+      state: {
+        name: terminalName,
+        launchCwd: cwd,
+        managedTeamId,
+        managedRoleId: "ceo",
+      } as any,
+    });
+
+    const view = leaf.view as Partial<TerminalView>;
+    if (typeof view.setName === "function") {
+      view.setName(terminalName);
+    }
+    if (typeof view.enqueueInitialInput === "function") {
+      view.enqueueInitialInput(bootPrompt);
+    }
+
+    this.app.workspace.revealLeaf(leaf);
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+
+  public async shutdownManagedTeam(teamId: string): Promise<void> {
+    const targetTeamId = teamId.trim();
+    if (!targetTeamId) return;
+
+    const activeLeaf = this.app.workspace.activeLeaf;
+    const leaves = this.app.workspace
+      .getLeavesOfType(VIEW_TYPE_TERMINAL)
+      .filter((leaf) => {
+        const view = leaf.view as Partial<TerminalView>;
+        return typeof view.getManagedTeamId === "function" &&
+          view.getManagedTeamId()?.trim() === targetTeamId;
+      })
+      .sort((a, b) => {
+        if (a === activeLeaf) return 1;
+        if (b === activeLeaf) return -1;
+        return 0;
+      });
+
+    for (const leaf of leaves) {
+      leaf.detach();
+    }
+
+    if (leaves.length > 0) {
+      this.app.workspace.trigger("augment-terminal:changed");
+    }
+  }
+
   private async handleTeamCreateSpawn(event: TeamCreateSpawnEvent): Promise<void> {
+    if (this.isNativeCCTeamLaunchSource(event.sourceName)) return;
+
     const members = Array.from(
       new Set(
         (event.members ?? [])
@@ -1635,6 +1948,41 @@ export default class AugmentTerminalPlugin extends Plugin {
       const leafAny = leaf as any;
       const stateName = leafAny.getViewState?.()?.state?.name;
       if (typeof stateName === "string" && stateName.trim().toLowerCase() === target) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private isNativeCCTeamLaunchSource(sourceName?: string): boolean {
+    const target = sourceName?.trim().toLowerCase();
+    if (!target) return false;
+
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view as Partial<TerminalView>;
+      const viewName = typeof view.getName === "function" ? view.getName().trim().toLowerCase() : "";
+      const leafState = (leaf as any).getViewState?.()?.state;
+      const stateName = typeof leafState?.name === "string" ? leafState.name.trim().toLowerCase() : "";
+      if (viewName !== target && stateName !== target) continue;
+
+      const managedTeamId =
+        typeof view.getManagedTeamId === "function" ? view.getManagedTeamId()?.trim() ?? "" : "";
+      const managedRoleId =
+        typeof view.getManagedRoleId === "function" ? view.getManagedRoleId()?.trim() ?? "" : "";
+      const stateManagedTeamId =
+        typeof leafState?.managedTeamId === "string" ? leafState.managedTeamId.trim() : "";
+      const stateManagedRoleId =
+        typeof leafState?.managedRoleId === "string" ? leafState.managedRoleId.trim() : "";
+
+      if (
+        (managedRoleId === "ceo" || stateManagedRoleId === "ceo") &&
+        (
+          managedTeamId.startsWith(CC_NATIVE_TEAM_ID_PREFIX) ||
+          stateManagedTeamId.startsWith(CC_NATIVE_TEAM_ID_PREFIX)
+        )
+      ) {
         return true;
       }
     }

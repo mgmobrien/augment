@@ -9653,12 +9653,12 @@ function encodeURIPath(str) {
   return str.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
 var EMPTY = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null));
-var createPathTagFunction = (pathEncoder = encodeURIPath) => function path4(statics, ...params) {
+var createPathTagFunction = (pathEncoder = encodeURIPath) => function path6(statics, ...params) {
   if (statics.length === 1)
     return statics[0];
   let postPath = false;
   const invalidSegments = [];
-  const path5 = statics.reduce((previousValue, currentValue, index) => {
+  const path7 = statics.reduce((previousValue, currentValue, index) => {
     var _a2, _b, _c;
     if (/[?#]/.test(currentValue)) {
       postPath = true;
@@ -9676,7 +9676,7 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path4(stat
     }
     return previousValue + currentValue + (index === params.length ? "" : encoded);
   }, "");
-  const pathOnly = path5.split(/[?#]/, 1)[0];
+  const pathOnly = path7.split(/[?#]/, 1)[0];
   const invalidSegmentPattern = /(?<=^|\/)(?:\.|%2e){1,2}(?=\/|$)/gi;
   let match;
   while ((match = invalidSegmentPattern.exec(pathOnly)) !== null) {
@@ -9697,10 +9697,10 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path4(stat
     }, "");
     throw new AnthropicError(`Path parameters result in path with invalid segments:
 ${invalidSegments.map((e) => e.error).join("\n")}
-${path5}
+${path7}
 ${underline}`);
   }
-  return path5;
+  return path7;
 };
 var path = /* @__PURE__ */ createPathTagFunction(encodeURIPath);
 
@@ -12839,9 +12839,9 @@ var BaseAnthropic = class {
   makeStatusError(status, error, message, headers) {
     return APIError.generate(status, error, message, headers);
   }
-  buildURL(path4, query, defaultBaseURL) {
+  buildURL(path6, query, defaultBaseURL) {
     const baseURL = !__classPrivateFieldGet(this, _BaseAnthropic_instances, "m", _BaseAnthropic_baseURLOverridden).call(this) && defaultBaseURL || this.baseURL;
-    const url = isAbsoluteURL(path4) ? new URL(path4) : new URL(baseURL + (baseURL.endsWith("/") && path4.startsWith("/") ? path4.slice(1) : path4));
+    const url = isAbsoluteURL(path6) ? new URL(path6) : new URL(baseURL + (baseURL.endsWith("/") && path6.startsWith("/") ? path6.slice(1) : path6));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -12872,24 +12872,24 @@ var BaseAnthropic = class {
    */
   async prepareRequest(request, { url, options }) {
   }
-  get(path4, opts) {
-    return this.methodRequest("get", path4, opts);
+  get(path6, opts) {
+    return this.methodRequest("get", path6, opts);
   }
-  post(path4, opts) {
-    return this.methodRequest("post", path4, opts);
+  post(path6, opts) {
+    return this.methodRequest("post", path6, opts);
   }
-  patch(path4, opts) {
-    return this.methodRequest("patch", path4, opts);
+  patch(path6, opts) {
+    return this.methodRequest("patch", path6, opts);
   }
-  put(path4, opts) {
-    return this.methodRequest("put", path4, opts);
+  put(path6, opts) {
+    return this.methodRequest("put", path6, opts);
   }
-  delete(path4, opts) {
-    return this.methodRequest("delete", path4, opts);
+  delete(path6, opts) {
+    return this.methodRequest("delete", path6, opts);
   }
-  methodRequest(method, path4, opts) {
+  methodRequest(method, path6, opts) {
     return this.request(Promise.resolve(opts).then((opts2) => {
-      return { method, path: path4, ...opts2 };
+      return { method, path: path6, ...opts2 };
     }));
   }
   request(options, remainingRetries = null) {
@@ -12994,8 +12994,8 @@ var BaseAnthropic = class {
     }));
     return { response, options, controller, requestLogID, retryOfRequestLogID, startTime };
   }
-  getAPIList(path4, Page2, opts) {
-    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path4, ...opts2 })) : { method: "get", path: path4, ...opts });
+  getAPIList(path6, Page2, opts) {
+    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path6, ...opts2 })) : { method: "get", path: path6, ...opts });
   }
   requestAPIList(Page2, options) {
     const request = this.makeRequest(options, null, void 0);
@@ -13085,8 +13085,8 @@ var BaseAnthropic = class {
   async buildRequest(inputOptions, { retryCount = 0 } = {}) {
     var _a2, _b, _c;
     const options = { ...inputOptions };
-    const { method, path: path4, query, defaultBaseURL } = options;
-    const url = this.buildURL(path4, query, defaultBaseURL);
+    const { method, path: path6, query, defaultBaseURL } = options;
+    const url = this.buildURL(path6, query, defaultBaseURL);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     options.timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
@@ -14561,13 +14561,13 @@ var LRU = class {
       this.remove(this.tail.prev.key);
   }
 };
-function domResolve(root, path4) {
+function domResolve(root, path6) {
   const base = document.createElement("base");
   base.href = root;
   const head = document.getElementsByTagName("head")[0];
   head.insertBefore(base, head.firstChild);
   const a = document.createElement("a");
-  a.href = path4;
+  a.href = path6;
   const resolved = a.href;
   head.removeChild(base);
   return resolved;
@@ -14576,11 +14576,11 @@ function resolve(root, filepath, ext) {
   if (root.length && last(root) !== "/")
     root += "/";
   const url = domResolve(root, filepath);
-  return url.replace(/^(\w+:\/\/[^/]+)(\/[^?]+)/, (str, origin, path4) => {
-    const last2 = path4.split("/").pop();
+  return url.replace(/^(\w+:\/\/[^/]+)(\/[^?]+)/, (str, origin, path6) => {
+    const last2 = path6.split("/").pop();
     if (/\.\w+$/.test(last2))
       return str;
-    return origin + path4 + ext;
+    return origin + path6 + ext;
   });
 }
 function readFile(url) {
@@ -15787,18 +15787,18 @@ var Loader = class {
     this.contains = this.options.fs.contains || (() => true);
   }
   *lookup(file, type, sync, currentFile) {
-    const { fs: fs4 } = this.options;
+    const { fs: fs6 } = this.options;
     const dirs = this.options[type];
     for (const filepath of this.candidates(file, dirs, currentFile, type !== LookupType.Root)) {
-      if (sync ? fs4.existsSync(filepath) : yield fs4.exists(filepath))
+      if (sync ? fs6.existsSync(filepath) : yield fs6.exists(filepath))
         return filepath;
     }
     throw this.lookupError(file, dirs);
   }
   *candidates(file, dirs, currentFile, enforceRoot) {
-    const { fs: fs4, extname } = this.options;
+    const { fs: fs6, extname } = this.options;
     if (this.shouldLoadRelative(file) && currentFile) {
-      const referenced = fs4.resolve(this.dirname(currentFile), file, extname);
+      const referenced = fs6.resolve(this.dirname(currentFile), file, extname);
       for (const dir of dirs) {
         if (!enforceRoot || this.contains(dir, referenced)) {
           yield referenced;
@@ -15807,21 +15807,21 @@ var Loader = class {
       }
     }
     for (const dir of dirs) {
-      const referenced = fs4.resolve(dir, file, extname);
+      const referenced = fs6.resolve(dir, file, extname);
       if (!enforceRoot || this.contains(dir, referenced)) {
         yield referenced;
       }
     }
-    if (fs4.fallback !== void 0) {
-      const filepath = fs4.fallback(file);
+    if (fs6.fallback !== void 0) {
+      const filepath = fs6.fallback(file);
       if (filepath !== void 0)
         yield filepath;
     }
   }
-  dirname(path4) {
-    const fs4 = this.options.fs;
-    assert(fs4.dirname, "`fs.dirname` is required for relative reference");
-    return fs4.dirname(path4);
+  dirname(path6) {
+    const fs6 = this.options.fs;
+    assert(fs6.dirname, "`fs.dirname` is required for relative reference");
+    return fs6.dirname(path6);
   }
   lookupError(file, roots) {
     const err = new Error("ENOENT");
@@ -18304,8 +18304,8 @@ function collectMarkdownFiles(root) {
   return files;
 }
 function getBusFolder(app, privacy, kind) {
-  const path4 = (0, import_obsidian2.normalizePath)(`${BUS_ROOT}/${privacy}/${kind}`);
-  const folder = app.vault.getAbstractFileByPath(path4);
+  const path6 = (0, import_obsidian2.normalizePath)(`${BUS_ROOT}/${privacy}/${kind}`);
+  const folder = app.vault.getAbstractFileByPath(path6);
   return folder instanceof import_obsidian2.TFolder ? folder : null;
 }
 function fileCacheFrontmatter(app, file) {
@@ -18414,15 +18414,15 @@ function getCacheState(app) {
   if (!state.wired) wireCacheInvalidation(app, state);
   return state;
 }
-function isBusPath(path4) {
-  return (0, import_obsidian2.normalizePath)(path4).startsWith(`${BUS_ROOT}/`);
+function isBusPath(path6) {
+  return (0, import_obsidian2.normalizePath)(path6).startsWith(`${BUS_ROOT}/`);
 }
 function wireCacheInvalidation(app, state) {
   if (state.wired) return;
   state.wired = true;
-  const markDirty = (path4) => {
+  const markDirty = (path6) => {
     var _a2;
-    if (path4 && isBusPath(path4)) {
+    if (path6 && isBusPath(path6)) {
       state.dirty = true;
       (_a2 = state.notify) == null ? void 0 : _a2.call(state);
     }
@@ -18629,10 +18629,10 @@ async function writeEvent(app, message, eventType, actor, createdAt) {
   const eventId = crypto.randomUUID().toLowerCase();
   const folder = eventFolderPath(message.privacy, createdAt);
   await ensureFolder(app, folder);
-  const path4 = eventFilePath(message.privacy, createdAt, eventType, message.msgId, eventId);
+  const path6 = eventFilePath(message.privacy, createdAt, eventType, message.msgId, eventId);
   const content = `${buildEventFrontmatter(eventId, message, eventType, actor, createdAt)}
 `;
-  await app.vault.create(path4, content);
+  await app.vault.create(path6, content);
   recordEventWrite(app, {
     msgId: message.msgId,
     threadId: message.threadId,
@@ -18667,21 +18667,21 @@ async function writeMessage(app, opts) {
   };
   const folder = messageFolderPath(privacy, createdAt);
   await ensureFolder(app, folder);
-  const path4 = messageFilePath(privacy, createdAt, msgId);
+  const path6 = messageFilePath(privacy, createdAt, msgId);
   const body = encodeSourceNoteBody(message.sourceNote, opts.body);
   const content = `${buildMessageFrontmatter(message)}
 
 ${body}`;
-  const file = await app.vault.create(path4, content);
+  const file = await app.vault.create(path6, content);
   message.file = file;
-  message.filePath = path4;
+  message.filePath = path6;
   recordMessageWrite(app, message);
   await ensureFolder(app, SIGNALS_ROOT);
   await app.vault.adapter.write(signalFilePath(message.to), buildSignalContent(message));
   const legacyInboxFolder = legacyInboxFolderPath(message.to);
   await ensureFolder(app, legacyInboxFolder);
   await app.vault.create(legacyInboxFilePath(message.to, createdAt, msgId), content);
-  return path4;
+  return path6;
 }
 function listPartThreads(app, address) {
   const normalized = normalizeAddress(address, "to");
@@ -20065,6 +20065,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.pendingAnalysis = [];
     this.analysisRaf = null;
     this.analysisTimer = null;
+    this.pendingInput = [];
+    this.pendingInputFlushTimer = null;
+    this.pendingInputFlushInFlight = false;
+    this.hasSeenPtyOutput = false;
+    this.launchCwd = null;
+    this.managedTeamId = null;
+    this.managedRoleId = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -20087,6 +20094,12 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   getWorkingDirectory() {
     return this.resolvedCwd;
+  }
+  getManagedTeamId() {
+    return this.managedTeamId;
+  }
+  getManagedRoleId() {
+    return this.managedRoleId;
   }
   getStatus() {
     return this.status;
@@ -20133,7 +20146,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.app.workspace.trigger("augment-terminal:changed");
   }
   getState() {
-    var _a2;
+    var _a2, _b, _c, _d;
     let snapshot = this.scrollbackBuffer;
     if (snapshot.length > MAX_SNAPSHOT_CHARS) {
       snapshot = snapshot.slice(-MAX_SNAPSHOT_CHARS);
@@ -20141,12 +20154,15 @@ var TerminalView = class extends import_obsidian5.ItemView {
     return {
       name: this.terminalName,
       snapshot,
+      launchCwd: (_a2 = this.launchCwd) != null ? _a2 : void 0,
+      managedTeamId: (_b = this.managedTeamId) != null ? _b : void 0,
+      managedRoleId: (_c = this.managedRoleId) != null ? _c : void 0,
       orchestration: {
         teams: this.getTeamNames(),
         members: this.getTeamMembers(),
         unreadActivity: this.unreadActivity,
         recentEvents: [...this.recentTeamEvents],
-        agentIdentity: (_a2 = this.agentIdentity) != null ? _a2 : void 0
+        agentIdentity: (_d = this.agentIdentity) != null ? _d : void 0
       }
     };
   }
@@ -20157,6 +20173,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
     if (typeof (state == null ? void 0 : state.snapshot) === "string") {
       this.restoredSnapshot = state.snapshot;
     }
+    this.launchCwd = typeof (state == null ? void 0 : state.launchCwd) === "string" && state.launchCwd.trim() ? state.launchCwd.trim() : null;
+    this.managedTeamId = typeof (state == null ? void 0 : state.managedTeamId) === "string" && state.managedTeamId.trim() ? state.managedTeamId.trim() : null;
+    this.managedRoleId = typeof (state == null ? void 0 : state.managedRoleId) === "string" && state.managedRoleId.trim() ? state.managedRoleId.trim() : null;
     const orchestration = state == null ? void 0 : state.orchestration;
     if (orchestration) {
       this.teamNames = new Set(
@@ -20514,14 +20533,16 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.registerTerminalMetricObservers();
   }
   startPtyBridge(forcedShellPath) {
-    var _a2, _b, _c, _d, _e, _f;
+    var _a2, _b, _c, _d, _e, _f, _g;
     const vaultPath = this.app.vault.adapter.basePath || ".";
-    const customCwd = this.getDefaultWorkingDirectory();
+    const customCwd = (_a2 = this.launchCwd) != null ? _a2 : this.getDefaultWorkingDirectory();
     this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath != null ? forcedShellPath : this.getShellPath();
     this.ptyStartedAtMs = Date.now();
-    (_a2 = this.ptyBridge) == null ? void 0 : _a2.kill();
-    (_b = this.messageFilter) == null ? void 0 : _b.destroy();
+    this.hasSeenPtyOutput = false;
+    this.clearPendingInputFlushTimer();
+    (_b = this.ptyBridge) == null ? void 0 : _b.kill();
+    (_c = this.messageFilter) == null ? void 0 : _c.destroy();
     this.messageFilter = new TeammateMessageFilter((formatted) => {
       var _a3;
       (_a3 = this.terminal) == null ? void 0 : _a3.write(formatted);
@@ -20532,12 +20553,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
       pluginDir: this.pluginDir,
       cwd: this.resolvedCwd,
       shellPath,
-      initialRows: (_d = (_c = this.terminal) == null ? void 0 : _c.rows) != null ? _d : 0,
-      initialCols: (_f = (_e = this.terminal) == null ? void 0 : _e.cols) != null ? _f : 0,
+      initialRows: (_e = (_d = this.terminal) == null ? void 0 : _d.rows) != null ? _e : 0,
+      initialCols: (_g = (_f = this.terminal) == null ? void 0 : _f.cols) != null ? _g : 0,
       onData: (data) => {
         var _a3;
         (_a3 = this.terminal) == null ? void 0 : _a3.write(data);
         this.appendToScrollback(data);
+        this.markPtyReady();
         this.pendingAnalysis.push(data);
         if (!this.analysisRaf && !this.analysisTimer) {
           this.analysisRaf = requestAnimationFrame(() => {
@@ -20598,6 +20620,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       }
     });
     this.ptyBridge.start();
+    this.ensurePendingInputFlushTimer();
   }
   showErrorBanner(friendly, raw2) {
     const banner = this.errorBannerEl;
@@ -20769,6 +20792,15 @@ var TerminalView = class extends import_obsidian5.ItemView {
   getStartedAt() {
     return this.startedAt;
   }
+  // Queue a command to be sent after shell is ready
+  enqueueInitialInput(cmd) {
+    this.pendingInput.push(cmd);
+    if (this.hasSeenPtyOutput) {
+      void this.flushPendingInputQueue();
+    } else {
+      this.ensurePendingInputFlushTimer();
+    }
+  }
   write(data) {
     var _a2;
     (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
@@ -20789,6 +20821,53 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   getAutoNamed() {
     return this.autoNamedThisTurn;
+  }
+  markPtyReady() {
+    if (this.hasSeenPtyOutput) return;
+    this.hasSeenPtyOutput = true;
+    this.clearPendingInputFlushTimer();
+    void this.flushPendingInputQueue();
+  }
+  ensurePendingInputFlushTimer() {
+    if (this.ptyBridge === null || this.pendingInput.length === 0 || this.hasSeenPtyOutput || this.pendingInputFlushTimer !== null) {
+      return;
+    }
+    this.pendingInputFlushTimer = setTimeout(() => {
+      this.pendingInputFlushTimer = null;
+      void this.flushPendingInputQueue();
+    }, 2e3);
+  }
+  clearPendingInputFlushTimer() {
+    if (this.pendingInputFlushTimer === null) return;
+    clearTimeout(this.pendingInputFlushTimer);
+    this.pendingInputFlushTimer = null;
+  }
+  async flushPendingInputQueue() {
+    if (this.pendingInput.length === 0 || this.pendingInputFlushInFlight) return;
+    this.clearPendingInputFlushTimer();
+    this.pendingInputFlushInFlight = true;
+    try {
+      while (this.pendingInput.length > 0) {
+        const cmd = this.pendingInput.shift();
+        if (cmd !== void 0) {
+          this.write(cmd);
+        }
+        if (this.pendingInput.length > 0) {
+          await new Promise((resolve2) => {
+            window.setTimeout(resolve2, 200);
+          });
+        }
+      }
+    } finally {
+      this.pendingInputFlushInFlight = false;
+      if (this.pendingInput.length > 0) {
+        if (this.hasSeenPtyOutput) {
+          void this.flushPendingInputQueue();
+        } else {
+          this.ensurePendingInputFlushTimer();
+        }
+      }
+    }
   }
   detectOrchestrationActivity(rawData) {
     var _a2;
@@ -21238,6 +21317,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
       clearTimeout(this.resizeFlightTimer);
       this.resizeFlightTimer = null;
     }
+    this.clearPendingInputFlushTimer();
     this.flushPendingAnalysis();
     (_a2 = this.resizeObserver) == null ? void 0 : _a2.disconnect();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
@@ -22019,9 +22099,9 @@ function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
         }
         let created = 0;
         for (const t of ts) {
-          const path4 = `${targetFolder}/${t.name}.md`;
-          if (!app.vault.getAbstractFileByPath(path4)) {
-            await app.vault.create(path4, buildTemplateFileContent(t));
+          const path6 = `${targetFolder}/${t.name}.md`;
+          if (!app.vault.getAbstractFileByPath(path6)) {
+            await app.vault.create(path6, buildTemplateFileContent(t));
             created++;
           }
         }
@@ -22244,12 +22324,12 @@ var TemplateAssistantModal = class extends import_obsidian7.Modal {
         } catch (e) {
         }
       }
-      const path4 = `${folder}/${name}.md`;
-      if (this.app.vault.getAbstractFileByPath(path4)) {
+      const path6 = `${folder}/${name}.md`;
+      if (this.app.vault.getAbstractFileByPath(path6)) {
         new import_obsidian7.Notice(`Template "${name}" already exists`);
         return;
       }
-      await this.app.vault.create(path4, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
+      await this.app.vault.create(path6, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
       new import_obsidian7.Notice(`Template "${name}" saved`);
       this.onSave();
       this.close();
@@ -23296,23 +23376,23 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         var _a3;
         scopeExtrasEl.empty();
         const scope = (_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open";
-        const path4 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
+        const path6 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
         const descMap = {
           open: "The agent works across your full vault without scope guidance.",
           focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
           restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it."
         };
         scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
-        if (path4 && scope !== "open") {
+        if (path6 && scope !== "open") {
           const verb = scope === "focused" ? "focus on" : "treat as private";
-          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path4}` });
+          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path6}` });
         }
         if (scope !== "open") {
           const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
           box.createSpan({ cls: "augment-scope-infobox-icon", text: "\u2139" });
           box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions \u2014 the agent is told to apply this, not technically prevented from other access." });
         }
-        if (scope !== "open" && !path4) {
+        if (scope !== "open" && !path6) {
           scopeExtrasEl.createDiv({
             cls: "augment-scope-validation",
             text: "Set a working directory (Terminal \u2192 Advanced \u2192 Working directory) to apply scope guidance."
@@ -23674,6 +23754,16 @@ var SessionStore = class {
 
 // src/terminal-manager-view.ts
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
+var STATUS_PRIORITY = {
+  crashed: 7,
+  waiting: 6,
+  active: 5,
+  tool: 4,
+  running: 3,
+  shell: 2,
+  idle: 1,
+  exited: 0
+};
 var TerminalManagerView = class extends import_obsidian9.ItemView {
   constructor(leaf) {
     super(leaf);
@@ -23698,6 +23788,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     this.historyCollapseState = "auto";
     this.inboxCollapseState = "open";
     this.partsCollapseState = "open";
+    this.collapsedManagedTeams = /* @__PURE__ */ new Set();
     // Hover tooltip for session activity.
     this.tooltipEl = null;
   }
@@ -23716,10 +23807,33 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     container.empty();
     container.addClass("augment-terminal-manager");
     const header = container.createDiv({ cls: "augment-tm-header" });
-    header.createSpan({ cls: "augment-tm-title", text: "TERMINALS" });
-    const addBtn = header.createEl("button", {
-      cls: "augment-tm-add clickable-icon"
+    header.createSpan({ cls: "augment-tm-title", text: "AUGMENT" });
+    const headerActions = header.createDiv({ cls: "augment-tm-header-actions" });
+    const launchBtn = headerActions.createEl("button", {
+      cls: "augment-tm-launch clickable-icon",
+      attr: { type: "button", "aria-label": "Launch managed team" }
     });
+    launchBtn.setAttribute("title", "Launch managed team");
+    (0, import_obsidian9.setIcon)(launchBtn, "rocket");
+    launchBtn.addEventListener("click", () => {
+      var _a3, _b2;
+      void ((_b2 = (_a3 = this.getPlugin()) == null ? void 0 : _a3.openTeamLaunchPicker) == null ? void 0 : _b2.call(_a3));
+    });
+    const ccLaunchBtn = headerActions.createEl("button", {
+      cls: "augment-tm-launch augment-tm-launch-cc clickable-icon",
+      attr: { type: "button", "aria-label": "Launch CC team" }
+    });
+    ccLaunchBtn.setAttribute("title", "Launch CC team");
+    (0, import_obsidian9.setIcon)(ccLaunchBtn, "terminal");
+    ccLaunchBtn.addEventListener("click", () => {
+      var _a3, _b2;
+      void ((_b2 = (_a3 = this.getPlugin()) == null ? void 0 : _a3.openCCTeamLaunchPicker) == null ? void 0 : _b2.call(_a3));
+    });
+    const addBtn = headerActions.createEl("button", {
+      cls: "augment-tm-add clickable-icon",
+      attr: { type: "button", "aria-label": "Open terminal" }
+    });
+    addBtn.setAttribute("title", "Open terminal");
     (0, import_obsidian9.setIcon)(addBtn, "plus");
     addBtn.addEventListener("click", () => {
       this.app.commands.executeCommandById(
@@ -23917,6 +24031,33 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
     return result;
   }
+  computeManagedTeamGroups(leaves) {
+    var _a2;
+    const byTeam = /* @__PURE__ */ new Map();
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const teamId = this.getManagedTeamId(view);
+      if (!teamId) continue;
+      const group = (_a2 = byTeam.get(teamId)) != null ? _a2 : [];
+      group.push(leaf);
+      byTeam.set(teamId, group);
+    }
+    return Array.from(byTeam.entries()).map(([teamId, members]) => {
+      const sortedMembers = members.sort((a, b) => this.compareManagedTeamMembers(a, b));
+      return {
+        teamId,
+        displayName: this.getManagedTeamDisplayName(teamId, sortedMembers),
+        members: sortedMembers,
+        status: this.getGroupStatus(sortedMembers),
+        lastActivityMs: this.getGroupLastActivityMs(sortedMembers)
+      };
+    }).sort((a, b) => {
+      const statusDiff = this.getStatusPriority(b.status) - this.getStatusPriority(a.status);
+      if (statusDiff !== 0) return statusDiff;
+      if (a.lastActivityMs !== b.lastActivityMs) return b.lastActivityMs - a.lastActivityMs;
+      return a.displayName.localeCompare(b.displayName);
+    });
+  }
   refresh() {
     if (!this.listEl) return;
     this.listEl.empty();
@@ -23932,14 +24073,26 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
     const hasOtherProjects = otherGroups.length > 0;
+    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
     if (!hasOpen && !hasHistory && !hasOtherProjects) {
       const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
       emptyEl.createDiv({ text: "No terminals yet." });
       emptyEl.createDiv({ text: "Press + to open one." });
     }
     if (hasOpen) {
-      const teamGroups = this.computeTeamGroups(leaves);
-      this.renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf);
+      const managedTeamGroups = this.computeManagedTeamGroups(leaves);
+      const managedLeaves = /* @__PURE__ */ new Set();
+      for (const group of managedTeamGroups) {
+        for (const member of group.members) {
+          managedLeaves.add(member);
+        }
+      }
+      if (managedTeamGroups.length > 0) {
+        this.renderManagedTeamCards(managedTeamGroups, activeLeaf);
+      }
+      const unmanagedLeaves = leaves.filter((leaf) => !managedLeaves.has(leaf));
+      const teamGroups = this.computeTeamGroups(unmanagedLeaves);
+      this.renderOpenSectionWithGroups(this.listEl, unmanagedLeaves, teamGroups, activeLeaf);
     }
     this.renderInboxSection();
     this.renderPartsSection(parts);
@@ -24019,63 +24172,60 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       });
     }
   }
-  renderOpenSectionWithGroups(leaves, teamGroups, activeLeaf) {
+  renderOpenSectionWithGroups(container, leaves, teamGroups, activeLeaf) {
     const assignedLeaves = /* @__PURE__ */ new Set();
     for (const [teamName, members] of teamGroups) {
-      const teamHeader = this.listEl.createDiv({ cls: "augment-tm-team-header" });
+      const teamHeader = container.createDiv({ cls: "augment-tm-team-label" });
       teamHeader.createSpan({ text: teamName });
       const leader = members[0];
       assignedLeaves.add(leader);
-      this.renderOpenRow(leader, activeLeaf, {
+      this.renderOpenRow(container, leader, activeLeaf, {
         isTeamMember: true,
         isSubAgent: false
       });
       for (const member of members.slice(1)) {
         assignedLeaves.add(member);
-        this.renderOpenRow(member, activeLeaf, {
+        this.renderOpenRow(container, member, activeLeaf, {
           isTeamMember: true,
           isSubAgent: true
         });
       }
-      this.listEl.createDiv({ cls: "augment-tm-team-gap" });
+      container.createDiv({ cls: "augment-tm-team-gap" });
     }
     for (const leaf of leaves) {
       if (!assignedLeaves.has(leaf)) {
-        this.renderOpenRow(leaf, activeLeaf, {
+        this.renderOpenRow(container, leaf, activeLeaf, {
           isTeamMember: false,
           isSubAgent: false
         });
       }
     }
   }
-  renderOpenRow(leaf, activeLeaf, teamContext = { isTeamMember: false, isSubAgent: false }) {
+  renderOpenRow(container, leaf, activeLeaf, teamContext = { isTeamMember: false, isSubAgent: false }) {
     var _a2;
     const view = leaf.view;
-    const row = this.listEl.createDiv({ cls: "augment-tm-item" });
+    const row = container.createDiv({ cls: "augment-tm-item" });
     if (leaf === activeLeaf) row.addClass("is-active");
     if (teamContext.isTeamMember) row.addClass("augment-tm-team-member");
     if (teamContext.isSubAgent) row.addClass("is-sub-agent");
+    if (teamContext.isManagedTeamMember) row.addClass("is-managed-team-member");
     const line = row.createDiv({ cls: "augment-tm-line" });
     const dot = line.createDiv({ cls: "augment-tm-dot" });
-    const status = typeof view.getStatus === "function" ? view.getStatus() : "shell";
+    const status = this.getLeafStatus(view);
     dot.addClass(status);
     if (!teamContext.isTeamMember) row.addClass("status-" + status);
-    const dotLabel = {
-      active: "Generating (yellow)",
-      tool: "Using tool (blue)",
-      waiting: "Waiting for input (orange)",
-      idle: "Idle",
-      shell: "Open",
-      running: "Running",
-      crashed: "Crashed",
-      exited: "Exited"
-    };
-    dot.setAttribute("title", (_a2 = dotLabel[status]) != null ? _a2 : status);
+    dot.setAttribute("title", this.getStatusTooltipLabel(status));
     const name = this.getLeafTerminalName(leaf, view);
+    const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
+    const managedRoleId = ((_a2 = teamContext.managedRoleId) == null ? void 0 : _a2.trim()) ? teamContext.managedRoleId.trim() : null;
+    const primaryName = managedRoleId != null ? managedRoleId : teamContext.isManagedTeamMember ? identity != null ? identity : name : name;
     const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
-    const nameEl = line.createSpan({ cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""), text: name });
+    const nameEl = line.createSpan({
+      cls: "augment-tm-name" + (autoNamed ? " is-just-named" : ""),
+      text: primaryName
+    });
     if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
-    if (typeof view.setName === "function") {
+    if (!teamContext.isManagedTeamMember && typeof view.setName === "function") {
       nameEl.addEventListener("click", (evt) => {
         var _a3;
         evt.preventDefault();
@@ -24111,12 +24261,18 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
         input.addEventListener("blur", commit);
       });
     }
-    const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
-    if (identity && identity.toLowerCase() !== name.toLowerCase()) {
-      line.createSpan({ cls: "augment-tm-role", text: identity });
+    const secondaryLabel = teamContext.isManagedTeamMember ? primaryName.toLowerCase() !== name.toLowerCase() ? name : null : identity && identity.toLowerCase() !== name.toLowerCase() ? identity : null;
+    if (secondaryLabel) {
+      line.createSpan({ cls: "augment-tm-role", text: secondaryLabel });
+    }
+    if (teamContext.isManagedTeamMember) {
+      line.createSpan({
+        cls: "augment-tm-managed-state",
+        text: this.getMemberActivityLabel(view)
+      });
     }
     const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
-    if (cwd) {
+    if (cwd && !teamContext.isManagedTeamMember) {
       const cwdBasename = cwd.split(/[/\\]/).filter(Boolean).pop() || cwd;
       line.createSpan({ cls: "augment-tm-cwd", text: cwdBasename });
     }
@@ -24162,7 +24318,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
     const teams = typeof view.getTeamNames === "function" ? view.getTeamNames() : [];
     const members = typeof view.getTeamMembers === "function" ? view.getTeamMembers() : [];
-    if (teams.length > 0 || members.length > 0) {
+    if (!teamContext.isManagedTeamMember && (teams.length > 0 || members.length > 0)) {
       const meta = row.createDiv({ cls: "augment-tm-meta" });
       if (teams.length > 0) {
         meta.createSpan({
@@ -24201,6 +24357,60 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       );
       menu.showAtMouseEvent(evt);
     });
+  }
+  renderManagedTeamCards(groups, activeLeaf) {
+    for (const group of groups) {
+      const isExpanded = !this.collapsedManagedTeams.has(group.teamId);
+      const card = this.listEl.createDiv({ cls: "augment-tm-team-card" });
+      if (isExpanded) card.addClass("is-open");
+      const header = card.createDiv({ cls: "augment-tm-team-header" });
+      const headerMain = header.createDiv({ cls: "augment-tm-team-header-main" });
+      const dot = headerMain.createDiv({ cls: "augment-tm-dot" });
+      dot.addClass(group.status);
+      dot.setAttribute("title", this.getStatusTooltipLabel(group.status));
+      const headerCopy = headerMain.createDiv({ cls: "augment-tm-team-header-copy" });
+      headerCopy.createDiv({ cls: "augment-tm-team-title", text: group.displayName });
+      headerCopy.createDiv({
+        cls: "augment-tm-team-meta",
+        text: `${group.members.length} member${group.members.length === 1 ? "" : "s"}`
+      });
+      const headerTrailing = header.createDiv({ cls: "augment-tm-team-header-trailing" });
+      const actions = headerTrailing.createDiv({ cls: "augment-tm-team-actions" });
+      const shutdownBtn = actions.createEl("button", {
+        cls: "augment-tm-team-action clickable-icon",
+        attr: { type: "button", "aria-label": "Shutdown team" }
+      });
+      shutdownBtn.setAttribute("title", "Shutdown team");
+      (0, import_obsidian9.setIcon)(shutdownBtn, "square");
+      shutdownBtn.addEventListener("click", (evt) => {
+        var _a2, _b;
+        evt.preventDefault();
+        evt.stopPropagation();
+        void ((_b = (_a2 = this.getPlugin()) == null ? void 0 : _a2.shutdownManagedTeam) == null ? void 0 : _b.call(_a2, group.teamId));
+      });
+      headerTrailing.createSpan({ cls: "augment-tm-team-chevron", text: "\u203A" });
+      const body = card.createDiv({ cls: "augment-tm-team-body" });
+      if (!isExpanded) body.style.display = "none";
+      for (const member of group.members) {
+        const memberView = member.view;
+        this.renderOpenRow(body, member, activeLeaf, {
+          isTeamMember: true,
+          isSubAgent: false,
+          isManagedTeamMember: true,
+          managedRoleId: this.getManagedRoleId(memberView)
+        });
+      }
+      header.addEventListener("click", () => {
+        const nextExpanded = this.collapsedManagedTeams.has(group.teamId);
+        if (nextExpanded) {
+          this.collapsedManagedTeams.delete(group.teamId);
+        } else {
+          this.collapsedManagedTeams.add(group.teamId);
+        }
+        card.toggleClass("is-open", nextExpanded);
+        body.style.display = nextExpanded ? "" : "none";
+      });
+    }
   }
   showActivityTooltip(evt, view) {
     var _a2, _b, _c;
@@ -24538,6 +24748,137 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     if (msgCount > 0) return `${msgCount} msg${msgCount !== 1 ? "s" : ""} \xB7 ${age}`;
     return age;
   }
+  getManagedTeamId(view) {
+    const value = typeof view.getManagedTeamId === "function" ? view.getManagedTeamId() : null;
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  getManagedRoleId(view) {
+    const value = typeof view.getManagedRoleId === "function" ? view.getManagedRoleId() : null;
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  getLeafStatus(view) {
+    var _a2;
+    return typeof view.getStatus === "function" ? (_a2 = view.getStatus()) != null ? _a2 : "shell" : "shell";
+  }
+  getStatusPriority(status) {
+    var _a2;
+    return (_a2 = STATUS_PRIORITY[status != null ? status : ""]) != null ? _a2 : 0;
+  }
+  getStatusTooltipLabel(status) {
+    var _a2;
+    const labels = {
+      active: "Generating (yellow)",
+      tool: "Using tool (blue)",
+      waiting: "Waiting for input (orange)",
+      idle: "Idle",
+      shell: "Open",
+      running: "Running",
+      crashed: "Crashed",
+      exited: "Exited"
+    };
+    return (_a2 = labels[status]) != null ? _a2 : status;
+  }
+  getMemberActivityLabel(view) {
+    var _a2;
+    const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
+    switch (activity == null ? void 0 : activity.state) {
+      case "thinking":
+        return "Thinking";
+      case "bash":
+        return "Running Bash";
+      case "read":
+        return "Reading";
+      case "write":
+        return "Writing";
+      case "mcp":
+        return "Using tool";
+      case "waiting":
+        return "Waiting";
+      case "idle":
+        return "Idle";
+    }
+    const status = this.getLeafStatus(view);
+    const statusLabels = {
+      active: "Generating",
+      tool: "Using tool",
+      waiting: "Waiting",
+      idle: "Idle",
+      shell: "Open",
+      running: "Running",
+      crashed: "Crashed",
+      exited: "Exited"
+    };
+    return (_a2 = statusLabels[status]) != null ? _a2 : "Open";
+  }
+  compareManagedTeamMembers(a, b) {
+    var _a2, _b;
+    const aView = a.view;
+    const bView = b.view;
+    const aRole = (_a2 = this.getManagedRoleId(aView)) != null ? _a2 : "";
+    const bRole = (_b = this.getManagedRoleId(bView)) != null ? _b : "";
+    const aIsLead = /\bceo\b/i.test(aRole);
+    const bIsLead = /\bceo\b/i.test(bRole);
+    if (aIsLead !== bIsLead) return aIsLead ? -1 : 1;
+    const activityDiff = this.getStatusPriority(this.getLeafStatus(bView)) - this.getStatusPriority(this.getLeafStatus(aView));
+    if (activityDiff !== 0) return activityDiff;
+    const aName = aRole || this.getLeafTerminalName(a, aView);
+    const bName = bRole || this.getLeafTerminalName(b, bView);
+    return aName.localeCompare(bName);
+  }
+  getManagedTeamDisplayName(teamId, members) {
+    const encodedDisplayName = teamId.split("::")[1];
+    if (encodedDisplayName) {
+      try {
+        const decoded = decodeURIComponent(encodedDisplayName);
+        if (decoded.trim()) {
+          return decoded.trim();
+        }
+      } catch (e) {
+      }
+    }
+    const cwdBasenames = members.map((leaf) => {
+      var _a2;
+      const view = leaf.view;
+      const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
+      return (_a2 = cwd.split(/[/\\]/).filter(Boolean).pop()) != null ? _a2 : "";
+    }).filter((name) => name.length > 0);
+    if (cwdBasenames.length > 0) {
+      const [first2] = cwdBasenames;
+      if (cwdBasenames.every((name) => name === first2)) {
+        return first2;
+      }
+    }
+    const fallback = teamId.split(/[/\\]/).filter(Boolean).pop() || teamId;
+    try {
+      return decodeURIComponent(fallback);
+    } catch (e) {
+      return fallback;
+    }
+  }
+  getGroupStatus(members) {
+    let bestStatus = "exited";
+    for (const leaf of members) {
+      const view = leaf.view;
+      const status = this.getLeafStatus(view);
+      if (this.getStatusPriority(status) > this.getStatusPriority(bestStatus)) {
+        bestStatus = status;
+      }
+    }
+    return bestStatus;
+  }
+  getGroupLastActivityMs(members) {
+    let lastActivityMs = 0;
+    for (const leaf of members) {
+      const view = leaf.view;
+      const currentMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
+      lastActivityMs = Math.max(lastActivityMs, currentMs);
+    }
+    return lastActivityMs;
+  }
   relativeTime(mtimeMs, abbreviated = false) {
     const diff = Date.now() - mtimeMs;
     const mins = Math.floor(diff / 6e4);
@@ -24619,6 +24960,406 @@ var TerminalSwitcherModal = class extends import_obsidian10.FuzzySuggestModal {
     return view.getName();
   }
 };
+
+// src/team-launch.ts
+var fs3 = __toESM(require("fs"));
+var os2 = __toESM(require("os"));
+var path4 = __toESM(require("path"));
+function formatLaunchTimestamp(date2) {
+  const year = String(date2.getFullYear());
+  const month = String(date2.getMonth() + 1).padStart(2, "0");
+  const day = String(date2.getDate()).padStart(2, "0");
+  const hours = String(date2.getHours()).padStart(2, "0");
+  const minutes = String(date2.getMinutes()).padStart(2, "0");
+  const seconds = String(date2.getSeconds()).padStart(2, "0");
+  const milliseconds = String(date2.getMilliseconds()).padStart(3, "0");
+  return `${year}-${month}-${day}-${hours}${minutes}${seconds}-${milliseconds}`;
+}
+function formatMemberRole(member) {
+  const displayName = member.displayName.trim();
+  if (/part$/i.test(displayName)) {
+    return `the ${displayName}`;
+  }
+  return `the ${displayName} part`;
+}
+function withTrailingSeparator(filePath) {
+  if (/[\\/]$/.test(filePath)) return filePath;
+  return `${filePath}${filePath.includes("\\") ? "\\" : "/"}`;
+}
+function toFsPath(rootPath, relativePath) {
+  return path4.join(rootPath, ...relativePath.split("/").filter(Boolean));
+}
+function writePromptFileAndBuildCommand(promptText, label, model) {
+  const tmpDir = os2.tmpdir();
+  const timestamp = Date.now();
+  const filename = `augment-boot-${label}-${timestamp}.txt`;
+  const filePath = path4.join(tmpDir, filename);
+  fs3.writeFileSync(filePath, promptText, "utf-8");
+  const trimmedModel = model == null ? void 0 : model.trim();
+  const modelArg = trimmedModel ? ` --model ${JSON.stringify(trimmedModel)}` : "";
+  return `claude${modelArg} "$(cat ${JSON.stringify(filePath)})"
+`;
+}
+function buildManagedTeamId(project, launchedAt) {
+  const displayName = encodeURIComponent(project.projectDisplayName.trim() || project.projectId);
+  return `${project.projectId}::${displayName}::${formatLaunchTimestamp(launchedAt)}`;
+}
+function orderedProjectMembers(project) {
+  return [
+    project.ceo,
+    ...project.members.filter((member) => member.roleId !== project.ceo.roleId)
+  ];
+}
+function formatRosterDirectory(member) {
+  const trimmed = member.directory.trim().replace(/`/g, "").replace(/^\/+|\/+$/g, "");
+  return trimmed ? `${trimmed}/` : `${member.roleId}/`;
+}
+function formatRosterEntry(member) {
+  const scope = [member.owns.trim(), member.perspective.trim()].filter((part) => part.length > 0).join(", ");
+  const details = scope || "Role scope not specified";
+  return `- ${member.displayName} (${formatRosterDirectory(member)}, role: ${member.roleId}, address: ${member.address}) - ${details}`;
+}
+function buildBusInstructions(project, member, vaultRoot) {
+  const slug = project.projectId;
+  const address = `${member.roleId}@${slug}`;
+  const hooksDir = path4.join(vaultRoot, "claude", "hooks");
+  const rosterAddresses = project.members.map((m) => `${m.roleId}@${slug}`).join(", ");
+  return [
+    `=== Inter-role communication ===`,
+    `Your bus address is: ${address}.`,
+    `To send a message: bash ${hooksDir}/inbox-send.sh --to {role}@${slug} --from ${address} --subject "subject" --body "message body".`,
+    `To check your inbox: bash ${hooksDir}/inbox-check.sh --address ${address} --format claude --mark read.`,
+    `Team roster addresses: ${rosterAddresses}.`,
+    `When you need input from another role, message them directly via the bus.`
+  ].join(" ");
+}
+function buildBusWatcherCommand(address, paneId, vaultRoot) {
+  const watcherPath = path4.join(
+    vaultRoot,
+    "agents",
+    "skills",
+    "codex-subagent",
+    "scripts",
+    "cc-bus-watcher.sh"
+  );
+  return `bash ${JSON.stringify(watcherPath)} ${JSON.stringify(address)} "${paneId}" &`;
+}
+function buildPostLaunchWatcherSetup(project, vaultRoot) {
+  return orderedProjectMembers(project).map((member) => ({
+    address: member.address || `${member.roleId}@${project.projectId}`,
+    roleId: member.roleId
+  }));
+}
+function buildCeoBootPrompt(project, codeRoot, vaultRoot, userBrief) {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path4.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const brief = userBrief == null ? void 0 : userBrief.trim();
+  const busInstructions = buildBusInstructions(project, project.ceo, vaultRoot);
+  const message = [
+    `You are the CEO for the ${project.projectDisplayName} project.`,
+    `This is the same role Matt invokes as "${project.projectDisplayName} CEO".`,
+    `Boot as ${project.ceo.address}.`,
+    `Project root: ${codeRootPath}.`,
+    `Vault workspace: ${vaultWorkspacePath}.`,
+    `Read the project constitution at ${partsMdPath}.`,
+    `Follow the generic CEO skill at ${skillPath}.`,
+    "The full roster is already launched in Augment-managed terminals; coordinate with the existing teammates via the vault bus and do not spawn duplicate teammates.",
+    busInstructions,
+    brief ? `User brief: ${brief}.` : null
+  ].filter((part) => Boolean(part)).join("\n");
+  return writePromptFileAndBuildCommand(
+    message,
+    `ceo-${project.projectId}`,
+    project.managedLaunchModel
+  );
+}
+function buildCeoOnlyBootPrompt(project, codeRoot, vaultRoot, userBrief) {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path4.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const brief = userBrief == null ? void 0 : userBrief.trim();
+  const roster = orderedProjectMembers(project).map(formatRosterEntry).join("\n");
+  const message = [
+    `You are the CEO for the ${project.projectDisplayName} project.`,
+    `Project identity: ${project.projectId} (${project.projectDisplayName}).`,
+    `Boot as ${project.ceo.address}.`,
+    `Project root path: ${codeRootPath}.`,
+    `Vault workspace path: ${vaultWorkspacePath}.`,
+    `PARTS.md path: ${partsMdPath}.`,
+    `CEO skill path: ${skillPath}.`,
+    "You are launching via Augment's CC team mode. Create a Claude Code team using TeamCreate, then spawn each roster member using the Agent tool. CC will handle messaging and wake-on-idle natively. Do NOT use the vault bus for inter-member communication - use CC's SendMessage.",
+    "You already occupy the CEO seat in the current terminal. Use TeamCreate first, then spawn every remaining roster member with Agent using the same team_name so they all join the same Claude Code team.",
+    "Do NOT create terminals manually or ask Augment to create panes. Let Claude Code's Agent tool handle pane creation.",
+    "Read PARTS.md and the CEO skill before delegating.",
+    "When teammates need to coordinate, use Claude Code's native SendMessage tool rather than any filesystem mailbox or vault bus.",
+    project.ccLaunchModel ? `Model override for this project: use ${project.ccLaunchModel} for every spawned teammate unless Matt explicitly says otherwise. This team exists for cheap launch-path testing, not for deep project work.` : null,
+    "Roster to spawn:",
+    roster,
+    brief ? `User brief: ${brief}.` : null
+  ].filter((part) => Boolean(part)).join("\n");
+  return writePromptFileAndBuildCommand(
+    message,
+    `cc-ceo-${project.projectId}`,
+    project.ccLaunchModel
+  );
+}
+function buildMemberBootPrompt(project, member, codeRoot, vaultRoot) {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const memberWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, member.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path4.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
+  const busInstructions = buildBusInstructions(project, member, vaultRoot);
+  const message = [
+    `You are ${formatMemberRole(member)} for the ${project.projectDisplayName} project.`,
+    `Boot as ${member.address}.`,
+    `Project root: ${codeRootPath}.`,
+    `Vault workspace: ${vaultWorkspacePath}.`,
+    `Read the project constitution at ${partsMdPath}.`,
+    `Follow the generic role skill at ${skillPath}.`,
+    `Read your workspace at ${memberWorkspacePath}.`,
+    "The team is already launched in Augment-managed mode; coordinate with the CEO via the vault bus, do not spawn duplicate teammates.",
+    busInstructions
+  ].join("\n");
+  return writePromptFileAndBuildCommand(
+    message,
+    `${member.roleId}-${project.projectId}`,
+    project.managedLaunchModel
+  );
+}
+function buildTeamLaunchSpec(project, codeRoot, vaultRoot, userBrief) {
+  const launchedAt = /* @__PURE__ */ new Date();
+  const cwd = codeRoot.trim();
+  const specs = orderedProjectMembers(project).map((member) => ({
+    member,
+    bootPrompt: member.roleId === project.ceo.roleId ? buildCeoBootPrompt(project, cwd, vaultRoot, userBrief) : buildMemberBootPrompt(project, member, cwd, vaultRoot),
+    cwd
+  }));
+  return {
+    project,
+    teamId: buildManagedTeamId(project, launchedAt),
+    specs
+  };
+}
+function computeTeamLayout(members) {
+  var _a2;
+  if (members.length === 0) return [];
+  const ceo = (_a2 = members.find((member) => member.isLead)) != null ? _a2 : members[0];
+  const others = members.filter((member) => member.roleId !== ceo.roleId);
+  const middleCount = Math.ceil(others.length / 2);
+  const slots = [
+    { member: ceo, column: 0, row: 0 }
+  ];
+  others.slice(0, middleCount).forEach((member, index) => {
+    slots.push({ member, column: 1, row: index });
+  });
+  others.slice(middleCount).forEach((member, index) => {
+    slots.push({ member, column: 2, row: index });
+  });
+  return slots;
+}
+
+// src/team-roster.ts
+var fs4 = __toESM(require("fs"));
+var path5 = __toESM(require("path"));
+var PARTS_ROOT2 = ["agents", "parts"];
+var REQUIRED_HEADERS = ["part", "directory", "owns", "perspective"];
+function toVaultPath(...segments) {
+  return segments.join("/");
+}
+function findProjectDisplayName(lines) {
+  var _a2;
+  for (const line of lines) {
+    const match = line.match(/^\s*#(?!#)\s+(.+?)(?:\s+#+\s*)?\s*$/);
+    if (match) {
+      const name = (_a2 = match[1]) == null ? void 0 : _a2.trim();
+      if (name) return name;
+    }
+  }
+  return null;
+}
+function findCodeRoot(lines) {
+  const idx = lines.findIndex(
+    (line) => /^\s*##(?!#)\s+Code\s+root(?:\s+#+\s*)?\s*$/i.test(line)
+  );
+  if (idx === -1) return null;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (/^\s{0,3}#{1,2}(?!#)\s+/.test(lines[i])) break;
+    const trimmed = lines[i].trim().replace(/^`+|`+$/g, "");
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+function findRosterSection(lines) {
+  const rosterIndex = lines.findIndex(
+    (line) => /^\s*##(?!#)\s+Roster(?:\s+#+\s*)?\s*$/.test(line)
+  );
+  if (rosterIndex === -1) return null;
+  const section = [];
+  for (let i = rosterIndex + 1; i < lines.length; i++) {
+    if (/^\s{0,3}#{1,2}(?!#)\s+/.test(lines[i])) break;
+    section.push(lines[i]);
+  }
+  return section;
+}
+function looksLikeTableRow(line) {
+  return /^\s*\|/.test(line) || /^\s*[^|].*\|.*\|?\s*$/.test(line);
+}
+function splitMarkdownTableRow(line) {
+  let trimmed = line.trim();
+  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+function isSeparatorCell(cell) {
+  return /^:?-{3,}:?$/.test(cell.trim());
+}
+function isSeparatorRow(cells) {
+  return cells.length > 0 && cells.every(isSeparatorCell);
+}
+function normalizeHeader(cell) {
+  return cell.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function normalizeRoleId(directory) {
+  return directory.replace(/`/g, "").trim().replace(/\/+$/, "").trim();
+}
+function normalizeLaunchModel(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+async function readLaunchConfig(projectDir) {
+  var _a2, _b;
+  const configPath = path5.join(projectDir, "launch-config.json");
+  try {
+    const raw2 = await fs4.promises.readFile(configPath, "utf-8");
+    const parsed = JSON.parse(raw2);
+    const fallback = normalizeLaunchModel(parsed.launchModel);
+    return {
+      managedLaunchModel: (_a2 = normalizeLaunchModel(parsed.managedLaunchModel)) != null ? _a2 : fallback,
+      ccLaunchModel: (_b = normalizeLaunchModel(parsed.ccLaunchModel)) != null ? _b : fallback
+    };
+  } catch (e) {
+    return {
+      managedLaunchModel: null,
+      ccLaunchModel: null
+    };
+  }
+}
+function parseRosterTable(sectionLines, projectId) {
+  var _a2, _b, _c, _d;
+  let tableStart = -1;
+  let headerCells = null;
+  for (let i = 0; i < sectionLines.length - 1; i++) {
+    if (!looksLikeTableRow(sectionLines[i]) || !looksLikeTableRow(sectionLines[i + 1])) {
+      continue;
+    }
+    const maybeHeader = splitMarkdownTableRow(sectionLines[i]);
+    const maybeSeparator = splitMarkdownTableRow(sectionLines[i + 1]);
+    if (!isSeparatorRow(maybeSeparator)) continue;
+    tableStart = i;
+    headerCells = maybeHeader;
+    break;
+  }
+  if (tableStart === -1 || headerCells === null) return null;
+  const headerIndexes = /* @__PURE__ */ new Map();
+  headerCells.forEach((cell, index) => {
+    const normalized = normalizeHeader(cell);
+    if (REQUIRED_HEADERS.includes(normalized)) {
+      headerIndexes.set(normalized, index);
+    }
+  });
+  if (headerIndexes.size !== REQUIRED_HEADERS.length) return null;
+  const members = [];
+  const seenRoleIds = /* @__PURE__ */ new Set();
+  for (let i = tableStart + 2; i < sectionLines.length; i++) {
+    const line = sectionLines[i];
+    if (!looksLikeTableRow(line)) break;
+    const cells = splitMarkdownTableRow(line);
+    if (cells.every((cell) => !cell.trim())) continue;
+    const displayName = (_a2 = cells[headerIndexes.get("part")]) != null ? _a2 : "";
+    const directory = (_b = cells[headerIndexes.get("directory")]) != null ? _b : "";
+    const owns = (_c = cells[headerIndexes.get("owns")]) != null ? _c : "";
+    const perspective = (_d = cells[headerIndexes.get("perspective")]) != null ? _d : "";
+    const roleId = normalizeRoleId(directory);
+    if (!displayName.trim() || !directory.trim() || !roleId) return null;
+    if (seenRoleIds.has(roleId)) return null;
+    seenRoleIds.add(roleId);
+    members.push({
+      roleId,
+      displayName: displayName.trim(),
+      directory: directory.trim(),
+      owns: owns.trim(),
+      perspective: perspective.trim(),
+      address: `${roleId}@${projectId}`,
+      workspacePath: toVaultPath(...PARTS_ROOT2, projectId, roleId),
+      isLead: roleId === "ceo"
+    });
+  }
+  return members.length > 0 ? members : null;
+}
+function parsePartsMd(content, projectId) {
+  const lines = content.split(/\r?\n/);
+  const projectDisplayName = findProjectDisplayName(lines);
+  if (!projectDisplayName) return null;
+  const rosterSection = findRosterSection(lines);
+  if (!rosterSection) return null;
+  const members = parseRosterTable(rosterSection, projectId);
+  if (!members) return null;
+  const ceos = members.filter((member) => member.isLead);
+  if (ceos.length !== 1) return null;
+  return {
+    projectId,
+    projectDisplayName,
+    partsMdPath: toVaultPath(...PARTS_ROOT2, projectId, "PARTS.md"),
+    workspacePath: toVaultPath(...PARTS_ROOT2, projectId),
+    codeRoot: findCodeRoot(lines),
+    managedLaunchModel: null,
+    ccLaunchModel: null,
+    members,
+    ceo: ceos[0]
+  };
+}
+async function discoverTeamProjects(vaultPath) {
+  const projectsRoot = path5.join(vaultPath, ...PARTS_ROOT2);
+  let entries;
+  try {
+    entries = await fs4.promises.readdir(projectsRoot, { withFileTypes: true });
+  } catch (e) {
+    return [];
+  }
+  const projectDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort((a, b) => a.localeCompare(b));
+  const projects = await Promise.all(
+    projectDirs.map(async (projectId) => {
+      const projectDir = path5.join(projectsRoot, projectId);
+      const partsMdFsPath = path5.join(projectDir, "PARTS.md");
+      try {
+        const stat = await fs4.promises.stat(partsMdFsPath);
+        if (!stat.isFile()) return null;
+      } catch (e) {
+        return null;
+      }
+      try {
+        const content = await fs4.promises.readFile(partsMdFsPath, "utf-8");
+        const project = parsePartsMd(content, projectId);
+        if (!project) return null;
+        const launchConfig = await readLaunchConfig(projectDir);
+        return {
+          ...project,
+          ...launchConfig
+        };
+      } catch (e) {
+        return null;
+      }
+    })
+  );
+  return projects.filter((project) => project !== null);
+}
 
 // src/main.ts
 var import_view2 = require("@codemirror/view");
@@ -25026,7 +25767,7 @@ var agentWidgetField = import_state.StateField.define({
 var import_obsidian11 = require("obsidian");
 
 // src/team-scaffold.ts
-var fs3 = __toESM(require("fs"));
+var fs5 = __toESM(require("fs"));
 var import_path9 = require("path");
 var GENERATED_HEADER = "<!-- Generated by augment init-team. Customize freely.\n     Re-run with refresh-skills to pull latest defaults (overwrites SKILL.md files only). -->\n";
 var ROLES = ["ceo", "cto", "design", "product", "visionary", "values"];
@@ -25671,11 +26412,11 @@ function configStub(role) {
   }
 }
 function ensureDir(dir) {
-  if (!fs3.existsSync(dir)) fs3.mkdirSync(dir, { recursive: true });
+  if (!fs5.existsSync(dir)) fs5.mkdirSync(dir, { recursive: true });
 }
 function writeIfMissing(filePath, content) {
-  if (fs3.existsSync(filePath)) return false;
-  fs3.writeFileSync(filePath, content, "utf-8");
+  if (fs5.existsSync(filePath)) return false;
+  fs5.writeFileSync(filePath, content, "utf-8");
   return true;
 }
 function scaffoldTeam(projectRoot) {
@@ -25731,11 +26472,11 @@ ${GITIGNORE_MARKER}
 `;
   let existingGitignore = "";
   try {
-    existingGitignore = fs3.readFileSync(gitignorePath, "utf-8");
+    existingGitignore = fs5.readFileSync(gitignorePath, "utf-8");
   } catch (e) {
   }
   if (!existingGitignore.includes(GITIGNORE_MARKER)) {
-    fs3.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
+    fs5.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
     created.push(".gitignore (appended session log patterns)");
   } else {
     skipped.push(".gitignore (session log patterns already present)");
@@ -25749,7 +26490,7 @@ function refreshTeamSkills(projectRoot) {
     const skillDir = (0, import_path9.join)(skillsDir, `project-${role}`);
     ensureDir(skillDir);
     const skillFile = (0, import_path9.join)(skillDir, "SKILL.md");
-    fs3.writeFileSync(skillFile, SKILLS[role], "utf-8");
+    fs5.writeFileSync(skillFile, SKILLS[role], "utf-8");
     updated.push(`.parts/skills/project-${role}/SKILL.md`);
   }
   return { created: updated, skipped: [] };
@@ -25832,15 +26573,15 @@ var InitTeamModal = class extends import_obsidian11.Modal {
       return;
     }
     try {
-      const fs4 = require("fs");
-      if (!fs4.existsSync(root)) {
+      const fs6 = require("fs");
+      if (!fs6.existsSync(root)) {
         new import_obsidian11.Notice(`Directory not found: ${root}`);
         return;
       }
       let result;
       if (this.refreshOnly) {
         const partsDir = require("path").join(root, ".parts");
-        if (!fs4.existsSync(partsDir)) {
+        if (!fs6.existsSync(partsDir)) {
           new import_obsidian11.Notice("No .parts/ directory found. Run Init team first.");
           return;
         }
@@ -25865,6 +26606,7 @@ var InitTeamModal = class extends import_obsidian11.Modal {
 // src/main.ts
 var import_util = require("util");
 var execFileAsync = (0, import_util.promisify)(import_child_process3.execFile);
+var CC_NATIVE_TEAM_ID_PREFIX = "cc-native-team::";
 async function isWslAvailable() {
   try {
     const result = await execFileAsync("wsl.exe", ["--list", "--quiet"], {
@@ -25944,14 +26686,36 @@ Augment hosts Claude Code agent sessions in a panel alongside your notes. Each s
 *This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette \u2192 \`Augment: Open welcome\`.*
 `;
 }
+var TeamProjectPickerModal = class extends import_obsidian12.FuzzySuggestModal {
+  constructor(app, projects, onChoose) {
+    super(app);
+    this.projects = projects;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Launch project team...");
+  }
+  getItems() {
+    return this.projects;
+  }
+  getItemText(project) {
+    return `${project.projectDisplayName} (${project.projectId})`;
+  }
+  renderSuggestion(project, el) {
+    const wrapper = el.createDiv({ cls: "augment-ts-suggestion" });
+    wrapper.createSpan({ cls: "augment-ts-name", text: project.item.projectDisplayName });
+    wrapper.createEl("small", { text: project.item.projectId });
+  }
+  onChooseItem(project) {
+    this.onChoose(project);
+  }
+};
 var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-09T21:31:06.957Z";
-    this.gitSha = "749b12a";
+    this.buildId = "2026-03-10T07:55:08.348Z";
+    this.gitSha = "4207188";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -26309,10 +27073,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       await this.saveData(this.settings);
     }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path4 = `${targetFolder}/${name}.md`;
-      if (!this.app.vault.getAbstractFileByPath(path4)) {
+      const path6 = `${targetFolder}/${name}.md`;
+      if (!this.app.vault.getAbstractFileByPath(path6)) {
         try {
-          await this.app.vault.create(path4, content);
+          await this.app.vault.create(path6, content);
         } catch (e) {
         }
       }
@@ -26906,6 +27670,20 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         }
       });
       this.addCommand({
+        id: "launch-team",
+        name: "Launch project team",
+        callback: () => {
+          void this.openTeamLaunchPicker();
+        }
+      });
+      this.addCommand({
+        id: "launch-cc-team",
+        name: "Launch CC project team",
+        callback: () => {
+          void this.openCCTeamLaunchPicker();
+        }
+      });
+      this.addCommand({
         id: "open-terminal-manager",
         name: "Show terminal manager",
         hotkeys: [{ modifiers: ["Ctrl", "Shift"], key: "t" }],
@@ -27090,8 +27868,229 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     await bottomRight.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
     workspace.revealLeaf(topLeft);
   }
+  getTeamLaunchCodeRoot() {
+    var _a2, _b;
+    const configuredCwd = this.settings.defaultWorkingDirectory.trim();
+    if (configuredCwd) return configuredCwd;
+    const activeTerminal = this.app.workspace.getActiveViewOfType(TerminalView);
+    const activeTerminalCwd = (_a2 = activeTerminal == null ? void 0 : activeTerminal.getWorkingDirectory().trim()) != null ? _a2 : "";
+    if (activeTerminalCwd) return activeTerminalCwd;
+    try {
+      const cwd = process.cwd().trim();
+      if (cwd) return cwd;
+    } catch (e) {
+    }
+    const vaultBase = ((_b = this.app.vault.adapter.basePath) != null ? _b : "").trim();
+    return vaultBase || ".";
+  }
+  async openTeamLaunchPicker() {
+    var _a2;
+    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    if (!vaultBase) {
+      new import_obsidian12.Notice("Augment: vault path unavailable");
+      return;
+    }
+    const projects = await discoverTeamProjects(vaultBase);
+    if (projects.length === 0) {
+      new import_obsidian12.Notice("Augment: no team projects found in agents/parts/");
+      return;
+    }
+    if (projects.length === 1) {
+      await this.launchProjectTeam(projects[0].projectId);
+      return;
+    }
+    new TeamProjectPickerModal(this.app, projects, (project) => {
+      void this.launchProjectTeam(project.projectId);
+    }).open();
+  }
+  async openCCTeamLaunchPicker() {
+    var _a2;
+    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    if (!vaultBase) {
+      new import_obsidian12.Notice("Augment: vault path unavailable");
+      return;
+    }
+    const projects = await discoverTeamProjects(vaultBase);
+    if (projects.length === 0) {
+      new import_obsidian12.Notice("Augment: no team projects found in agents/parts/");
+      return;
+    }
+    if (projects.length === 1) {
+      await this.launchCCProjectTeam(projects[0].projectId);
+      return;
+    }
+    new TeamProjectPickerModal(this.app, projects, (project) => {
+      void this.launchCCProjectTeam(project.projectId);
+    }).open();
+  }
+  async launchProjectTeam(projectId, userBrief) {
+    var _a2, _b, _c;
+    const targetProjectId = projectId.trim();
+    if (!targetProjectId) return;
+    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    if (!vaultBase) {
+      new import_obsidian12.Notice("Augment: vault path unavailable");
+      return;
+    }
+    const projects = await discoverTeamProjects(vaultBase);
+    const project = projects.find((candidate) => candidate.projectId === targetProjectId);
+    if (!project) {
+      new import_obsidian12.Notice(`Augment: team project not found: ${targetProjectId}`);
+      return;
+    }
+    const codeRoot = (_b = project.codeRoot) != null ? _b : this.getTeamLaunchCodeRoot();
+    const launchSpec = buildTeamLaunchSpec(
+      project,
+      codeRoot,
+      vaultBase,
+      userBrief
+    );
+    const layoutSlots = computeTeamLayout(launchSpec.specs.map((spec) => spec.member));
+    if (layoutSlots.length === 0) {
+      new import_obsidian12.Notice(`Augment: no team members found for ${project.projectDisplayName}`);
+      return;
+    }
+    const orderedSlots = layoutSlots.slice().sort((a, b) => a.column - b.column || a.row - b.row);
+    const specByRoleId = new Map(launchSpec.specs.map((spec) => [spec.member.roleId, spec]));
+    const watcherSetupByRoleId = new Map(
+      buildPostLaunchWatcherSetup(project, vaultBase).map((entry) => [entry.roleId, entry.address])
+    );
+    const workspace = this.app.workspace;
+    const workspaceAny = workspace;
+    let ceoLeaf = null;
+    let middleColumnLeaf = null;
+    let rightColumnLeaf = null;
+    const createdTerminals = [];
+    for (const slot of orderedSlots) {
+      const spec = specByRoleId.get(slot.member.roleId);
+      if (!spec) continue;
+      let leaf;
+      if (slot.column === 0) {
+        leaf = workspace.getLeaf("tab");
+        ceoLeaf = leaf;
+      } else if (slot.column === 1) {
+        if (middleColumnLeaf === null) {
+          const anchorLeaf = ceoLeaf != null ? ceoLeaf : workspace.getLeaf("tab");
+          ceoLeaf = ceoLeaf != null ? ceoLeaf : anchorLeaf;
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          middleColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = middleColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(middleColumnLeaf, "horizontal");
+        }
+      } else {
+        const anchorLeaf = (_c = middleColumnLeaf != null ? middleColumnLeaf : ceoLeaf) != null ? _c : workspace.getLeaf("tab");
+        ceoLeaf = ceoLeaf != null ? ceoLeaf : anchorLeaf;
+        if (rightColumnLeaf === null) {
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          rightColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = rightColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(rightColumnLeaf, "horizontal");
+        }
+      }
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
+        active: slot.column === 0 && slot.row === 0,
+        state: {
+          name: spec.member.address,
+          launchCwd: spec.cwd,
+          managedTeamId: launchSpec.teamId,
+          managedRoleId: spec.member.roleId
+        }
+      });
+      const view = leaf.view;
+      if (typeof view.setName === "function") {
+        view.setName(spec.member.address);
+      }
+      createdTerminals.push({
+        bootPrompt: spec.bootPrompt,
+        roleId: spec.member.roleId,
+        view
+      });
+    }
+    const paneIdExpression = "${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}";
+    for (const { bootPrompt, roleId, view } of createdTerminals) {
+      if (typeof view.enqueueInitialInput !== "function") continue;
+      const watcherAddress = watcherSetupByRoleId.get(roleId);
+      if (watcherAddress) {
+        view.enqueueInitialInput(
+          `${buildBusWatcherCommand(watcherAddress, paneIdExpression, vaultBase)}
+`
+        );
+      }
+      view.enqueueInitialInput(bootPrompt);
+    }
+    if (ceoLeaf) {
+      workspace.revealLeaf(ceoLeaf);
+    }
+    workspace.trigger("augment-terminal:changed");
+  }
+  async launchCCProjectTeam(projectId, userBrief) {
+    var _a2, _b;
+    const targetProjectId = projectId.trim();
+    if (!targetProjectId) return;
+    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    if (!vaultBase) {
+      new import_obsidian12.Notice("Augment: vault path unavailable");
+      return;
+    }
+    const projects = await discoverTeamProjects(vaultBase);
+    const project = projects.find((candidate) => candidate.projectId === targetProjectId);
+    if (!project) {
+      new import_obsidian12.Notice(`Augment: team project not found: ${targetProjectId}`);
+      return;
+    }
+    const cwd = ((_b = project.codeRoot) != null ? _b : this.getTeamLaunchCodeRoot()).trim();
+    const terminalName = `ceo@${project.projectId}`;
+    const bootPrompt = buildCeoOnlyBootPrompt(project, cwd, vaultBase, userBrief);
+    const managedTeamId = `${CC_NATIVE_TEAM_ID_PREFIX}${project.projectId}::${Date.now()}`;
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({
+      type: VIEW_TYPE_TERMINAL,
+      active: true,
+      state: {
+        name: terminalName,
+        launchCwd: cwd,
+        managedTeamId,
+        managedRoleId: "ceo"
+      }
+    });
+    const view = leaf.view;
+    if (typeof view.setName === "function") {
+      view.setName(terminalName);
+    }
+    if (typeof view.enqueueInitialInput === "function") {
+      view.enqueueInitialInput(bootPrompt);
+    }
+    this.app.workspace.revealLeaf(leaf);
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+  async shutdownManagedTeam(teamId) {
+    const targetTeamId = teamId.trim();
+    if (!targetTeamId) return;
+    const activeLeaf = this.app.workspace.activeLeaf;
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL).filter((leaf) => {
+      var _a2;
+      const view = leaf.view;
+      return typeof view.getManagedTeamId === "function" && ((_a2 = view.getManagedTeamId()) == null ? void 0 : _a2.trim()) === targetTeamId;
+    }).sort((a, b) => {
+      if (a === activeLeaf) return 1;
+      if (b === activeLeaf) return -1;
+      return 0;
+    });
+    for (const leaf of leaves) {
+      leaf.detach();
+    }
+    if (leaves.length > 0) {
+      this.app.workspace.trigger("augment-terminal:changed");
+    }
+  }
   async handleTeamCreateSpawn(event) {
     var _a2, _b;
+    if (this.isNativeCCTeamLaunchSource(event.sourceName)) return;
     const members = Array.from(
       new Set(
         ((_a2 = event.members) != null ? _a2 : []).map((name) => name.trim()).filter((name) => name.length > 0)
@@ -27316,6 +28315,27 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       const leafAny = leaf;
       const stateName = (_c = (_b = (_a2 = leafAny.getViewState) == null ? void 0 : _a2.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
       if (typeof stateName === "string" && stateName.trim().toLowerCase() === target) {
+        return true;
+      }
+    }
+    return false;
+  }
+  isNativeCCTeamLaunchSource(sourceName) {
+    var _a2, _b, _c, _d, _e, _f;
+    const target = sourceName == null ? void 0 : sourceName.trim().toLowerCase();
+    if (!target) return false;
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      const viewName = typeof view.getName === "function" ? view.getName().trim().toLowerCase() : "";
+      const leafState = (_b = (_a2 = leaf.getViewState) == null ? void 0 : _a2.call(leaf)) == null ? void 0 : _b.state;
+      const stateName = typeof (leafState == null ? void 0 : leafState.name) === "string" ? leafState.name.trim().toLowerCase() : "";
+      if (viewName !== target && stateName !== target) continue;
+      const managedTeamId = typeof view.getManagedTeamId === "function" ? (_d = (_c = view.getManagedTeamId()) == null ? void 0 : _c.trim()) != null ? _d : "" : "";
+      const managedRoleId = typeof view.getManagedRoleId === "function" ? (_f = (_e = view.getManagedRoleId()) == null ? void 0 : _e.trim()) != null ? _f : "" : "";
+      const stateManagedTeamId = typeof (leafState == null ? void 0 : leafState.managedTeamId) === "string" ? leafState.managedTeamId.trim() : "";
+      const stateManagedRoleId = typeof (leafState == null ? void 0 : leafState.managedRoleId) === "string" ? leafState.managedRoleId.trim() : "";
+      if ((managedRoleId === "ceo" || stateManagedRoleId === "ceo") && (managedTeamId.startsWith(CC_NATIVE_TEAM_ID_PREFIX) || stateManagedTeamId.startsWith(CC_NATIVE_TEAM_ID_PREFIX))) {
         return true;
       }
     }
