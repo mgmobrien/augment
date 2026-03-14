@@ -20094,6 +20094,7 @@ var PtyBridge = class {
   }
   resize(rows, cols) {
     var _a3;
+    console.debug("[augment:resize] pty-bridge: sending R%d,%d to fd3", rows, cols);
     (_a3 = this.controlStream) == null ? void 0 : _a3.write(`R${rows},${cols}
 `);
   }
@@ -21960,12 +21961,29 @@ var TerminalView = class extends import_obsidian7.ItemView {
    *  proposeDimensions() math (FitAddon.ts:67). styles.css forces a
    *  constant 6px scrollbar, so we cache that value. */
   wouldChangeCellGrid(containerWidth, containerHeight) {
-    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
+    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) {
+      console.debug("[augment:resize] wouldChangeCellGrid: cache empty, allowing resize (cellW=%f cellH=%f)", this.cachedCellWidth, this.cachedCellHeight);
+      return true;
+    }
     const availableWidth = containerWidth - this.cachedScrollbarWidth;
-    if (availableWidth <= 0) return true;
+    if (availableWidth <= 0) {
+      console.debug("[augment:resize] wouldChangeCellGrid: degenerate availableWidth=%f, allowing resize", availableWidth);
+      return true;
+    }
     const newCols = Math.max(2, Math.floor(availableWidth / this.cachedCellWidth));
     const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
-    return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
+    const changed = newCols !== this.terminal.cols || newRows !== this.terminal.rows;
+    console.debug(
+      "[augment:resize] wouldChangeCellGrid: container=%dx%d \u2192 proposed=%dx%d current=%dx%d \u2192 %s",
+      Math.round(containerWidth),
+      Math.round(containerHeight),
+      newCols,
+      newRows,
+      this.terminal.cols,
+      this.terminal.rows,
+      changed ? "CHANGED" : "same"
+    );
+    return changed;
   }
   /** Update the cached cell dimensions from xterm's render service.
    *  Called after fit() and on font load — NOT on every resize check.
@@ -21995,7 +22013,11 @@ var TerminalView = class extends import_obsidian7.ItemView {
    *  layout, if 4 ResizeObserver callbacks fire in one frame, only one
    *  rAF callback runs. */
   scheduleResize() {
-    if (this.resizeRafId !== null) return;
+    if (this.resizeRafId !== null) {
+      console.debug("[augment:resize] scheduleResize: coalesced (rAF already pending)");
+      return;
+    }
+    console.debug("[augment:resize] scheduleResize: scheduling rAF");
     this.resizeRafId = requestAnimationFrame(() => {
       this.resizeRafId = null;
       this.applyResize();
@@ -22005,37 +22027,60 @@ var TerminalView = class extends import_obsidian7.ItemView {
    *  Only called when wouldChangeCellGrid() returned true or from font/
    *  visibility handlers that bypass the cell-grid gate. */
   applyResize() {
-    var _a3, _b, _c, _d;
+    var _a3, _b, _c, _d, _e, _f;
     if (!this.terminal || !this.fitAddon) return;
     if (this.resizeInFlight) {
+      console.debug("[augment:resize] applyResize: blocked by re-entrancy guard, rescheduling");
       this.scheduleResize();
       return;
     }
     const el = (_a3 = this.terminal.element) == null ? void 0 : _a3.parentElement;
-    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) {
+      console.debug("[augment:resize] applyResize: container has zero dimensions, skipping");
+      return;
+    }
     const proposed = this.fitAddon.proposeDimensions();
     if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
+      console.debug("[augment:resize] applyResize: proposeDimensions matches current %dx%d, no-op", proposed.cols, proposed.rows);
       (_b = this.terminal.element) == null ? void 0 : _b.style.removeProperty("height");
       return;
     }
     try {
       const oldCols = this.terminal.cols;
       const oldRows = this.terminal.rows;
+      console.debug(
+        "[augment:resize] applyResize: fitting \u2014 before=%dx%d proposed=%dx%d",
+        oldCols,
+        oldRows,
+        (_c = proposed == null ? void 0 : proposed.cols) != null ? _c : -1,
+        (_d = proposed == null ? void 0 : proposed.rows) != null ? _d : -1
+      );
       this.fitAddon.fit();
-      (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
+      (_e = this.terminal.element) == null ? void 0 : _e.style.removeProperty("height");
+      this.terminal.refresh(0, this.terminal.rows - 1);
       const { rows, cols } = this.terminal;
+      console.debug("[augment:resize] applyResize: after fit=%dx%d, refresh called", cols, rows);
       if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
         this.lastPtyRows = rows;
         this.lastPtyCols = cols;
-        (_d = this.ptyBridge) == null ? void 0 : _d.resize(rows, cols);
+        (_f = this.ptyBridge) == null ? void 0 : _f.resize(rows, cols);
+        console.debug("[augment:resize] applyResize: PTY resize sent %dx%d", cols, rows);
       }
       this.updateCellCache();
       if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+        console.debug(
+          "[augment:resize] applyResize: dimensions changed %dx%d \u2192 %dx%d, arming 150ms guard",
+          oldCols,
+          oldRows,
+          this.terminal.cols,
+          this.terminal.rows
+        );
         this.resizeInFlight = true;
         if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
         this.resizeFlightTimer = setTimeout(() => {
           this.resizeInFlight = false;
           this.resizeFlightTimer = null;
+          console.debug("[augment:resize] applyResize: 150ms guard released");
         }, 150);
       }
     } catch (e) {
@@ -27585,8 +27630,8 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-14T17:34:52.023Z";
-    this.gitSha = "55c49b7";
+    this.buildId = "2026-03-14T18:19:52.555Z";
+    this.gitSha = "45a7a61";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

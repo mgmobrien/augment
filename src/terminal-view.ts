@@ -1792,12 +1792,23 @@ export class TerminalView extends ItemView {
    *  proposeDimensions() math (FitAddon.ts:67). styles.css forces a
    *  constant 6px scrollbar, so we cache that value. */
   private wouldChangeCellGrid(containerWidth: number, containerHeight: number): boolean {
-    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) return true;
+    if (!this.terminal || this.cachedCellWidth === 0 || this.cachedCellHeight === 0) {
+      console.debug("[augment:resize] wouldChangeCellGrid: cache empty, allowing resize (cellW=%f cellH=%f)", this.cachedCellWidth, this.cachedCellHeight);
+      return true;
+    }
     const availableWidth = containerWidth - this.cachedScrollbarWidth;
-    if (availableWidth <= 0) return true; // degenerate — let applyResize handle it
+    if (availableWidth <= 0) {
+      console.debug("[augment:resize] wouldChangeCellGrid: degenerate availableWidth=%f, allowing resize", availableWidth);
+      return true;
+    }
     const newCols = Math.max(2, Math.floor(availableWidth / this.cachedCellWidth));
     const newRows = Math.max(1, Math.floor(containerHeight / this.cachedCellHeight));
-    return newCols !== this.terminal.cols || newRows !== this.terminal.rows;
+    const changed = newCols !== this.terminal.cols || newRows !== this.terminal.rows;
+    console.debug("[augment:resize] wouldChangeCellGrid: container=%dx%d → proposed=%dx%d current=%dx%d → %s",
+      Math.round(containerWidth), Math.round(containerHeight),
+      newCols, newRows, this.terminal.cols, this.terminal.rows,
+      changed ? "CHANGED" : "same");
+    return changed;
   }
 
   /** Update the cached cell dimensions from xterm's render service.
@@ -1846,7 +1857,11 @@ export class TerminalView extends ItemView {
    *  layout, if 4 ResizeObserver callbacks fire in one frame, only one
    *  rAF callback runs. */
   private scheduleResize(): void {
-    if (this.resizeRafId !== null) return; // already scheduled
+    if (this.resizeRafId !== null) {
+      console.debug("[augment:resize] scheduleResize: coalesced (rAF already pending)");
+      return;
+    }
+    console.debug("[augment:resize] scheduleResize: scheduling rAF");
     this.resizeRafId = requestAnimationFrame(() => {
       this.resizeRafId = null;
       this.applyResize();
@@ -1864,12 +1879,16 @@ export class TerminalView extends ItemView {
     // layouts). If we resize again during that window, fit() invalidates
     // the render model while the TUI is mid-paint.
     if (this.resizeInFlight) {
+      console.debug("[augment:resize] applyResize: blocked by re-entrancy guard, rescheduling");
       this.scheduleResize();
       return;
     }
 
     const el = this.terminal.element?.parentElement;
-    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
+    if (el && (el.clientWidth === 0 || el.clientHeight === 0)) {
+      console.debug("[augment:resize] applyResize: container has zero dimensions, skipping");
+      return;
+    }
 
     // Final gate: proposeDimensions accounts for padding and scrollbar
     // width that our fast-path wouldChangeCellGrid does not.
@@ -1877,6 +1896,7 @@ export class TerminalView extends ItemView {
     if (proposed &&
         proposed.cols === this.terminal.cols &&
         proposed.rows === this.terminal.rows) {
+      console.debug("[augment:resize] applyResize: proposeDimensions matches current %dx%d, no-op", proposed.cols, proposed.rows);
       this.terminal.element?.style.removeProperty("height");
       return;
     }
@@ -1884,17 +1904,30 @@ export class TerminalView extends ItemView {
     try {
       const oldCols = this.terminal.cols;
       const oldRows = this.terminal.rows;
+      console.debug("[augment:resize] applyResize: fitting — before=%dx%d proposed=%dx%d",
+        oldCols, oldRows, proposed?.cols ?? -1, proposed?.rows ?? -1);
 
       this.fitAddon.fit();
       this.terminal.element?.style.removeProperty("height");
 
+      // Force full viewport repaint after fit. The Canvas renderer clears
+      // all canvases during handleResize() but does NOT schedule a redraw —
+      // it relies on xterm core's RenderService to repaint via rAF. On
+      // systems with slower GPU compositing (Intel iGPU, WSL/Direct3D),
+      // the compositor can read stale textures before the rAF repaint
+      // fires, producing ghost glyph fragments. refresh() marks every row
+      // dirty so the next render pass repaints the entire viewport.
+      this.terminal.refresh(0, this.terminal.rows - 1);
+
       const { rows, cols } = this.terminal;
+      console.debug("[augment:resize] applyResize: after fit=%dx%d, refresh called", cols, rows);
 
       if (rows > 0 && cols > 0 &&
           (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
         this.lastPtyRows = rows;
         this.lastPtyCols = cols;
         this.ptyBridge?.resize(rows, cols);
+        console.debug("[augment:resize] applyResize: PTY resize sent %dx%d", cols, rows);
       }
 
       // Update cell cache after fit — cell dimensions may have changed
@@ -1904,11 +1937,14 @@ export class TerminalView extends ItemView {
       // If dimensions actually changed, block subsequent resizes for 150ms
       // so the TUI can finish its SIGWINCH redraw.
       if (this.terminal.cols !== oldCols || this.terminal.rows !== oldRows) {
+        console.debug("[augment:resize] applyResize: dimensions changed %dx%d → %dx%d, arming 150ms guard",
+          oldCols, oldRows, this.terminal.cols, this.terminal.rows);
         this.resizeInFlight = true;
         if (this.resizeFlightTimer) clearTimeout(this.resizeFlightTimer);
         this.resizeFlightTimer = setTimeout(() => {
           this.resizeInFlight = false;
           this.resizeFlightTimer = null;
+          console.debug("[augment:resize] applyResize: 150ms guard released");
         }, 150);
       }
     } catch {

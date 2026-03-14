@@ -214,6 +214,7 @@ export class PtyBridge {
   }
 
   resize(rows: number, cols: number): void {
+    console.debug("[augment:resize] pty-bridge: sending R%d,%d to fd3", rows, cols);
     this.controlStream?.write(`R${rows},${cols}\n`);
   }
 
