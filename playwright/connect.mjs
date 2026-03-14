@@ -14,14 +14,39 @@ import { chromium } from 'playwright';
 
 const PLUGIN_ID = 'augment-terminal';
 
+function defaultPort() {
+  const raw = process.env.AUGMENT_CDP_PORT?.trim();
+  if (!raw) return 9223;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid AUGMENT_CDP_PORT: ${raw}`);
+  }
+  return parsed;
+}
+
 /**
  * Connect to Obsidian via CDP.
  *
- * @param {number} port - CDP port (default 9223, set by start-test.sh)
+ * @param {number} port - CDP port (default: AUGMENT_CDP_PORT or 9223)
  * @returns {{ browser, page, close }}
  */
-export async function connect(port = 9223) {
-  const browser = await chromium.connectOverCDP(`http://localhost:${port}`);
+export async function connect(port = defaultPort()) {
+  let browser;
+  try {
+    browser = await chromium.connectOverCDP(`http://localhost:${port}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('ECONNREFUSED')) {
+      throw new Error(
+        `Could not connect to Obsidian CDP at http://localhost:${port}. ` +
+          `Start the local test app first with either ` +
+          `"npm run start" from /Users/mattobrien/Development/augment-plugin/playwright ` +
+          `or "./scripts/start-test.sh ${port}" from /Users/mattobrien/Development/augment-plugin, ` +
+          `then rerun this smoke. Original error: ${message}`
+      );
+    }
+    throw error;
+  }
   const context = browser.contexts()[0];
   const page = context.pages()[0];
   const close = () => browser.close();

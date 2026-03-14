@@ -3,7 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "smoke": "node tests/smoke.mjs",
+    "smoke": "../scripts/run-shared-smoke.sh smoke --slot s01",
+    "smoke:cdp": "node tests/smoke.mjs",
+    "team-launch": "../scripts/run-shared-smoke.sh team-launch --slot s01",
+    "team-launch:cdp": "node tests/team-launch-smoke.mjs",
+    "live-vault-bus": "node tests/live-vault-bus-smoke.mjs",
+    "claim:shared": "node ../scripts/slot-owner-adapter.mjs claimSlot --slot s01 --caller augment-playwright",
     "setup": "../scripts/setup-test.sh",
     "start": "../scripts/start-test.sh"
   },

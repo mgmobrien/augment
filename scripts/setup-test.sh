@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Set up an isolated test vault for Augment visual testing.
+# Set up the legacy isolated test vault for Augment visual testing.
 #
 # Creates:
 #   test-vault/   — minimal vault with augment-terminal plugin installed
@@ -14,7 +14,7 @@
 #   ./scripts/setup-test.sh --clean    # Force full rebuild of vault + config
 #
 # After setup, launch Obsidian:
-#   ./scripts/start-test.sh
+#   ./scripts/start-test.sh --legacy
 
 set -e
 
@@ -60,6 +60,8 @@ echo "Copying plugin build..."
 cp "$REPO_DIR/main.js"      "$PLUGIN_DIR/main.js"
 cp "$REPO_DIR/manifest.json" "$PLUGIN_DIR/manifest.json"
 cp "$REPO_DIR/styles.css"   "$PLUGIN_DIR/styles.css"
+mkdir -p "$PLUGIN_DIR/scripts"
+cp -R "$REPO_DIR/scripts/." "$PLUGIN_DIR/scripts/"
 
 # Enable plugin (community-plugins.json)
 echo "[\"$PLUGIN_ID\"]" > "$VAULT_DIR/.obsidian/community-plugins.json"
@@ -101,4 +103,4 @@ echo "  Vault:   $VAULT_DIR"
 echo "  Config:  $CONFIG_DIR"
 echo "  Plugin:  augment-terminal $(grep '"version"' "$PLUGIN_DIR/manifest.json" | cut -d'"' -f4)"
 echo ""
-echo "Next: ./scripts/start-test.sh"
+echo "Next: ./scripts/start-test.sh --legacy"

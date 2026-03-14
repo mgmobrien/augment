@@ -1,0 +1,254 @@
+{
+  "version": "v1",
+  "cases": [
+    {
+      "id": "part-thread-summary-local-valid",
+      "status": "positive",
+      "summaryAddress": "ceo@vault",
+      "messages": [
+        {
+          "fixture": "positive/part-thread-summary-local-valid/messages/2026-03-12T030000Z__msg-301.md",
+          "busPath": "agents/bus/local/messages/2026/03/2026-03-12T030000Z__msg-301.md"
+        },
+        {
+          "fixture": "positive/part-thread-summary-local-valid/messages/2026-03-12T030100Z__msg-302.md",
+          "busPath": "agents/bus/local/messages/2026/03/2026-03-12T030100Z__msg-302.md"
+        },
+        {
+          "fixture": "positive/part-thread-summary-local-valid/messages/2026-03-12T030200Z__msg-303.md",
+          "busPath": "agents/bus/local/messages/2026/03/2026-03-12T030200Z__msg-303.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "positive/part-thread-summary-local-valid/events/2026-03-12T030030Z__delivered__msg-301__evt-301.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T030030Z__delivered__msg-301__evt-301.md"
+        },
+        {
+          "fixture": "positive/part-thread-summary-local-valid/events/2026-03-12T030045Z__read__msg-301__evt-302.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T030045Z__read__msg-301__evt-302.md"
+        },
+        {
+          "fixture": "positive/part-thread-summary-local-valid/events/2026-03-12T030130Z__acked__msg-301__evt-303.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T030130Z__acked__msg-301__evt-303.md"
+        },
+        {
+          "fixture": "positive/part-thread-summary-local-valid/events/2026-03-12T030230Z__delivered__msg-303__evt-304.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T030230Z__delivered__msg-303__evt-304.md"
+        }
+      ],
+      "expected": {
+        "lifecycleReasons": [],
+        "unreadByActor": [
+          {
+            "actor": "ceo@vault",
+            "msgIds": [
+              "msg-303"
+            ]
+          },
+          {
+            "actor": "user@vault",
+            "msgIds": [
+              "msg-302"
+            ]
+          }
+        ],
+        "threadSummaries": [
+          {
+            "threadId": "msg-303",
+            "subject": "New request",
+            "lastSender": "user@vault",
+            "lastTo": "ceo@vault",
+            "counterparty": "user@vault",
+            "participants": [
+              "user@vault",
+              "ceo@vault"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T03:02:00Z",
+            "messageCount": 1,
+            "hasUnread": true
+          },
+          {
+            "threadId": "msg-301",
+            "subject": "Status check",
+            "lastSender": "ceo@vault",
+            "lastTo": "user@vault",
+            "counterparty": "user@vault",
+            "participants": [
+              "user@vault",
+              "ceo@vault"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T03:01:00Z",
+            "messageCount": 2,
+            "hasUnread": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "read-without-delivered-keeps-thread-unread-invalid",
+      "status": "negative",
+      "summaryAddress": "ceo@vault",
+      "messages": [
+        {
+          "fixture": "negative/read-without-delivered-keeps-thread-unread-invalid/messages/2026-03-12T040000Z__msg-401.md",
+          "busPath": "agents/bus/local/messages/2026/03/2026-03-12T040000Z__msg-401.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "negative/read-without-delivered-keeps-thread-unread-invalid/events/2026-03-12T040030Z__read__msg-401__evt-401.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T040030Z__read__msg-401__evt-401.md"
+        }
+      ],
+      "expected": {
+        "lifecycleReasons": [
+          "read-without-delivered"
+        ],
+        "unreadByActor": [
+          {
+            "actor": "ceo@vault",
+            "msgIds": [
+              "msg-401"
+            ]
+          },
+          {
+            "actor": "user@vault",
+            "msgIds": []
+          }
+        ],
+        "threadSummaries": [
+          {
+            "threadId": "msg-401",
+            "subject": "Lifecycle gap",
+            "lastSender": "user@vault",
+            "lastTo": "ceo@vault",
+            "counterparty": "user@vault",
+            "participants": [
+              "user@vault",
+              "ceo@vault"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T04:00:00Z",
+            "messageCount": 1,
+            "hasUnread": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "acked-without-read-keeps-thread-unread-invalid",
+      "status": "negative",
+      "summaryAddress": "ceo@vault",
+      "messages": [
+        {
+          "fixture": "negative/acked-without-read-keeps-thread-unread-invalid/messages/2026-03-12T041000Z__msg-402.md",
+          "busPath": "agents/bus/local/messages/2026/03/2026-03-12T041000Z__msg-402.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "negative/acked-without-read-keeps-thread-unread-invalid/events/2026-03-12T041010Z__delivered__msg-402__evt-402.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T041010Z__delivered__msg-402__evt-402.md"
+        },
+        {
+          "fixture": "negative/acked-without-read-keeps-thread-unread-invalid/events/2026-03-12T041020Z__acked__msg-402__evt-403.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T041020Z__acked__msg-402__evt-403.md"
+        }
+      ],
+      "expected": {
+        "lifecycleReasons": [
+          "acked-without-read"
+        ],
+        "unreadByActor": [
+          {
+            "actor": "ceo@vault",
+            "msgIds": [
+              "msg-402"
+            ]
+          },
+          {
+            "actor": "user@vault",
+            "msgIds": []
+          }
+        ],
+        "threadSummaries": [
+          {
+            "threadId": "msg-402",
+            "subject": "Ack gap",
+            "lastSender": "user@vault",
+            "lastTo": "ceo@vault",
+            "counterparty": "user@vault",
+            "participants": [
+              "user@vault",
+              "ceo@vault"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T04:10:00Z",
+            "messageCount": 1,
+            "hasUnread": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "acked-before-read-flags-lifecycle-invalid",
+      "status": "negative",
+      "summaryAddress": "ceo@vault",
+      "messages": [
+        {
+          "fixture": "negative/acked-before-read-flags-lifecycle-invalid/messages/2026-03-12T042000Z__msg-403.md",
+          "busPath": "agents/bus/local/messages/2026/03/2026-03-12T042000Z__msg-403.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "negative/acked-before-read-flags-lifecycle-invalid/events/2026-03-12T042010Z__delivered__msg-403__evt-404.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T042010Z__delivered__msg-403__evt-404.md"
+        },
+        {
+          "fixture": "negative/acked-before-read-flags-lifecycle-invalid/events/2026-03-12T042020Z__acked__msg-403__evt-405.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T042020Z__acked__msg-403__evt-405.md"
+        },
+        {
+          "fixture": "negative/acked-before-read-flags-lifecycle-invalid/events/2026-03-12T042030Z__read__msg-403__evt-406.md",
+          "busPath": "agents/bus/local/events/2026/03/2026-03-12T042030Z__read__msg-403__evt-406.md"
+        }
+      ],
+      "expected": {
+        "lifecycleReasons": [
+          "acked-without-read"
+        ],
+        "unreadByActor": [
+          {
+            "actor": "ceo@vault",
+            "msgIds": []
+          },
+          {
+            "actor": "user@vault",
+            "msgIds": []
+          }
+        ],
+        "threadSummaries": [
+          {
+            "threadId": "msg-403",
+            "subject": "Ack order",
+            "lastSender": "user@vault",
+            "lastTo": "ceo@vault",
+            "counterparty": "user@vault",
+            "participants": [
+              "user@vault",
+              "ceo@vault"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T04:20:00Z",
+            "messageCount": 1,
+            "hasUnread": false
+          }
+        ]
+      }
+    }
+  ]
+}

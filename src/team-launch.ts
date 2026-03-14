@@ -1,25 +1,33 @@
 import * as fs from "fs";
+import * as crypto from "crypto";
 import * as os from "os";
 import * as path from "path";
-import type { TeamRosterMember, TeamRosterProject } from "./team-roster";
+import {
+  buildCCAgentId,
+  buildCCNativeTeamName,
+  buildCCTeamConfigContract,
+  buildManagedTeamId,
+  computeTeamLayout as computeSharedTeamLayout,
+  orderedProjectMembers,
+  resolveCCColor,
+} from "../packages/shared-domain/src";
+import type {
+  CCNativeTeamLaunchSpec as SharedCCNativeTeamLaunchSpec,
+  CCTeamConfig as SharedCCTeamConfig,
+  CCTeamConfigMember as SharedCCTeamConfigMember,
+  LayoutSlot as SharedLayoutSlot,
+  MemberLaunchSpec as SharedMemberLaunchSpec,
+  TeamRosterMember,
+  TeamRosterProject,
+  TeamLaunchSpec as SharedTeamLaunchSpec,
+} from "../packages/shared-domain/src";
 
-export interface TeamLaunchSpec {
-  project: TeamRosterProject;
-  teamId: string;
-  specs: MemberLaunchSpec[];
-}
-
-export interface MemberLaunchSpec {
-  member: TeamRosterMember;
-  bootPrompt: string;
-  cwd: string;
-}
-
-export interface LayoutSlot {
-  member: TeamRosterMember;
-  column: number;
-  row: number;
-}
+export type TeamLaunchSpec = SharedTeamLaunchSpec<TeamRosterMember, TeamRosterProject>;
+export type MemberLaunchSpec = SharedMemberLaunchSpec<TeamRosterMember>;
+export type LayoutSlot = SharedLayoutSlot<TeamRosterMember>;
+export type CCTeamConfigMember = SharedCCTeamConfigMember;
+export type CCTeamConfig = SharedCCTeamConfig;
+export type CCNativeTeamLaunchSpec = SharedCCNativeTeamLaunchSpec<TeamRosterMember>;
 
 function escapeShellDoubleQuoted(text: string): string {
   return text
@@ -29,17 +37,6 @@ function escapeShellDoubleQuoted(text: string): string {
     .replace(/`/g, "\\`")
     .replace(/\r?\n+/g, " ")
     .trim();
-}
-
-function formatLaunchTimestamp(date: Date): string {
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
-  return `${year}-${month}-${day}-${hours}${minutes}${seconds}-${milliseconds}`;
 }
 
 function formatMemberRole(member: TeamRosterMember): string {
@@ -74,16 +71,131 @@ function writePromptFileAndBuildCommand(
   return `claude${modelArg} "$(cat ${JSON.stringify(filePath)})"\n`;
 }
 
-function buildManagedTeamId(project: TeamRosterProject, launchedAt: Date): string {
-  const displayName = encodeURIComponent(project.projectDisplayName.trim() || project.projectId);
-  return `${project.projectId}::${displayName}::${formatLaunchTimestamp(launchedAt)}`;
+function sanitizeFilenameFragment(value: string): string {
+  const sanitized = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-");
+  return sanitized || "prompt";
 }
 
-function orderedProjectMembers(project: TeamRosterProject): TeamRosterMember[] {
+function writeRawPromptTempFile(promptText: string, label: string): string {
+  const filename = `augment-cc-boot-${sanitizeFilenameFragment(label)}-${Date.now()}-${crypto.randomUUID()}.txt`;
+  const filePath = path.join(os.tmpdir(), filename);
+  fs.writeFileSync(filePath, promptText, "utf-8");
+  return filePath;
+}
+
+function extractPromptTextFromWrappedCommand(command: string): string {
+  const match = command.match(/\$\(\s*cat\s+("(?:[^"\\]|\\.)*")\s*\)/m);
+  if (!match) {
+    throw new Error("Unable to extract prompt file path from Claude launch command.");
+  }
+
+  const promptFilePath = JSON.parse(match[1]) as string;
+  const promptText = fs.readFileSync(promptFilePath, "utf-8");
+
+  try {
+    fs.unlinkSync(promptFilePath);
+  } catch {
+    // Temp prompt cleanup is best-effort.
+  }
+
+  return promptText;
+}
+
+function resolveCCTeamCwd(project: TeamRosterProject): string {
+  const trimmedCodeRoot = project.codeRoot?.trim();
+  return trimmedCodeRoot || process.cwd();
+}
+
+function buildCCNativeCeoPrompt(
+  project: TeamRosterProject,
+  codeRoot: string,
+  vaultRoot: string,
+  teamName: string,
+  userBrief?: string
+): string {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const brief = userBrief?.trim();
+  const roster = orderedProjectMembers(project).map(formatRosterEntry).join("\n");
   return [
-    project.ceo,
-    ...project.members.filter((member) => member.roleId !== project.ceo.roleId),
-  ];
+    `You are the CEO for the ${project.projectDisplayName} project.`,
+    `Project identity: ${project.projectId} (${project.projectDisplayName}).`,
+    `Boot as ${project.ceo.address}.`,
+    `Project root path: ${codeRootPath}.`,
+    `Vault workspace path: ${vaultWorkspacePath}.`,
+    `PARTS.md path: ${partsMdPath}.`,
+    `CEO skill path: ${skillPath}.`,
+    `You are in a Claude Code native team named "${teamName}". The team is already scaffolded — config.json and inboxes are pre-created. Do NOT call TeamCreate. Do NOT use the vault bus (inbox-send.sh/inbox-check.sh). Use Claude Code's native SendMessage tool to communicate with teammates.`,
+    `All roster members are launched in separate terminals and are part of this CC team. They can receive messages via SendMessage immediately.`,
+    `Read PARTS.md and the CEO skill before delegating.`,
+    "Roster:",
+    roster,
+    brief ? `User brief: ${brief}.` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join("\n");
+}
+
+function buildCCNativeMemberPrompt(
+  project: TeamRosterProject,
+  member: TeamRosterMember,
+  codeRoot: string,
+  vaultRoot: string,
+  teamName: string
+): string {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const memberWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, member.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
+  return [
+    `You are ${formatMemberRole(member)} for the ${project.projectDisplayName} project.`,
+    `Boot as ${member.address}.`,
+    `Project root: ${codeRootPath}.`,
+    `Vault workspace: ${vaultWorkspacePath}.`,
+    `Read the project constitution at ${partsMdPath}.`,
+    `Follow the generic role skill at ${skillPath}.`,
+    `Read your workspace at ${memberWorkspacePath}.`,
+    `You are part of a Claude Code native team named "${teamName}". Use SendMessage to communicate with teammates. Do NOT use the vault bus (inbox-send.sh/inbox-check.sh). The team roster and inboxes are pre-configured.`,
+  ].join("\n");
+}
+
+function resolveCCBootPromptText(
+  project: TeamRosterProject,
+  member: TeamRosterMember,
+  codeRoot: string,
+  vaultRoot: string,
+  teamName: string,
+  userBrief?: string
+): string {
+  if (member.roleId === project.ceo.roleId) {
+    return buildCCNativeCeoPrompt(project, codeRoot, vaultRoot, teamName, userBrief);
+  }
+  return buildCCNativeMemberPrompt(project, member, codeRoot, vaultRoot, teamName);
+}
+
+function buildCCTeammateCommandFromPrompt(
+  member: TeamRosterMember,
+  project: TeamRosterProject,
+  teamName: string,
+  leaderSessionId: string,
+  codeRoot: string,
+  promptText: string
+): string {
+  const promptFilePath = writeRawPromptTempFile(promptText, `${member.roleId}-${teamName}`);
+  const agentId = buildCCAgentId(member, teamName);
+  const color = resolveCCColor(project, member);
+  return `cd ${JSON.stringify(codeRoot)} && CLAUDECODE=1 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude --agent-id ${JSON.stringify(agentId)} --agent-name ${JSON.stringify(member.roleId)} --team-name ${JSON.stringify(teamName)} --agent-color ${JSON.stringify(color)} --parent-session-id ${JSON.stringify(leaderSessionId)} --teammate-mode tmux "$(cat ${JSON.stringify(promptFilePath)})"`;
+}
+
+function getCCTeamDirectory(teamName: string): string {
+  return path.join(os.homedir(), ".claude", "teams", teamName);
+}
+
+function getCCInboxDirectory(teamName: string): string {
+  return path.join(getCCTeamDirectory(teamName), "inboxes");
 }
 
 function formatRosterDirectory(member: TeamRosterMember): string {
@@ -274,24 +386,140 @@ export function buildTeamLaunchSpec(
   };
 }
 
-export function computeTeamLayout(members: TeamRosterMember[]): LayoutSlot[] {
-  if (members.length === 0) return [];
+export function generateSessionId(): string {
+  return crypto.randomUUID();
+}
 
-  const ceo = members.find((member) => member.isLead) ?? members[0];
-  const others = members.filter((member) => member.roleId !== ceo.roleId);
-  const middleCount = Math.ceil(others.length / 2);
+export function buildCCTeamConfig(
+  project: TeamRosterProject,
+  teamName: string,
+  leaderSessionId: string
+): CCTeamConfig {
+  const cwd = resolveCCTeamCwd(project);
+  const joinedAt = Date.now();
 
-  const slots: LayoutSlot[] = [
-    { member: ceo, column: 0, row: 0 },
+  return buildCCTeamConfigContract(project, teamName, leaderSessionId, {
+    cwd,
+    joinedAt,
+  });
+}
+
+export function writeCCTeamScaffolding(teamName: string, config: CCTeamConfig): void {
+  const teamDirectory = getCCTeamDirectory(teamName);
+  const inboxDirectory = getCCInboxDirectory(teamName);
+  const configPath = path.join(teamDirectory, "config.json");
+
+  fs.mkdirSync(inboxDirectory, { recursive: true });
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+
+  for (const member of config.members) {
+    const inboxPath = path.join(inboxDirectory, `${member.name}.json`);
+    if (!fs.existsSync(inboxPath)) {
+      fs.writeFileSync(inboxPath, "[]\n", "utf-8");
+    }
+  }
+}
+
+export function seedCCInboxMessage(
+  teamName: string,
+  agentName: string,
+  fromName: string,
+  text: string
+): void {
+  const inboxDirectory = getCCInboxDirectory(teamName);
+  const inboxPath = path.join(inboxDirectory, `${agentName}.json`);
+  const messages = [
+    {
+      from: fromName,
+      text,
+      summary: "Initial boot prompt",
+      timestamp: new Date().toISOString(),
+      read: false,
+    },
   ];
 
-  others.slice(0, middleCount).forEach((member, index) => {
-    slots.push({ member, column: 1, row: index });
+  fs.mkdirSync(inboxDirectory, { recursive: true });
+  fs.writeFileSync(inboxPath, `${JSON.stringify(messages, null, 2)}\n`, "utf-8");
+}
+
+export function buildCCTeammateCommand(
+  member: TeamRosterMember,
+  project: TeamRosterProject,
+  teamName: string,
+  leaderSessionId: string,
+  codeRoot: string,
+  vaultRoot: string
+): string {
+  const resolvedCodeRoot = codeRoot.trim() || resolveCCTeamCwd(project);
+  const resolvedVaultRoot = vaultRoot.trim() || process.cwd();
+  const promptText = resolveCCBootPromptText(
+    project,
+    member,
+    resolvedCodeRoot,
+    resolvedVaultRoot,
+    teamName
+  );
+
+  return buildCCTeammateCommandFromPrompt(
+    member,
+    project,
+    teamName,
+    leaderSessionId,
+    resolvedCodeRoot,
+    promptText
+  );
+}
+
+export function buildCCNativeTeamLaunchSpec(
+  project: TeamRosterProject,
+  codeRoot: string,
+  vaultRoot: string,
+  userBrief?: string
+): CCNativeTeamLaunchSpec {
+  const launchedAt = new Date();
+  const teamName = buildCCNativeTeamName(project, launchedAt);
+  const leaderSessionId = generateSessionId();
+  const resolvedCodeRoot = codeRoot.trim() || resolveCCTeamCwd(project);
+  const resolvedVaultRoot = vaultRoot.trim() || process.cwd();
+  const configProject: TeamRosterProject = {
+    ...project,
+    codeRoot: resolvedCodeRoot,
+  };
+  const config = buildCCTeamConfig(configProject, teamName, leaderSessionId);
+
+  const memberCommands = orderedProjectMembers(project).map((member) => {
+    const bootPromptText = resolveCCBootPromptText(
+      configProject,
+      member,
+      resolvedCodeRoot,
+      resolvedVaultRoot,
+      teamName,
+      member.roleId === project.ceo.roleId ? userBrief : undefined
+    );
+
+    return {
+      member,
+      cwd: resolvedCodeRoot,
+      bootPromptText,
+      command: buildCCTeammateCommandFromPrompt(
+        member,
+        configProject,
+        teamName,
+        leaderSessionId,
+        resolvedCodeRoot,
+        bootPromptText
+      ),
+    };
   });
 
-  others.slice(middleCount).forEach((member, index) => {
-    slots.push({ member, column: 2, row: index });
-  });
+  return {
+    teamName,
+    leaderSessionId,
+    config,
+    memberCommands,
+  };
+}
 
-  return slots;
+export function computeTeamLayout(members: TeamRosterMember[]): LayoutSlot[] {
+  return computeSharedTeamLayout(members);
 }

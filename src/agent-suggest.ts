@@ -9,6 +9,13 @@ export type SlashSuggestion =
 // For each root, prefer root/skills/ subfolder; fall back to root/ itself.
 const SKILL_SCAN_ROOTS = ["agents", ".agents", ".claude", ".augment"];
 
+function displayCommandName(id: string, name: string): string {
+  if (id.startsWith("augment-terminal:") && name.startsWith("Augment: ")) {
+    return name.replace(/^Augment:\s+/, "");
+  }
+  return name;
+}
+
 export class AgentSuggest extends EditorSuggest<SlashSuggestion> {
   private skills: Array<{ name: string; description: string; file: TFile }> = [];
 
@@ -93,7 +100,11 @@ export class AgentSuggest extends EditorSuggest<SlashSuggestion> {
     if (matchedCommands.length > 0) {
       result.push({ kind: "header", label: "Commands" });
       for (const c of matchedCommands) {
-        result.push({ kind: "command", id: c.id, name: c.name });
+        result.push({
+          kind: "command",
+          id: c.id,
+          name: displayCommandName(c.id, c.name),
+        });
       }
     }
 

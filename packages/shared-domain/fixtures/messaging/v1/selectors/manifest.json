@@ -1,0 +1,104 @@
+{
+  "version": "v1",
+  "cases": [
+    {
+      "id": "visible-and-human-thread-selectors-shared-valid",
+      "visibleAddresses": [
+        "user@vault",
+        "ceo@augment-plugin",
+        "strategy@augment-plugin"
+      ],
+      "messages": [
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050000Z__msg-601.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050000Z__msg-601.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050100Z__msg-602.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050100Z__msg-602.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050200Z__msg-603.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050200Z__msg-603.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050300Z__msg-604.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050300Z__msg-604.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050400Z__msg-605.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050400Z__msg-605.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050500Z__msg-606.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050500Z__msg-606.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050600Z__msg-607.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050600Z__msg-607.md"
+        },
+        {
+          "fixture": "positive/visible-and-human-thread-selectors-shared-valid/messages/2026-03-12T050700Z__msg-608.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T050700Z__msg-608.md"
+        }
+      ],
+      "events": [],
+      "expected": {
+        "humanThreads": [
+          {
+            "threadId": "msg-607",
+            "counterparty": "strategy@augment-plugin",
+            "participants": [
+              "user@vault",
+              "strategy@augment-plugin"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T05:07:00Z"
+          },
+          {
+            "threadId": "msg-601",
+            "counterparty": "ceo@augment-plugin",
+            "participants": [
+              "user@vault",
+              "ceo@augment-plugin"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T05:01:00Z"
+          }
+        ],
+        "allThreads": [
+          {
+            "threadId": "msg-607",
+            "counterparty": "strategy@augment-plugin",
+            "participants": [
+              "user@vault",
+              "strategy@augment-plugin"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T05:07:00Z"
+          },
+          {
+            "threadId": "msg-603",
+            "counterparty": "strategy@augment-plugin",
+            "participants": [
+              "ceo@augment-plugin",
+              "strategy@augment-plugin"
+            ],
+            "humanInvolved": false,
+            "lastActivityAt": "2026-03-12T05:03:00Z"
+          },
+          {
+            "threadId": "msg-601",
+            "counterparty": "ceo@augment-plugin",
+            "participants": [
+              "user@vault",
+              "ceo@augment-plugin"
+            ],
+            "humanInvolved": true,
+            "lastActivityAt": "2026-03-12T05:01:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -3,6 +3,9 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { CanvasAddon } from "@xterm/addon-canvas";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { PtyBridge } from "./pty-bridge";
 import { detectDeps, invalidateDepsCache, CCDeps } from "./deps";
 import { setupVaultForClaude } from "./vault-setup";
@@ -43,6 +46,7 @@ type OrchestrationState = {
 
 type TerminalViewState = {
   name?: string;
+  busAddress?: string;
   snapshot?: string;
   launchCwd?: string;
   managedTeamId?: string;
@@ -54,6 +58,11 @@ const MAX_SNAPSHOT_CHARS = 200_000;
 const MAX_PARSE_BUFFER_CHARS = 24_000;
 const MAX_TEAM_EVENTS = 40;
 const EVENT_DEDUP_WINDOW_MS = 1200;
+const EXTERNAL_WAKE_STATE_DIR =
+  process.env.LAREDO_BUS_AUGMENT_STATUS_DIR?.trim() ||
+  (process.platform === "win32"
+    ? join(tmpdir(), "laredo-bus", "augment-terminal-status")
+    : "/tmp/laredo-bus/augment-terminal-status");
 
 let xtermStyleEl: HTMLStyleElement | null = null;
 
@@ -280,6 +289,8 @@ export class TerminalView extends ItemView {
   private launchCwd: string | null = null;
   private managedTeamId: string | null = null;
   private managedRoleId: string | null = null;
+  private busAddress: string | null = null;
+  private externalWakeStatePath: string | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -324,6 +335,10 @@ export class TerminalView extends ItemView {
 
   public getManagedRoleId(): string | null {
     return this.managedRoleId;
+  }
+
+  public getBusAddress(): string | null {
+    return this.busAddress ?? this.normalizeBusAddress(this.terminalName);
   }
 
   getStatus(): TerminalStatus {
@@ -374,9 +389,11 @@ export class TerminalView extends ItemView {
     if (!trimmed) return;
 
     this.terminalName = trimmed;
+    this.busAddress = this.busAddress ?? this.normalizeBusAddress(trimmed);
     this.userRenamed = true;
     this.refreshLeafName();
     this.persistNameToLeafState();
+    this.syncExternalWakeState();
     this.app.workspace.trigger("augment-terminal:changed");
   }
 
@@ -388,6 +405,7 @@ export class TerminalView extends ItemView {
 
     return {
       name: this.terminalName,
+      busAddress: this.busAddress ?? undefined,
       snapshot,
       launchCwd: this.launchCwd ?? undefined,
       managedTeamId: this.managedTeamId ?? undefined,
@@ -406,6 +424,10 @@ export class TerminalView extends ItemView {
     if (typeof state?.name === "string" && state.name.trim()) {
       this.terminalName = state.name.trim();
     }
+    this.busAddress =
+      this.normalizeBusAddress(state?.busAddress) ??
+      this.normalizeBusAddress(state?.name) ??
+      this.busAddress;
     if (typeof state?.snapshot === "string") {
       this.restoredSnapshot = state.snapshot;
     }
@@ -456,6 +478,7 @@ export class TerminalView extends ItemView {
     }
 
     this.refreshLeafName();
+    this.syncExternalWakeState();
     this.app.workspace.trigger("augment-terminal:changed");
   }
 
@@ -515,6 +538,7 @@ export class TerminalView extends ItemView {
       state: {
         ...(current.state ?? {}),
         name: this.terminalName,
+        busAddress: this.busAddress ?? undefined,
       },
     };
 
@@ -1109,6 +1133,7 @@ export class TerminalView extends ItemView {
       }
     }
     this.status = newStatus;
+    this.syncExternalWakeState();
     this.contentEl
       .closest(".workspace-leaf")
       ?.setAttribute("data-augment-status", newStatus);
@@ -1184,6 +1209,78 @@ export class TerminalView extends ItemView {
     this.skillName = name;
   }
 
+  private normalizeBusAddress(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+
+    const trimmed = value.trim();
+    if (!trimmed || !trimmed.includes("@") || /\s/.test(trimmed)) {
+      return null;
+    }
+
+    return trimmed;
+  }
+
+  private externalWakeStateSlug(address: string): string {
+    return address.replace(/@/g, "_").replace(/[^A-Za-z0-9_.-]+/g, "_");
+  }
+
+  private externalWakeStateAddress(): string | null {
+    return this.busAddress ?? this.normalizeBusAddress(this.terminalName);
+  }
+
+  private syncExternalWakeState(): void {
+    const address = this.externalWakeStateAddress();
+
+    if (!address) {
+      this.clearExternalWakeState();
+      return;
+    }
+
+    try {
+      const nextPath = join(
+        EXTERNAL_WAKE_STATE_DIR,
+        `${this.externalWakeStateSlug(address)}.json`
+      );
+
+      if (this.externalWakeStatePath && this.externalWakeStatePath !== nextPath) {
+        rmSync(this.externalWakeStatePath, { force: true });
+        this.externalWakeStatePath = null;
+      }
+
+      mkdirSync(EXTERNAL_WAKE_STATE_DIR, { recursive: true });
+
+      const payload = JSON.stringify(
+        {
+          address,
+          name: this.terminalName,
+          status: this.status,
+          managedTeamId: this.managedTeamId,
+          managedRoleId: this.managedRoleId,
+          updatedAtMs: Date.now(),
+        },
+        null,
+        2
+      );
+      const tmpPath = `${nextPath}.${process.pid}.${Date.now()}.tmp`;
+
+      writeFileSync(tmpPath, payload, "utf8");
+      renameSync(tmpPath, nextPath);
+      this.externalWakeStatePath = nextPath;
+    } catch (error) {
+      console.warn("[Augment] failed to sync external wake state", error);
+    }
+  }
+
+  private clearExternalWakeState(): void {
+    if (!this.externalWakeStatePath) return;
+    try {
+      rmSync(this.externalWakeStatePath, { force: true });
+    } catch (error) {
+      console.warn("[Augment] failed to clear external wake state", error);
+    }
+    this.externalWakeStatePath = null;
+  }
+
   getStartedAt(): number {
     return this.startedAt;
   }
@@ -1200,6 +1297,21 @@ export class TerminalView extends ItemView {
 
   write(data: string): void {
     this.ptyBridge?.write(data);
+  }
+
+  public appendSystemOutput(data: string): void {
+    if (!data) return;
+
+    this.terminal?.write(data);
+    this.appendToScrollback(data);
+    this.lastActivityMs = Date.now();
+
+    if (this.app.workspace.activeLeaf === this.leaf) {
+      this.markActivityRead();
+    } else {
+      this.unreadActivity += 1;
+      this.app.workspace.trigger("augment-terminal:changed");
+    }
   }
 
   markSkillRunning(): void {
@@ -1325,6 +1437,14 @@ export class TerminalView extends ItemView {
     const identity = this.extractAgentIdentity(clean);
     if (identity && identity !== this.agentIdentity) {
       this.agentIdentity = identity;
+      changed = true;
+    }
+
+    const busAddress = this.extractBusAddress(clean);
+    if (busAddress && busAddress !== this.busAddress) {
+      this.busAddress = busAddress;
+      this.persistNameToLeafState();
+      this.syncExternalWakeState();
       changed = true;
     }
 
@@ -1524,6 +1644,17 @@ export class TerminalView extends ItemView {
     const byName = text.match(/\bagentName\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i);
     if (byName?.[1]) {
       return this.normalizeIdentifier(byName[1]);
+    }
+
+    return null;
+  }
+
+  private extractBusAddress(text: string): string | null {
+    const contextual = text.match(
+      /\b(?:Your bus address is|bus address|Boot as)\s*:?\s*([A-Za-z0-9._-]+@[A-Za-z0-9._-]+)/i
+    );
+    if (contextual?.[1]) {
+      return this.normalizeBusAddress(contextual[1]);
     }
 
     return null;
@@ -1888,6 +2019,7 @@ export class TerminalView extends ItemView {
     this.canvasAddon = null;
     this.terminal?.dispose();
     this.terminal = null;
+    this.clearExternalWakeState();
     this.fitAddon = null;
     this.ptyBridge = null;
     this.resizeObserver = null;

@@ -1,0 +1,157 @@
+{
+  "version": "v1",
+  "cases": [
+    {
+      "id": "message-root-local-valid",
+      "kind": "message",
+      "status": "positive",
+      "shape": "root",
+      "privacy": "local",
+      "fixture": "messages/positive/message-root-local-valid.md",
+      "busPath": "agents/bus/local/messages/2026/03/2026-03-12T010203Z__msg-001.md",
+      "expectedBody": "Body paragraph",
+      "plan": {
+        "kind": "message",
+        "opts": {
+          "to": "CEO",
+          "from": "user",
+          "subject": "  Hello   there  ",
+          "body": "Body paragraph"
+        },
+        "options": {
+          "createdAt": "2026-03-12T01:02:03Z",
+          "msgId": "msg-001"
+        },
+        "expectedSignalPath": "agents/bus/derived/signals/ceo_at_vault.json"
+      }
+    },
+    {
+      "id": "message-reply-shared-valid",
+      "kind": "message",
+      "status": "positive",
+      "shape": "reply",
+      "privacy": "shared",
+      "fixture": "messages/positive/message-reply-shared-valid.md",
+      "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T010304Z__msg-002.md",
+      "expectedBody": "Reply body",
+      "plan": {
+        "kind": "message",
+        "opts": {
+          "to": "user",
+          "from": "ceo@augment-plugin",
+          "subject": "Status update",
+          "body": "Reply body",
+          "msgType": "response",
+          "threadId": "thread-001",
+          "replyTo": "msg-001",
+          "privacy": "shared"
+        },
+        "options": {
+          "createdAt": "2026-03-12T01:03:04Z",
+          "msgId": "msg-002"
+        },
+        "expectedSignalPath": "agents/bus/derived/signals/user_at_vault.json"
+      }
+    },
+    {
+      "id": "event-delivered-local-valid",
+      "kind": "event",
+      "status": "positive",
+      "privacy": "local",
+      "fixture": "events/positive/event-delivered-local-valid.md",
+      "busPath": "agents/bus/local/events/2026/03/2026-03-12T010405Z__delivered__msg-001__evt-001.md",
+      "hasVia": false
+    },
+    {
+      "id": "event-read-shared-valid",
+      "kind": "event",
+      "status": "positive",
+      "privacy": "shared",
+      "fixture": "events/positive/event-read-shared-valid.md",
+      "busPath": "agents/bus/shared/events/2026/03/2026-03-12T010506Z__read__msg-002__evt-002.md",
+      "hasVia": true,
+      "plan": {
+        "kind": "event",
+        "message": {
+          "msgId": "msg-002",
+          "threadId": "thread-001",
+          "privacy": "shared"
+        },
+        "eventType": "read",
+        "actor": "user",
+        "options": {
+          "createdAt": "2026-03-12T01:05:06Z",
+          "eventId": "evt-002"
+        }
+      }
+    },
+    {
+      "id": "message-missing-stable-field-invalid",
+      "kind": "message",
+      "status": "negative",
+      "shape": "root",
+      "privacy": "local",
+      "fixture": "messages/negative/message-missing-stable-field-invalid.md",
+      "busPath": "agents/bus/local/messages/2026/03/2026-03-12T020101Z__msg-101.md",
+      "expectedClass": "missing-stable-field"
+    },
+    {
+      "id": "message-address-shape-invalid",
+      "kind": "message",
+      "status": "negative",
+      "shape": "root",
+      "privacy": "local",
+      "fixture": "messages/negative/message-address-shape-invalid.md",
+      "busPath": "agents/bus/local/messages/2026/03/2026-03-12T020202Z__msg-102.md",
+      "expectedClass": "invalid-address"
+    },
+    {
+      "id": "event-type-invalid",
+      "kind": "event",
+      "status": "negative",
+      "privacy": "shared",
+      "fixture": "events/negative/event-type-invalid.md",
+      "busPath": "agents/bus/shared/events/2026/03/2026-03-12T020303Z__observed__msg-201__evt-201.md",
+      "expectedClass": "invalid-event-enum"
+    },
+    {
+      "id": "message-root-thread-mismatch-invalid",
+      "kind": "message",
+      "status": "negative",
+      "shape": "root",
+      "privacy": "local",
+      "fixture": "messages/negative/message-root-thread-mismatch-invalid.md",
+      "busPath": "agents/bus/local/messages/2026/03/2026-03-12T020404Z__msg-103.md",
+      "expectedClass": "invalid-root-thread-law"
+    },
+    {
+      "id": "message-reply-missing-reply-to-invalid",
+      "kind": "message",
+      "status": "negative",
+      "shape": "reply",
+      "privacy": "shared",
+      "fixture": "messages/negative/message-reply-missing-reply-to-invalid.md",
+      "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T020505Z__msg-104.md",
+      "expectedClass": "invalid-reply-law"
+    },
+    {
+      "id": "event-filename-law-invalid",
+      "kind": "event",
+      "status": "negative",
+      "privacy": "local",
+      "fixture": "events/negative/event-filename-law-invalid.md",
+      "busPath": "agents/bus/local/events/2026/03/not-canonical.md",
+      "expectedClass": "invalid-filename-law"
+    },
+    {
+      "id": "message-path-privacy-mismatch-invalid",
+      "kind": "message",
+      "status": "negative",
+      "shape": "root",
+      "privacy": "local",
+      "fixture": "messages/negative/message-path-privacy-mismatch-invalid.md",
+      "busPath": "agents/bus/local/messages/2026/03/2026-03-12T020606Z__msg-105.md",
+      "expectedClass": "invalid-path-privacy-law"
+    }
+  ]
+}

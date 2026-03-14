@@ -2,10 +2,10 @@
  * Trust plugin prompt + compose modal visual test.
  */
 
-import { chromium } from 'playwright';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { connect } from '../connect.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCREENSHOT_DIR = join(__dirname, '..', 'screenshots');
@@ -16,8 +16,7 @@ async function run() {
   const pass = (name) => { results.push({ name, status: 'PASS' }); console.log(`  ✓ ${name}`); };
   const fail = (name, reason) => { results.push({ name, status: 'FAIL', reason }); console.log(`  ✗ ${name}: ${reason}`); };
 
-  const browser = await chromium.connectOverCDP('http://localhost:9223');
-  const page = browser.contexts()[0].pages()[0];
+  const { browser, page, close } = await connect();
 
   try {
     // Handle trust dialog if present
@@ -347,7 +346,7 @@ async function run() {
       results.filter(r => r.status === 'FAIL').forEach(r => console.log(`  ✗ ${r.name}: ${r.reason}`));
     }
     console.log(`\nScreenshots: ${SCREENSHOT_DIR}`);
-    await browser.close();
+    await close();
     process.exit(failed > 0 ? 1 : 0);
   }
 }

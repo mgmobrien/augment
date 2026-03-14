@@ -1,22 +1,28 @@
 import { App, EventRef, ItemView, WorkspaceLeaf } from "obsidian";
+import { renderLegacyRedirectShell } from "./control-center-redirect";
 import {
-  discoverVaultParts,
+  DEFAULT_WATCHED_INBOX_ADDRESSES,
   getThread,
   HUMAN_ADDRESS,
   InboxMessage,
   InboxThreadSummary,
+  listAllThreads,
   listHumanThreads,
   listPartThreads,
   markThreadRead,
-  PartInfo,
   unreadCount,
+  unreadCountForAddresses,
 } from "./inbox-bus";
 import { ComposeModal } from "./inbox-suggest";
+import { discoverVaultParts, PartInfo } from "./part-registry";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 
 export const VIEW_TYPE_PART_INBOX = "augment-part-inbox";
+const ALL_MESSAGES_FILTER = "__all_messages__";
+const WITH_MATT_FILTER = "__with_matt__";
 
 export type PartInboxViewState =
+  | { mode: "all"; selectedThreadId?: string }
   | { mode: "part"; address: string; selectedThreadId?: string }
   | { mode: "human"; selectedThreadId?: string };
 
@@ -64,7 +70,7 @@ function formatMailboxLabel(
   address: string,
   part?: PartTerminalTarget | null
 ): string {
-  if (normalizeInboxAddress(address) === HUMAN_ADDRESS) return "My inbox";
+  if (normalizeInboxAddress(address) === HUMAN_ADDRESS) return "With Matt";
   if (part) {
     return part.habitat === "vault"
       ? part.name
@@ -77,6 +83,45 @@ function formatMailboxLabel(
 
 function formatPartQueueLabel(unread: number): string {
   return unread > 0 ? `Part has ${unread} unread` : "Part inbox clear";
+}
+
+function formatParticipantList(participants: string[]): string {
+  return participants.map((address) => formatAddressLabel(address)).join(", ");
+}
+
+function renderLabeledField(
+  container: HTMLElement,
+  classPrefix: string,
+  label: string,
+  value: string
+): void {
+  const field = container.createDiv({ cls: `${classPrefix}-field` });
+  field.createSpan({ cls: `${classPrefix}-field-label`, text: label });
+  field.createSpan({ cls: `${classPrefix}-field-value`, text: value });
+}
+
+function formatThreadSubject(
+  thread: Pick<InboxThreadSummary, "subject" | "participants" | "lastSender" | "lastTo">
+): string {
+  const subject = thread.subject.trim();
+  if (subject && subject.toLowerCase() !== "message") {
+    return subject;
+  }
+
+  const [firstParticipant, secondParticipant] = thread.participants;
+  const fromLabel = formatAddressLabel(firstParticipant || thread.lastSender);
+  const toLabel = formatAddressLabel(secondParticipant || thread.lastTo || thread.lastSender);
+  return `Conversation: ${fromLabel} to ${toLabel}`;
+}
+
+function formatThreadParticipants(
+  thread: Pick<InboxThreadSummary, "participants" | "messageCount">
+): string {
+  const count = `${thread.messageCount} ${thread.messageCount === 1 ? "message" : "messages"}`;
+  if (thread.participants.length <= 2) {
+    return count;
+  }
+  return `${thread.participants.length} participants · ${count}`;
 }
 
 function formatTerminalStatus(status: string | null | undefined): string {
@@ -235,12 +280,16 @@ export async function openPartInboxForPart(app: App, address: string): Promise<P
   });
 }
 
+export async function openAllMessages(app: App): Promise<PartInboxView> {
+  return openPartInboxLeaf(app, { mode: "all" });
+}
+
 export async function openHumanInbox(app: App): Promise<PartInboxView> {
   return openPartInboxLeaf(app, { mode: "human" });
 }
 
 export class PartInboxView extends ItemView {
-  private viewState: PartInboxViewState = { mode: "human" };
+  private viewState: PartInboxViewState = { mode: "all" };
   private refreshToken = 0;
   private discoveredParts: PartTerminalTarget[] = [];
 
@@ -265,35 +314,53 @@ export class PartInboxView extends ItemView {
   }
 
   async setState(state: PartInboxViewState): Promise<void> {
-    await this.setMode(state.mode === "human" ? HUMAN_ADDRESS : state.address, {
+    if (state.mode === "all") {
+      await this.setMode("all", { selectedThreadId: state.selectedThreadId });
+      return;
+    }
+
+    await this.setMode(state.mode === "human" ? "human" : state.address, {
       selectedThreadId: state.selectedThreadId,
     });
   }
 
   async setMode(
-    modeOrAddress: "human" | string,
+    modeOrAddress: "all" | "human" | string,
     options: { selectedThreadId?: string } = {}
   ): Promise<void> {
-    const address = normalizeInboxAddress(modeOrAddress);
     const nextState: PartInboxViewState =
-      address === HUMAN_ADDRESS
-        ? { mode: "human", selectedThreadId: options.selectedThreadId }
-        : {
-            mode: "part",
-            address,
-            selectedThreadId: options.selectedThreadId,
-          };
+      modeOrAddress === "all"
+        ? { mode: "all", selectedThreadId: options.selectedThreadId }
+        : (() => {
+            const address =
+              modeOrAddress === "human"
+                ? HUMAN_ADDRESS
+                : normalizeInboxAddress(modeOrAddress);
+            return address === HUMAN_ADDRESS
+              ? { mode: "human", selectedThreadId: options.selectedThreadId }
+              : {
+                  mode: "part",
+                  address,
+                  selectedThreadId: options.selectedThreadId,
+                };
+          })();
 
     const currentMode = this.viewState.mode;
     const currentAddress = this.selectedAddress();
     const currentThreadId = this.viewState.selectedThreadId;
+    const nextAddress =
+      nextState.mode === "part"
+        ? nextState.address
+        : nextState.mode === "human"
+          ? HUMAN_ADDRESS
+          : null;
 
     this.viewState = nextState;
     this.syncLeafTitle();
 
     if (
       currentMode !== nextState.mode ||
-      currentAddress !== address ||
+      currentAddress !== nextAddress ||
       currentThreadId !== nextState.selectedThreadId
     ) {
       await this.refresh();
@@ -309,19 +376,26 @@ export class PartInboxView extends ItemView {
     this.registerEvent(
       workspaceEvents.on("augment-bus:changed", () => void this.refresh())
     );
-    this.registerEvent(
-      workspaceEvents.on("augment-terminal:changed", () => void this.refresh())
-    );
-    this.registerEvent(
-      this.app.workspace.on("layout-change", () => void this.refresh())
-    );
-    this.registerInterval(window.setInterval(() => this.refreshRelativeTimes(), 30_000));
 
     await this.refresh();
   }
 
-  private selectedAddress(): string {
-    return this.viewState.mode === "human" ? HUMAN_ADDRESS : this.viewState.address;
+  private selectedAddress(): string | null {
+    return this.viewState.mode === "part"
+      ? this.viewState.address
+      : this.viewState.mode === "human"
+        ? HUMAN_ADDRESS
+        : null;
+  }
+
+  private selectedFilterValue(): string {
+    if (this.viewState.mode === "all") return ALL_MESSAGES_FILTER;
+    if (this.viewState.mode === "human") return WITH_MATT_FILTER;
+    return this.viewState.address;
+  }
+
+  private visibleAddresses(): string[] {
+    return Array.from(new Set([HUMAN_ADDRESS, ...this.discoveredParts.map((part) => part.address)]));
   }
 
   private fallbackPart(address: string): PartTerminalTarget {
@@ -345,6 +419,7 @@ export class PartInboxView extends ItemView {
 
     const currentAddress = this.selectedAddress();
     if (
+      currentAddress &&
       currentAddress !== HUMAN_ADDRESS &&
       !discovered.some((part) => part.address === currentAddress)
     ) {
@@ -355,6 +430,8 @@ export class PartInboxView extends ItemView {
   }
 
   private resolvePart(address = this.selectedAddress()): PartTerminalTarget | null {
+    if (!address) return null;
+
     const normalized = normalizeInboxAddress(address);
     if (normalized === HUMAN_ADDRESS) return null;
 
@@ -374,7 +451,9 @@ export class PartInboxView extends ItemView {
   }
 
   private getSelectedMailboxLabel(): string {
-    return formatMailboxLabel(this.selectedAddress(), this.resolvePart());
+    if (this.viewState.mode === "all") return "All messages";
+    if (this.viewState.mode === "human") return "With Matt";
+    return formatMailboxLabel(this.viewState.address, this.resolvePart());
   }
 
   private syncLeafTitle(): void {
@@ -394,58 +473,35 @@ export class PartInboxView extends ItemView {
   }
 
   private currentThreads(): InboxThreadSummary[] {
-    if (this.selectedAddress() === HUMAN_ADDRESS) {
+    if (this.viewState.mode === "all") {
+      return listAllThreads(this.app, this.visibleAddresses());
+    }
+    if (this.viewState.mode === "human") {
       return listHumanThreads(this.app);
     }
-    return listPartThreads(this.app, this.selectedAddress());
+    return listPartThreads(this.app, this.viewState.address);
   }
 
   private async refresh(): Promise<void> {
-    const token = ++this.refreshToken;
-    this.refreshDiscoveredParts();
     this.syncLeafTitle();
-    const threads = this.currentThreads();
-    let selectedThreadId = this.viewState.selectedThreadId;
-
-    if (selectedThreadId && !threads.some((thread) => thread.threadId === selectedThreadId)) {
-      selectedThreadId = undefined;
-    }
-
-    if (!selectedThreadId && threads.length > 0) {
-      selectedThreadId = threads[0].threadId;
-    }
-
-    if (this.viewState.mode === "part") {
-      this.viewState = {
-        ...this.viewState,
-        selectedThreadId,
-      };
-    } else {
-      this.viewState = {
-        mode: "human",
-        selectedThreadId,
-      };
-    }
-
-    if (selectedThreadId && this.viewState.mode === "human") {
-      await markThreadRead(this.app, selectedThreadId, HUMAN_ADDRESS);
-      if (token !== this.refreshToken) return;
-    }
-
-    const refreshedThreads = this.currentThreads();
-    const transcript =
-      selectedThreadId && refreshedThreads.some((thread) => thread.threadId === selectedThreadId)
-        ? await getThread(this.app, selectedThreadId)
-        : [];
-
-    if (token !== this.refreshToken) return;
-    this.render(refreshedThreads, transcript);
+    this.contentEl.addClass("augment-part-inbox-view");
+    const unread = unreadCountForAddresses(this.app, DEFAULT_WATCHED_INBOX_ADDRESSES);
+    renderLegacyRedirectShell(this.contentEl, {
+      title: "Inbox moved",
+      copy:
+        "The legacy inbox view moved out of Augment for Obsidian. Open Augment Control Center when it is available, or use Learn more for the current gap-period path.",
+      countLine: unread > 0 ? `Unread attention: ${unread}` : null,
+      onOpenControlCenter: () => {
+        void (this.app as any).plugins?.plugins?.["augment-terminal"]?.openControlCenter?.();
+      },
+    });
   }
 
   private refreshRelativeTimes(): void {
     this.contentEl.querySelectorAll<HTMLElement>("[data-augment-ts]").forEach((el) => {
       const timestampMs = Number(el.dataset.augmentTs ?? "0");
-      el.textContent = relativeTime(timestampMs);
+      const prefix = el.dataset.augmentTsPrefix ?? "";
+      el.textContent = `${prefix}${relativeTime(timestampMs)}`;
     });
   }
 
@@ -476,16 +532,22 @@ export class PartInboxView extends ItemView {
     const titleRow = titleBlock.createDiv({ cls: "augment-part-inbox-title-row" });
     const metaRow = titleBlock.createDiv({ cls: "augment-part-inbox-meta-row" });
     const actions = header.createDiv({ cls: "augment-part-inbox-actions" });
-    const activeAddress = this.selectedAddress();
 
     titleRow.createDiv({ cls: "augment-part-inbox-title", text: "Messages" });
-    const selector = titleRow.createEl("select", {
-      cls: "dropdown augment-part-inbox-selector",
-      attr: { "aria-label": "Select inbox" },
+    const selectorWrapper = titleRow.createDiv({
+      cls: "dropdown augment-part-inbox-selector-wrap",
+    });
+    const selector = selectorWrapper.createEl("select", {
+      cls: "augment-part-inbox-selector",
+      attr: { "aria-label": "Filter messages" },
     }) as HTMLSelectElement;
     selector.createEl("option", {
-      value: HUMAN_ADDRESS,
-      text: "My inbox",
+      value: ALL_MESSAGES_FILTER,
+      text: "All messages",
+    });
+    selector.createEl("option", {
+      value: WITH_MATT_FILTER,
+      text: "With Matt",
     });
     for (const part of this.discoveredParts) {
       selector.createEl("option", {
@@ -493,19 +555,33 @@ export class PartInboxView extends ItemView {
         text: formatMailboxLabel(part.address, part),
       });
     }
-    selector.value = activeAddress;
+    selector.value = this.selectedFilterValue();
     selector.addEventListener("change", () => {
+      if (selector.value === ALL_MESSAGES_FILTER) {
+        void this.setMode("all");
+        return;
+      }
+      if (selector.value === WITH_MATT_FILTER) {
+        void this.setMode("human");
+        return;
+      }
       void this.setMode(selector.value);
     });
 
-    if (this.viewState.mode === "human") {
+    if (this.viewState.mode === "all") {
+      const visibleCount = this.visibleAddresses().length;
+      metaRow.createSpan({
+        cls: "augment-part-inbox-pill",
+        text: `${visibleCount} visible ${visibleCount === 1 ? "address" : "addresses"}`,
+      });
+    } else if (this.viewState.mode === "human") {
       const unread = unreadCount(this.app, HUMAN_ADDRESS);
       metaRow.createSpan({
         cls: "augment-part-inbox-pill",
-        text: unread > 0 ? `${unread} unread` : "No unread messages",
+        text: unread > 0 ? `${unread} unread for Matt` : "No unread for Matt",
       });
     } else {
-      const part = this.resolvePart(activeAddress);
+      const part = this.resolvePart(this.viewState.address);
       if (!part) return;
       const terminalLeaf = findTerminalLeafForPart(this.app, part);
       const terminalStatus = (terminalLeaf?.view as TerminalViewLike | undefined)?.getStatus?.();
@@ -540,11 +616,11 @@ export class PartInboxView extends ItemView {
       }
     }
 
-    const replyTarget = this.getReplyTarget(selectedThread);
+    const replyTarget = this.getReplyTarget(selectedThread, transcript);
     const replyTo = transcript.length > 0 ? transcript[transcript.length - 1].msgId : "";
     if (selectedThread && replyTarget && replyTo) {
       const replyBtn = actions.createEl("button", {
-        text: "Reply",
+        text: `Reply to ${formatAddressLabel(replyTarget)}`,
         attr: { type: "button" },
       });
       replyBtn.addEventListener("click", () => {
@@ -566,22 +642,34 @@ export class PartInboxView extends ItemView {
 
     if (threads.length === 0) {
       const empty = list.createDiv({ cls: "augment-part-inbox-empty" });
-      if (this.viewState.mode === "human") {
+      if (this.viewState.mode === "all") {
         empty.createDiv({
           cls: "augment-part-inbox-empty-title",
-          text: "No messages for you yet.",
+          text: "No messages in scope yet.",
         });
         empty.createDiv({
           cls: "augment-part-inbox-empty-copy",
-          text:
-            this.discoveredParts.length > 0
-              ? "Choose a part from the inbox menu above to start a conversation."
-              : "No parts found yet. Parts are AI agents that live in your vault.",
+          text: "When Augment has visible traffic between Matt and the listed agents, threads will appear here.",
         });
-      } else {
+      } else if (this.viewState.mode === "human") {
         empty.createDiv({
           cls: "augment-part-inbox-empty-title",
-          text: "No threads with this part yet.",
+          text: "No messages with Matt yet.",
+        });
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-copy",
+          text: "This view only shows threads where one side is Matt. Switch to All messages to inspect agent traffic.",
+        });
+      } else {
+        const part = this.resolvePart();
+        const partLabel = formatMailboxLabel(this.viewState.address, part);
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-title",
+          text: `No messages with ${partLabel} yet.`,
+        });
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-copy",
+          text: `This view only shows threads where one side is ${partLabel}. Start a conversation or switch filters.`,
         });
       }
 
@@ -615,21 +703,28 @@ export class PartInboxView extends ItemView {
       });
       rowTop.createSpan({
         cls: "augment-part-inbox-thread-title",
-        text:
-          this.viewState.mode === "human"
-            ? formatAddressLabel(thread.counterparty)
-            : thread.subject,
+        text: formatThreadSubject(thread),
       });
       const age = rowTop.createSpan({ cls: "augment-part-inbox-thread-age" });
       age.dataset.augmentTs = String(parseTimestampMs(thread.lastActivityAt));
       age.textContent = relativeTime(parseTimestampMs(thread.lastActivityAt));
 
+      const route = row.createDiv({ cls: "augment-part-inbox-thread-route" });
+      renderLabeledField(
+        route,
+        "augment-part-inbox-thread",
+        "From",
+        formatAddressLabel(thread.lastSender)
+      );
+      renderLabeledField(
+        route,
+        "augment-part-inbox-thread",
+        "To",
+        formatAddressLabel(thread.lastTo)
+      );
       row.createDiv({
-        cls: "augment-part-inbox-thread-subline",
-        text:
-          this.viewState.mode === "human"
-            ? thread.subject
-            : `${formatAddressLabel(thread.lastSender)} · ${thread.messageCount} messages`,
+        cls: "augment-part-inbox-thread-participants",
+        text: formatThreadParticipants(thread),
       });
 
       row.addEventListener("click", () => {
@@ -638,9 +733,14 @@ export class PartInboxView extends ItemView {
             ...this.viewState,
             selectedThreadId: thread.threadId,
           };
-        } else {
+        } else if (this.viewState.mode === "human") {
           this.viewState = {
             mode: "human",
+            selectedThreadId: thread.threadId,
+          };
+        } else {
+          this.viewState = {
+            mode: "all",
             selectedThreadId: thread.threadId,
           };
         }
@@ -677,15 +777,27 @@ export class PartInboxView extends ItemView {
     const transcriptHeader = container.createDiv({ cls: "augment-part-inbox-transcript-header" });
     transcriptHeader.createDiv({
       cls: "augment-part-inbox-transcript-title",
-      text: selectedThread.subject,
+      text: formatThreadSubject(selectedThread),
     });
     transcriptHeader.createDiv({
       cls: "augment-part-inbox-transcript-subtitle",
-      text:
-        this.viewState.mode === "human"
-          ? formatAddressLabel(selectedThread.counterparty)
-          : `${selectedThread.messageCount} messages`,
+      text: `Participants: ${formatParticipantList(selectedThread.participants)}`,
     });
+    const transcriptMeta = transcriptHeader.createDiv({
+      cls: "augment-part-inbox-transcript-meta",
+    });
+    transcriptMeta.createSpan({
+      cls: "augment-part-inbox-transcript-count",
+      text: `${selectedThread.messageCount} ${
+        selectedThread.messageCount === 1 ? "message" : "messages"
+      }`,
+    });
+    const activity = transcriptMeta.createSpan({
+      cls: "augment-part-inbox-transcript-activity",
+    });
+    activity.dataset.augmentTs = String(parseTimestampMs(selectedThread.lastActivityAt));
+    activity.dataset.augmentTsPrefix = "Last activity ";
+    activity.textContent = `Last activity ${relativeTime(parseTimestampMs(selectedThread.lastActivityAt))}`;
 
     const messages = container.createDiv({ cls: "augment-part-inbox-messages" });
     for (const message of transcript) {
@@ -694,34 +806,49 @@ export class PartInboxView extends ItemView {
   }
 
   private renderMessage(container: HTMLElement, message: InboxMessage): void {
-    const outbound = message.from === HUMAN_ADDRESS;
-    const wrapper = container.createDiv({
-      cls:
-        "augment-part-inbox-message" + (outbound ? " is-outbound" : " is-inbound"),
-    });
+    const wrapper = container.createDiv({ cls: "augment-part-inbox-message" });
     const bubble = wrapper.createDiv({ cls: "augment-part-inbox-bubble" });
-    const meta = bubble.createDiv({ cls: "augment-part-inbox-message-meta" });
-    meta.createSpan({
-      cls: "augment-part-inbox-message-sender",
-      text: formatAddressLabel(message.from),
+    const route = bubble.createDiv({
+      cls: "augment-part-inbox-message-meta augment-part-inbox-message-route",
     });
-    meta.createSpan({
+    const routeFields = route.createDiv({
+      cls: "augment-part-inbox-message-route-fields",
+    });
+    renderLabeledField(
+      routeFields,
+      "augment-part-inbox-message",
+      "From",
+      formatAddressLabel(message.from)
+    );
+    renderLabeledField(
+      routeFields,
+      "augment-part-inbox-message",
+      "To",
+      formatAddressLabel(message.to)
+    );
+    route.createSpan({
       cls: "augment-part-inbox-message-time",
       text: absoluteTime(message.createdAt),
     });
 
-    if (message.privacy === "shared") {
-      meta.createSpan({
-        cls: "augment-part-inbox-message-privacy",
-        text: "Shared",
+    if (message.privacy === "shared" || message.sourceNote) {
+      const context = bubble.createDiv({
+        cls: "augment-part-inbox-message-meta augment-part-inbox-message-context",
       });
-    }
 
-    if (message.sourceNote) {
-      bubble.createDiv({
-        cls: "augment-part-inbox-message-source",
-        text: message.sourceNote,
-      });
+      if (message.privacy === "shared") {
+        context.createSpan({
+          cls: "augment-part-inbox-message-privacy",
+          text: "Shared",
+        });
+      }
+
+      if (message.sourceNote) {
+        context.createSpan({
+          cls: "augment-part-inbox-message-source",
+          text: `Source: ${message.sourceNote}`,
+        });
+      }
     }
 
     bubble.createDiv({
@@ -730,12 +857,18 @@ export class PartInboxView extends ItemView {
     });
   }
 
-  private getReplyTarget(selectedThread: InboxThreadSummary | null): string | null {
-    if (!selectedThread) return null;
+  private getReplyTarget(
+    selectedThread: InboxThreadSummary | null,
+    transcript: InboxMessage[]
+  ): string | null {
+    if (!selectedThread || transcript.length === 0) return null;
     if (this.viewState.mode === "part") {
       return this.viewState.address;
     }
-    return selectedThread.counterparty === HUMAN_ADDRESS ? null : selectedThread.counterparty;
+    if (selectedThread.humanInvolved) {
+      return selectedThread.participants.find((participant) => participant !== HUMAN_ADDRESS) ?? null;
+    }
+    return selectedThread.lastSender || transcript[transcript.length - 1].from;
   }
 
   private openCompose(

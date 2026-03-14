@@ -1,0 +1,164 @@
+{
+  "version": "v1",
+  "cases": [
+    {
+      "id": "projection-lifecycle-and-thread-summary-valid",
+      "status": "positive",
+      "messages": [
+        {
+          "fixture": "positive/projection-lifecycle-and-thread-summary-valid/messages/root-shared.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T010000Z__msg-a.md"
+        },
+        {
+          "fixture": "positive/projection-lifecycle-and-thread-summary-valid/messages/reply-shared.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T010100Z__msg-a-reply.md"
+        },
+        {
+          "fixture": "positive/projection-lifecycle-and-thread-summary-valid/messages/separate-shared.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T010200Z__msg-b.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "positive/projection-lifecycle-and-thread-summary-valid/events/delivered-msg-a.md",
+          "busPath": "agents/bus/shared/events/2026/03/2026-03-12T010030Z__delivered__msg-a__evt-delivered-msg-a.md"
+        },
+        {
+          "fixture": "positive/projection-lifecycle-and-thread-summary-valid/events/read-msg-a.md",
+          "busPath": "agents/bus/shared/events/2026/03/2026-03-12T010130Z__read__msg-a__evt-read-msg-a.md"
+        },
+        {
+          "fixture": "positive/projection-lifecycle-and-thread-summary-valid/events/delivered-msg-a-reply.md",
+          "busPath": "agents/bus/shared/events/2026/03/2026-03-12T010145Z__delivered__msg-a-reply__evt-delivered-msg-a-reply.md"
+        }
+      ],
+      "expected": {
+        "lifecycleViolations": [],
+        "unread": {
+          "actor": "user@vault",
+          "msgIds": ["msg-a-reply", "msg-b"],
+          "count": 2
+        },
+        "threadProjection": {
+          "address": "ceo@augment-plugin",
+          "summaries": [
+            {
+              "threadId": "msg-a",
+              "subject": "Status check",
+              "lastSender": "ceo@augment-plugin",
+              "lastTo": "user@vault",
+              "counterparty": "user@vault",
+              "participants": ["user@vault", "ceo@augment-plugin"],
+              "humanInvolved": true,
+              "lastActivityAt": "2026-03-12T01:01:00Z",
+              "messageCount": 2,
+              "hasUnread": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "projection-read-without-delivered-invalid",
+      "status": "negative",
+      "messages": [
+        {
+          "fixture": "negative/projection-read-without-delivered-invalid/messages/root-shared.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T020000Z__msg-c.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "negative/projection-read-without-delivered-invalid/events/read-msg-c.md",
+          "busPath": "agents/bus/shared/events/2026/03/2026-03-12T020100Z__read__msg-c__evt-read-msg-c.md"
+        }
+      ],
+      "expected": {
+        "lifecycleViolations": [
+          {
+            "reason": "read-without-delivered",
+            "msgId": "msg-c",
+            "actor": "ceo@augment-plugin",
+            "eventType": "read",
+            "filePath": "agents/bus/shared/events/2026/03/2026-03-12T020100Z__read__msg-c__evt-read-msg-c.md"
+          }
+        ],
+        "unread": {
+          "actor": "ceo@augment-plugin",
+          "msgIds": ["msg-c"],
+          "count": 1
+        },
+        "threadProjection": {
+          "address": "ceo@augment-plugin",
+          "summaries": [
+            {
+              "threadId": "msg-c",
+              "subject": "Lifecycle gap",
+              "lastSender": "user@vault",
+              "lastTo": "ceo@augment-plugin",
+              "counterparty": "user@vault",
+              "participants": ["user@vault", "ceo@augment-plugin"],
+              "humanInvolved": true,
+              "lastActivityAt": "2026-03-12T02:00:00Z",
+              "messageCount": 1,
+              "hasUnread": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "projection-acked-without-read-invalid",
+      "status": "negative",
+      "messages": [
+        {
+          "fixture": "negative/projection-acked-without-read-invalid/messages/root-shared.md",
+          "busPath": "agents/bus/shared/messages/2026/03/2026-03-12T030000Z__msg-d.md"
+        }
+      ],
+      "events": [
+        {
+          "fixture": "negative/projection-acked-without-read-invalid/events/delivered-msg-d.md",
+          "busPath": "agents/bus/shared/events/2026/03/2026-03-12T030030Z__delivered__msg-d__evt-delivered-msg-d.md"
+        },
+        {
+          "fixture": "negative/projection-acked-without-read-invalid/events/acked-msg-d.md",
+          "busPath": "agents/bus/shared/events/2026/03/2026-03-12T030100Z__acked__msg-d__evt-acked-msg-d.md"
+        }
+      ],
+      "expected": {
+        "lifecycleViolations": [
+          {
+            "reason": "acked-without-read",
+            "msgId": "msg-d",
+            "actor": "ceo@augment-plugin",
+            "eventType": "acked",
+            "filePath": "agents/bus/shared/events/2026/03/2026-03-12T030100Z__acked__msg-d__evt-acked-msg-d.md"
+          }
+        ],
+        "unread": {
+          "actor": "ceo@augment-plugin",
+          "msgIds": ["msg-d"],
+          "count": 1
+        },
+        "threadProjection": {
+          "address": "ceo@augment-plugin",
+          "summaries": [
+            {
+              "threadId": "msg-d",
+              "subject": "Ack gap",
+              "lastSender": "user@vault",
+              "lastTo": "ceo@augment-plugin",
+              "counterparty": "user@vault",
+              "participants": ["user@vault", "ceo@augment-plugin"],
+              "humanInvolved": true,
+              "lastActivityAt": "2026-03-12T03:00:00Z",
+              "messageCount": 1,
+              "hasUnread": true
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

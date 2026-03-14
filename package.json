@@ -1,6 +1,6 @@
 {
   "name": "augment-terminal",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "author": "System 3",
   "description": "Terminal panes in Obsidian for running Claude Code sessions",
   "main": "main.js",
@@ -8,7 +8,11 @@
     "dev": "node esbuild.config.mjs watch",
     "build": "node esbuild.config.mjs build",
     "obsidian:install": "cp -R main.js styles.css manifest.json scripts \"${OBSIDIAN_VAULT_PATH}/.obsidian/plugins/augment-terminal/\"",
-    "test:rename-sync": "node scripts/check-rename-sync.mjs"
+    "test:migration-gates": "bash scripts/run-migration-gates.sh",
+    "test:rename-sync": "node scripts/check-rename-sync.mjs",
+    "test:cc-native-launch": "node scripts/check-cc-native-launch.mjs",
+    "test:bus-poller": "node scripts/check-bus-poller.mjs",
+    "test:bus-poller:live-vault": "node playwright/tests/live-vault-bus-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

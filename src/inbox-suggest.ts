@@ -1,6 +1,6 @@
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, Modal, Notice } from "obsidian";
-import type { PartInfo } from "./inbox-bus";
-import { discoverVaultParts, writeMessage } from "./inbox-bus";
+import { writeMessage } from "./inbox-bus";
+import { discoverVaultParts, PartInfo } from "./part-registry";
 
 interface ComposeModalOptions {
   threadId?: string;

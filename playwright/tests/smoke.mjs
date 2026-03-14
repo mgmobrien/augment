@@ -2,8 +2,8 @@
  * Augment smoke test — runs against a live Obsidian instance on CDP port 9223.
  *
  * Setup:
- *   ./scripts/setup-test.sh   # create test vault + config (first time or after build)
- *   ./scripts/start-test.sh   # launch Obsidian with CDP
+ *   cd playwright && npm run start   # shared slot s01 -> port 9223
+ *   # or: ./scripts/start-test.sh 9223
  *
  * Run:
  *   node playwright/tests/smoke.mjs
@@ -11,7 +11,7 @@
  * Checks:
  *   1. Plugin loaded (window.app.plugins.plugins['augment-terminal'] exists)
  *   2. No console errors on load
- *   3. Three ribbon icons present (settings, terminal, sparkles)
+ *   3. Stable ribbon/command surfaces are present on a fresh slot
  *   4. Settings tab renders without error
  */
 
@@ -51,6 +51,12 @@ async function main() {
   });
 
   try {
+    const trustButton = page.locator('button:has-text("Trust author and enable plugins")');
+    if (await trustButton.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await trustButton.click();
+      await page.waitForTimeout(3_000);
+    }
+
     // 1. Plugin loaded
     try {
       await waitForPlugin(page);
@@ -67,9 +73,10 @@ async function main() {
       fail('No console errors on load', `${consoleErrors.length} error(s):\n    ${consoleErrors.slice(0, 3).join('\n    ')}`);
     }
 
-    // 3. Ribbon icons present (settings, terminal, sparkles)
-    //    Obsidian ribbon icons have aria-label matching the tooltip text.
-    const ribbonTooltips = ['Augment settings', 'Open terminal', 'Generate'];
+    // 3. Stable ribbon surfaces present on a fresh slot.
+    //    The terminal ribbon is tier-gated after terminal setup, so a fresh
+    //    slot only guarantees settings + generate plus the open-terminal command.
+    const ribbonTooltips = ['Augment settings', 'Generate'];
     for (const tooltip of ribbonTooltips) {
       const el = page.locator(`.side-dock-ribbon-action[aria-label="${tooltip}"]`);
       const count = await el.count();
@@ -78,6 +85,19 @@ async function main() {
       } else {
         fail(`Ribbon icon: "${tooltip}"`, 'Element not found in DOM');
       }
+    }
+
+    try {
+      const commandRegistered = await page.evaluate(
+        () => !!window.app?.commands?.commands?.['augment-terminal:open-terminal']
+      );
+      if (commandRegistered) {
+        pass('Command registered: "Open terminal"');
+      } else {
+        fail('Command registered: "Open terminal"', 'augment-terminal:open-terminal missing');
+      }
+    } catch (e) {
+      fail('Command registered: "Open terminal"', e.message);
     }
 
     // 4. Settings tab renders

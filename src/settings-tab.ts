@@ -403,7 +403,7 @@ export class AugmentSettingTab extends PluginSettingTab {
         { id: "switch-terminal",                label: "Switch terminal",                       defaultKeys: [] },
         { id: "rename-terminal",                label: "Rename terminal",                       defaultKeys: [] },
         { id: "augment-view-context",           label: "Open context inspector",                defaultKeys: [] },
-        { id: "jump-to-next-waiting-session",   label: "Jump to next waiting session",          defaultKeys: [] },
+        { id: "jump-to-next-waiting-session",   label: "Jump to next session needing attention", defaultKeys: [] },
         { id: "augment-open-settings",          label: "Open settings",                         defaultKeys: [] },
       ];
 
@@ -1098,7 +1098,7 @@ export class AugmentSettingTab extends PluginSettingTab {
       this.renderHotkeyBox(termHeader, [
         { label: "Open terminal",    commandId: "augment-terminal:open-terminal" },
         { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
-        { label: "Next waiting",     commandId: "augment-terminal:jump-to-next-waiting-session" },
+        { label: "Next attention",   commandId: "augment-terminal:jump-to-next-waiting-session" },
       ]);
     }
     // Setup wizard section

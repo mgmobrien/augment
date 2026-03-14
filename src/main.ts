@@ -1,11 +1,28 @@
-import { addIcon, App, Editor, FuzzySuggestModal, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, App, Editor, EditorPosition, FuzzySuggestModal, MarkdownView, Notice, Plugin, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import { execFile } from "child_process";
 import { applyOutputFormat, bestModelByTier, bestModelId, buildSystemPrompt, buildUserMessage, fetchModels, friendlyApiError, generateText, logApiDiagnostics, ModelInfo, modelDisplayName, substituteVariables } from "./ai-client";
 import { AgentSuggest } from "./agent-suggest";
+import { summarizeAttentionSessions } from "./attention-queue";
+import { BusPollerManager } from "./bus-poller";
+import {
+  AUGMENT_CONTROL_CENTER_UNAVAILABLE_NOTICE,
+  resolveReachableControlCenterRootUrl,
+} from "./control-center-redirect";
 import { InboxSuggest } from "./inbox-suggest";
-import { setBusNotifier } from "./inbox-bus";
+import {
+  DEFAULT_WATCHED_INBOX_ADDRESSES,
+  setBusNotifier,
+  unreadCountForAddresses,
+} from "./inbox-bus";
+import { buildManagedRoleStatus, createDeliveryObservation } from "../packages/shared-domain/src";
+import type {
+  DeliveryObservation,
+  ManagedRoleStatus,
+  ManagedTerminalStatus,
+  TeamRosterProject,
+} from "../packages/shared-domain/src";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
-import { PartInboxView, VIEW_TYPE_PART_INBOX } from "./part-inbox-view";
+import { openAllMessages, PartInboxView, VIEW_TYPE_PART_INBOX } from "./part-inbox-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
 import { assembleNoteContext, assembleVaultContext, AugmentSettings, ContextEntry, DEFAULT_SETTINGS, populateLinkedNoteContent, SessionRecord, SpendData, TerminalOpenLocation } from "./vault-context";
@@ -13,18 +30,20 @@ import { TerminalView, VIEW_TYPE_TERMINAL, cleanupXtermStyle } from "./terminal-
 import { TerminalManagerView, VIEW_TYPE_TERMINAL_MANAGER } from "./terminal-manager-view";
 import { TerminalSwitcherModal } from "./terminal-switcher";
 import {
-  buildBusWatcherCommand,
-  buildCeoOnlyBootPrompt,
   buildPostLaunchWatcherSetup,
   buildTeamLaunchSpec,
   computeTeamLayout,
 } from "./team-launch";
-import { discoverTeamProjects, TeamRosterProject } from "./team-roster";
+import * as teamLaunchModule from "./team-launch";
+import { discoverTeamProjects } from "./team-roster";
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 import { SCAFFOLD_FOLDER, SCAFFOLD_TEMPLATES, SCAFFOLD_SKILLS_FOLDER, SCAFFOLD_SKILLS } from "./scaffold-data";
 import { addSpinnerEffect, removeSpinnerEffect, spinnerField, addAgentWidgetEffect, removeAgentWidgetEffect, agentWidgetField } from "./editor-extensions";
 import { TeamCreateSpawnEvent, RenameModal, InitTeamModal } from "./terminal-modals";
+import { SelectionTransformModal } from "./selection-transform-modal";
+import { SideQuestionModal } from "./side-question-modal";
+import { summarizeStatusBridgeSessions } from "./status-bridge";
 import { promisify } from "util";
 
 declare const __AUGMENT_BUILD_ID__: string;
@@ -32,6 +51,34 @@ declare const __AUGMENT_GIT_SHA__: string;
 
 const execFileAsync = promisify(execFile);
 const CC_NATIVE_TEAM_ID_PREFIX = "cc-native-team::";
+
+type SelectionTransformSnapshot = {
+  originalText: string;
+  from: EditorPosition;
+  to: EditorPosition;
+  noteTitle: string;
+  filePath: string | null;
+};
+
+type SideQuestionSnapshot = {
+  insertPos: number;
+  noteTitle: string;
+  filePath: string | null;
+};
+
+type AddressedTerminalView = Partial<TerminalView> & {
+  getBusAddress?: () => string | null;
+  getManagedTeamId?: () => string | null;
+  getManagedRoleId?: () => string | null;
+  appendSystemOutput?: (text: string) => void;
+  write?: (text: string) => void;
+};
+
+type StatusBridgeTerminalView = Partial<TerminalView> & {
+  getName?: () => string;
+  getStatus?: () => string;
+  getLastActivityMs?: () => number;
+};
 
 async function isWslAvailable(): Promise<boolean> {
   try {
@@ -161,6 +208,8 @@ export default class AugmentTerminalPlugin extends Plugin {
   private recentTeamCreateSpawnSignatures: Map<string, number> = new Map();
   private calloutStyleEl: HTMLStyleElement | null = null;
   private statusBarEl: HTMLElement | null = null;
+  private statusBridgePopoverEl: HTMLDivElement | null = null;
+  private statusBridgePopoverCleanup: (() => void) | null = null;
   private ribbonGenerateEl: HTMLElement | null = null;
   private ribbonTerminalEl: HTMLElement | null = null;
   private _tier1Registered = false;
@@ -171,6 +220,194 @@ export default class AugmentTerminalPlugin extends Plugin {
   private waitingCursor: number = 0;
   private activeGenerations: Map<string, ActiveGeneration> = new Map();
   private generationCounter = 0;
+  private busPollerManager: BusPollerManager | null = null;
+  private readonly managedDeliveryByRole: Map<string, DeliveryObservation> = new Map();
+  private readonly addressedTerminalPollers = new Map<string, { address: string; view: AddressedTerminalView }>();
+
+  private buildManagedRoleKey(teamId: string, roleId: string): string {
+    return `${teamId}::${roleId}`;
+  }
+
+  private updateManagedDeliveryObservation(
+    teamId: string,
+    roleId: string,
+    updater: (current: DeliveryObservation) => DeliveryObservation
+  ): void {
+    const key = this.buildManagedRoleKey(teamId, roleId);
+    const current = this.managedDeliveryByRole.get(key);
+    if (!current) return;
+
+    this.managedDeliveryByRole.set(key, updater(current));
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+
+  private noteManagedDeliveryPollSuccess(teamId: string, roleId: string): void {
+    this.updateManagedDeliveryObservation(teamId, roleId, (current) => {
+      const now = Date.now();
+      return {
+        ...current,
+        firstDeliveryReadyAt: current.firstDeliveryReadyAt ?? now,
+        lastDeliveryPollAt: now,
+        lastDeliveryError: null,
+      };
+    });
+  }
+
+  private noteManagedDeliveryPollFailure(teamId: string, roleId: string, error: unknown): void {
+    this.updateManagedDeliveryObservation(teamId, roleId, (current) => ({
+      ...current,
+      lastDeliveryPollAt: Date.now(),
+      lastDeliveryError: error instanceof Error ? error.message : String(error),
+    }));
+  }
+
+  private addressedTerminalPollerKey(address: string): string {
+    return `augment-terminal::${address}`;
+  }
+
+  private stopAddressedTerminalPollers(): void {
+    if (!this.busPollerManager) return;
+
+    for (const key of this.addressedTerminalPollers.keys()) {
+      this.busPollerManager.stopPoller(key);
+    }
+
+    this.addressedTerminalPollers.clear();
+  }
+
+  private syncAddressedTerminalBusPollers(): void {
+    if (!this.busPollerManager) return;
+
+    const vaultBase = (((this.app.vault.adapter as any).basePath as string | undefined) ?? "").trim();
+    if (!vaultBase) {
+      this.stopAddressedTerminalPollers();
+      return;
+    }
+
+    const activeLeaf = this.app.workspace.activeLeaf;
+    const desired = new Map<string, {
+      address: string;
+      view: AddressedTerminalView;
+      managedTeamId: string;
+      managedRoleId: string;
+      isActive: boolean;
+    }>();
+
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
+      const view = leaf.view as AddressedTerminalView;
+      const leafState = (leaf as any).getViewState?.()?.state;
+      const address =
+        (typeof view.getBusAddress === "function" ? view.getBusAddress()?.trim() ?? "" : "") ||
+        (typeof leafState?.busAddress === "string" ? leafState.busAddress.trim() : "");
+
+      if (!address) continue;
+
+      const key = this.addressedTerminalPollerKey(address);
+      const candidate = {
+        address,
+        view,
+        managedTeamId:
+          (typeof view.getManagedTeamId === "function" ? view.getManagedTeamId()?.trim() ?? "" : "") ||
+          (typeof leafState?.managedTeamId === "string" ? leafState.managedTeamId.trim() : ""),
+        managedRoleId:
+          (typeof view.getManagedRoleId === "function" ? view.getManagedRoleId()?.trim() ?? "" : "") ||
+          (typeof leafState?.managedRoleId === "string" ? leafState.managedRoleId.trim() : ""),
+        isActive: leaf === activeLeaf,
+      };
+      const existing = desired.get(key);
+
+      if (!existing || (!existing.isActive && candidate.isActive)) {
+        desired.set(key, candidate);
+      }
+    }
+
+    for (const key of this.addressedTerminalPollers.keys()) {
+      if (desired.has(key)) continue;
+      this.busPollerManager.stopPoller(key);
+      this.addressedTerminalPollers.delete(key);
+    }
+
+    for (const [key, target] of desired.entries()) {
+      const existing = this.addressedTerminalPollers.get(key);
+      if (existing && existing.address === target.address && existing.view === target.view) {
+        continue;
+      }
+
+      if (existing) {
+        this.busPollerManager.stopPoller(key);
+      }
+
+      this.busPollerManager.startPoller(
+        key,
+        target.address,
+        vaultBase,
+        (text: string) => {
+          if (typeof target.view.appendSystemOutput === "function") {
+            target.view.appendSystemOutput(text);
+            return;
+          }
+
+          target.view.write?.(text);
+        },
+        {
+          onPollSuccess: () => {
+            if (target.managedTeamId && target.managedRoleId) {
+              this.noteManagedDeliveryPollSuccess(target.managedTeamId, target.managedRoleId);
+            }
+          },
+          onPollFailure: (error: unknown) => {
+            if (target.managedTeamId && target.managedRoleId) {
+              this.noteManagedDeliveryPollFailure(target.managedTeamId, target.managedRoleId, error);
+            }
+          },
+        }
+      );
+
+      this.addressedTerminalPollers.set(key, { address: target.address, view: target.view });
+    }
+  }
+
+  public getManagedRoleStatuses(teamId?: string): ManagedRoleStatus[] {
+    const targetTeamId = teamId?.trim() ?? "";
+    const statuses: ManagedRoleStatus[] = [];
+
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
+      const view = leaf.view as Partial<TerminalView>;
+      const leafState = (leaf as any).getViewState?.()?.state;
+      const resolvedTeamId =
+        (typeof view.getManagedTeamId === "function" ? view.getManagedTeamId()?.trim() ?? "" : "") ||
+        (typeof leafState?.managedTeamId === "string" ? leafState.managedTeamId.trim() : "");
+      const resolvedRoleId =
+        (typeof view.getManagedRoleId === "function" ? view.getManagedRoleId()?.trim() ?? "" : "") ||
+        (typeof leafState?.managedRoleId === "string" ? leafState.managedRoleId.trim() : "");
+
+      if (!resolvedTeamId || !resolvedRoleId) continue;
+      if (resolvedTeamId.startsWith(CC_NATIVE_TEAM_ID_PREFIX)) continue;
+      if (targetTeamId && resolvedTeamId !== targetTeamId) continue;
+
+      const terminalStatus: ManagedTerminalStatus =
+        typeof view.getStatus === "function" ? view.getStatus() : "shell";
+      const observation = this.managedDeliveryByRole.get(this.buildManagedRoleKey(resolvedTeamId, resolvedRoleId));
+      const viewName = typeof view.getName === "function" ? view.getName()?.trim() ?? "" : "";
+      const stateName = typeof leafState?.name === "string" ? leafState.name.trim() : "";
+
+      statuses.push(buildManagedRoleStatus({
+        teamId: resolvedTeamId,
+        roleId: resolvedRoleId,
+        address: viewName || stateName || null,
+        observation,
+        terminalStatus,
+      }));
+    }
+
+    statuses.sort((left, right) => {
+      const teamCompare = left.teamId.localeCompare(right.teamId);
+      if (teamCompare !== 0) return teamCompare;
+      return left.roleId.localeCompare(right.roleId);
+    });
+
+    return statuses;
+  }
 
   private async maybeDefaultWindowsShellToWsl(): Promise<void> {
     if (process.platform !== "win32") return;
@@ -230,17 +467,31 @@ export default class AugmentTerminalPlugin extends Plugin {
   public refreshStatusBar(): void {
     if (this.activeGenerations.size > 0) {
       this.showStatusBarGenerating();
-      return;
-    }
-    this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
-    this.ribbonGenerateEl?.removeClass("is-generating");
-    if (!this.statusBarEl) return;
-    this.statusBarEl.empty();
-    // No icon in status bar when idle — icon appears only during generation.
-    if (!this.settings.apiKey) {
-      this.statusBarEl.createEl("span", { text: "Augment: API key needed" });
     } else {
-      this.statusBarEl.createEl("span", { text: `Augment: ${this.resolveModelDisplayName()}` });
+      this.ribbonGenerateEl?.removeClass("augment-ribbon-generating");
+      this.ribbonGenerateEl?.removeClass("is-generating");
+    }
+    if (!this.statusBarEl) return;
+
+    const snapshot = this.getStatusBridgeSnapshot();
+
+    this.statusBarEl.empty();
+    this.statusBarEl.addClass("augment-status-bridge");
+    this.statusBarEl.toggleClass("is-quiet", snapshot.activeSessionCount === 0);
+    this.statusBarEl.toggleClass("is-active", snapshot.activeSessionCount > 0);
+    this.statusBarEl.setAttribute("role", "button");
+    this.statusBarEl.setAttribute("aria-haspopup", "dialog");
+    this.statusBarEl.setAttribute("aria-expanded", this.statusBridgePopoverEl ? "true" : "false");
+    this.statusBarEl.setAttribute("aria-label", snapshot.label);
+    this.statusBarEl.setAttribute("title", snapshot.label);
+    this.statusBarEl.createSpan({
+      cls: "augment-status-bridge-label",
+      text: snapshot.label,
+    });
+
+    if (this.statusBridgePopoverEl) {
+      this.renderStatusBridgePopoverContent();
+      this.positionStatusBridgePopover();
     }
   }
 
@@ -349,16 +600,432 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   private showStatusBarGenerating(): void {
-    if (this.statusBarEl) {
-      this.statusBarEl.empty();
-      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      this.statusBarEl.createEl("span", { text: " Generating\u2026" });
-    }
     this.ribbonGenerateEl?.addClass("augment-ribbon-generating");
     this.ribbonGenerateEl?.addClass("is-generating");
+  }
+
+  private getStatusBridgeSnapshot() {
+    return summarizeStatusBridgeSessions(
+      this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL).map((leaf) => {
+        const view = leaf.view as StatusBridgeTerminalView;
+        const leafState = (leaf as any).getViewState?.()?.state;
+        const name =
+          (typeof view.getName === "function" ? view.getName()?.trim() ?? "" : "") ||
+          (typeof leafState?.name === "string" ? leafState.name.trim() : "") ||
+          "Terminal";
+        const rawStatus = typeof view.getStatus === "function" ? view.getStatus() : "shell";
+        const status =
+          typeof rawStatus === "string" && rawStatus.trim().length > 0 ? rawStatus : "shell";
+        const lastActivityMs =
+          typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() ?? 0 : 0;
+
+        return { name, status, lastActivityMs };
+      })
+    );
+  }
+
+  private renderStatusBridgePopoverContent(): void {
+    if (!this.statusBridgePopoverEl) return;
+
+    const snapshot = this.getStatusBridgeSnapshot();
+    this.statusBridgePopoverEl.empty();
+
+    const header = this.statusBridgePopoverEl.createDiv({ cls: "augment-status-bridge-popover-header" });
+    header.createDiv({
+      cls: "augment-status-bridge-popover-kicker",
+      text: "Augment",
+    });
+    header.createDiv({
+      cls: "augment-status-bridge-popover-title",
+      text: snapshot.label,
+    });
+
+    if (snapshot.recentSessions.length === 0) {
+      this.statusBridgePopoverEl.createDiv({
+        cls: "augment-status-bridge-empty",
+        text: "No active sessions",
+      });
+    } else {
+      const sessionsEl = this.statusBridgePopoverEl.createDiv({ cls: "augment-status-bridge-sessions" });
+      for (const session of snapshot.recentSessions) {
+        const row = sessionsEl.createDiv({ cls: "augment-status-bridge-session" });
+        const dot = row.createDiv({ cls: "augment-status-bridge-session-dot" });
+        dot.addClass(`is-${session.status}`);
+        row.createDiv({ cls: "augment-status-bridge-session-name", text: session.name });
+        row.createDiv({
+          cls: "augment-status-bridge-session-meta",
+          text: session.statusLabel,
+        });
+      }
+    }
+
+    const actions = this.statusBridgePopoverEl.createDiv({ cls: "augment-status-bridge-actions" });
+    const newSessionButton = actions.createEl("button", {
+      cls: "augment-status-bridge-link",
+      text: "+ New session",
+      attr: { type: "button" },
+    });
+    newSessionButton.addEventListener("click", () => {
+      this.closeStatusBridgePopover();
+      void this.openTerminalAt(this.settings.defaultTerminalLocation);
+    });
+
+    const openControlCenterButton = actions.createEl("button", {
+      cls: "mod-cta",
+      text: "Open Control Center",
+      attr: { type: "button" },
+    });
+    openControlCenterButton.addEventListener("click", () => {
+      this.closeStatusBridgePopover();
+      void this.openControlCenter();
+    });
+  }
+
+  private positionStatusBridgePopover(): void {
+    if (!this.statusBarEl || !this.statusBridgePopoverEl) return;
+
+    const anchorRect = this.statusBarEl.getBoundingClientRect();
+    const popoverRect = this.statusBridgePopoverEl.getBoundingClientRect();
+    const top = Math.max(8, anchorRect.top - popoverRect.height - 8);
+    const left = Math.min(
+      window.innerWidth - popoverRect.width - 8,
+      Math.max(8, anchorRect.right - popoverRect.width)
+    );
+
+    this.statusBridgePopoverEl.style.top = `${top}px`;
+    this.statusBridgePopoverEl.style.left = `${left}px`;
+  }
+
+  private openStatusBridgePopover(): void {
+    if (!this.statusBarEl || this.statusBridgePopoverEl) return;
+
+    this.statusBridgePopoverEl = document.body.createDiv({ cls: "augment-status-bridge-popover" });
+    this.statusBridgePopoverEl.setAttribute("role", "dialog");
+    this.statusBridgePopoverEl.setAttribute("aria-label", "Augment active sessions");
+
+    this.renderStatusBridgePopoverContent();
+    this.positionStatusBridgePopover();
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (this.statusBridgePopoverEl?.contains(target)) return;
+      if (this.statusBarEl?.contains(target)) return;
+      this.closeStatusBridgePopover();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        this.closeStatusBridgePopover();
+      }
+    };
+
+    const handleResize = () => {
+      this.closeStatusBridgePopover();
+    };
+
+    document.addEventListener("mousedown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("resize", handleResize);
+
+    this.statusBridgePopoverCleanup = () => {
+      document.removeEventListener("mousedown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("resize", handleResize);
+    };
+
+    this.statusBarEl.setAttribute("aria-expanded", "true");
+  }
+
+  private closeStatusBridgePopover(): void {
+    this.statusBridgePopoverCleanup?.();
+    this.statusBridgePopoverCleanup = null;
+    this.statusBridgePopoverEl?.remove();
+    this.statusBridgePopoverEl = null;
+    this.statusBarEl?.setAttribute("aria-expanded", "false");
+  }
+
+  private toggleStatusBridgePopover(): void {
+    if (this.statusBridgePopoverEl) {
+      this.closeStatusBridgePopover();
+      return;
+    }
+
+    this.openStatusBridgePopover();
+  }
+
+  private captureSelectionTransformSnapshot(editor: Editor): SelectionTransformSnapshot | null {
+    const originalText = editor.getSelection();
+    if (!originalText) return null;
+
+    const activeFile = this.app.workspace.getActiveFile();
+    return {
+      originalText,
+      from: editor.getCursor("from"),
+      to: editor.getCursor("to"),
+      noteTitle: activeFile?.basename ?? "Untitled",
+      filePath: activeFile?.path ?? null,
+    };
+  }
+
+  private captureSideQuestionSnapshot(editor: Editor): SideQuestionSnapshot {
+    const activeFile = this.app.workspace.getActiveFile();
+    return {
+      insertPos: editor.posToOffset(editor.getCursor()),
+      noteTitle: activeFile?.basename ?? "Untitled",
+      filePath: activeFile?.path ?? null,
+    };
+  }
+
+  private openSelectionTransform(editor: Editor): void {
+    if (!this.settings.apiKey) {
+      console.log("[Augment] API key required");
+      const notice = new Notice("Augment: API key required — click to open settings", 0);
+      notice.noticeEl.style.cursor = "pointer";
+      notice.noticeEl.addEventListener("click", () => {
+        notice.hide();
+        (this.app as any).setting.open();
+        (this.app as any).setting.openTabById("augment-terminal");
+      });
+      return;
+    }
+
+    const snapshot = this.captureSelectionTransformSnapshot(editor);
+    if (!snapshot) {
+      new Notice("Select text to transform.");
+      return;
+    }
+
+    new SelectionTransformModal(this.app, {
+      noteTitle: snapshot.noteTitle,
+      selectionText: snapshot.originalText,
+      onTransform: (instruction, signal) =>
+        this.runSelectionTransform(snapshot, instruction, signal),
+      onReplace: (candidate) =>
+        this.applySelectionTransform(editor, snapshot, candidate, "replace"),
+      onKeepBoth: (candidate) =>
+        this.applySelectionTransform(editor, snapshot, candidate, "keep-both"),
+    }).open();
+  }
+
+  private openSideQuestion(editor: Editor): void {
+    if (!this.settings.apiKey) {
+      console.log("[Augment] API key required");
+      const notice = new Notice("Augment: API key required — click to open settings", 0);
+      notice.noticeEl.style.cursor = "pointer";
+      notice.noticeEl.addEventListener("click", () => {
+        notice.hide();
+        (this.app as any).setting.open();
+        (this.app as any).setting.openTabById("augment-terminal");
+      });
+      return;
+    }
+
+    const snapshot = this.captureSideQuestionSnapshot(editor);
+    new SideQuestionModal(this.app, {
+      onAsk: (question, signal) =>
+        this.runSideQuestion(snapshot, question, signal),
+      onInsert: (answer) =>
+        this.insertSideQuestionAnswer(editor, snapshot, answer),
+    }).open();
+  }
+
+  private async runSelectionTransform(
+    snapshot: SelectionTransformSnapshot,
+    instruction: string,
+    signal: AbortSignal
+  ): Promise<string> {
+    const context = {
+      title: snapshot.noteTitle,
+      frontmatter: null,
+      selection: snapshot.originalText,
+      surroundingContext: "",
+      linkedNotes: [],
+    };
+    const baseSystemPrompt = await buildSystemPrompt(
+      context,
+      this.settings.systemPrompt || undefined,
+      this.settings.workspaceScope,
+      this.settings.defaultWorkingDirectory || undefined
+    );
+    const systemPrompt = [
+      baseSystemPrompt,
+      "Transform the selected text according to the user's instruction. Return only the replacement text. Do not add commentary or code fences unless the instruction asks for them.",
+    ].filter(Boolean).join("\n\n");
+    const userMessage = [
+      "Instruction:",
+      instruction.trim(),
+      "",
+      "Selected text:",
+      snapshot.originalText,
+    ].join("\n");
+
+    this.showStatusBarGenerating();
+    if (this.settings.showGenerationToast) {
+      new Notice("Generating...", 3000);
+    }
+
+    try {
+      const resolvedModel = this.resolveModel();
+      const resolvedModelName = this.resolveModelDisplayName();
+      const { text: result, usage: genUsage } = await generateText(
+        systemPrompt,
+        userMessage,
+        this.settings,
+        resolvedModel,
+        signal
+      );
+      if (signal.aborted) return "";
+      void this.accumulateSpend(resolvedModel, genUsage);
+
+      const entry: ContextEntry = {
+        timestamp: Date.now(),
+        noteName: snapshot.noteTitle,
+        model: resolvedModelName,
+        systemPrompt,
+        userMessage,
+      };
+      this.pushContextHistory(entry);
+
+      if (!this.settings.hasGenerated) {
+        this.settings.hasGenerated = true;
+        await this.saveData(this.settings);
+        this.registerTieredCommands();
+      }
+
+      return result;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      console.error("[Augment] selection transform failed", err);
+      logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
+      const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
+      throw new Error(errMsg);
+    } finally {
+      this.refreshStatusBar();
+    }
+  }
+
+  private async runSideQuestion(
+    snapshot: SideQuestionSnapshot,
+    question: string,
+    signal: AbortSignal
+  ): Promise<string> {
+    const context = {
+      title: snapshot.noteTitle,
+      frontmatter: null,
+      selection: "",
+      surroundingContext: "",
+      linkedNotes: [],
+    };
+    const baseSystemPrompt = await buildSystemPrompt(
+      context,
+      this.settings.systemPrompt || undefined,
+      this.settings.workspaceScope,
+      this.settings.defaultWorkingDirectory || undefined
+    );
+    const systemPrompt = [
+      baseSystemPrompt,
+      "Answer the user's side question using only the question provided. Do not claim to have read the current note, selection, linked notes, or any other hidden context. Return only the answer.",
+    ].filter(Boolean).join("\n\n");
+    const userMessage = [
+      "Question:",
+      question.trim(),
+    ].join("\n");
+
+    this.showStatusBarGenerating();
+    if (this.settings.showGenerationToast) {
+      new Notice("Asking...", 3000);
+    }
+
+    try {
+      const resolvedModel = this.resolveModel();
+      const resolvedModelName = this.resolveModelDisplayName();
+      const { text: result, usage: genUsage } = await generateText(
+        systemPrompt,
+        userMessage,
+        this.settings,
+        resolvedModel,
+        signal
+      );
+      if (signal.aborted) return "";
+      void this.accumulateSpend(resolvedModel, genUsage);
+
+      const entry: ContextEntry = {
+        timestamp: Date.now(),
+        noteName: snapshot.noteTitle,
+        model: resolvedModelName,
+        systemPrompt,
+        userMessage,
+      };
+      this.pushContextHistory(entry);
+
+      if (!this.settings.hasGenerated) {
+        this.settings.hasGenerated = true;
+        await this.saveData(this.settings);
+        this.registerTieredCommands();
+      }
+
+      return result;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      console.error("[Augment] side question failed", err);
+      logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
+      const errMsg = friendlyApiError(err) ?? (err instanceof Error ? err.message : String(err));
+      throw new Error(errMsg);
+    } finally {
+      this.refreshStatusBar();
+    }
+  }
+
+  private async applySelectionTransform(
+    editor: Editor,
+    snapshot: SelectionTransformSnapshot,
+    candidate: string,
+    mode: "replace" | "keep-both"
+  ): Promise<boolean> {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeView || activeView.editor !== editor || (snapshot.filePath && activeFile?.path !== snapshot.filePath)) {
+      new Notice("Augment: reopen Transform selection… from the note you want to edit");
+      return false;
+    }
+
+    const currentText = editor.getRange(snapshot.from, snapshot.to);
+    if (currentText !== snapshot.originalText) {
+      new Notice("The selected text changed before Augment could apply this transform. Review the candidate, then copy it manually or run the transform again.");
+      return false;
+    }
+
+    const nextText = mode === "replace"
+      ? candidate
+      : `${snapshot.originalText}\n\n${candidate}`;
+    editor.replaceRange(nextText, snapshot.from, snapshot.to);
+    new Notice(
+      mode === "replace"
+        ? "Selection replaced. Undo to restore the original."
+        : "Inserted the candidate below the original selection. Undo to remove it."
+    );
+    return true;
+  }
+
+  private async insertSideQuestionAnswer(
+    editor: Editor,
+    snapshot: SideQuestionSnapshot,
+    answer: string
+  ): Promise<boolean> {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeFile = this.app.workspace.getActiveFile();
+    const activePath = activeFile?.path ?? null;
+    if (!activeView || activeView.editor !== editor || activePath !== snapshot.filePath) {
+      new Notice("Augment: return to the original note to insert this answer, or use Copy instead");
+      return false;
+    }
+
+    const safeInsertPos = Math.min(snapshot.insertPos, editor.getValue().length);
+    editor.replaceRange(answer, editor.offsetToPos(safeInsertPos));
+    editor.setCursor(editor.offsetToPos(safeInsertPos + answer.length));
+    new Notice("Inserted the answer into the note. Undo to remove it.");
+    return true;
   }
 
   private triggerGenerate(editor: Editor): void {
@@ -649,6 +1316,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     // Fetch available models in the background — populates the model dropdown
     // and resolves "auto" to the best available model name in the status bar.
     void this.loadAvailableModels();
+    this.busPollerManager = new BusPollerManager();
 
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
@@ -709,6 +1377,34 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.registerEditorSuggest(new InboxSuggest(this.app));
 
     // AI generation commands
+    this.addCommand({
+      id: "augment-btw-side-question",
+      name: "btw: Ask side question…",
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for side question");
+          new Notice("Open a note to ask a side question");
+          return;
+        }
+        this.openSideQuestion(view.editor);
+      },
+    });
+
+    this.addCommand({
+      id: "augment-transform-selection",
+      name: "Transform selection…",
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for selection transform");
+          new Notice("Open a note to transform selected text");
+          return;
+        }
+        this.openSelectionTransform(view.editor);
+      },
+    });
+
     this.addCommand({
       id: "augment-generate",
       name: "Generate",
@@ -964,12 +1660,18 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.addSettingTab(new AugmentSettingTab(this.app, this));
 
-    // Status bar — model name, click to open settings
+    // Status bar — active-session bridge
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.style.cursor = "pointer";
-    this.statusBarEl.addEventListener("click", () => {
-      (this.app as any).setting.open();
-      (this.app as any).setting.openTabById("augment-terminal");
+    this.statusBarEl.tabIndex = 0;
+    this.statusBarEl.addEventListener("click", (event) => {
+      event.preventDefault();
+      this.toggleStatusBridgePopover();
+    });
+    this.statusBarEl.addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      this.toggleStatusBridgePopover();
     });
     this.refreshStatusBar();
 
@@ -984,7 +1686,7 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     // Right-click context menu
     this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu) => {
+      this.app.workspace.on("editor-menu", (menu, editor) => {
         const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
@@ -998,6 +1700,14 @@ export default class AugmentTerminalPlugin extends Plugin {
           });
           return;
         }
+        menu.addItem((item) => {
+          item
+            .setTitle("Augment: Transform selection…")
+            .setIcon(menuIcon)
+            .onClick(() => {
+              this.openSelectionTransform(editor);
+            });
+        });
         menu.addItem((item) => {
           item
             .setTitle("Augment: Generate")
@@ -1078,10 +1788,26 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.waitingBadgeEl = this.addStatusBarItem();
     this.waitingBadgeEl.style.cursor = "pointer";
     this.waitingBadgeEl.style.display = "none";
-    this.waitingBadgeEl.addEventListener("click", () => this.jumpToNextWaiting());
+    this.waitingBadgeEl.addEventListener("click", () => this.jumpToNextAttention());
 
     this.registerEvent(
-      this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
+      this.app.workspace.on("augment-terminal:changed", () => {
+        this.refreshStatusBar();
+        this.refreshAttentionBadge();
+        this.syncAddressedTerminalBusPollers();
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("augment-bus:changed", () => {
+        this.refreshAttentionBadge();
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.refreshStatusBar();
+      })
     );
 
     this.register(
@@ -1089,6 +1815,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     );
 
     this.app.workspace.onLayoutReady(() => {
+      this.syncAddressedTerminalBusPollers();
       void this.loadSpendData().then(() => {
         // Migration: infer tier flags from existing data for users who installed before
         // progressive disclosure was implemented.
@@ -1111,15 +1838,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       // compete with Obsidian's core startup sequence.
       void this.scaffoldDefaultTemplates();
       void this.scaffoldDefaultSkills();
+      this.refreshStatusBar();
       this.refreshAttentionBadge();
-      // Auto-open Terminal Manager in left sidebar after reload.
-      // Obsidian persists sidebar state, so check if one already exists.
-      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER).length === 0) {
-        const leaf = this.app.workspace.getLeftLeaf(false);
-        if (leaf) {
-          leaf.setViewState({ type: VIEW_TYPE_TERMINAL_MANAGER, active: false });
-        }
-      }
+      // Keep legacy views restorable, but do not auto-create redirect shells on fresh load.
       // Auto-open Context Inspector in right sidebar on first install.
       // Also clean up duplicate leaves that may have been saved from prior sessions.
       const inspectorLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
@@ -1251,8 +1972,8 @@ export default class AugmentTerminalPlugin extends Plugin {
       // Attention queue command
       this.addCommand({
         id: "jump-to-next-waiting-session",
-        name: "Jump to next waiting session",
-        callback: () => this.jumpToNextWaiting(),
+        name: "Jump to next session needing attention",
+        callback: () => this.jumpToNextAttention(),
       });
     }
   }
@@ -1268,6 +1989,11 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     delete (globalThis as any).__augmentCancelGeneration;
+    this.busPollerManager?.stopAll();
+    this.busPollerManager = null;
+    this.addressedTerminalPollers.clear();
+    this.managedDeliveryByRole.clear();
+    this.closeStatusBridgePopover();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     // Do not detach VIEW_TYPE_TERMINAL_MANAGER or VIEW_TYPE_CONTEXT_INSPECTOR on unload.
     // Obsidian persists their sidebar placement across reloads. Detaching here would
@@ -1277,44 +2003,77 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.calloutStyleEl = null;
   }
 
-  private getWaitingLeaves(): WorkspaceLeaf[] {
-    const leaves: WorkspaceLeaf[] = [];
+  private getAttentionSnapshot() {
+    const sessions: Array<{
+      id: WorkspaceLeaf;
+      status: string;
+      unreadActivity: number;
+      lastActivityMs: number;
+    }> = [];
+
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (leaf.view?.getViewType?.() === VIEW_TYPE_TERMINAL) {
         const view = leaf.view as any;
-        if (typeof view.getStatus === "function" && view.getStatus() === "waiting") {
-          leaves.push(leaf);
-        }
+        sessions.push({
+          id: leaf,
+          status: typeof view.getStatus === "function" ? view.getStatus() : "shell",
+          unreadActivity:
+            typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0,
+          lastActivityMs:
+            typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0,
+        });
       }
     });
-    // Sort oldest-waiting first: smallest lastActivityMs = waited longest.
-    leaves.sort((a, b) => {
-      const aMs = typeof (a.view as any).getLastActivityMs === "function" ? (a.view as any).getLastActivityMs() : 0;
-      const bMs = typeof (b.view as any).getLastActivityMs === "function" ? (b.view as any).getLastActivityMs() : 0;
-      return aMs - bMs;
-    });
-    return leaves;
+
+    return summarizeAttentionSessions(sessions);
+  }
+
+  private getAttentionLeaves(): WorkspaceLeaf[] {
+    return this.getAttentionSnapshot().ordered.map((session) => session.id);
+  }
+
+  private getWatchedInboxUnreadAttention(): number {
+    return unreadCountForAddresses(this.app, [...DEFAULT_WATCHED_INBOX_ADDRESSES]);
   }
 
   private refreshAttentionBadge(): void {
     if (!this.waitingBadgeEl) return;
-    const waiting = this.getWaitingLeaves();
-    if (waiting.length === 0) {
+    const attention = this.getAttentionSnapshot();
+    const watchedInboxUnread = this.getWatchedInboxUnreadAttention();
+
+    if (attention.attentionCount === 0 && watchedInboxUnread === 0) {
       this.waitingBadgeEl.style.display = "none";
       this.waitingCursor = 0;
+      this.waitingBadgeEl.removeAttribute("title");
+      this.waitingBadgeEl.setAttribute("aria-label", "No sessions need attention");
     } else {
+      let badgeText = attention.badgeText;
+      let ariaLabel = attention.ariaLabel;
+      if (attention.attentionCount === 0) {
+        badgeText = `⚡ ${watchedInboxUnread} inbox`;
+        ariaLabel = `${watchedInboxUnread} watched-address unread`;
+      } else if (watchedInboxUnread > 0) {
+        badgeText = `${attention.badgeText} · ${watchedInboxUnread} inbox`;
+        ariaLabel = `${attention.ariaLabel}; ${watchedInboxUnread} watched-address unread`;
+      }
       this.waitingBadgeEl.style.display = "";
-      this.waitingBadgeEl.setText(`⚡ ${waiting.length}`);
-      this.waitingBadgeEl.setAttribute("aria-label", `${waiting.length} session${waiting.length !== 1 ? "s" : ""} waiting for input`);
+      this.waitingBadgeEl.setText(badgeText);
+      this.waitingBadgeEl.setAttribute("aria-label", ariaLabel);
+      this.waitingBadgeEl.setAttribute("title", ariaLabel);
     }
   }
 
-  private jumpToNextWaiting(): void {
-    const waiting = this.getWaitingLeaves();
-    if (waiting.length === 0) return;
-    this.waitingCursor = this.waitingCursor % waiting.length;
-    const target = waiting[this.waitingCursor];
-    this.waitingCursor = (this.waitingCursor + 1) % waiting.length;
+  private jumpToNextAttention(): void {
+    const attention = this.getAttentionLeaves();
+    if (attention.length === 0) {
+      if (this.getWatchedInboxUnreadAttention() > 0) {
+        void openAllMessages(this.app);
+      }
+      return;
+    }
+    this.waitingCursor = this.waitingCursor % attention.length;
+    const target = attention[this.waitingCursor];
+    this.waitingCursor = (this.waitingCursor + 1) % attention.length;
     this.app.workspace.setActiveLeaf(target, { focus: true });
   }
 
@@ -1425,6 +2184,16 @@ export default class AugmentTerminalPlugin extends Plugin {
       });
       workspace.revealLeaf(leaf);
     }
+  }
+
+  public async openControlCenter(): Promise<void> {
+    const rootUrl = await resolveReachableControlCenterRootUrl();
+    if (!rootUrl) {
+      new Notice(AUGMENT_CONTROL_CENTER_UNAVAILABLE_NOTICE);
+      return;
+    }
+
+    window.open(rootUrl, "_blank", "noopener");
   }
 
   private async openTerminalGrid(): Promise<void> {
@@ -1544,7 +2313,7 @@ export default class AugmentTerminalPlugin extends Plugin {
       .slice()
       .sort((a, b) => a.column - b.column || a.row - b.row);
     const specByRoleId = new Map(launchSpec.specs.map((spec) => [spec.member.roleId, spec]));
-    const watcherSetupByRoleId = new Map(
+    const pollerAddressByRoleId = new Map(
       buildPostLaunchWatcherSetup(project, vaultBase).map((entry) => [entry.roleId, entry.address])
     );
     const workspace = this.app.workspace;
@@ -1555,6 +2324,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     const createdTerminals: Array<{
       bootPrompt: string;
       roleId: string;
+      address: string | null;
       view: Partial<TerminalView>;
     }> = [];
 
@@ -1608,24 +2378,22 @@ export default class AugmentTerminalPlugin extends Plugin {
       createdTerminals.push({
         bootPrompt: spec.bootPrompt,
         roleId: spec.member.roleId,
+        address: pollerAddressByRoleId.get(spec.member.roleId) ?? null,
         view,
       });
     }
 
-    // Resolve the pane id inside the terminal session so the watcher binds
-    // to the pane Claude Code is actually running in.
-    const paneIdExpression = "${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}";
-    for (const { bootPrompt, roleId, view } of createdTerminals) {
+    for (const { bootPrompt, roleId, address, view } of createdTerminals) {
+      this.managedDeliveryByRole.set(
+        this.buildManagedRoleKey(launchSpec.teamId, roleId),
+        createDeliveryObservation(address)
+      );
+
       if (typeof view.enqueueInitialInput !== "function") continue;
 
-      const watcherAddress = watcherSetupByRoleId.get(roleId);
-      if (watcherAddress) {
-        view.enqueueInitialInput(
-          `${buildBusWatcherCommand(watcherAddress, paneIdExpression, vaultBase)}\n`
-        );
-      }
-
       view.enqueueInitialInput(bootPrompt);
+
+      if (!address) continue;
     }
 
     if (ceoLeaf) {
@@ -1651,33 +2419,159 @@ export default class AugmentTerminalPlugin extends Plugin {
       return;
     }
 
-    const cwd = (project.codeRoot ?? this.getTeamLaunchCodeRoot()).trim();
-    const terminalName = `ceo@${project.projectId}`;
-    const bootPrompt = buildCeoOnlyBootPrompt(project, cwd, vaultBase, userBrief);
-    const managedTeamId = `${CC_NATIVE_TEAM_ID_PREFIX}${project.projectId}::${Date.now()}`;
-    const leaf = this.app.workspace.getLeaf("tab");
+    const codeRoot = (project.codeRoot ?? this.getTeamLaunchCodeRoot()).trim();
+    const ccNativeHelpers = teamLaunchModule as typeof teamLaunchModule & {
+      buildCCNativeTeamLaunchSpec?: (
+        project: TeamRosterProject,
+        codeRoot: string,
+        vaultRoot: string,
+        userBrief?: string
+      ) => {
+        teamName: string;
+        leaderSessionId: string;
+        config: unknown;
+        memberCommands: Array<{
+          bootPromptText: string;
+          command: string;
+          cwd?: string;
+          member: TeamRosterProject["members"][number];
+        }>;
+      };
+      writeCCTeamScaffolding?: (teamName: string, config: unknown) => void | Promise<void>;
+      seedCCInboxMessage?: (
+        teamName: string,
+        agentName: string,
+        from: string,
+        text: string
+      ) => void | Promise<void>;
+    };
 
-    await leaf.setViewState({
-      type: VIEW_TYPE_TERMINAL,
-      active: true,
-      state: {
-        name: terminalName,
-        launchCwd: cwd,
-        managedTeamId,
-        managedRoleId: "ceo",
-      } as any,
-    });
-
-    const view = leaf.view as Partial<TerminalView>;
-    if (typeof view.setName === "function") {
-      view.setName(terminalName);
+    if (
+      typeof ccNativeHelpers.buildCCNativeTeamLaunchSpec !== "function" ||
+      typeof ccNativeHelpers.writeCCTeamScaffolding !== "function" ||
+      typeof ccNativeHelpers.seedCCInboxMessage !== "function"
+    ) {
+      new Notice("Augment: CC native team helpers unavailable");
+      return;
     }
-    if (typeof view.enqueueInitialInput === "function") {
-      view.enqueueInitialInput(bootPrompt);
+
+    const { teamName, leaderSessionId, config, memberCommands } =
+      ccNativeHelpers.buildCCNativeTeamLaunchSpec(project, codeRoot, vaultBase, userBrief);
+
+    if (!Array.isArray(memberCommands) || memberCommands.length === 0) {
+      new Notice(`Augment: no CC native team members found for ${project.projectDisplayName}`);
+      return;
     }
 
-    this.app.workspace.revealLeaf(leaf);
-    this.app.workspace.trigger("augment-terminal:changed");
+    const managedTeamId = `${CC_NATIVE_TEAM_ID_PREFIX}${teamName}::${leaderSessionId}`;
+    const layoutSlots = computeTeamLayout(memberCommands.map((entry) => entry.member));
+    if (layoutSlots.length === 0) {
+      new Notice(`Augment: no team members found for ${project.projectDisplayName}`);
+      return;
+    }
+
+    await ccNativeHelpers.writeCCTeamScaffolding(teamName, config);
+
+    const commandByRoleId = new Map(
+      memberCommands.map((entry) => [entry.member.roleId, entry] as const)
+    );
+
+    for (const entry of memberCommands) {
+      const bootPromptText = typeof entry.bootPromptText === "string" ? entry.bootPromptText.trim() : "";
+      if (!bootPromptText) {
+        new Notice(`Augment: missing CC native boot prompt for ${entry.member.displayName}`);
+        return;
+      }
+
+      await ccNativeHelpers.seedCCInboxMessage(
+        teamName,
+        entry.member.roleId,
+        "augment",
+        bootPromptText
+      );
+    }
+
+    const orderedSlots = layoutSlots
+      .slice()
+      .sort((a, b) => a.column - b.column || a.row - b.row);
+    const workspace = this.app.workspace;
+    const workspaceAny = workspace as any;
+    let ceoLeaf: WorkspaceLeaf | null = null;
+    let middleColumnLeaf: WorkspaceLeaf | null = null;
+    let rightColumnLeaf: WorkspaceLeaf | null = null;
+    const createdTerminals: Array<{
+      command: string;
+      view: Partial<TerminalView>;
+    }> = [];
+
+    for (const slot of orderedSlots) {
+      const entry = commandByRoleId.get(slot.member.roleId);
+      if (!entry) continue;
+
+      const command = typeof entry.command === "string" ? entry.command : "";
+      if (!command.trim()) {
+        new Notice(`Augment: missing CC native launch command for ${entry.member.displayName}`);
+        return;
+      }
+
+      let leaf: WorkspaceLeaf;
+      if (slot.column === 0) {
+        leaf = workspace.getLeaf("tab");
+        ceoLeaf = leaf;
+      } else if (slot.column === 1) {
+        if (middleColumnLeaf === null) {
+          const anchorLeaf = ceoLeaf ?? workspace.getLeaf("tab");
+          ceoLeaf = ceoLeaf ?? anchorLeaf;
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          middleColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = middleColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(middleColumnLeaf, "horizontal");
+        }
+      } else {
+        const anchorLeaf = middleColumnLeaf ?? ceoLeaf ?? workspace.getLeaf("tab");
+        ceoLeaf = ceoLeaf ?? anchorLeaf;
+        if (rightColumnLeaf === null) {
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          rightColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = rightColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(rightColumnLeaf, "horizontal");
+        }
+      }
+
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
+        active: slot.column === 0 && slot.row === 0,
+        state: {
+          name: entry.member.address,
+          launchCwd: entry.cwd?.trim() || codeRoot,
+          managedTeamId,
+          managedRoleId: entry.member.roleId,
+        } as any,
+      });
+
+      const view = leaf.view as Partial<TerminalView>;
+      if (typeof view.setName === "function") {
+        view.setName(entry.member.address);
+      }
+      createdTerminals.push({
+        command: command.endsWith("\n") ? command : `${command}\n`,
+        view,
+      });
+    }
+
+    for (const { command, view } of createdTerminals) {
+      if (typeof view.enqueueInitialInput !== "function") continue;
+      view.enqueueInitialInput(command);
+    }
+
+    if (ceoLeaf) {
+      workspace.revealLeaf(ceoLeaf);
+    }
+    workspace.trigger("augment-terminal:changed");
   }
 
   public async shutdownManagedTeam(teamId: string): Promise<void> {
@@ -1699,6 +2593,14 @@ export default class AugmentTerminalPlugin extends Plugin {
       });
 
     for (const leaf of leaves) {
+      const view = leaf.view as Partial<TerminalView>;
+      const managedRoleId =
+        typeof view.getManagedRoleId === "function" ? view.getManagedRoleId()?.trim() ?? "" : "";
+      if (managedRoleId) {
+        const managedRoleKey = this.buildManagedRoleKey(targetTeamId, managedRoleId);
+        this.busPollerManager?.stopPoller(managedRoleKey);
+        this.managedDeliveryByRole.delete(managedRoleKey);
+      }
       leaf.detach();
     }
 

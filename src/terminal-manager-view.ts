@@ -1,12 +1,13 @@
 import { EventRef, ItemView, Menu, WorkspaceLeaf, setIcon } from "obsidian";
+import { summarizeAttentionSessions } from "./attention-queue";
+import { renderLegacyRedirectShell } from "./control-center-redirect";
 import { VIEW_TYPE_TERMINAL } from "./terminal-view";
 import { ProjectGroup, SessionMeta, SessionStore } from "./session-store";
-import type { PartInfo } from "./inbox-bus";
-import { discoverVaultParts, HUMAN_ADDRESS, unreadCount } from "./inbox-bus";
 import { ComposeModal } from "./inbox-suggest";
+import { discoverVaultParts, PartInfo } from "./part-registry";
 import {
   findTerminalLeafForPart,
-  openHumanInbox,
+  openAllMessages,
   openPartInboxForPart,
 } from "./part-inbox-view";
 
@@ -110,77 +111,8 @@ export class TerminalManagerView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    const container = this.contentEl;
-    container.empty();
-    container.addClass("augment-terminal-manager");
-
-    // Header.
-    const header = container.createDiv({ cls: "augment-tm-header" });
-    header.createSpan({ cls: "augment-tm-title", text: "AUGMENT" });
-    const headerActions = header.createDiv({ cls: "augment-tm-header-actions" });
-
-    const launchBtn = headerActions.createEl("button", {
-      cls: "augment-tm-launch clickable-icon",
-      attr: { type: "button", "aria-label": "Launch managed team" },
-    });
-    launchBtn.setAttribute("title", "Launch managed team");
-    setIcon(launchBtn, "rocket");
-    launchBtn.addEventListener("click", () => {
-      void this.getPlugin()?.openTeamLaunchPicker?.();
-    });
-
-    const ccLaunchBtn = headerActions.createEl("button", {
-      cls: "augment-tm-launch augment-tm-launch-cc clickable-icon",
-      attr: { type: "button", "aria-label": "Launch CC team" },
-    });
-    ccLaunchBtn.setAttribute("title", "Launch CC team");
-    setIcon(ccLaunchBtn, "terminal");
-    ccLaunchBtn.addEventListener("click", () => {
-      void (this.getPlugin() as any)?.openCCTeamLaunchPicker?.();
-    });
-
-    const addBtn = headerActions.createEl("button", {
-      cls: "augment-tm-add clickable-icon",
-      attr: { type: "button", "aria-label": "Open terminal" },
-    });
-    addBtn.setAttribute("title", "Open terminal");
-    setIcon(addBtn, "plus");
-    addBtn.addEventListener("click", () => {
-      (this.app as any).commands.executeCommandById(
-        "augment-terminal:open-terminal"
-      );
-    });
-
-    // List container.
-    this.listEl = container.createDiv({ cls: "augment-tm-list" });
-
-    // Initialize session store from vault base path.
-    const vaultPath = (this.app.vault.adapter as any).basePath as string;
-    this.sessionStore = new SessionStore(vaultPath);
-
-    // Respect persisted "show other projects" preference.
-    if (this.getPlugin()?.settings?.showOtherProjects) {
-      this.otherProjectsEnabled = true;
-    }
-
-    // Wire up async loaders. historyRequestedLimit is captured per-call to
-    // detect mid-load limit changes (user clicked "Load 50 more").
-    let historyRequestedLimit = 0;
-    this.maybeLoadHistory = this.createAsyncLoader(
-      this.historyState,
-      () => {
-        historyRequestedLimit = this.historyLoadedCount;
-        return this.sessionStore!.loadSessions(historyRequestedLimit);
-      },
-      1500,
-      () => this.historyLoadedCount !== historyRequestedLimit
-    );
-    this.maybeLoadProjects = this.createAsyncLoader(
-      this.projectsState,
-      () => this.sessionStore!.loadAllProjectGroups(50).then((gs) => gs.filter((g) => !g.isVault)),
-      2000
-    );
-
+    this.contentEl.empty();
+    this.contentEl.addClass("augment-terminal-manager");
     this.requestRefresh();
     window.setTimeout(() => this.requestRefresh(), 0);
     this.app.workspace.onLayoutReady(() => this.requestRefresh());
@@ -429,152 +361,53 @@ export class TerminalManagerView extends ItemView {
       });
   }
 
+  private getActiveSessionCount(): number {
+    return this.getTerminalLeaves().filter((leaf) => {
+      const status = this.getLeafStatus(leaf.view as TerminalViewLike);
+      return status !== "crashed" && status !== "exited";
+    }).length;
+  }
+
+  private getLegacyRedirectCountLine(activeSessionCount: number): string | null {
+    const attention = summarizeAttentionSessions(
+      this.getTerminalLeaves().map((leaf) => {
+        const view = leaf.view as TerminalViewLike;
+        return {
+          id: leaf,
+          status: this.getLeafStatus(view),
+          unreadActivity:
+            typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0,
+          lastActivityMs:
+            typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0,
+        };
+      })
+    );
+
+    if (attention.attentionCount === 0) {
+      return activeSessionCount > 0 ? `Active sessions: ${activeSessionCount}` : null;
+    }
+
+    if (attention.unreadSessionCount > 0) {
+      return `Needs attention: ${attention.attentionCount} · ${attention.unreadSessionCount} unread`;
+    }
+
+    return `Needs attention: ${attention.attentionCount} waiting`;
+  }
+
   private refresh(): void {
-    if (!this.listEl) return;
-    this.listEl.empty();
-
-    // Sync otherProjectsEnabled from persisted settings on every render so
-    // the toggle in Settings → Terminal takes effect immediately.
-    const plugin = this.getPlugin();
-    if (plugin?.settings) {
-      this.otherProjectsEnabled = plugin.settings.showOtherProjects;
-    }
-
-    const leaves = this.getTerminalLeaves();
-    const sessions = this.getHistorySessions();
-    const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
-    const parts = discoverVaultParts(this.app);
-    const activeLeaf = this.app.workspace.activeLeaf;
-
-    const hasOpen = leaves.length > 0;
-    const hasHistory = sessions.length > 0;
-    const hasOtherProjects = otherGroups.length > 0;
-
-    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
-
-    if (!hasOpen && !hasHistory && !hasOtherProjects) {
-      const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
-      emptyEl.createDiv({ text: "No terminals yet." });
-      emptyEl.createDiv({ text: "Press + to open one." });
-    }
-
-    // ── Live sessions ─────────────────────────────────────────
-    if (hasOpen) {
-      const managedTeamGroups = this.computeManagedTeamGroups(leaves);
-      const managedLeaves = new Set<WorkspaceLeaf>();
-      for (const group of managedTeamGroups) {
-        for (const member of group.members) {
-          managedLeaves.add(member);
-        }
-      }
-
-      if (managedTeamGroups.length > 0) {
-        this.renderManagedTeamCards(managedTeamGroups, activeLeaf);
-      }
-
-      const unmanagedLeaves = leaves.filter((leaf) => !managedLeaves.has(leaf));
-      const teamGroups = this.computeTeamGroups(unmanagedLeaves);
-      this.renderOpenSectionWithGroups(this.listEl!, unmanagedLeaves, teamGroups, activeLeaf);
-    }
-
-    // ── INBOX section ─────────────────────────────────────────
-    this.renderInboxSection();
-
-    // ── PARTS section ─────────────────────────────────────────
-    this.renderPartsSection(parts);
-
-    // ── RECENT section with collapse ──────────────────────────
-    if (hasHistory) {
-      const isExpanded =
-        this.historyCollapseState === "open" ||
-        (this.historyCollapseState === "auto" && !hasOpen);
-
-      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (isExpanded) divider.addClass("is-open");
-      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
-      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
-      divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
-
-      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-      if (!isExpanded) historyContainer.style.display = "none";
-      this.renderHistorySections(sessions, historyContainer);
-
-      divider.addEventListener("click", () => {
-        this.historyCollapseState = isExpanded ? "closed" : "open";
-        divider.toggleClass("is-open", !isExpanded);
-        historyContainer.style.display = isExpanded ? "none" : "";
-      });
-    }
-
-    // ── OTHER PROJECTS section ─────────────────────────────────
-    if (this.otherProjectsEnabled) {
-      const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
-      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
-      otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
-
-      const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
-      if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
-
-      if (hasOtherProjects) {
-        this.renderOtherProjectsSection(otherGroups, otherContainer);
-      } else if (this.projectsState.inFlight) {
-        otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading…" });
-      } else {
-        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
-      }
-
-      otherDivider.addEventListener("click", () => {
-        this.otherProjectsExpanded = !this.otherProjectsExpanded;
-        otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
-        otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
-      });
-    } else {
-      const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
-
-      // Info icon explaining what "other projects" reads.
-      const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24d8" });
-      let tip: HTMLElement | null = null;
-      infoIcon.addEventListener("mouseenter", () => {
-        tip = document.createElement("div");
-        tip.className = "augment-api-key-tip";
-        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
-        document.body.appendChild(tip);
-        const rect = infoIcon.getBoundingClientRect();
-        tip.style.top = `${rect.bottom + 6}px`;
-        tip.style.left = `${rect.left}px`;
-      });
-      infoIcon.addEventListener("mouseleave", () => {
-        tip?.remove();
-        tip = null;
-      });
-
-      const loadBtn = loadDivider.createEl("button", {
-        cls: "augment-tm-load-projects-btn",
-        text: "Show other projects",
-      });
-      loadBtn.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        // Show loading state.
-        loadBtn.disabled = true;
-        loadBtn.textContent = "";
-        loadBtn.addClass("is-loading");
-        const spinner = loadBtn.createSpan({ cls: "augment-tm-spinner" });
-
-        this.otherProjectsEnabled = true;
-        this.otherProjectsExpanded = true;
-        this.projectsState.lastLoadTime = 0;
-        this.projectsState.reloadRequested = true;
-        // Persist the preference so it survives reloads.
-        const plugin = this.getPlugin();
-        if (plugin?.settings) {
-          plugin.settings.showOtherProjects = true;
-          void plugin.saveData(plugin.settings);
-        }
-        this.requestRefresh();
-      });
-    }
+    this.hideActivityTooltip();
+    this.contentEl.addClass("augment-terminal-manager");
+    const activeSessionCount = this.getActiveSessionCount();
+    renderLegacyRedirectShell(this.contentEl, {
+      title: "Terminal manager moved",
+      copy:
+        "The legacy terminal manager view moved out of Augment for Obsidian. Open Augment Control Center when it is available, or use Learn more for the current gap-period path.",
+      countLine: this.getLegacyRedirectCountLine(activeSessionCount),
+      onOpenControlCenter: () => {
+        void this.getPlugin()?.openControlCenter?.();
+      },
+    });
+    this.listEl = null;
   }
 
   private renderOpenSectionWithGroups(
@@ -1014,41 +847,39 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderInboxSection(): void {
-    const unread = unreadCount(this.app, HUMAN_ADDRESS);
     const isExpanded = this.inboxCollapseState !== "closed";
 
     const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
-    divider.createSpan({ cls: "augment-tm-section-label", text: "INBOX" });
-    if (unread > 0) {
-      divider.createSpan({
-        cls: "augment-tm-section-count",
-        text: `(${unread} unread)`,
-      });
-    }
+    divider.createSpan({ cls: "augment-tm-section-label", text: "MESSAGES" });
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
     const inboxContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) inboxContainer.style.display = "none";
 
-    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-part-row augment-tm-inbox-row" });
-    if (unread > 0) row.addClass("has-unread");
+    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-messages-row" });
 
-    const line = row.createDiv({ cls: "augment-tm-line" });
-    line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
-    line.createSpan({ cls: "augment-tm-name", text: "My inbox" });
-    line.createDiv({ cls: "augment-tm-spacer" });
+    const line = row.createDiv({ cls: "augment-tm-messages-line" });
+    const iconWrap = line.createDiv({ cls: "augment-tm-messages-icon-wrap" });
+    const iconEl = iconWrap.createDiv({ cls: "augment-tm-messages-icon" });
+    setIcon(iconEl, "inbox");
 
-    if (unread > 0) {
-      line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
-    }
+    const copy = line.createDiv({ cls: "augment-tm-messages-copy" });
+    copy.createDiv({ cls: "augment-tm-messages-eyebrow", text: "Messaging center" });
+    copy.createDiv({ cls: "augment-tm-messages-title", text: "Messages" });
+    copy.createDiv({
+      cls: "augment-tm-messages-subtitle",
+      text: "Matt and agent traffic",
+    });
+
+    line.createSpan({ cls: "augment-tm-messages-badge", text: "All traffic" });
 
     this.bindRowActivation(
       row,
       () => {
-        void openHumanInbox(this.app);
+        void openAllMessages(this.app);
       },
-      "Open messages addressed to you"
+      "Open messaging center"
     );
 
     divider.addEventListener("click", () => {

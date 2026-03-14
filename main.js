@@ -108,7 +108,7 @@ var require_xterm = __commonJS({
             this._rowElements[0].addEventListener("focus", this._topBoundaryFocusListener), this._rowElements[this._rowElements.length - 1].addEventListener("focus", this._bottomBoundaryFocusListener), this._terminal.scrollLines(0 === t3 ? -1 : 1), this._rowElements[0 === t3 ? 1 : this._rowElements.length - 2].focus(), e3.preventDefault(), e3.stopImmediatePropagation();
           }
           _handleSelectionChange() {
-            var _a2, _b;
+            var _a3, _b;
             if (0 === this._rowElements.length) return;
             const e3 = document.getSelection();
             if (!e3) return;
@@ -117,7 +117,7 @@ var require_xterm = __commonJS({
             let t3 = { node: e3.anchorNode, offset: e3.anchorOffset }, i3 = { node: e3.focusNode, offset: e3.focusOffset };
             if ((t3.node.compareDocumentPosition(i3.node) & Node.DOCUMENT_POSITION_PRECEDING || t3.node === i3.node && t3.offset > i3.offset) && ([t3, i3] = [i3, t3]), t3.node.compareDocumentPosition(this._rowElements[0]) & (Node.DOCUMENT_POSITION_CONTAINED_BY | Node.DOCUMENT_POSITION_FOLLOWING) && (t3 = { node: this._rowElements[0].childNodes[0], offset: 0 }), !this._rowContainer.contains(t3.node)) return;
             const s3 = this._rowElements.slice(-1)[0];
-            if (i3.node.compareDocumentPosition(s3) & (Node.DOCUMENT_POSITION_CONTAINED_BY | Node.DOCUMENT_POSITION_PRECEDING) && (i3 = { node: s3, offset: (_b = (_a2 = s3.textContent) == null ? void 0 : _a2.length) != null ? _b : 0 }), !this._rowContainer.contains(i3.node)) return;
+            if (i3.node.compareDocumentPosition(s3) & (Node.DOCUMENT_POSITION_CONTAINED_BY | Node.DOCUMENT_POSITION_PRECEDING) && (i3 = { node: s3, offset: (_b = (_a3 = s3.textContent) == null ? void 0 : _a3.length) != null ? _b : 0 }), !this._rowContainer.contains(i3.node)) return;
             const r2 = ({ node: e4, offset: t4 }) => {
               const i4 = e4 instanceof Text ? e4.parentNode : e4;
               let s4 = parseInt(i4 == null ? void 0 : i4.getAttribute("aria-posinset"), 10) - 1;
@@ -224,8 +224,8 @@ var require_xterm = __commonJS({
           }
           constructor(e3, t3, i3, s3, r2) {
             super(), this._element = e3, this._mouseService = t3, this._renderService = i3, this._bufferService = s3, this._linkProviderService = r2, this._linkCacheDisposables = [], this._isMouseOut = true, this._wasResized = false, this._activeLine = -1, this._onShowLinkUnderline = this.register(new o.EventEmitter()), this.onShowLinkUnderline = this._onShowLinkUnderline.event, this._onHideLinkUnderline = this.register(new o.EventEmitter()), this.onHideLinkUnderline = this._onHideLinkUnderline.event, this.register((0, a.getDisposeArrayDisposable)(this._linkCacheDisposables)), this.register((0, a.toDisposable)(() => {
-              var _a2;
-              this._lastMouseEvent = void 0, (_a2 = this._activeProviderReplies) == null ? void 0 : _a2.clear();
+              var _a3;
+              this._lastMouseEvent = void 0, (_a3 = this._activeProviderReplies) == null ? void 0 : _a3.clear();
             })), this.register(this._bufferService.onResize(() => {
               this._clearCurrentLink(), this._wasResized = true;
             })), this.register((0, n.addDisposableDomListener)(this._element, "mouseleave", () => {
@@ -250,8 +250,8 @@ var require_xterm = __commonJS({
             this._currentLink && this._linkAtPosition(this._currentLink.link, e3) || (this._clearCurrentLink(), this._askForLink(e3, true));
           }
           _askForLink(e3, t3) {
-            var _a2, _b;
-            this._activeProviderReplies && t3 || ((_a2 = this._activeProviderReplies) == null ? void 0 : _a2.forEach((e4) => {
+            var _a3, _b;
+            this._activeProviderReplies && t3 || ((_a3 = this._activeProviderReplies) == null ? void 0 : _a3.forEach((e4) => {
               e4 == null ? void 0 : e4.forEach((e5) => {
                 e5.link.dispose && e5.link.dispose();
               });
@@ -261,10 +261,10 @@ var require_xterm = __commonJS({
               const t4 = (_b = this._activeProviderReplies) == null ? void 0 : _b.get(s3);
               t4 && (i3 = this._checkLinkProviderResult(s3, e3, i3));
             } else r2.provideLinks(e3.y, (t4) => {
-              var _a3, _b2;
+              var _a4, _b2;
               if (this._isMouseOut) return;
               const r3 = t4 == null ? void 0 : t4.map((e4) => ({ link: e4 }));
-              (_a3 = this._activeProviderReplies) == null ? void 0 : _a3.set(s3, r3), i3 = this._checkLinkProviderResult(s3, e3, i3), ((_b2 = this._activeProviderReplies) == null ? void 0 : _b2.size) === this._linkProviderService.linkProviders.length && this._removeIntersectingLinks(e3.y, this._activeProviderReplies);
+              (_a4 = this._activeProviderReplies) == null ? void 0 : _a4.set(s3, r3), i3 = this._checkLinkProviderResult(s3, e3, i3), ((_b2 = this._activeProviderReplies) == null ? void 0 : _b2.size) === this._linkProviderService.linkProviders.length && this._removeIntersectingLinks(e3.y, this._activeProviderReplies);
             });
           }
           _removeIntersectingLinks(e3, t3) {
@@ -284,7 +284,7 @@ var require_xterm = __commonJS({
             }
           }
           _checkLinkProviderResult(e3, t3, i3) {
-            var _a2;
+            var _a3;
             if (!this._activeProviderReplies) return i3;
             const s3 = this._activeProviderReplies.get(e3);
             let r2 = false;
@@ -294,7 +294,7 @@ var require_xterm = __commonJS({
               e4 && (i3 = true, this._handleNewLink(e4));
             }
             if (this._activeProviderReplies.size === this._linkProviderService.linkProviders.length && !i3) for (let e4 = 0; e4 < this._activeProviderReplies.size; e4++) {
-              const s4 = (_a2 = this._activeProviderReplies.get(e4)) == null ? void 0 : _a2.find((e5) => this._linkAtPosition(e5.link, t3));
+              const s4 = (_a3 = this._activeProviderReplies.get(e4)) == null ? void 0 : _a3.find((e5) => this._linkAtPosition(e5.link, t3));
               if (s4) {
                 i3 = true, this._handleNewLink(s4);
                 break;
@@ -317,17 +317,17 @@ var require_xterm = __commonJS({
             if (!this._lastMouseEvent) return;
             const t3 = this._positionFromMouseEvent(this._lastMouseEvent, this._element, this._mouseService);
             t3 && this._linkAtPosition(e3.link, t3) && (this._currentLink = e3, this._currentLink.state = { decorations: { underline: void 0 === e3.link.decorations || e3.link.decorations.underline, pointerCursor: void 0 === e3.link.decorations || e3.link.decorations.pointerCursor }, isHovered: true }, this._linkHover(this._element, e3.link, this._lastMouseEvent), e3.link.decorations = {}, Object.defineProperties(e3.link.decorations, { pointerCursor: { get: () => {
-              var _a2, _b;
-              return (_b = (_a2 = this._currentLink) == null ? void 0 : _a2.state) == null ? void 0 : _b.decorations.pointerCursor;
+              var _a3, _b;
+              return (_b = (_a3 = this._currentLink) == null ? void 0 : _a3.state) == null ? void 0 : _b.decorations.pointerCursor;
             }, set: (e4) => {
-              var _a2;
-              ((_a2 = this._currentLink) == null ? void 0 : _a2.state) && this._currentLink.state.decorations.pointerCursor !== e4 && (this._currentLink.state.decorations.pointerCursor = e4, this._currentLink.state.isHovered && this._element.classList.toggle("xterm-cursor-pointer", e4));
+              var _a3;
+              ((_a3 = this._currentLink) == null ? void 0 : _a3.state) && this._currentLink.state.decorations.pointerCursor !== e4 && (this._currentLink.state.decorations.pointerCursor = e4, this._currentLink.state.isHovered && this._element.classList.toggle("xterm-cursor-pointer", e4));
             } }, underline: { get: () => {
-              var _a2, _b;
-              return (_b = (_a2 = this._currentLink) == null ? void 0 : _a2.state) == null ? void 0 : _b.decorations.underline;
+              var _a3, _b;
+              return (_b = (_a3 = this._currentLink) == null ? void 0 : _a3.state) == null ? void 0 : _b.decorations.underline;
             }, set: (t4) => {
-              var _a2, _b, _c;
-              ((_a2 = this._currentLink) == null ? void 0 : _a2.state) && ((_c = (_b = this._currentLink) == null ? void 0 : _b.state) == null ? void 0 : _c.decorations.underline) !== t4 && (this._currentLink.state.decorations.underline = t4, this._currentLink.state.isHovered && this._fireUnderlineEvent(e3.link, t4));
+              var _a3, _b, _c;
+              ((_a3 = this._currentLink) == null ? void 0 : _a3.state) && ((_c = (_b = this._currentLink) == null ? void 0 : _b.state) == null ? void 0 : _c.decorations.underline) !== t4 && (this._currentLink.state.decorations.underline = t4, this._currentLink.state.isHovered && this._fireUnderlineEvent(e3.link, t4));
             } } }), this._linkCacheDisposables.push(this._renderService.onRenderedViewportChange((e4) => {
               if (!this._currentLink) return;
               const t4 = 0 === e4.start ? 0 : e4.start + 1 + this._bufferService.buffer.ydisp, i3 = this._bufferService.buffer.ydisp + 1 + e4.end;
@@ -338,16 +338,16 @@ var require_xterm = __commonJS({
             })));
           }
           _linkHover(e3, t3, i3) {
-            var _a2;
-            ((_a2 = this._currentLink) == null ? void 0 : _a2.state) && (this._currentLink.state.isHovered = true, this._currentLink.state.decorations.underline && this._fireUnderlineEvent(t3, true), this._currentLink.state.decorations.pointerCursor && e3.classList.add("xterm-cursor-pointer")), t3.hover && t3.hover(i3, t3.text);
+            var _a3;
+            ((_a3 = this._currentLink) == null ? void 0 : _a3.state) && (this._currentLink.state.isHovered = true, this._currentLink.state.decorations.underline && this._fireUnderlineEvent(t3, true), this._currentLink.state.decorations.pointerCursor && e3.classList.add("xterm-cursor-pointer")), t3.hover && t3.hover(i3, t3.text);
           }
           _fireUnderlineEvent(e3, t3) {
             const i3 = e3.range, s3 = this._bufferService.buffer.ydisp, r2 = this._createLinkUnderlineEvent(i3.start.x - 1, i3.start.y - s3 - 1, i3.end.x, i3.end.y - s3 - 1, void 0);
             (t3 ? this._onShowLinkUnderline : this._onHideLinkUnderline).fire(r2);
           }
           _linkLeave(e3, t3, i3) {
-            var _a2;
-            ((_a2 = this._currentLink) == null ? void 0 : _a2.state) && (this._currentLink.state.isHovered = false, this._currentLink.state.decorations.underline && this._fireUnderlineEvent(t3, false), this._currentLink.state.decorations.pointerCursor && e3.classList.remove("xterm-cursor-pointer")), t3.leave && t3.leave(i3, t3.text);
+            var _a3;
+            ((_a3 = this._currentLink) == null ? void 0 : _a3.state) && (this._currentLink.state.isHovered = false, this._currentLink.state.decorations.underline && this._fireUnderlineEvent(t3, false), this._currentLink.state.decorations.pointerCursor && e3.classList.remove("xterm-cursor-pointer")), t3.leave && t3.leave(i3, t3.text);
           }
           _linkAtPosition(e3, t3) {
             const i3 = e3.range.start.y * this._bufferService.cols + e3.range.start.x, s3 = e3.range.end.y * this._bufferService.cols + e3.range.end.x, r2 = t3.y * this._bufferService.cols + t3.x;
@@ -382,7 +382,7 @@ var require_xterm = __commonJS({
             this._bufferService = e3, this._optionsService = t3, this._oscLinkService = i3;
           }
           provideLinks(e3, t3) {
-            var _a2;
+            var _a3;
             const i3 = this._bufferService.buffer.lines.get(e3 - 1);
             if (!i3) return void t3(void 0);
             const s3 = [], r2 = this._optionsService.rawOptions.linkHandler, o2 = new n.CellData(), a2 = i3.getTrimmedLength();
@@ -396,7 +396,7 @@ var require_xterm = __commonJS({
                 d = o2.extended.urlId !== c;
               } else -1 !== l && (d = true);
               if (d || -1 !== l && t4 === a2 - 1) {
-                const i4 = (_a2 = this._oscLinkService.getLinkData(c)) == null ? void 0 : _a2.uri;
+                const i4 = (_a3 = this._oscLinkService.getLinkData(c)) == null ? void 0 : _a3.uri;
                 if (i4) {
                   const n2 = { start: { x: l + 1, y: e3 }, end: { x: t4 + (d || t4 !== a2 - 1 ? 0 : 1), y: e3 } };
                   let o3 = false;
@@ -407,11 +407,11 @@ var require_xterm = __commonJS({
                     o3 = true;
                   }
                   o3 || s3.push({ text: i4, range: n2, activate: (e4, t5) => r2 ? r2.activate(e4, t5, n2) : h(0, t5), hover: (e4, t5) => {
-                    var _a3;
-                    return (_a3 = r2 == null ? void 0 : r2.hover) == null ? void 0 : _a3.call(r2, e4, t5, n2);
+                    var _a4;
+                    return (_a4 = r2 == null ? void 0 : r2.hover) == null ? void 0 : _a4.call(r2, e4, t5, n2);
                   }, leave: (e4, t5) => {
-                    var _a3;
-                    return (_a3 = r2 == null ? void 0 : r2.leave) == null ? void 0 : _a3.call(r2, e4, t5, n2);
+                    var _a4;
+                    return (_a4 = r2 == null ? void 0 : r2.leave) == null ? void 0 : _a4.call(r2, e4, t5, n2);
                   } });
                 }
                 d = false, o2.hasExtendedAttrs() && o2.extended.urlId ? (l = t4, c = o2.extended.urlId) : (l = -1, c = -1);
@@ -480,8 +480,8 @@ WARNING: This link could potentially be dangerous`)) {
           }
           constructor(e3 = {}) {
             super(e3), this.browser = k, this._keyDownHandled = false, this._keyDownSeen = false, this._keyPressHandled = false, this._unprocessedDeadKey = false, this._accessibilityManager = this.register(new E.MutableDisposable()), this._onCursorMove = this.register(new y.EventEmitter()), this.onCursorMove = this._onCursorMove.event, this._onKey = this.register(new y.EventEmitter()), this.onKey = this._onKey.event, this._onRender = this.register(new y.EventEmitter()), this.onRender = this._onRender.event, this._onSelectionChange = this.register(new y.EventEmitter()), this.onSelectionChange = this._onSelectionChange.event, this._onTitleChange = this.register(new y.EventEmitter()), this.onTitleChange = this._onTitleChange.event, this._onBell = this.register(new y.EventEmitter()), this.onBell = this._onBell.event, this._onFocus = this.register(new y.EventEmitter()), this._onBlur = this.register(new y.EventEmitter()), this._onA11yCharEmitter = this.register(new y.EventEmitter()), this._onA11yTabEmitter = this.register(new y.EventEmitter()), this._onWillOpen = this.register(new y.EventEmitter()), this._setup(), this._decorationService = this._instantiationService.createInstance(A.DecorationService), this._instantiationService.setService(B.IDecorationService, this._decorationService), this._linkProviderService = this._instantiationService.createInstance(O.LinkProviderService), this._instantiationService.setService(S.ILinkProviderService, this._linkProviderService), this._linkProviderService.registerLinkProvider(this._instantiationService.createInstance(a.OscLinkProvider)), this.register(this._inputHandler.onRequestBell(() => this._onBell.fire())), this.register(this._inputHandler.onRequestRefreshRows((e4, t3) => this.refresh(e4, t3))), this.register(this._inputHandler.onRequestSendFocus(() => this._reportFocus())), this.register(this._inputHandler.onRequestReset(() => this.reset())), this.register(this._inputHandler.onRequestWindowsOptionsReport((e4) => this._reportWindowsOptions(e4))), this.register(this._inputHandler.onColor((e4) => this._handleColorEvent(e4))), this.register((0, y.forwardEvent)(this._inputHandler.onCursorMove, this._onCursorMove)), this.register((0, y.forwardEvent)(this._inputHandler.onTitleChange, this._onTitleChange)), this.register((0, y.forwardEvent)(this._inputHandler.onA11yChar, this._onA11yCharEmitter)), this.register((0, y.forwardEvent)(this._inputHandler.onA11yTab, this._onA11yTabEmitter)), this.register(this._bufferService.onResize((e4) => this._afterResize(e4.cols, e4.rows))), this.register((0, E.toDisposable)(() => {
-              var _a2, _b;
-              this._customKeyEventHandler = void 0, (_b = (_a2 = this.element) == null ? void 0 : _a2.parentNode) == null ? void 0 : _b.removeChild(this.element);
+              var _a3, _b;
+              this._customKeyEventHandler = void 0, (_b = (_a3 = this.element) == null ? void 0 : _a3.parentNode) == null ? void 0 : _b.removeChild(this.element);
             }));
           }
           _handleColorEvent(e3) {
@@ -533,8 +533,8 @@ WARNING: This link could potentially be dangerous`)) {
             this.coreService.decPrivateModes.sendFocus && this.coreService.triggerDataEvent(D.C0.ESC + "[I"), this.element.classList.add("focus"), this._showCursor(), this._onFocus.fire();
           }
           blur() {
-            var _a2;
-            return (_a2 = this.textarea) == null ? void 0 : _a2.blur();
+            var _a3;
+            return (_a3 = this.textarea) == null ? void 0 : _a3.blur();
           }
           _handleTextAreaBlur() {
             this.textarea.value = "", this.refresh(this.buffer.y, this.buffer.y), this.coreService.decPrivateModes.sendFocus && this.coreService.triggerDataEvent(D.C0.ESC + "[O"), this.element.classList.remove("focus"), this._onBlur.fire();
@@ -563,9 +563,9 @@ WARNING: This link could potentially be dangerous`)) {
             this.register((0, r.addDisposableDomListener)(this.textarea, "keyup", (e3) => this._keyUp(e3), true)), this.register((0, r.addDisposableDomListener)(this.textarea, "keydown", (e3) => this._keyDown(e3), true)), this.register((0, r.addDisposableDomListener)(this.textarea, "keypress", (e3) => this._keyPress(e3), true)), this.register((0, r.addDisposableDomListener)(this.textarea, "compositionstart", () => this._compositionHelper.compositionstart())), this.register((0, r.addDisposableDomListener)(this.textarea, "compositionupdate", (e3) => this._compositionHelper.compositionupdate(e3))), this.register((0, r.addDisposableDomListener)(this.textarea, "compositionend", () => this._compositionHelper.compositionend())), this.register((0, r.addDisposableDomListener)(this.textarea, "input", (e3) => this._inputEvent(e3), true)), this.register(this.onRender(() => this._compositionHelper.updateCompositionElements()));
           }
           open(e3) {
-            var _a2, _b, _c;
+            var _a3, _b, _c;
             if (!e3) throw new Error("Terminal requires a parent element.");
-            if (e3.isConnected || this._logService.debug("Terminal.open was called on an element that was not attached to the DOM"), ((_a2 = this.element) == null ? void 0 : _a2.ownerDocument.defaultView) && this._coreBrowserService) return void (this.element.ownerDocument.defaultView !== this._coreBrowserService.window && (this._coreBrowserService.window = this.element.ownerDocument.defaultView));
+            if (e3.isConnected || this._logService.debug("Terminal.open was called on an element that was not attached to the DOM"), ((_a3 = this.element) == null ? void 0 : _a3.ownerDocument.defaultView) && this._coreBrowserService) return void (this.element.ownerDocument.defaultView !== this._coreBrowserService.window && (this._coreBrowserService.window = this.element.ownerDocument.defaultView));
             this._document = e3.ownerDocument, this.options.documentOverride && this.options.documentOverride instanceof Document && (this._document = this.optionsService.rawOptions.documentOverride), this.element = this._document.createElement("div"), this.element.dir = "ltr", this.element.classList.add("terminal"), this.element.classList.add("xterm"), e3.appendChild(this.element);
             const t3 = this._document.createDocumentFragment();
             this._viewportElement = this._document.createElement("div"), this._viewportElement.classList.add("xterm-viewport"), t3.appendChild(this._viewportElement), this._viewportScrollArea = this._document.createElement("div"), this._viewportScrollArea.classList.add("xterm-scroll-area"), this._viewportElement.appendChild(this._viewportScrollArea), this.screenElement = this._document.createElement("div"), this.screenElement.classList.add("xterm-screen"), this.register((0, r.addDisposableDomListener)(this.screenElement, "mousemove", (e4) => this.updateCursorStyle(e4))), this._helperContainer = this._document.createElement("div"), this._helperContainer.classList.add("xterm-helpers"), this.screenElement.appendChild(this._helperContainer), t3.appendChild(this.screenElement), this.textarea = this._document.createElement("textarea"), this.textarea.classList.add("xterm-helper-textarea"), this.textarea.setAttribute("aria-label", o.promptLabel), k.isChromeOS || this.textarea.setAttribute("aria-multiline", "false"), this.textarea.setAttribute("autocorrect", "off"), this.textarea.setAttribute("autocapitalize", "off"), this.textarea.setAttribute("spellcheck", "false"), this.textarea.tabIndex = 0, this._coreBrowserService = this.register(this._instantiationService.createInstance(v.CoreBrowserService, this.textarea, (_b = e3.ownerDocument.defaultView) != null ? _b : window, ((_c = this._document) != null ? _c : "undefined" != typeof window) ? window.document : null)), this._instantiationService.setService(S.ICoreBrowserService, this._coreBrowserService), this.register((0, r.addDisposableDomListener)(this.textarea, "focus", (e4) => this._handleTextAreaFocus(e4))), this.register((0, r.addDisposableDomListener)(this.textarea, "blur", () => this._handleTextAreaBlur())), this._helperContainer.appendChild(this.textarea), this._charSizeService = this._instantiationService.createInstance(u.CharSizeService, this._document, this._helperContainer), this._instantiationService.setService(S.ICharSizeService, this._charSizeService), this._themeService = this._instantiationService.createInstance(C.ThemeService), this._instantiationService.setService(S.IThemeService, this._themeService), this._characterJoinerService = this._instantiationService.createInstance(f.CharacterJoinerService), this._instantiationService.setService(S.ICharacterJoinerService, this._characterJoinerService), this._renderService = this.register(this._instantiationService.createInstance(g.RenderService, this.rows, this.screenElement)), this._instantiationService.setService(S.IRenderService, this._renderService), this.register(this._renderService.onRenderedViewportChange((e4) => this._onRender.fire(e4))), this.onResize((e4) => this._renderService.resize(e4.cols, e4.rows)), this._compositionView = this._document.createElement("div"), this._compositionView.classList.add("composition-view"), this._compositionHelper = this._instantiationService.createInstance(d.CompositionHelper, this.textarea, this._compositionView), this._helperContainer.appendChild(this._compositionView), this._mouseService = this._instantiationService.createInstance(p.MouseService), this._instantiationService.setService(S.IMouseService, this._mouseService), this.linkifier = this.register(this._instantiationService.createInstance(n.Linkifier, this.screenElement)), this.element.appendChild(t3);
@@ -641,19 +641,19 @@ WARNING: This link could potentially be dangerous`)) {
             }, { passive: false }));
           }
           refresh(e3, t3) {
-            var _a2;
-            (_a2 = this._renderService) == null ? void 0 : _a2.refreshRows(e3, t3);
+            var _a3;
+            (_a3 = this._renderService) == null ? void 0 : _a3.refreshRows(e3, t3);
           }
           updateCursorStyle(e3) {
-            var _a2;
-            ((_a2 = this._selectionService) == null ? void 0 : _a2.shouldColumnSelect(e3)) ? this.element.classList.add("column-select") : this.element.classList.remove("column-select");
+            var _a3;
+            ((_a3 = this._selectionService) == null ? void 0 : _a3.shouldColumnSelect(e3)) ? this.element.classList.add("column-select") : this.element.classList.remove("column-select");
           }
           _showCursor() {
             this.coreService.isCursorInitialized || (this.coreService.isCursorInitialized = true, this.refresh(this.buffer.y, this.buffer.y));
           }
           scrollLines(e3, t3, i3 = 0) {
-            var _a2;
-            1 === i3 ? (super.scrollLines(e3, t3, i3), this.refresh(0, this.rows - 1)) : (_a2 = this.viewport) == null ? void 0 : _a2.scrollLines(e3);
+            var _a3;
+            1 === i3 ? (super.scrollLines(e3, t3, i3), this.refresh(0, this.rows - 1)) : (_a3 = this.viewport) == null ? void 0 : _a3.scrollLines(e3);
           }
           paste(e3) {
             (0, s2.paste)(e3, this.textarea, this.coreService, this.optionsService);
@@ -698,16 +698,16 @@ WARNING: This link could potentially be dangerous`)) {
             if (this._selectionService && this._selectionService.hasSelection) return { start: { x: this._selectionService.selectionStart[0], y: this._selectionService.selectionStart[1] }, end: { x: this._selectionService.selectionEnd[0], y: this._selectionService.selectionEnd[1] } };
           }
           clearSelection() {
-            var _a2;
-            (_a2 = this._selectionService) == null ? void 0 : _a2.clearSelection();
+            var _a3;
+            (_a3 = this._selectionService) == null ? void 0 : _a3.clearSelection();
           }
           selectAll() {
-            var _a2;
-            (_a2 = this._selectionService) == null ? void 0 : _a2.selectAll();
+            var _a3;
+            (_a3 = this._selectionService) == null ? void 0 : _a3.selectAll();
           }
           selectLines(e3, t3) {
-            var _a2;
-            (_a2 = this._selectionService) == null ? void 0 : _a2.selectLines(e3, t3);
+            var _a3;
+            (_a3 = this._selectionService) == null ? void 0 : _a3.selectLines(e3, t3);
           }
           _keyDown(e3) {
             if (this._keyDownHandled = false, this._keyDownSeen = true, this._customKeyEventHandler && false === this._customKeyEventHandler(e3)) return false;
@@ -755,30 +755,30 @@ WARNING: This link could potentially be dangerous`)) {
             e3 !== this.cols || t3 !== this.rows ? super.resize(e3, t3) : this._charSizeService && !this._charSizeService.hasValidSize && this._charSizeService.measure();
           }
           _afterResize(e3, t3) {
-            var _a2, _b;
-            (_a2 = this._charSizeService) == null ? void 0 : _a2.measure(), (_b = this.viewport) == null ? void 0 : _b.syncScrollArea(true);
+            var _a3, _b;
+            (_a3 = this._charSizeService) == null ? void 0 : _a3.measure(), (_b = this.viewport) == null ? void 0 : _b.syncScrollArea(true);
           }
           clear() {
-            var _a2;
+            var _a3;
             if (0 !== this.buffer.ybase || 0 !== this.buffer.y) {
               this.buffer.clearAllMarkers(), this.buffer.lines.set(0, this.buffer.lines.get(this.buffer.ybase + this.buffer.y)), this.buffer.lines.length = 1, this.buffer.ydisp = 0, this.buffer.ybase = 0, this.buffer.y = 0;
               for (let e3 = 1; e3 < this.rows; e3++) this.buffer.lines.push(this.buffer.getBlankLine(L.DEFAULT_ATTR_DATA));
-              this._onScroll.fire({ position: this.buffer.ydisp, source: 0 }), (_a2 = this.viewport) == null ? void 0 : _a2.reset(), this.refresh(0, this.rows - 1);
+              this._onScroll.fire({ position: this.buffer.ydisp, source: 0 }), (_a3 = this.viewport) == null ? void 0 : _a3.reset(), this.refresh(0, this.rows - 1);
             }
           }
           reset() {
-            var _a2, _b;
+            var _a3, _b;
             this.options.rows = this.rows, this.options.cols = this.cols;
             const e3 = this._customKeyEventHandler;
-            this._setup(), super.reset(), (_a2 = this._selectionService) == null ? void 0 : _a2.reset(), this._decorationService.reset(), (_b = this.viewport) == null ? void 0 : _b.reset(), this._customKeyEventHandler = e3, this.refresh(0, this.rows - 1);
+            this._setup(), super.reset(), (_a3 = this._selectionService) == null ? void 0 : _a3.reset(), this._decorationService.reset(), (_b = this.viewport) == null ? void 0 : _b.reset(), this._customKeyEventHandler = e3, this.refresh(0, this.rows - 1);
           }
           clearTextureAtlas() {
-            var _a2;
-            (_a2 = this._renderService) == null ? void 0 : _a2.clearTextureAtlas();
+            var _a3;
+            (_a3 = this._renderService) == null ? void 0 : _a3.clearTextureAtlas();
           }
           _reportFocus() {
-            var _a2;
-            ((_a2 = this.element) == null ? void 0 : _a2.classList.contains("focus")) ? this.coreService.triggerDataEvent(D.C0.ESC + "[I") : this.coreService.triggerDataEvent(D.C0.ESC + "[O");
+            var _a3;
+            ((_a3 = this.element) == null ? void 0 : _a3.classList.contains("focus")) ? this.coreService.triggerDataEvent(D.C0.ESC + "[I") : this.coreService.triggerDataEvent(D.C0.ESC + "[O");
           }
           _reportWindowsOptions(e3) {
             if (this._renderService) switch (e3) {
@@ -898,13 +898,13 @@ WARNING: This link could potentially be dangerous`)) {
             return e3.deltaMode === WheelEvent.DOM_DELTA_LINE ? t3 *= this._currentRowHeight : e3.deltaMode === WheelEvent.DOM_DELTA_PAGE && (t3 *= this._currentRowHeight * this._bufferService.rows), t3;
           }
           getBufferElements(e3, t3) {
-            var _a2;
+            var _a3;
             let i3, s3 = "";
             const r2 = [], n2 = t3 != null ? t3 : this._bufferService.buffer.lines.length, o2 = this._bufferService.buffer.lines;
             for (let t4 = e3; t4 < n2; t4++) {
               const e4 = o2.get(t4);
               if (!e4) continue;
-              const n3 = (_a2 = o2.get(t4 + 1)) == null ? void 0 : _a2.isWrapped;
+              const n3 = (_a3 = o2.get(t4 + 1)) == null ? void 0 : _a3.isWrapped;
               if (s3 += e4.translateToString(!n3), !n3 || t4 === o2.length - 1) {
                 const e5 = document.createElement("div");
                 e5.textContent = s3, r2.push(e5), s3.length > 0 && (i3 = e5), s3 = "";
@@ -966,9 +966,9 @@ WARNING: This link could potentially be dangerous`)) {
             this._refreshStyle(e3), this._dimensionsChanged && this._refreshXPosition(e3);
           }
           _createElement(e3) {
-            var _a2, _b;
+            var _a3, _b;
             const t3 = this._coreBrowserService.mainDocument.createElement("div");
-            t3.classList.add("xterm-decoration"), t3.classList.toggle("xterm-decoration-top-layer", "top" === ((_a2 = e3 == null ? void 0 : e3.options) == null ? void 0 : _a2.layer)), t3.style.width = `${Math.round((e3.options.width || 1) * this._renderService.dimensions.css.cell.width)}px`, t3.style.height = (e3.options.height || 1) * this._renderService.dimensions.css.cell.height + "px", t3.style.top = (e3.marker.line - this._bufferService.buffers.active.ydisp) * this._renderService.dimensions.css.cell.height + "px", t3.style.lineHeight = `${this._renderService.dimensions.css.cell.height}px`;
+            t3.classList.add("xterm-decoration"), t3.classList.toggle("xterm-decoration-top-layer", "top" === ((_a3 = e3 == null ? void 0 : e3.options) == null ? void 0 : _a3.layer)), t3.style.width = `${Math.round((e3.options.width || 1) * this._renderService.dimensions.css.cell.width)}px`, t3.style.height = (e3.options.height || 1) * this._renderService.dimensions.css.cell.height + "px", t3.style.top = (e3.marker.line - this._bufferService.buffers.active.ydisp) * this._renderService.dimensions.css.cell.height + "px", t3.style.lineHeight = `${this._renderService.dimensions.css.cell.height}px`;
             const i3 = (_b = e3.options.x) != null ? _b : 0;
             return i3 && i3 > this._bufferService.cols && (t3.style.display = "none"), this._refreshXPosition(e3, t3), t3;
           }
@@ -983,14 +983,14 @@ WARNING: This link could potentially be dangerous`)) {
             }
           }
           _refreshXPosition(e3, t3 = e3.element) {
-            var _a2;
+            var _a3;
             if (!t3) return;
-            const i3 = (_a2 = e3.options.x) != null ? _a2 : 0;
+            const i3 = (_a3 = e3.options.x) != null ? _a3 : 0;
             "right" === (e3.options.anchor || "left") ? t3.style.right = i3 ? i3 * this._renderService.dimensions.css.cell.width + "px" : "" : t3.style.left = i3 ? i3 * this._renderService.dimensions.css.cell.width + "px" : "";
           }
           _removeDecoration(e3) {
-            var _a2;
-            (_a2 = this._decorationElements.get(e3)) == null ? void 0 : _a2.remove(), this._decorationElements.delete(e3), e3.dispose();
+            var _a3;
+            (_a3 = this._decorationElements.get(e3)) == null ? void 0 : _a3.remove(), this._decorationElements.delete(e3), e3.dispose();
           }
         };
         t2.BufferDecorationRenderer = h = s2([r(1, a.IBufferService), r(2, n.ICoreBrowserService), r(3, a.IDecorationService), r(4, n.IRenderService)], h);
@@ -1046,13 +1046,13 @@ WARNING: This link could potentially be dangerous`)) {
             return this._optionsService.options.overviewRulerWidth || 0;
           }
           constructor(e3, t3, i3, s3, r2, o2, h2) {
-            var _a2;
-            super(), this._viewportElement = e3, this._screenElement = t3, this._bufferService = i3, this._decorationService = s3, this._renderService = r2, this._optionsService = o2, this._coreBrowserService = h2, this._colorZoneStore = new n.ColorZoneStore(), this._shouldUpdateDimensions = true, this._shouldUpdateAnchor = true, this._lastKnownBufferLength = 0, this._canvas = this._coreBrowserService.mainDocument.createElement("canvas"), this._canvas.classList.add("xterm-decoration-overview-ruler"), this._refreshCanvasDimensions(), (_a2 = this._viewportElement.parentElement) == null ? void 0 : _a2.insertBefore(this._canvas, this._viewportElement);
+            var _a3;
+            super(), this._viewportElement = e3, this._screenElement = t3, this._bufferService = i3, this._decorationService = s3, this._renderService = r2, this._optionsService = o2, this._coreBrowserService = h2, this._colorZoneStore = new n.ColorZoneStore(), this._shouldUpdateDimensions = true, this._shouldUpdateAnchor = true, this._lastKnownBufferLength = 0, this._canvas = this._coreBrowserService.mainDocument.createElement("canvas"), this._canvas.classList.add("xterm-decoration-overview-ruler"), this._refreshCanvasDimensions(), (_a3 = this._viewportElement.parentElement) == null ? void 0 : _a3.insertBefore(this._canvas, this._viewportElement);
             const c2 = this._canvas.getContext("2d");
             if (!c2) throw new Error("Ctx cannot be null");
             this._ctx = c2, this._registerDecorationListeners(), this._registerBufferChangeListeners(), this._registerDimensionChangeListeners(), this.register((0, a.toDisposable)(() => {
-              var _a3;
-              (_a3 = this._canvas) == null ? void 0 : _a3.remove();
+              var _a4;
+              (_a4 = this._canvas) == null ? void 0 : _a4.remove();
             }));
           }
           _registerDecorationListeners() {
@@ -1851,8 +1851,8 @@ WARNING: This link could potentially be dangerous`)) {
             this._parentWindow.devicePixelRatio !== this._currentDevicePixelRatio && this._onDprChange.fire(this._parentWindow.devicePixelRatio), this._updateDpr();
           }
           _updateDpr() {
-            var _a3;
-            this._outerListener && ((_a3 = this._resolutionMediaMatchList) == null ? void 0 : _a3.removeListener(this._outerListener), this._currentDevicePixelRatio = this._parentWindow.devicePixelRatio, this._resolutionMediaMatchList = this._parentWindow.matchMedia(`screen and (resolution: ${this._parentWindow.devicePixelRatio}dppx)`), this._resolutionMediaMatchList.addListener(this._outerListener));
+            var _a4;
+            this._outerListener && ((_a4 = this._resolutionMediaMatchList) == null ? void 0 : _a4.removeListener(this._outerListener), this._currentDevicePixelRatio = this._parentWindow.devicePixelRatio, this._resolutionMediaMatchList = this._parentWindow.matchMedia(`screen and (resolution: ${this._parentWindow.devicePixelRatio}dppx)`), this._resolutionMediaMatchList.addListener(this._outerListener));
           }
           clearListener() {
             this._resolutionMediaMatchList && this._outerListener && (this._resolutionMediaMatchList.removeListener(this._outerListener), this._resolutionMediaMatchList = void 0, this._outerListener = void 0);
@@ -1918,8 +1918,8 @@ WARNING: This link could potentially be dangerous`)) {
           }
           constructor(e3, t3, i3, s3, r2, o2, l2, d2) {
             super(), this._rowCount = e3, this._charSizeService = s3, this._renderer = this.register(new h.MutableDisposable()), this._pausedResizeTask = new c.DebouncedIdleTask(), this._observerDisposable = this.register(new h.MutableDisposable()), this._isPaused = false, this._needsFullRefresh = false, this._isNextRenderRedrawOnly = true, this._needsSelectionRefresh = false, this._canvasWidth = 0, this._canvasHeight = 0, this._selectionState = { start: void 0, end: void 0, columnSelectMode: false }, this._onDimensionsChange = this.register(new a.EventEmitter()), this.onDimensionsChange = this._onDimensionsChange.event, this._onRenderedViewportChange = this.register(new a.EventEmitter()), this.onRenderedViewportChange = this._onRenderedViewportChange.event, this._onRender = this.register(new a.EventEmitter()), this.onRender = this._onRender.event, this._onRefreshRequest = this.register(new a.EventEmitter()), this.onRefreshRequest = this._onRefreshRequest.event, this._renderDebouncer = new n.RenderDebouncer((e4, t4) => this._renderRows(e4, t4), l2), this.register(this._renderDebouncer), this.register(l2.onDprChange(() => this.handleDevicePixelRatioChange())), this.register(o2.onResize(() => this._fullRefresh())), this.register(o2.buffers.onBufferActivate(() => {
-              var _a2;
-              return (_a2 = this._renderer.value) == null ? void 0 : _a2.clear();
+              var _a3;
+              return (_a3 = this._renderer.value) == null ? void 0 : _a3.clear();
             })), this.register(i3.onOptionChange(() => this._handleOptionsChanged())), this.register(this._charSizeService.onCharSizeChange(() => this.handleCharSizeChanged())), this.register(r2.onDecorationRegistered(() => this._fullRefresh())), this.register(r2.onDecorationRemoved(() => this._fullRefresh())), this.register(i3.onMultipleOptionChange(["customGlyphs", "drawBoldTextInBrightColors", "letterSpacing", "lineHeight", "fontFamily", "fontSize", "fontWeight", "fontWeightBold", "minimumContrastRatio", "rescaleOverlappingGlyphs"], () => {
               this.clear(), this.handleResize(o2.cols, o2.rows), this._fullRefresh();
             })), this.register(i3.onMultipleOptionChange(["cursorBlink", "cursorStyle"], () => this.refreshRows(o2.buffer.y, o2.buffer.y, true))), this.register(d2.onChangeColors(() => this._fullRefresh())), this._registerIntersectionObserver(l2.window, t3), this.register(l2.onWindowChange((e4) => this._registerIntersectionObserver(e4, t3)));
@@ -1961,41 +1961,41 @@ WARNING: This link could potentially be dangerous`)) {
             this._isPaused ? this._needsFullRefresh = true : this.refreshRows(0, this._rowCount - 1);
           }
           clearTextureAtlas() {
-            var _a2, _b;
-            this._renderer.value && ((_b = (_a2 = this._renderer.value).clearTextureAtlas) == null ? void 0 : _b.call(_a2), this._fullRefresh());
+            var _a3, _b;
+            this._renderer.value && ((_b = (_a3 = this._renderer.value).clearTextureAtlas) == null ? void 0 : _b.call(_a3), this._fullRefresh());
           }
           handleDevicePixelRatioChange() {
             this._charSizeService.measure(), this._renderer.value && (this._renderer.value.handleDevicePixelRatioChange(), this.refreshRows(0, this._rowCount - 1));
           }
           handleResize(e3, t3) {
             this._renderer.value && (this._isPaused ? this._pausedResizeTask.set(() => {
-              var _a2;
-              return (_a2 = this._renderer.value) == null ? void 0 : _a2.handleResize(e3, t3);
+              var _a3;
+              return (_a3 = this._renderer.value) == null ? void 0 : _a3.handleResize(e3, t3);
             }) : this._renderer.value.handleResize(e3, t3), this._fullRefresh());
           }
           handleCharSizeChanged() {
-            var _a2;
-            (_a2 = this._renderer.value) == null ? void 0 : _a2.handleCharSizeChanged();
+            var _a3;
+            (_a3 = this._renderer.value) == null ? void 0 : _a3.handleCharSizeChanged();
           }
           handleBlur() {
-            var _a2;
-            (_a2 = this._renderer.value) == null ? void 0 : _a2.handleBlur();
+            var _a3;
+            (_a3 = this._renderer.value) == null ? void 0 : _a3.handleBlur();
           }
           handleFocus() {
-            var _a2;
-            (_a2 = this._renderer.value) == null ? void 0 : _a2.handleFocus();
+            var _a3;
+            (_a3 = this._renderer.value) == null ? void 0 : _a3.handleFocus();
           }
           handleSelectionChanged(e3, t3, i3) {
-            var _a2;
-            this._selectionState.start = e3, this._selectionState.end = t3, this._selectionState.columnSelectMode = i3, (_a2 = this._renderer.value) == null ? void 0 : _a2.handleSelectionChanged(e3, t3, i3);
+            var _a3;
+            this._selectionState.start = e3, this._selectionState.end = t3, this._selectionState.columnSelectMode = i3, (_a3 = this._renderer.value) == null ? void 0 : _a3.handleSelectionChanged(e3, t3, i3);
           }
           handleCursorMove() {
-            var _a2;
-            (_a2 = this._renderer.value) == null ? void 0 : _a2.handleCursorMove();
+            var _a3;
+            (_a3 = this._renderer.value) == null ? void 0 : _a3.handleCursorMove();
           }
           clear() {
-            var _a2;
-            (_a2 = this._renderer.value) == null ? void 0 : _a2.clear();
+            var _a3;
+            (_a3 = this._renderer.value) == null ? void 0 : _a3.clear();
           }
         };
         t2.RenderService = d = s2([r(2, l.IOptionsService), r(3, o.ICharSizeService), r(4, l.IDecorationService), r(5, l.IBufferService), r(6, o.ICoreBrowserService), r(7, o.IThemeService)], d);
@@ -2085,8 +2085,8 @@ WARNING: This link could potentially be dangerous`)) {
             return e3[1] > t3[1] && e3[1] < i3[1] || t3[1] === i3[1] && e3[1] === t3[1] && e3[0] >= t3[0] && e3[0] < i3[0] || t3[1] < i3[1] && e3[1] === i3[1] && e3[0] < i3[0] || t3[1] < i3[1] && e3[1] === t3[1] && e3[0] >= t3[0];
           }
           _selectWordAtCursor(e3, t3) {
-            var _a2, _b;
-            const i3 = (_b = (_a2 = this._linkifier.currentLink) == null ? void 0 : _a2.link) == null ? void 0 : _b.range;
+            var _a3, _b;
+            const i3 = (_b = (_a3 = this._linkifier.currentLink) == null ? void 0 : _a3.link) == null ? void 0 : _b.range;
             if (i3) return this._model.selectionStart = [i3.start.x - 1, i3.start.y - 1], this._model.selectionStartLength = (0, _.getRangeLength)(i3, this._bufferService.cols), this._model.selectionEnd = void 0, true;
             const s3 = this._getMouseBufferCoords(e3);
             return !!s3 && (this._selectWordAt(s3, t3), this._model.selectionEnd = void 0, true);
@@ -2562,8 +2562,8 @@ WARNING: This link could potentially be dangerous`)) {
         class S extends s2.Disposable {
           get onScroll() {
             return this._onScrollApi || (this._onScrollApi = this.register(new l.EventEmitter()), this._onScroll.event((e3) => {
-              var _a2;
-              (_a2 = this._onScrollApi) == null ? void 0 : _a2.fire(e3.position);
+              var _a3;
+              (_a3 = this._onScrollApi) == null ? void 0 : _a3.fire(e3.position);
             })), this._onScrollApi.event;
           }
           get cols() {
@@ -2849,10 +2849,10 @@ WARNING: This link could potentially be dangerous`)) {
             return this._activeBuffer.x = 0, true;
           }
           backspace() {
-            var _a2;
+            var _a3;
             if (!this._coreService.decPrivateModes.reverseWraparound) return this._restrictCursor(), this._activeBuffer.x > 0 && this._activeBuffer.x--, true;
             if (this._restrictCursor(this._bufferService.cols), this._activeBuffer.x > 0) this._activeBuffer.x--;
-            else if (0 === this._activeBuffer.x && this._activeBuffer.y > this._activeBuffer.scrollTop && this._activeBuffer.y <= this._activeBuffer.scrollBottom && ((_a2 = this._activeBuffer.lines.get(this._activeBuffer.ybase + this._activeBuffer.y)) == null ? void 0 : _a2.isWrapped)) {
+            else if (0 === this._activeBuffer.x && this._activeBuffer.y > this._activeBuffer.scrollTop && this._activeBuffer.y <= this._activeBuffer.scrollBottom && ((_a3 = this._activeBuffer.lines.get(this._activeBuffer.ybase + this._activeBuffer.y)) == null ? void 0 : _a3.isWrapped)) {
               this._activeBuffer.lines.get(this._activeBuffer.ybase + this._activeBuffer.y).isWrapped = false, this._activeBuffer.y--, this._activeBuffer.x = this._bufferService.cols - 1;
               const e3 = this._activeBuffer.lines.get(this._activeBuffer.ybase + this._activeBuffer.y);
               e3.hasWidth(this._activeBuffer.x) && !e3.hasContent(this._activeBuffer.x) && this._activeBuffer.x--;
@@ -3530,15 +3530,15 @@ WARNING: This link could potentially be dangerous`)) {
             return this._isDisposed ? void 0 : this._value;
           }
           set value(e3) {
-            var _a2;
-            this._isDisposed || e3 === this._value || ((_a2 = this._value) == null ? void 0 : _a2.dispose(), this._value = e3);
+            var _a3;
+            this._isDisposed || e3 === this._value || ((_a3 = this._value) == null ? void 0 : _a3.dispose(), this._value = e3);
           }
           clear() {
             this.value = void 0;
           }
           dispose() {
-            var _a2;
-            this._isDisposed = true, (_a2 = this._value) == null ? void 0 : _a2.dispose(), this._value = void 0;
+            var _a3;
+            this._isDisposed = true, (_a3 = this._value) == null ? void 0 : _a3.dispose(), this._value = void 0;
           }
         }, t2.toDisposable = function(e3) {
           return { dispose: e3 };
@@ -3569,8 +3569,8 @@ WARNING: This link could potentially be dangerous`)) {
             this._data.get(e3, t3) || this._data.set(e3, t3, new i2()), this._data.get(e3, t3).set(s2, r, n);
           }
           get(e3, t3, i3, s2) {
-            var _a2;
-            return (_a2 = this._data.get(e3, t3)) == null ? void 0 : _a2.get(i3, s2);
+            var _a3;
+            return (_a3 = this._data.get(e3, t3)) == null ? void 0 : _a3.get(i3, s2);
           }
           clear() {
             this._data.clear();
@@ -5584,14 +5584,14 @@ WARNING: This link could potentially be dangerous`)) {
             this._decorations.clear();
           }
           *getDecorationsAtCell(e3, t3, i3) {
-            var _a2, _b, _c2;
+            var _a3, _b, _c2;
             let s3 = 0, r2 = 0;
-            for (const n2 of this._decorations.getKeyIterator(t3)) s3 = (_a2 = n2.options.x) != null ? _a2 : 0, r2 = s3 + ((_b = n2.options.width) != null ? _b : 1), e3 >= s3 && e3 < r2 && (!i3 || ((_c2 = n2.options.layer) != null ? _c2 : "bottom") === i3) && (yield n2);
+            for (const n2 of this._decorations.getKeyIterator(t3)) s3 = (_a3 = n2.options.x) != null ? _a3 : 0, r2 = s3 + ((_b = n2.options.width) != null ? _b : 1), e3 >= s3 && e3 < r2 && (!i3 || ((_c2 = n2.options.layer) != null ? _c2 : "bottom") === i3) && (yield n2);
           }
           forEachDecorationAtCell(e3, t3, i3, s3) {
             this._decorations.forEachByKey(t3, (t4) => {
-              var _a2, _b, _c2;
-              a = (_a2 = t4.options.x) != null ? _a2 : 0, h = a + ((_b = t4.options.width) != null ? _b : 1), e3 >= a && e3 < h && (!i3 || ((_c2 = t4.options.layer) != null ? _c2 : "bottom") === i3) && s3(t4);
+              var _a3, _b, _c2;
+              a = (_a3 = t4.options.x) != null ? _a3 : 0, h = a + ((_b = t4.options.width) != null ? _b : 1), e3 >= a && e3 < h && (!i3 || ((_c2 = t4.options.layer) != null ? _c2 : "bottom") === i3) && s3(t4);
             });
           }
         }
@@ -5687,24 +5687,24 @@ WARNING: This link could potentially be dangerous`)) {
             this._evalLazyOptionalParams(i3), e3.call(console, (this._optionsService.options.logger ? "" : "xterm.js: ") + t3, ...i3);
           }
           trace(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= o.LogLevelEnum.TRACE && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.trace.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
+            var _a3, _b;
+            this._logLevel <= o.LogLevelEnum.TRACE && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.trace.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
           }
           debug(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= o.LogLevelEnum.DEBUG && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.debug.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
+            var _a3, _b;
+            this._logLevel <= o.LogLevelEnum.DEBUG && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.debug.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
           }
           info(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= o.LogLevelEnum.INFO && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.info.bind(this._optionsService.options.logger)) != null ? _b : console.info, e3, t3);
+            var _a3, _b;
+            this._logLevel <= o.LogLevelEnum.INFO && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.info.bind(this._optionsService.options.logger)) != null ? _b : console.info, e3, t3);
           }
           warn(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= o.LogLevelEnum.WARN && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.warn.bind(this._optionsService.options.logger)) != null ? _b : console.warn, e3, t3);
+            var _a3, _b;
+            this._logLevel <= o.LogLevelEnum.WARN && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.warn.bind(this._optionsService.options.logger)) != null ? _b : console.warn, e3, t3);
           }
           error(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= o.LogLevelEnum.ERROR && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.error.bind(this._optionsService.options.logger)) != null ? _b : console.error, e3, t3);
+            var _a3, _b;
+            this._logLevel <= o.LogLevelEnum.ERROR && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.error.bind(this._optionsService.options.logger)) != null ? _b : console.error, e3, t3);
           }
         };
         t2.LogService = c = s2([r(0, o.IOptionsService)], c), t2.setTraceLogger = function(e3) {
@@ -5839,8 +5839,8 @@ WARNING: This link could potentially be dangerous`)) {
             }
           }
           getLinkData(e3) {
-            var _a2;
-            return (_a2 = this._dataByLinkId.get(e3)) == null ? void 0 : _a2.data;
+            var _a3;
+            return (_a3 = this._dataByLinkId.get(e3)) == null ? void 0 : _a3.data;
           }
           _getEntryIdKey(e3) {
             return `${e3.id};;${e3.uri}`;
@@ -6081,8 +6081,8 @@ WARNING: This link could potentially be dangerous`)) {
             return this._verifyIntegers(e3), this._core.registerMarker(e3);
           }
           registerDecoration(e3) {
-            var _a2, _b, _c;
-            return this._checkProposedApi(), this._verifyPositiveIntegers((_a2 = e3.x) != null ? _a2 : 0, (_b = e3.width) != null ? _b : 0, (_c = e3.height) != null ? _c : 0), this._core.registerDecoration(e3);
+            var _a3, _b, _c;
+            return this._checkProposedApi(), this._verifyPositiveIntegers((_a3 = e3.x) != null ? _a3 : 0, (_b = e3.width) != null ? _b : 0, (_c = e3.height) != null ? _c : 0), this._core.registerDecoration(e3);
           }
           hasSelection() {
             return this._core.hasSelection();
@@ -6313,8 +6313,8 @@ var require_addon_web_links = __commonJS({
             this._linkProvider = this._terminal.registerLinkProvider(new t2.WebLinkProvider(this._terminal, o2, this._handler, n2));
           }
           dispose() {
-            var _a2;
-            (_a2 = this._linkProvider) == null ? void 0 : _a2.dispose();
+            var _a3;
+            (_a3 = this._linkProvider) == null ? void 0 : _a3.dispose();
           }
         };
       })(), o;
@@ -6337,8 +6337,8 @@ var require_addon_canvas = __commonJS({
             return this._canvas;
           }
           get cacheCanvas() {
-            var _a2;
-            return (_a2 = this._charAtlas) == null ? void 0 : _a2.pages[0].canvas;
+            var _a3;
+            return (_a3 = this._charAtlas) == null ? void 0 : _a3.pages[0].canvas;
           }
           constructor(e3, t3, i3, r2, o2, n2, a2, d2, _2, u2) {
             super(), this._terminal = e3, this._container = t3, this._alpha = o2, this._themeService = n2, this._bufferService = a2, this._optionsService = d2, this._decorationService = _2, this._coreBrowserService = u2, this._deviceCharWidth = 0, this._deviceCharHeight = 0, this._deviceCellWidth = 0, this._deviceCellHeight = 0, this._deviceCharLeft = 0, this._deviceCharTop = 0, this._selectionModel = (0, h.createSelectionRenderModel)(), this._bitmapGenerator = [], this._charAtlasDisposable = this.register(new c.MutableDisposable()), this._onAddTextureAtlasCanvas = this.register(new l.EventEmitter()), this.onAddTextureAtlasCanvas = this._onAddTextureAtlasCanvas.event, this._cellColorResolver = new s2.CellColorResolver(this._terminal, this._optionsService, this._selectionModel, this._decorationService, this._coreBrowserService, this._themeService), this._canvas = this._coreBrowserService.mainDocument.createElement("canvas"), this._canvas.classList.add(`xterm-${i3}-layer`), this._canvas.style.zIndex = r2.toString(), this._initCanvas(), this._container.appendChild(this._canvas), this._refreshCharAtlas(this._themeService.colors), this.register(this._themeService.onChangeColors((e4) => {
@@ -6376,8 +6376,8 @@ var require_addon_canvas = __commonJS({
             this._deviceCellWidth = e3.device.cell.width, this._deviceCellHeight = e3.device.cell.height, this._deviceCharWidth = e3.device.char.width, this._deviceCharHeight = e3.device.char.height, this._deviceCharLeft = e3.device.char.left, this._deviceCharTop = e3.device.char.top, this._canvas.width = e3.device.canvas.width, this._canvas.height = e3.device.canvas.height, this._canvas.style.width = `${e3.css.canvas.width}px`, this._canvas.style.height = `${e3.css.canvas.height}px`, this._alpha || this._clearAll(), this._refreshCharAtlas(this._themeService.colors);
           }
           clearTextureAtlas() {
-            var _a2;
-            (_a2 = this._charAtlas) == null ? void 0 : _a2.clearTexture();
+            var _a3;
+            (_a3 = this._charAtlas) == null ? void 0 : _a3.clearTexture();
           }
           _fillCells(e3, t3, i3, s3) {
             this._ctx.fillRect(e3 * this._deviceCellWidth, t3 * this._deviceCellHeight, i3 * this._deviceCellWidth, s3 * this._deviceCellHeight);
@@ -6437,12 +6437,12 @@ var require_addon_canvas = __commonJS({
             false !== this._optionsService.rawOptions.customGlyphs && (s3 = (0, n.tryDrawCustomChar)(this._ctx, e3.getChars(), t3 * this._deviceCellWidth, i3 * this._deviceCellHeight, this._deviceCellWidth, this._deviceCellHeight, this._optionsService.rawOptions.fontSize, this._coreBrowserService.dpr)), s3 || this._ctx.fillText(e3.getChars(), t3 * this._deviceCellWidth + this._deviceCharLeft, i3 * this._deviceCellHeight + this._deviceCharTop + this._deviceCharHeight);
           }
           _drawChars(e3, t3, i3) {
-            var _a2, _b, _c, _d;
+            var _a3, _b, _c, _d;
             const s3 = e3.getChars(), r2 = e3.getCode(), o2 = e3.getWidth();
             if (this._cellColorResolver.resolve(e3, t3, this._bufferService.buffer.ydisp + i3, this._deviceCellWidth), !this._charAtlas) return;
             let n2;
             if (n2 = s3 && s3.length > 1 ? this._charAtlas.getRasterizedGlyphCombinedChar(s3, this._cellColorResolver.result.bg, this._cellColorResolver.result.fg, this._cellColorResolver.result.ext, true) : this._charAtlas.getRasterizedGlyph(e3.getCode() || _.WHITESPACE_CELL_CODE, this._cellColorResolver.result.bg, this._cellColorResolver.result.fg, this._cellColorResolver.result.ext, true), !n2.size.x || !n2.size.y) return;
-            this._ctx.save(), this._clipRow(i3), this._bitmapGenerator[n2.texturePage] && this._charAtlas.pages[n2.texturePage].canvas !== this._bitmapGenerator[n2.texturePage].canvas && ((_b = (_a2 = this._bitmapGenerator[n2.texturePage]) == null ? void 0 : _a2.bitmap) == null ? void 0 : _b.close(), delete this._bitmapGenerator[n2.texturePage]), this._charAtlas.pages[n2.texturePage].version !== ((_c = this._bitmapGenerator[n2.texturePage]) == null ? void 0 : _c.version) && (this._bitmapGenerator[n2.texturePage] || (this._bitmapGenerator[n2.texturePage] = new g(this._charAtlas.pages[n2.texturePage].canvas)), this._bitmapGenerator[n2.texturePage].refresh(), this._bitmapGenerator[n2.texturePage].version = this._charAtlas.pages[n2.texturePage].version);
+            this._ctx.save(), this._clipRow(i3), this._bitmapGenerator[n2.texturePage] && this._charAtlas.pages[n2.texturePage].canvas !== this._bitmapGenerator[n2.texturePage].canvas && ((_b = (_a3 = this._bitmapGenerator[n2.texturePage]) == null ? void 0 : _a3.bitmap) == null ? void 0 : _b.close(), delete this._bitmapGenerator[n2.texturePage]), this._charAtlas.pages[n2.texturePage].version !== ((_c = this._bitmapGenerator[n2.texturePage]) == null ? void 0 : _c.version) && (this._bitmapGenerator[n2.texturePage] || (this._bitmapGenerator[n2.texturePage] = new g(this._charAtlas.pages[n2.texturePage].canvas)), this._bitmapGenerator[n2.texturePage].refresh(), this._bitmapGenerator[n2.texturePage].version = this._charAtlas.pages[n2.texturePage].version);
             let h2 = n2.size.x;
             this._optionsService.rawOptions.rescaleOverlappingGlyphs && (0, a.allowRescaling)(r2, o2, n2.size.x, this._deviceCellWidth) && (h2 = this._deviceCellWidth - 1), this._ctx.drawImage(((_d = this._bitmapGenerator[n2.texturePage]) == null ? void 0 : _d.bitmap) || this._charAtlas.pages[n2.texturePage].canvas, n2.texturePosition.x, n2.texturePosition.y, n2.size.x, n2.size.y, t3 * this._deviceCellWidth + this._deviceCharLeft - n2.offset.x, i3 * this._deviceCellHeight + this._deviceCharTop - n2.offset.y, h2, n2.size.y), this._ctx.restore();
           }
@@ -6462,12 +6462,12 @@ var require_addon_canvas = __commonJS({
             this.canvas = e3, this._state = 0, this._commitTimeout = void 0, this._bitmap = void 0, this.version = -1;
           }
           refresh() {
-            var _a2;
-            (_a2 = this._bitmap) == null ? void 0 : _a2.close(), this._bitmap = void 0, d.isSafari || (void 0 === this._commitTimeout && (this._commitTimeout = window.setTimeout(() => this._generate(), 100)), 1 === this._state && (this._state = 2));
+            var _a3;
+            (_a3 = this._bitmap) == null ? void 0 : _a3.close(), this._bitmap = void 0, d.isSafari || (void 0 === this._commitTimeout && (this._commitTimeout = window.setTimeout(() => this._generate(), 100)), 1 === this._state && (this._state = 2));
           }
           _generate() {
-            var _a2;
-            0 === this._state && ((_a2 = this._bitmap) == null ? void 0 : _a2.close(), this._bitmap = void 0, this._state = 1, window.createImageBitmap(this.canvas).then((e3) => {
+            var _a3;
+            0 === this._state && ((_a3 = this._bitmap) == null ? void 0 : _a3.close(), this._bitmap = void 0, this._state = 1, window.createImageBitmap(this.canvas).then((e3) => {
               2 === this._state ? this.refresh() : this._bitmap = e3, this._state = 0;
             }), this._commitTimeout && (this._commitTimeout = void 0));
           }
@@ -6552,23 +6552,23 @@ var require_addon_canvas = __commonJS({
             super.resize(e3), this._state = { x: 0, y: 0, isFocused: false, style: "", width: 0 };
           }
           reset() {
-            var _a2;
-            this._clearCursor(), (_a2 = this._cursorBlinkStateManager.value) == null ? void 0 : _a2.restartBlinkAnimation(), this._handleOptionsChanged();
+            var _a3;
+            this._clearCursor(), (_a3 = this._cursorBlinkStateManager.value) == null ? void 0 : _a3.restartBlinkAnimation(), this._handleOptionsChanged();
           }
           handleBlur() {
-            var _a2;
-            (_a2 = this._cursorBlinkStateManager.value) == null ? void 0 : _a2.pause(), this._onRequestRedraw.fire({ start: this._bufferService.buffer.y, end: this._bufferService.buffer.y });
+            var _a3;
+            (_a3 = this._cursorBlinkStateManager.value) == null ? void 0 : _a3.pause(), this._onRequestRedraw.fire({ start: this._bufferService.buffer.y, end: this._bufferService.buffer.y });
           }
           handleFocus() {
-            var _a2;
-            (_a2 = this._cursorBlinkStateManager.value) == null ? void 0 : _a2.resume(), this._onRequestRedraw.fire({ start: this._bufferService.buffer.y, end: this._bufferService.buffer.y });
+            var _a3;
+            (_a3 = this._cursorBlinkStateManager.value) == null ? void 0 : _a3.resume(), this._onRequestRedraw.fire({ start: this._bufferService.buffer.y, end: this._bufferService.buffer.y });
           }
           _handleOptionsChanged() {
             this._optionsService.rawOptions.cursorBlink ? this._cursorBlinkStateManager.value || (this._cursorBlinkStateManager.value = new s2.CursorBlinkStateManager(() => this._render(true), this._coreBrowserService)) : this._cursorBlinkStateManager.clear(), this._onRequestRedraw.fire({ start: this._bufferService.buffer.y, end: this._bufferService.buffer.y });
           }
           handleCursorMove() {
-            var _a2;
-            (_a2 = this._cursorBlinkStateManager.value) == null ? void 0 : _a2.restartBlinkAnimation();
+            var _a3;
+            (_a3 = this._cursorBlinkStateManager.value) == null ? void 0 : _a3.restartBlinkAnimation();
           }
           handleGridChanged(e3, t3) {
             !this._cursorBlinkStateManager.value || this._cursorBlinkStateManager.value.isPaused ? this._render(false) : this._cursorBlinkStateManager.value.restartBlinkAnimation();
@@ -6988,7 +6988,7 @@ var require_addon_canvas = __commonJS({
           }(e3, v, n2, l, c, d, u), true;
           const C = t2.powerlineDefinitions[i3];
           return !!C && (function(e4, t3, i4, s3, r2, o2, n3, l2) {
-            var _a2, _b;
+            var _a3, _b;
             const c2 = new Path2D();
             c2.rect(i4, s3, r2, o2), e4.clip(c2), e4.beginPath();
             const d2 = n3 / 12;
@@ -7000,7 +7000,7 @@ var require_addon_canvas = __commonJS({
                 continue;
               }
               const u2 = n4.substring(1).split(",");
-              u2[0] && u2[1] && _2(e4, h(u2, r2, o2, i4, s3, false, l2, ((_a2 = t3.leftPadding) != null ? _a2 : 0) * (d2 / 2), ((_b = t3.rightPadding) != null ? _b : 0) * (d2 / 2)));
+              u2[0] && u2[1] && _2(e4, h(u2, r2, o2, i4, s3, false, l2, ((_a3 = t3.leftPadding) != null ? _a3 : 0) * (d2 / 2), ((_b = t3.rightPadding) != null ? _b : 0) * (d2 / 2)));
             }
             1 === t3.type ? (e4.strokeStyle = e4.fillStyle, e4.stroke()) : e4.fill(), e4.closePath();
           }(e3, C, n2, l, c, d, _, u), true);
@@ -7726,15 +7726,15 @@ var require_addon_canvas = __commonJS({
             return this._isDisposed ? void 0 : this._value;
           }
           set value(e3) {
-            var _a2;
-            this._isDisposed || e3 === this._value || ((_a2 = this._value) == null ? void 0 : _a2.dispose(), this._value = e3);
+            var _a3;
+            this._isDisposed || e3 === this._value || ((_a3 = this._value) == null ? void 0 : _a3.dispose(), this._value = e3);
           }
           clear() {
             this.value = void 0;
           }
           dispose() {
-            var _a2;
-            this._isDisposed = true, (_a2 = this._value) == null ? void 0 : _a2.dispose(), this._value = void 0;
+            var _a3;
+            this._isDisposed = true, (_a3 = this._value) == null ? void 0 : _a3.dispose(), this._value = void 0;
           }
         }, t2.toDisposable = function(e3) {
           return { dispose: e3 };
@@ -7765,8 +7765,8 @@ var require_addon_canvas = __commonJS({
             this._data.get(e3, t3) || this._data.set(e3, t3, new i2()), this._data.get(e3, t3).set(s2, r, o);
           }
           get(e3, t3, i3, s2) {
-            var _a2;
-            return (_a2 = this._data.get(e3, t3)) == null ? void 0 : _a2.get(i3, s2);
+            var _a3;
+            return (_a3 = this._data.get(e3, t3)) == null ? void 0 : _a3.get(i3, s2);
           }
           clear() {
             this._data.clear();
@@ -8203,24 +8203,24 @@ var require_addon_canvas = __commonJS({
             this._evalLazyOptionalParams(i3), e3.call(console, (this._optionsService.options.logger ? "" : "xterm.js: ") + t3, ...i3);
           }
           trace(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= n.LogLevelEnum.TRACE && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.trace.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
+            var _a3, _b;
+            this._logLevel <= n.LogLevelEnum.TRACE && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.trace.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
           }
           debug(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= n.LogLevelEnum.DEBUG && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.debug.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
+            var _a3, _b;
+            this._logLevel <= n.LogLevelEnum.DEBUG && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.debug.bind(this._optionsService.options.logger)) != null ? _b : console.log, e3, t3);
           }
           info(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= n.LogLevelEnum.INFO && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.info.bind(this._optionsService.options.logger)) != null ? _b : console.info, e3, t3);
+            var _a3, _b;
+            this._logLevel <= n.LogLevelEnum.INFO && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.info.bind(this._optionsService.options.logger)) != null ? _b : console.info, e3, t3);
           }
           warn(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= n.LogLevelEnum.WARN && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.warn.bind(this._optionsService.options.logger)) != null ? _b : console.warn, e3, t3);
+            var _a3, _b;
+            this._logLevel <= n.LogLevelEnum.WARN && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.warn.bind(this._optionsService.options.logger)) != null ? _b : console.warn, e3, t3);
           }
           error(e3, ...t3) {
-            var _a2, _b;
-            this._logLevel <= n.LogLevelEnum.ERROR && this._log((_b = (_a2 = this._optionsService.options.logger) == null ? void 0 : _a2.error.bind(this._optionsService.options.logger)) != null ? _b : console.error, e3, t3);
+            var _a3, _b;
+            this._logLevel <= n.LogLevelEnum.ERROR && this._log((_b = (_a3 = this._optionsService.options.logger) == null ? void 0 : _a3.error.bind(this._optionsService.options.logger)) != null ? _b : console.error, e3, t3);
           }
         };
         t2.LogService = l = s2([r(0, n.IOptionsService)], l), t2.setTraceLogger = function(e3) {
@@ -8274,8 +8274,8 @@ var require_addon_canvas = __commonJS({
             super(...arguments), this._onChangeTextureAtlas = this.register(new t2.EventEmitter()), this.onChangeTextureAtlas = this._onChangeTextureAtlas.event, this._onAddTextureAtlasCanvas = this.register(new t2.EventEmitter()), this.onAddTextureAtlasCanvas = this._onAddTextureAtlasCanvas.event;
           }
           get textureAtlas() {
-            var _a3;
-            return (_a3 = this._renderer) == null ? void 0 : _a3.textureAtlas;
+            var _a4;
+            return (_a4 = this._renderer) == null ? void 0 : _a4.textureAtlas;
           }
           activate(e3) {
             const i2 = e3._core;
@@ -8283,13 +8283,13 @@ var require_addon_canvas = __commonJS({
             this._terminal = e3;
             const s2 = i2.coreService, a2 = i2.optionsService, h = i2.screenElement, l = i2.linkifier, c = i2, d = c._bufferService, _ = c._renderService, u = c._characterJoinerService, g = c._charSizeService, f = c._coreBrowserService, v = c._decorationService, C = c._logService, p = c._themeService;
             (0, o.setTraceLogger)(C), this._renderer = new n.CanvasRenderer(e3, h, l, d, g, a2, u, s2, f, v, p), this.register((0, t2.forwardEvent)(this._renderer.onChangeTextureAtlas, this._onChangeTextureAtlas)), this.register((0, t2.forwardEvent)(this._renderer.onAddTextureAtlasCanvas, this._onAddTextureAtlasCanvas)), _.setRenderer(this._renderer), _.handleResize(d.cols, d.rows), this.register((0, r.toDisposable)(() => {
-              var _a3;
-              _.setRenderer(this._terminal._core._createRenderer()), _.handleResize(e3.cols, e3.rows), (_a3 = this._renderer) == null ? void 0 : _a3.dispose(), this._renderer = void 0;
+              var _a4;
+              _.setRenderer(this._terminal._core._createRenderer()), _.handleResize(e3.cols, e3.rows), (_a4 = this._renderer) == null ? void 0 : _a4.dispose(), this._renderer = void 0;
             }));
           }
           clearTextureAtlas() {
-            var _a3;
-            (_a3 = this._renderer) == null ? void 0 : _a3.clearTextureAtlas();
+            var _a4;
+            (_a4 = this._renderer) == null ? void 0 : _a4.clearTextureAtlas();
           }
         }
         e2.CanvasAddon = a;
@@ -8304,8 +8304,8 @@ __export(main_exports, {
   default: () => AugmentTerminalPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian12 = require("obsidian");
-var import_child_process3 = require("child_process");
+var import_obsidian16 = require("obsidian");
+var import_child_process4 = require("child_process");
 
 // node_modules/@anthropic-ai/sdk/internal/tslib.mjs
 function __classPrivateFieldSet(receiver, state, value, kind, f) {
@@ -8526,7 +8526,7 @@ function getDetectedPlatform() {
   return "unknown";
 }
 var getPlatformProperties = () => {
-  var _a2, _b, _c, _d, _e;
+  var _a3, _b, _c, _d, _e;
   const detectedPlatform = getDetectedPlatform();
   if (detectedPlatform === "deno") {
     return {
@@ -8535,7 +8535,7 @@ var getPlatformProperties = () => {
       "X-Stainless-OS": normalizePlatform(Deno.build.os),
       "X-Stainless-Arch": normalizeArch(Deno.build.arch),
       "X-Stainless-Runtime": "deno",
-      "X-Stainless-Runtime-Version": typeof Deno.version === "string" ? Deno.version : (_b = (_a2 = Deno.version) == null ? void 0 : _a2.deno) != null ? _b : "unknown"
+      "X-Stainless-Runtime-Version": typeof Deno.version === "string" ? Deno.version : (_b = (_a3 = Deno.version) == null ? void 0 : _a3.deno) != null ? _b : "unknown"
     };
   }
   if (typeof EdgeRuntime !== "undefined") {
@@ -8667,8 +8667,8 @@ function ReadableStreamFrom(iterable) {
       }
     },
     async cancel() {
-      var _a2;
-      await ((_a2 = iter.return) == null ? void 0 : _a2.call(iter));
+      var _a3;
+      await ((_a3 = iter.return) == null ? void 0 : _a3.call(iter));
     }
   });
 }
@@ -8700,11 +8700,11 @@ function ReadableStreamToAsyncIterable(stream) {
   };
 }
 async function CancelReadableStream(stream) {
-  var _a2, _b;
+  var _a3, _b;
   if (stream === null || typeof stream !== "object")
     return;
   if (stream[Symbol.asyncIterator]) {
-    await ((_b = (_a2 = stream[Symbol.asyncIterator]()).return) == null ? void 0 : _b.call(_a2));
+    await ((_b = (_a3 = stream[Symbol.asyncIterator]()).return) == null ? void 0 : _b.call(_a3));
     return;
   }
   const reader = stream.getReader();
@@ -8860,9 +8860,9 @@ var noopLogger = {
 };
 var cachedLoggers = /* @__PURE__ */ new WeakMap();
 function loggerFor(client) {
-  var _a2;
+  var _a3;
   const logger = client.logger;
-  const logLevel = (_a2 = client.logLevel) != null ? _a2 : "off";
+  const logLevel = (_a3 = client.logLevel) != null ? _a3 : "off";
   if (!logger) {
     return noopLogger;
   }
@@ -8912,7 +8912,7 @@ var Stream = class _Stream {
     let consumed = false;
     const logger = client ? loggerFor(client) : console;
     async function* iterator() {
-      var _a2;
+      var _a3;
       if (consumed) {
         throw new AnthropicError("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
       }
@@ -8942,7 +8942,7 @@ var Stream = class _Stream {
             continue;
           }
           if (sse.event === "error") {
-            throw new APIError(void 0, (_a2 = safeJSON(sse.data)) != null ? _a2 : sse.data, void 0, response.headers);
+            throw new APIError(void 0, (_a3 = safeJSON(sse.data)) != null ? _a3 : sse.data, void 0, response.headers);
           }
         }
         done = true;
@@ -9052,8 +9052,8 @@ var Stream = class _Stream {
         }
       },
       async cancel() {
-        var _a2;
-        await ((_a2 = iter.return) == null ? void 0 : _a2.call(iter));
+        var _a3;
+        await ((_a3 = iter.return) == null ? void 0 : _a3.call(iter));
       }
     });
   }
@@ -9154,7 +9154,7 @@ function partition(str, delimiter2) {
 async function defaultParseResponse(client, props) {
   const { response, requestLogID, retryOfRequestLogID, startTime } = props;
   const body = await (async () => {
-    var _a2;
+    var _a3;
     if (props.options.stream) {
       loggerFor(client).debug("response", response.status, response.url, response.headers, response.body);
       if (props.options.__streamClass) {
@@ -9169,7 +9169,7 @@ async function defaultParseResponse(client, props) {
       return response;
     }
     const contentType = response.headers.get("content-type");
-    const mediaType = (_a2 = contentType == null ? void 0 : contentType.split(";")[0]) == null ? void 0 : _a2.trim();
+    const mediaType = (_a3 = contentType == null ? void 0 : contentType.split(";")[0]) == null ? void 0 : _a3.trim();
     const isJSON = (mediaType == null ? void 0 : mediaType.includes("application/json")) || (mediaType == null ? void 0 : mediaType.endsWith("+json"));
     if (isJSON) {
       const contentLength = response.headers.get("content-length");
@@ -9330,8 +9330,8 @@ var Page = class extends AbstractPage {
     this.last_id = body.last_id || null;
   }
   getPaginatedItems() {
-    var _a2;
-    return (_a2 = this.data) != null ? _a2 : [];
+    var _a3;
+    return (_a3 = this.data) != null ? _a3 : [];
   }
   hasNextPage() {
     if (this.has_more === false) {
@@ -9340,8 +9340,8 @@ var Page = class extends AbstractPage {
     return super.hasNextPage();
   }
   nextPageRequestOptions() {
-    var _a2;
-    if ((_a2 = this.options.query) == null ? void 0 : _a2["before_id"]) {
+    var _a3;
+    if ((_a3 = this.options.query) == null ? void 0 : _a3["before_id"]) {
       const first_id = this.first_id;
       if (!first_id) {
         return null;
@@ -9375,8 +9375,8 @@ var PageCursor = class extends AbstractPage {
     this.next_page = body.next_page || null;
   }
   getPaginatedItems() {
-    var _a2;
-    return (_a2 = this.data) != null ? _a2 : [];
+    var _a3;
+    return (_a3 = this.data) != null ? _a3 : [];
   }
   hasNextPage() {
     if (this.has_more === false) {
@@ -9401,10 +9401,10 @@ var PageCursor = class extends AbstractPage {
 
 // node_modules/@anthropic-ai/sdk/internal/uploads.mjs
 var checkFileSupport = () => {
-  var _a2;
+  var _a3;
   if (typeof File === "undefined") {
     const { process: process2 } = globalThis;
-    const isOldNode = typeof ((_a2 = process2 == null ? void 0 : process2.versions) == null ? void 0 : _a2.node) === "string" && parseInt(process2.versions.node.split(".")) < 20;
+    const isOldNode = typeof ((_a3 = process2 == null ? void 0 : process2.versions) == null ? void 0 : _a3.node) === "string" && parseInt(process2.versions.node.split(".")) < 20;
     throw new Error("`File` is not defined as a global, which is required for file uploads." + (isOldNode ? " Update to Node 20 LTS or newer, or set `globalThis.File` to `import('node:buffer').File`." : ""));
   }
 };
@@ -9511,7 +9511,7 @@ async function toFile(value, name, options) {
   return makeFile(parts, name, options);
 }
 async function getBytes(value) {
-  var _a2;
+  var _a3;
   let parts = [];
   if (typeof value === "string" || ArrayBuffer.isView(value) || // includes Uint8Array, Buffer, etc.
   value instanceof ArrayBuffer) {
@@ -9523,7 +9523,7 @@ async function getBytes(value) {
       parts.push(...await getBytes(chunk));
     }
   } else {
-    const constructor = (_a2 = value == null ? void 0 : value.constructor) == null ? void 0 : _a2.name;
+    const constructor = (_a3 = value == null ? void 0 : value.constructor) == null ? void 0 : _a3.name;
     throw new Error(`Unexpected data type: ${typeof value}${constructor ? `; constructor: ${constructor}` : ""}${propsForError(value)}`);
   }
   return parts;
@@ -9653,20 +9653,20 @@ function encodeURIPath(str) {
   return str.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
 var EMPTY = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null));
-var createPathTagFunction = (pathEncoder = encodeURIPath) => function path6(statics, ...params) {
+var createPathTagFunction = (pathEncoder = encodeURIPath) => function path8(statics, ...params) {
   if (statics.length === 1)
     return statics[0];
   let postPath = false;
   const invalidSegments = [];
-  const path7 = statics.reduce((previousValue, currentValue, index) => {
-    var _a2, _b, _c;
+  const path9 = statics.reduce((previousValue, currentValue, index) => {
+    var _a3, _b, _c;
     if (/[?#]/.test(currentValue)) {
       postPath = true;
     }
     const value = params[index];
     let encoded = (postPath ? encodeURIComponent : pathEncoder)("" + value);
     if (index !== params.length && (value == null || typeof value === "object" && // handle values from other realms
-    value.toString === ((_c = Object.getPrototypeOf((_b = Object.getPrototypeOf((_a2 = value.hasOwnProperty) != null ? _a2 : EMPTY)) != null ? _b : EMPTY)) == null ? void 0 : _c.toString))) {
+    value.toString === ((_c = Object.getPrototypeOf((_b = Object.getPrototypeOf((_a3 = value.hasOwnProperty) != null ? _a3 : EMPTY)) != null ? _b : EMPTY)) == null ? void 0 : _c.toString))) {
       encoded = value + "";
       invalidSegments.push({
         start: previousValue.length + currentValue.length,
@@ -9676,7 +9676,7 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path6(stat
     }
     return previousValue + currentValue + (index === params.length ? "" : encoded);
   }, "");
-  const pathOnly = path7.split(/[?#]/, 1)[0];
+  const pathOnly = path9.split(/[?#]/, 1)[0];
   const invalidSegmentPattern = /(?<=^|\/)(?:\.|%2e){1,2}(?=\/|$)/gi;
   let match;
   while ((match = invalidSegmentPattern.exec(pathOnly)) !== null) {
@@ -9697,10 +9697,10 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path6(stat
     }, "");
     throw new AnthropicError(`Path parameters result in path with invalid segments:
 ${invalidSegments.map((e) => e.error).join("\n")}
-${path7}
+${path9}
 ${underline}`);
   }
-  return path7;
+  return path9;
 };
 var path = /* @__PURE__ */ createPathTagFunction(encodeURIPath);
 
@@ -9884,8 +9884,8 @@ var MODEL_NONSTREAMING_TOKENS = {
 
 // node_modules/@anthropic-ai/sdk/lib/beta-parser.mjs
 function getOutputFormat(params) {
-  var _a2, _b;
-  return (_b = params == null ? void 0 : params.output_format) != null ? _b : (_a2 = params == null ? void 0 : params.output_config) == null ? void 0 : _a2.format;
+  var _a3, _b;
+  return (_b = params == null ? void 0 : params.output_format) != null ? _b : (_a3 = params == null ? void 0 : params.output_config) == null ? void 0 : _a3.format;
 }
 function maybeParseBetaMessage(message, params, opts) {
   const outputFormat = getOutputFormat(params);
@@ -10207,7 +10207,7 @@ function tracksToolInput(content) {
 }
 var BetaMessageStream = class _BetaMessageStream {
   constructor(params, opts) {
-    var _a2;
+    var _a3;
     _BetaMessageStream_instances.add(this);
     this.messages = [];
     this.receivedMessages = [];
@@ -10264,7 +10264,7 @@ var BetaMessageStream = class _BetaMessageStream {
     __classPrivateFieldGet(this, _BetaMessageStream_endPromise, "f").catch(() => {
     });
     __classPrivateFieldSet(this, _BetaMessageStream_params, params, "f");
-    __classPrivateFieldSet(this, _BetaMessageStream_logger, (_a2 = opts == null ? void 0 : opts.logger) != null ? _a2 : console, "f");
+    __classPrivateFieldSet(this, _BetaMessageStream_logger, (_a3 = opts == null ? void 0 : opts.logger) != null ? _a3 : console, "f");
   }
   get response() {
     return __classPrivateFieldGet(this, _BetaMessageStream_response, "f");
@@ -10331,7 +10331,7 @@ var BetaMessageStream = class _BetaMessageStream {
     }
   }
   async _createMessage(messages, params, options) {
-    var _a2;
+    var _a3;
     const signal = options == null ? void 0 : options.signal;
     let abortHandler;
     if (signal) {
@@ -10347,7 +10347,7 @@ var BetaMessageStream = class _BetaMessageStream {
       for await (const event of stream) {
         __classPrivateFieldGet(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
       }
-      if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+      if ((_a3 = stream.controller.signal) == null ? void 0 : _a3.aborted) {
         throw new APIUserAbortError();
       }
       __classPrivateFieldGet(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
@@ -10498,7 +10498,7 @@ var BetaMessageStream = class _BetaMessageStream {
     }
   }
   async _fromReadableStream(readableStream, options) {
-    var _a2;
+    var _a3;
     const signal = options == null ? void 0 : options.signal;
     let abortHandler;
     if (signal) {
@@ -10514,7 +10514,7 @@ var BetaMessageStream = class _BetaMessageStream {
       for await (const event of stream) {
         __classPrivateFieldGet(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
       }
-      if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+      if ((_a3 = stream.controller.signal) == null ? void 0 : _a3.aborted) {
         throw new APIUserAbortError();
       }
       __classPrivateFieldGet(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
@@ -10543,7 +10543,7 @@ var BetaMessageStream = class _BetaMessageStream {
       return;
     __classPrivateFieldSet(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
   }, _BetaMessageStream_addStreamEvent = function _BetaMessageStream_addStreamEvent2(event) {
-    var _a2;
+    var _a3;
     if (this.ended)
       return;
     const messageSnapshot = __classPrivateFieldGet(this, _BetaMessageStream_instances, "m", _BetaMessageStream_accumulateMessage).call(this, event);
@@ -10560,7 +10560,7 @@ var BetaMessageStream = class _BetaMessageStream {
           }
           case "citations_delta": {
             if (content.type === "text") {
-              this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
+              this._emit("citation", event.delta.citation, (_a3 = content.citations) != null ? _a3 : []);
             }
             break;
           }
@@ -10621,7 +10621,7 @@ var BetaMessageStream = class _BetaMessageStream {
     __classPrivateFieldSet(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
     return maybeParseBetaMessage(snapshot, __classPrivateFieldGet(this, _BetaMessageStream_params, "f"), { logger: __classPrivateFieldGet(this, _BetaMessageStream_logger, "f") });
   }, _BetaMessageStream_accumulateMessage = function _BetaMessageStream_accumulateMessage2(event) {
-    var _a2;
+    var _a3;
     let snapshot = __classPrivateFieldGet(this, _BetaMessageStream_currentMessageSnapshot, "f");
     if (event.type === "message_start") {
       if (snapshot) {
@@ -10676,7 +10676,7 @@ var BetaMessageStream = class _BetaMessageStream {
             if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
               snapshot.content[event.index] = {
                 ...snapshotContent,
-                citations: [...(_a2 = snapshotContent.citations) != null ? _a2 : [], event.delta.citation]
+                citations: [...(_a3 = snapshotContent.citations) != null ? _a3 : [], event.delta.citation]
               };
             }
             break;
@@ -10887,7 +10887,7 @@ var BetaToolRunner = class {
     __classPrivateFieldSet(this, _BetaToolRunner_completion, promiseWithResolvers(), "f");
   }
   async *[(_BetaToolRunner_consumed = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_mutated = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_state = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_options = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_message = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_toolResponse = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_completion = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_iterationCount = /* @__PURE__ */ new WeakMap(), _BetaToolRunner_instances = /* @__PURE__ */ new WeakSet(), _BetaToolRunner_checkAndCompact = async function _BetaToolRunner_checkAndCompact2() {
-    var _a2, _b, _c, _d, _e, _f;
+    var _a3, _b, _c, _d, _e, _f;
     const compactionControl = __classPrivateFieldGet(this, _BetaToolRunner_state, "f").params.compactionControl;
     if (!compactionControl || !compactionControl.enabled) {
       return false;
@@ -10896,7 +10896,7 @@ var BetaToolRunner = class {
     if (__classPrivateFieldGet(this, _BetaToolRunner_message, "f") !== void 0) {
       try {
         const message = await __classPrivateFieldGet(this, _BetaToolRunner_message, "f");
-        const totalInputTokens = message.usage.input_tokens + ((_a2 = message.usage.cache_creation_input_tokens) != null ? _a2 : 0) + ((_b = message.usage.cache_read_input_tokens) != null ? _b : 0);
+        const totalInputTokens = message.usage.input_tokens + ((_a3 = message.usage.cache_creation_input_tokens) != null ? _a3 : 0) + ((_b = message.usage.cache_read_input_tokens) != null ? _b : 0);
         tokensUsed = totalInputTokens + message.usage.output_tokens;
       } catch (e) {
         return false;
@@ -10949,7 +10949,7 @@ var BetaToolRunner = class {
     ];
     return true;
   }, Symbol.asyncIterator)]() {
-    var _a2;
+    var _a3;
     if (__classPrivateFieldGet(this, _BetaToolRunner_consumed, "f")) {
       throw new AnthropicError("Cannot iterate over a consumed stream");
     }
@@ -10965,7 +10965,7 @@ var BetaToolRunner = class {
           }
           __classPrivateFieldSet(this, _BetaToolRunner_mutated, false, "f");
           __classPrivateFieldSet(this, _BetaToolRunner_toolResponse, void 0, "f");
-          __classPrivateFieldSet(this, _BetaToolRunner_iterationCount, (_a2 = __classPrivateFieldGet(this, _BetaToolRunner_iterationCount, "f"), _a2++, _a2), "f");
+          __classPrivateFieldSet(this, _BetaToolRunner_iterationCount, (_a3 = __classPrivateFieldGet(this, _BetaToolRunner_iterationCount, "f"), _a3++, _a3), "f");
           __classPrivateFieldSet(this, _BetaToolRunner_message, void 0, "f");
           const { max_iterations, compactionControl, ...params } = __classPrivateFieldGet(this, _BetaToolRunner_state, "f").params;
           if (params.stream) {
@@ -11032,8 +11032,8 @@ var BetaToolRunner = class {
    * }
    */
   async generateToolResponse() {
-    var _a2;
-    const message = (_a2 = await __classPrivateFieldGet(this, _BetaToolRunner_message, "f")) != null ? _a2 : this.params.messages.at(-1);
+    var _a3;
+    const message = (_a3 = await __classPrivateFieldGet(this, _BetaToolRunner_message, "f")) != null ? _a3 : this.params.messages.at(-1);
     if (!message) {
       return null;
     }
@@ -11418,7 +11418,7 @@ var Messages = class extends APIResource {
     this.batches = new Batches(this._client);
   }
   create(params, options) {
-    var _a2, _b;
+    var _a3, _b;
     const modifiedParams = transformOutputFormat(params);
     const { betas, ...body } = modifiedParams;
     if (body.model in DEPRECATED_MODELS) {
@@ -11430,7 +11430,7 @@ Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resour
     }
     let timeout = this._client._options.timeout;
     if (!body.stream && timeout == null) {
-      const maxNonstreamingTokens = (_a2 = MODEL_NONSTREAMING_TOKENS[body.model]) != null ? _a2 : void 0;
+      const maxNonstreamingTokens = (_a3 = MODEL_NONSTREAMING_TOKENS[body.model]) != null ? _a3 : void 0;
       timeout = this._client.calculateNonstreamingTimeout(body.max_tokens, maxNonstreamingTokens);
     }
     const helperHeader = stainlessHelperHeader(body.tools, body.messages);
@@ -11463,17 +11463,17 @@ Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resour
    * ```
    */
   parse(params, options) {
-    var _a2;
+    var _a3;
     options = {
       ...options,
       headers: buildHeaders([
-        { "anthropic-beta": [...(_a2 = params.betas) != null ? _a2 : [], "structured-outputs-2025-12-15"].toString() },
+        { "anthropic-beta": [...(_a3 = params.betas) != null ? _a3 : [], "structured-outputs-2025-12-15"].toString() },
         options == null ? void 0 : options.headers
       ])
     };
     return this.create(params, options).then((message) => {
-      var _a3;
-      return parseBetaMessage(message, params, { logger: (_a3 = this._client.logger) != null ? _a3 : console });
+      var _a4;
+      return parseBetaMessage(message, params, { logger: (_a4 = this._client.logger) != null ? _a4 : console });
     });
   }
   /**
@@ -11517,11 +11517,11 @@ Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resour
   }
 };
 function transformOutputFormat(params) {
-  var _a2;
+  var _a3;
   if (!params.output_format) {
     return params;
   }
-  if ((_a2 = params.output_config) == null ? void 0 : _a2.format) {
+  if ((_a3 = params.output_config) == null ? void 0 : _a3.format) {
     throw new AnthropicError("Both output_format and output_config.format were provided. Please use only output_config.format (output_format is deprecated).");
   }
   const { output_format, ...rest } = params;
@@ -11732,11 +11732,11 @@ Beta.Skills = Skills;
 // node_modules/@anthropic-ai/sdk/resources/completions.mjs
 var Completions = class extends APIResource {
   create(params, options) {
-    var _a2, _b;
+    var _a3, _b;
     const { betas, ...body } = params;
     return this._client.post("/v1/complete", {
       body,
-      timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
+      timeout: (_a3 = this._client._options.timeout) != null ? _a3 : 6e5,
       ...options,
       headers: buildHeaders([
         { ...(betas == null ? void 0 : betas.toString()) != null ? { "anthropic-beta": betas == null ? void 0 : betas.toString() } : void 0 },
@@ -11749,8 +11749,8 @@ var Completions = class extends APIResource {
 
 // node_modules/@anthropic-ai/sdk/lib/parser.mjs
 function getOutputFormat2(params) {
-  var _a2;
-  return (_a2 = params == null ? void 0 : params.output_config) == null ? void 0 : _a2.format;
+  var _a3;
+  return (_a3 = params == null ? void 0 : params.output_config) == null ? void 0 : _a3.format;
 }
 function maybeParseMessage(message, params, opts) {
   const outputFormat = getOutputFormat2(params);
@@ -11840,7 +11840,7 @@ function tracksToolInput2(content) {
 }
 var MessageStream = class _MessageStream {
   constructor(params, opts) {
-    var _a2;
+    var _a3;
     _MessageStream_instances.add(this);
     this.messages = [];
     this.receivedMessages = [];
@@ -11897,7 +11897,7 @@ var MessageStream = class _MessageStream {
     __classPrivateFieldGet(this, _MessageStream_endPromise, "f").catch(() => {
     });
     __classPrivateFieldSet(this, _MessageStream_params, params, "f");
-    __classPrivateFieldSet(this, _MessageStream_logger, (_a2 = opts == null ? void 0 : opts.logger) != null ? _a2 : console, "f");
+    __classPrivateFieldSet(this, _MessageStream_logger, (_a3 = opts == null ? void 0 : opts.logger) != null ? _a3 : console, "f");
   }
   get response() {
     return __classPrivateFieldGet(this, _MessageStream_response, "f");
@@ -11964,7 +11964,7 @@ var MessageStream = class _MessageStream {
     }
   }
   async _createMessage(messages, params, options) {
-    var _a2;
+    var _a3;
     const signal = options == null ? void 0 : options.signal;
     let abortHandler;
     if (signal) {
@@ -11980,7 +11980,7 @@ var MessageStream = class _MessageStream {
       for await (const event of stream) {
         __classPrivateFieldGet(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
       }
-      if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+      if ((_a3 = stream.controller.signal) == null ? void 0 : _a3.aborted) {
         throw new APIUserAbortError();
       }
       __classPrivateFieldGet(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
@@ -12131,7 +12131,7 @@ var MessageStream = class _MessageStream {
     }
   }
   async _fromReadableStream(readableStream, options) {
-    var _a2;
+    var _a3;
     const signal = options == null ? void 0 : options.signal;
     let abortHandler;
     if (signal) {
@@ -12147,7 +12147,7 @@ var MessageStream = class _MessageStream {
       for await (const event of stream) {
         __classPrivateFieldGet(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
       }
-      if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+      if ((_a3 = stream.controller.signal) == null ? void 0 : _a3.aborted) {
         throw new APIUserAbortError();
       }
       __classPrivateFieldGet(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
@@ -12176,7 +12176,7 @@ var MessageStream = class _MessageStream {
       return;
     __classPrivateFieldSet(this, _MessageStream_currentMessageSnapshot, void 0, "f");
   }, _MessageStream_addStreamEvent = function _MessageStream_addStreamEvent2(event) {
-    var _a2;
+    var _a3;
     if (this.ended)
       return;
     const messageSnapshot = __classPrivateFieldGet(this, _MessageStream_instances, "m", _MessageStream_accumulateMessage).call(this, event);
@@ -12193,7 +12193,7 @@ var MessageStream = class _MessageStream {
           }
           case "citations_delta": {
             if (content.type === "text") {
-              this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
+              this._emit("citation", event.delta.citation, (_a3 = content.citations) != null ? _a3 : []);
             }
             break;
           }
@@ -12248,7 +12248,7 @@ var MessageStream = class _MessageStream {
     __classPrivateFieldSet(this, _MessageStream_currentMessageSnapshot, void 0, "f");
     return maybeParseMessage(snapshot, __classPrivateFieldGet(this, _MessageStream_params, "f"), { logger: __classPrivateFieldGet(this, _MessageStream_logger, "f") });
   }, _MessageStream_accumulateMessage = function _MessageStream_accumulateMessage2(event) {
-    var _a2;
+    var _a3;
     let snapshot = __classPrivateFieldGet(this, _MessageStream_currentMessageSnapshot, "f");
     if (event.type === "message_start") {
       if (snapshot) {
@@ -12298,7 +12298,7 @@ var MessageStream = class _MessageStream {
             if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
               snapshot.content[event.index] = {
                 ...snapshotContent,
-                citations: [...(_a2 = snapshotContent.citations) != null ? _a2 : [], event.delta.citation]
+                citations: [...(_a3 = snapshotContent.citations) != null ? _a3 : [], event.delta.citation]
               };
             }
             break;
@@ -12552,7 +12552,7 @@ var Messages2 = class extends APIResource {
     this.batches = new Batches2(this._client);
   }
   create(body, options) {
-    var _a2, _b;
+    var _a3, _b;
     if (body.model in DEPRECATED_MODELS2) {
       console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS2[body.model]}
 Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);
@@ -12562,7 +12562,7 @@ Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resour
     }
     let timeout = this._client._options.timeout;
     if (!body.stream && timeout == null) {
-      const maxNonstreamingTokens = (_a2 = MODEL_NONSTREAMING_TOKENS[body.model]) != null ? _a2 : void 0;
+      const maxNonstreamingTokens = (_a3 = MODEL_NONSTREAMING_TOKENS[body.model]) != null ? _a3 : void 0;
       timeout = this._client.calculateNonstreamingTimeout(body.max_tokens, maxNonstreamingTokens);
     }
     const helperHeader = stainlessHelperHeader(body.tools, body.messages);
@@ -12594,8 +12594,8 @@ Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resour
    */
   parse(params, options) {
     return this.create(params, options).then((message) => {
-      var _a2;
-      return parseMessage(message, params, { logger: (_a2 = this._client.logger) != null ? _a2 : console });
+      var _a3;
+      return parseMessage(message, params, { logger: (_a3 = this._client.logger) != null ? _a3 : console });
     });
   }
   /**
@@ -12620,8 +12620,8 @@ Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resour
    * ```
    */
   stream(body, options) {
-    var _a2;
-    return MessageStream.createMessage(this, body, options, { logger: (_a2 = this._client.logger) != null ? _a2 : console });
+    var _a3;
+    return MessageStream.createMessage(this, body, options, { logger: (_a3 = this._client.logger) != null ? _a3 : console });
   }
   /**
    * Count the number of tokens in a Message.
@@ -12702,9 +12702,9 @@ var Models2 = class extends APIResource {
 
 // node_modules/@anthropic-ai/sdk/internal/utils/env.mjs
 var readEnv = (env) => {
-  var _a2, _b, _c, _d, _e, _f;
+  var _a3, _b, _c, _d, _e, _f;
   if (typeof globalThis.process !== "undefined") {
-    return (_c = (_b = (_a2 = globalThis.process.env) == null ? void 0 : _a2[env]) == null ? void 0 : _b.trim()) != null ? _c : void 0;
+    return (_c = (_b = (_a3 = globalThis.process.env) == null ? void 0 : _a3[env]) == null ? void 0 : _b.trim()) != null ? _c : void 0;
   }
   if (typeof globalThis.Deno !== "undefined") {
     return (_f = (_e = (_d = globalThis.Deno.env) == null ? void 0 : _d.get) == null ? void 0 : _e.call(_d, env)) == null ? void 0 : _f.trim();
@@ -12734,8 +12734,8 @@ var BaseAnthropic = class {
    * @param {Record<string, string | undefined>} opts.defaultQuery - Default query parameters to include with every request to the API.
    * @param {boolean} [opts.dangerouslyAllowBrowser=false] - By default, client-side use of this library is not allowed, as it risks exposing your secret API credentials to attackers.
    */
-  constructor({ baseURL = readEnv("ANTHROPIC_BASE_URL"), apiKey = ((_a2) => (_a2 = readEnv("ANTHROPIC_API_KEY")) != null ? _a2 : null)(), authToken = ((_b) => (_b = readEnv("ANTHROPIC_AUTH_TOKEN")) != null ? _b : null)(), ...opts } = {}) {
-    var _a3, _b2, _c, _d, _e, _f;
+  constructor({ baseURL = readEnv("ANTHROPIC_BASE_URL"), apiKey = ((_a3) => (_a3 = readEnv("ANTHROPIC_API_KEY")) != null ? _a3 : null)(), authToken = ((_b) => (_b = readEnv("ANTHROPIC_AUTH_TOKEN")) != null ? _b : null)(), ...opts } = {}) {
+    var _a4, _b2, _c, _d, _e, _f;
     _BaseAnthropic_instances.add(this);
     _BaseAnthropic_encoder.set(this, void 0);
     const options = {
@@ -12748,7 +12748,7 @@ var BaseAnthropic = class {
       throw new AnthropicError("It looks like you're running in a browser-like environment.\n\nThis is disabled by default, as it risks exposing your secret API credentials to attackers.\nIf you understand the risks and have appropriate mitigations in place,\nyou can set the `dangerouslyAllowBrowser` option to `true`, e.g.,\n\nnew Anthropic({ apiKey, dangerouslyAllowBrowser: true });\n");
     }
     this.baseURL = options.baseURL;
-    this.timeout = (_a3 = options.timeout) != null ? _a3 : _a.DEFAULT_TIMEOUT;
+    this.timeout = (_a4 = options.timeout) != null ? _a4 : _a.DEFAULT_TIMEOUT;
     this.logger = (_b2 = options.logger) != null ? _b2 : console;
     const defaultLogLevel = "warn";
     this.logLevel = defaultLogLevel;
@@ -12839,9 +12839,9 @@ var BaseAnthropic = class {
   makeStatusError(status, error, message, headers) {
     return APIError.generate(status, error, message, headers);
   }
-  buildURL(path6, query, defaultBaseURL) {
+  buildURL(path8, query, defaultBaseURL) {
     const baseURL = !__classPrivateFieldGet(this, _BaseAnthropic_instances, "m", _BaseAnthropic_baseURLOverridden).call(this) && defaultBaseURL || this.baseURL;
-    const url = isAbsoluteURL(path6) ? new URL(path6) : new URL(baseURL + (baseURL.endsWith("/") && path6.startsWith("/") ? path6.slice(1) : path6));
+    const url = isAbsoluteURL(path8) ? new URL(path8) : new URL(baseURL + (baseURL.endsWith("/") && path8.startsWith("/") ? path8.slice(1) : path8));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -12872,33 +12872,33 @@ var BaseAnthropic = class {
    */
   async prepareRequest(request, { url, options }) {
   }
-  get(path6, opts) {
-    return this.methodRequest("get", path6, opts);
+  get(path8, opts) {
+    return this.methodRequest("get", path8, opts);
   }
-  post(path6, opts) {
-    return this.methodRequest("post", path6, opts);
+  post(path8, opts) {
+    return this.methodRequest("post", path8, opts);
   }
-  patch(path6, opts) {
-    return this.methodRequest("patch", path6, opts);
+  patch(path8, opts) {
+    return this.methodRequest("patch", path8, opts);
   }
-  put(path6, opts) {
-    return this.methodRequest("put", path6, opts);
+  put(path8, opts) {
+    return this.methodRequest("put", path8, opts);
   }
-  delete(path6, opts) {
-    return this.methodRequest("delete", path6, opts);
+  delete(path8, opts) {
+    return this.methodRequest("delete", path8, opts);
   }
-  methodRequest(method, path6, opts) {
+  methodRequest(method, path8, opts) {
     return this.request(Promise.resolve(opts).then((opts2) => {
-      return { method, path: path6, ...opts2 };
+      return { method, path: path8, ...opts2 };
     }));
   }
   request(options, remainingRetries = null) {
     return new APIPromise(this, this.makeRequest(options, remainingRetries, void 0));
   }
   async makeRequest(optionsInput, retriesRemaining, retryOfRequestLogID) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const options = await optionsInput;
-    const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
+    const maxRetries = (_a3 = options.maxRetries) != null ? _a3 : this.maxRetries;
     if (retriesRemaining == null) {
       retriesRemaining = maxRetries;
     }
@@ -12994,8 +12994,8 @@ var BaseAnthropic = class {
     }));
     return { response, options, controller, requestLogID, retryOfRequestLogID, startTime };
   }
-  getAPIList(path6, Page2, opts) {
-    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path6, ...opts2 })) : { method: "get", path: path6, ...opts });
+  getAPIList(path8, Page2, opts) {
+    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path8, ...opts2 })) : { method: "get", path: path8, ...opts });
   }
   requestAPIList(Page2, options) {
     const request = this.makeRequest(options, null, void 0);
@@ -13040,7 +13040,7 @@ var BaseAnthropic = class {
     return false;
   }
   async retryRequest(options, retriesRemaining, requestLogID, responseHeaders) {
-    var _a2;
+    var _a3;
     let timeoutMillis;
     const retryAfterMillisHeader = responseHeaders == null ? void 0 : responseHeaders.get("retry-after-ms");
     if (retryAfterMillisHeader) {
@@ -13059,7 +13059,7 @@ var BaseAnthropic = class {
       }
     }
     if (!(timeoutMillis && 0 <= timeoutMillis && timeoutMillis < 60 * 1e3)) {
-      const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
+      const maxRetries = (_a3 = options.maxRetries) != null ? _a3 : this.maxRetries;
       timeoutMillis = this.calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries);
     }
     await sleep(timeoutMillis);
@@ -13083,13 +13083,13 @@ var BaseAnthropic = class {
     return defaultTime;
   }
   async buildRequest(inputOptions, { retryCount = 0 } = {}) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const options = { ...inputOptions };
-    const { method, path: path6, query, defaultBaseURL } = options;
-    const url = this.buildURL(path6, query, defaultBaseURL);
+    const { method, path: path8, query, defaultBaseURL } = options;
+    const url = this.buildURL(path8, query, defaultBaseURL);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
-    options.timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
+    options.timeout = (_a3 = options.timeout) != null ? _a3 : this.timeout;
     const { bodyHeaders, body } = this.buildBody({ options });
     const reqHeaders = await this.buildHeaders({ options: inputOptions, method, bodyHeaders, retryCount });
     const req = {
@@ -14001,20 +14001,20 @@ var LiquidDate = class _LiquidDate {
     return this.DateTimeFormat().resolvedOptions().timeZone;
   }
   getLongMonthName() {
-    var _a2;
-    return (_a2 = this.format({ month: "long" })) !== null && _a2 !== void 0 ? _a2 : monthNames[this.getMonth()];
+    var _a3;
+    return (_a3 = this.format({ month: "long" })) !== null && _a3 !== void 0 ? _a3 : monthNames[this.getMonth()];
   }
   getShortMonthName() {
-    var _a2;
-    return (_a2 = this.format({ month: "short" })) !== null && _a2 !== void 0 ? _a2 : monthNamesShort[this.getMonth()];
+    var _a3;
+    return (_a3 = this.format({ month: "short" })) !== null && _a3 !== void 0 ? _a3 : monthNamesShort[this.getMonth()];
   }
   getLongWeekdayName() {
-    var _a2;
-    return (_a2 = this.format({ weekday: "long" })) !== null && _a2 !== void 0 ? _a2 : dayNames[this.displayDate.getDay()];
+    var _a3;
+    return (_a3 = this.format({ weekday: "long" })) !== null && _a3 !== void 0 ? _a3 : dayNames[this.displayDate.getDay()];
   }
   getShortWeekdayName() {
-    var _a2;
-    return (_a2 = this.format({ weekday: "short" })) !== null && _a2 !== void 0 ? _a2 : dayNamesShort[this.displayDate.getDay()];
+    var _a3;
+    return (_a3 = this.format({ weekday: "short" })) !== null && _a3 !== void 0 ? _a3 : dayNamesShort[this.displayDate.getDay()];
   }
   valid() {
     return !isNaN(this.getTime());
@@ -14561,13 +14561,13 @@ var LRU = class {
       this.remove(this.tail.prev.key);
   }
 };
-function domResolve(root, path6) {
+function domResolve(root, path8) {
   const base = document.createElement("base");
   base.href = root;
   const head = document.getElementsByTagName("head")[0];
   head.insertBefore(base, head.firstChild);
   const a = document.createElement("a");
-  a.href = path6;
+  a.href = path8;
   const resolved = a.href;
   head.removeChild(base);
   return resolved;
@@ -14576,11 +14576,11 @@ function resolve(root, filepath, ext) {
   if (root.length && last(root) !== "/")
     root += "/";
   const url = domResolve(root, filepath);
-  return url.replace(/^(\w+:\/\/[^/]+)(\/[^?]+)/, (str, origin, path6) => {
-    const last2 = path6.split("/").pop();
+  return url.replace(/^(\w+:\/\/[^/]+)(\/[^?]+)/, (str, origin, path8) => {
+    const last2 = path8.split("/").pop();
     if (/\.\w+$/.test(last2))
       return str;
-    return origin + path6 + ext;
+    return origin + path8 + ext;
   });
 }
 function readFile(url) {
@@ -14802,7 +14802,7 @@ var defaultOptions = {
   renderLimit: Infinity
 };
 function normalize(options) {
-  var _a2, _b;
+  var _a3, _b;
   if (options.hasOwnProperty("root")) {
     if (!options.hasOwnProperty("partials"))
       options.partials = options.root;
@@ -14829,7 +14829,7 @@ function normalize(options) {
   options.layouts = normalizeDirectoryList(options.layouts);
   options.outputEscape = options.outputEscape && getOutputEscapeFunction(options.outputEscape);
   if (!options.locale) {
-    options.locale = (_b = (_a2 = getDateTimeFormat()) === null || _a2 === void 0 ? void 0 : _a2().resolvedOptions().locale) !== null && _b !== void 0 ? _b : "en-US";
+    options.locale = (_b = (_a3 = getDateTimeFormat()) === null || _a3 === void 0 ? void 0 : _a3().resolvedOptions().locale) !== null && _b !== void 0 ? _b : "en-US";
   }
   if (options.templates) {
     options.fs = new MapFS(options.templates);
@@ -15455,13 +15455,13 @@ var Value = class {
 };
 var Output = class extends TemplateImpl {
   constructor(token, liquid) {
-    var _a2;
+    var _a3;
     super(token);
     const tokenizer = new Tokenizer(token.input, liquid.options.operators, token.file, token.contentRange);
     this.value = new Value(tokenizer.readFilteredValue(), liquid);
     const filters2 = this.value.filters;
     const outputEscape = liquid.options.outputEscape;
-    if (!((_a2 = filters2[filters2.length - 1]) === null || _a2 === void 0 ? void 0 : _a2.raw) && outputEscape) {
+    if (!((_a3 = filters2[filters2.length - 1]) === null || _a3 === void 0 ? void 0 : _a3.raw) && outputEscape) {
       const token2 = new FilterToken(toString.call(outputEscape), [], "", 0, 0);
       filters2.push(new Filter(token2, outputEscape, liquid));
     }
@@ -15649,8 +15649,8 @@ var DummyScope = class {
     return this;
   }
   pop() {
-    var _a2;
-    return (_a2 = this.stack.pop()) === null || _a2 === void 0 ? void 0 : _a2.names;
+    var _a3;
+    return (_a3 = this.stack.pop()) === null || _a3 === void 0 ? void 0 : _a3.names;
   }
   // Add a name to the template scope.
   add(name) {
@@ -15787,18 +15787,18 @@ var Loader = class {
     this.contains = this.options.fs.contains || (() => true);
   }
   *lookup(file, type, sync, currentFile) {
-    const { fs: fs6 } = this.options;
+    const { fs: fs7 } = this.options;
     const dirs = this.options[type];
     for (const filepath of this.candidates(file, dirs, currentFile, type !== LookupType.Root)) {
-      if (sync ? fs6.existsSync(filepath) : yield fs6.exists(filepath))
+      if (sync ? fs7.existsSync(filepath) : yield fs7.exists(filepath))
         return filepath;
     }
     throw this.lookupError(file, dirs);
   }
   *candidates(file, dirs, currentFile, enforceRoot) {
-    const { fs: fs6, extname } = this.options;
+    const { fs: fs7, extname } = this.options;
     if (this.shouldLoadRelative(file) && currentFile) {
-      const referenced = fs6.resolve(this.dirname(currentFile), file, extname);
+      const referenced = fs7.resolve(this.dirname(currentFile), file, extname);
       for (const dir of dirs) {
         if (!enforceRoot || this.contains(dir, referenced)) {
           yield referenced;
@@ -15807,21 +15807,21 @@ var Loader = class {
       }
     }
     for (const dir of dirs) {
-      const referenced = fs6.resolve(dir, file, extname);
+      const referenced = fs7.resolve(dir, file, extname);
       if (!enforceRoot || this.contains(dir, referenced)) {
         yield referenced;
       }
     }
-    if (fs6.fallback !== void 0) {
-      const filepath = fs6.fallback(file);
+    if (fs7.fallback !== void 0) {
+      const filepath = fs7.fallback(file);
       if (filepath !== void 0)
         yield filepath;
     }
   }
-  dirname(path6) {
-    const fs6 = this.options.fs;
-    assert(fs6.dirname, "`fs.dirname` is required for relative reference");
-    return fs6.dirname(path6);
+  dirname(path8) {
+    const fs7 = this.options.fs;
+    assert(fs7.dirname, "`fs.dirname` is required for relative reference");
+    return fs7.dirname(path8);
   }
   lookupError(file, roots) {
     const err = new Error("ENOENT");
@@ -15960,14 +15960,14 @@ function getKind(val) {
 }
 var Context = class _Context {
   constructor(env = {}, opts = defaultOptions, renderOptions = {}, { memoryLimit, renderLimit } = {}) {
-    var _a2, _b, _c, _d, _e;
+    var _a3, _b, _c, _d, _e;
     this.scopes = [{}];
     this.registers = {};
     this.breakCalled = false;
     this.continueCalled = false;
     this.sync = !!renderOptions.sync;
     this.opts = opts;
-    this.globals = (_a2 = renderOptions.globals) !== null && _a2 !== void 0 ? _a2 : opts.globals;
+    this.globals = (_a3 = renderOptions.globals) !== null && _a3 !== void 0 ? _a3 : opts.globals;
     this.environments = isObject(env) ? env : Object(env);
     this.strictVariables = (_b = renderOptions.strictVariables) !== null && _b !== void 0 ? _b : this.opts.strictVariables;
     this.ownPropertyOnly = (_c = renderOptions.ownPropertyOnly) !== null && _c !== void 0 ? _c : opts.ownPropertyOnly;
@@ -16430,8 +16430,8 @@ var arrayFilters = /* @__PURE__ */ Object.freeze({
   sample
 });
 function date(v, format2, timezoneOffset) {
-  var _a2, _b, _c;
-  const size2 = ((_a2 = v === null || v === void 0 ? void 0 : v.length) !== null && _a2 !== void 0 ? _a2 : 0) + ((_b = format2 === null || format2 === void 0 ? void 0 : format2.length) !== null && _b !== void 0 ? _b : 0) + ((_c = timezoneOffset === null || timezoneOffset === void 0 ? void 0 : timezoneOffset.length) !== null && _c !== void 0 ? _c : 0);
+  var _a3, _b, _c;
+  const size2 = ((_a3 = v === null || v === void 0 ? void 0 : v.length) !== null && _a3 !== void 0 ? _a3 : 0) + ((_b = format2 === null || format2 === void 0 ? void 0 : format2.length) !== null && _b !== void 0 ? _b : 0) + ((_c = timezoneOffset === null || timezoneOffset === void 0 ? void 0 : timezoneOffset.length) !== null && _c !== void 0 ? _c : 0);
   this.context.memoryLimit.use(size2);
   const date2 = parseDate(v, this.context.opts, timezoneOffset);
   if (!date2)
@@ -17849,12 +17849,12 @@ function flattenFrontmatter(fm) {
   return out;
 }
 async function substituteVariables(templateStr, ctx) {
-  var _a2;
+  var _a3;
   const context = {
     selection: ctx.selection,
     title: ctx.title,
     context: ctx.surroundingContext,
-    note_content: (_a2 = ctx.content) != null ? _a2 : ctx.surroundingContext,
+    note_content: (_a3 = ctx.content) != null ? _a3 : ctx.surroundingContext,
     linked_notes: formatLinkedNotes(ctx.linkedNotes),
     linked_notes_full: formatLinkedNotesFull(ctx.linkedNotes),
     linked_notes_array: ctx.linkedNotes,
@@ -17869,8 +17869,8 @@ var MODEL_PRICING = {
 };
 var DEFAULT_PRICING = { inputPerMTok: 3, outputPerMTok: 15 };
 function modelPricing(modelId) {
-  var _a2;
-  return (_a2 = MODEL_PRICING[modelId]) != null ? _a2 : DEFAULT_PRICING;
+  var _a3;
+  return (_a3 = MODEL_PRICING[modelId]) != null ? _a3 : DEFAULT_PRICING;
 }
 function calculateCost(modelId, inputTokens, outputTokens) {
   const p = modelPricing(modelId);
@@ -17882,8 +17882,8 @@ var MODEL_DISPLAY_NAMES = {
   "claude-opus-4-6": "Claude Opus 4.6"
 };
 function modelDisplayName(modelId) {
-  var _a2;
-  return (_a2 = MODEL_DISPLAY_NAMES[modelId]) != null ? _a2 : modelId;
+  var _a3;
+  return (_a3 = MODEL_DISPLAY_NAMES[modelId]) != null ? _a3 : modelId;
 }
 function modelTier(id) {
   if (id.includes("opus")) return 3;
@@ -17892,8 +17892,8 @@ function modelTier(id) {
   return 0;
 }
 function modelVersion(id) {
-  var _a2, _b;
-  const parts = (_b = (_a2 = id.match(/\d+/g)) == null ? void 0 : _a2.map((part) => parseInt(part, 10))) != null ? _b : [];
+  var _a3, _b;
+  const parts = (_b = (_a3 = id.match(/\d+/g)) == null ? void 0 : _a3.map((part) => parseInt(part, 10))) != null ? _b : [];
   if (parts.length < 2) return 0;
   const [major, second, third] = parts;
   const isDateStamp = (value) => value !== void 0 && value > 99;
@@ -17938,10 +17938,10 @@ async function fetchModels(apiKey) {
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
     const result = await client.models.list();
     return mergeModels(result.data.filter((m) => !m.id.startsWith("claude-3")).map((m) => {
-      var _a2;
+      var _a3;
       return {
         id: m.id,
-        display_name: (_a2 = m.display_name) != null ? _a2 : modelDisplayName(m.id)
+        display_name: (_a3 = m.display_name) != null ? _a3 : modelDisplayName(m.id)
       };
     }));
   } catch (e) {
@@ -17949,7 +17949,7 @@ async function fetchModels(apiKey) {
   }
 }
 function applyOutputFormat(text, settings, resolvedModelName) {
-  var _a2;
+  var _a3;
   const displayName = resolvedModelName != null ? resolvedModelName : modelDisplayName(settings.model);
   switch (settings.outputFormat) {
     case "codeblock": {
@@ -17961,7 +17961,7 @@ ${text}
     case "blockquote":
       return text.split("\n").map((line) => `> ${line}`).join("\n");
     case "heading": {
-      const hashes = "#".repeat(Math.max(1, Math.min(7, (_a2 = settings.headingLevel) != null ? _a2 : 2)));
+      const hashes = "#".repeat(Math.max(1, Math.min(7, (_a3 = settings.headingLevel) != null ? _a3 : 2)));
       return `${hashes} ${text}`;
     }
     case "callout": {
@@ -17977,9 +17977,9 @@ ${body}`;
   }
 }
 function friendlyApiError(err) {
-  var _a2, _b, _c, _d, _e, _f, _g;
+  var _a3, _b, _c, _d, _e, _f, _g;
   if (err instanceof BadRequestError) {
-    const msg = String((_d = (_c = (_b = (_a2 = err.error) == null ? void 0 : _a2.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
+    const msg = String((_d = (_c = (_b = (_a3 = err.error) == null ? void 0 : _a3.error) == null ? void 0 : _b.message) != null ? _c : err.message) != null ? _d : "");
     if (msg.toLowerCase().includes("credit balance") || msg.toLowerCase().includes("credit_balance_too_low")) {
       return "No API credits \u2014 top up at console.anthropic.com/settings/billing. If you just purchased credits, wait a few minutes for the balance to become available.";
     }
@@ -18018,13 +18018,13 @@ function friendlyApiError(err) {
   return null;
 }
 function logApiDiagnostics(err, apiKey, model) {
-  var _a2;
+  var _a3;
   const keyPrefix = apiKey ? apiKey.slice(0, 8) + "..." : "(empty)";
   console.log("[Augment] diagnostic \u2014 key prefix:", keyPrefix);
   console.log("[Augment] diagnostic \u2014 model:", model);
   if (err instanceof APIError) {
     console.log("[Augment] diagnostic \u2014 status:", err.status);
-    console.log("[Augment] diagnostic \u2014 request ID:", (_a2 = err.requestID) != null ? _a2 : "(none)");
+    console.log("[Augment] diagnostic \u2014 request ID:", (_a3 = err.requestID) != null ? _a3 : "(none)");
     console.log("[Augment] diagnostic \u2014 response body:", JSON.stringify(err.error, null, 2));
   } else if (err instanceof Error) {
     console.log("[Augment] diagnostic \u2014 error:", err.message);
@@ -18053,6 +18053,12 @@ async function generateText(systemPrompt, userMessage, settings, modelOverride, 
 // src/agent-suggest.ts
 var import_obsidian = require("obsidian");
 var SKILL_SCAN_ROOTS = ["agents", ".agents", ".claude", ".augment"];
+function displayCommandName(id, name) {
+  if (id.startsWith("augment-terminal:") && name.startsWith("Augment: ")) {
+    return name.replace(/^Augment:\s+/, "");
+  }
+  return name;
+}
 var AgentSuggest = class extends import_obsidian.EditorSuggest {
   constructor(app) {
     super(app);
@@ -18060,7 +18066,7 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
     this.loadSkills();
   }
   loadSkills() {
-    var _a2;
+    var _a3;
     const seen = /* @__PURE__ */ new Set();
     const entries = [];
     for (const root of SKILL_SCAN_ROOTS) {
@@ -18071,7 +18077,7 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
         if (!(child instanceof import_obsidian.TFolder)) continue;
         const skillFile = this.app.vault.getAbstractFileByPath(`${scanFolder.path}/${child.name}/SKILL.md`);
         if (!(skillFile instanceof import_obsidian.TFile)) continue;
-        const fm = (_a2 = this.app.metadataCache.getFileCache(skillFile)) == null ? void 0 : _a2.frontmatter;
+        const fm = (_a3 = this.app.metadataCache.getFileCache(skillFile)) == null ? void 0 : _a3.frontmatter;
         if (!fm) continue;
         if (fm.user_invocable === false) continue;
         const name = typeof fm.name === "string" ? fm.name : child.name;
@@ -18118,7 +18124,11 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
     if (matchedCommands.length > 0) {
       result.push({ kind: "header", label: "Commands" });
       for (const c of matchedCommands) {
-        result.push({ kind: "command", id: c.id, name: c.name });
+        result.push({
+          kind: "command",
+          id: c.id,
+          name: displayCommandName(c.id, c.name)
+        });
       }
     }
     return result;
@@ -18138,9 +18148,9 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
     }
   }
   selectSuggestion(item) {
-    var _a2, _b, _c, _d;
+    var _a3, _b, _c, _d;
     if (item.kind === "header") return;
-    const editor = (_a2 = this.context) == null ? void 0 : _a2.editor;
+    const editor = (_a3 = this.context) == null ? void 0 : _a3.editor;
     const file = (_b = this.context) == null ? void 0 : _b.file;
     if (!editor) return;
     editor.replaceRange("", this.context.start, this.context.end);
@@ -18157,18 +18167,329 @@ var AgentSuggest = class extends import_obsidian.EditorSuggest {
   }
 };
 
+// src/attention-queue.ts
+function normalizeStatus(rawStatus) {
+  const trimmed = rawStatus.trim().toLowerCase();
+  return trimmed || "shell";
+}
+function normalizeUnreadActivity(rawUnreadActivity) {
+  if (!Number.isFinite(rawUnreadActivity)) return 0;
+  return Math.max(0, Math.floor(rawUnreadActivity));
+}
+function normalizeLastActivityMs(rawLastActivityMs) {
+  if (!Number.isFinite(rawLastActivityMs)) return 0;
+  return Math.max(0, Math.floor(rawLastActivityMs));
+}
+function attentionSortValue(lastActivityMs) {
+  return lastActivityMs > 0 ? lastActivityMs : Number.MAX_SAFE_INTEGER;
+}
+function summarizeAttentionSessions(sessions) {
+  const ordered = sessions.map((session) => {
+    const status = normalizeStatus(session.status);
+    const unreadActivity = normalizeUnreadActivity(session.unreadActivity);
+    const lastActivityMs = normalizeLastActivityMs(session.lastActivityMs);
+    return {
+      id: session.id,
+      status,
+      unreadActivity,
+      lastActivityMs,
+      hasUnreadActivity: unreadActivity > 0,
+      isWaiting: status === "waiting"
+    };
+  }).filter((session) => session.hasUnreadActivity || session.isWaiting).sort((left, right) => {
+    if (left.hasUnreadActivity !== right.hasUnreadActivity) {
+      return left.hasUnreadActivity ? -1 : 1;
+    }
+    if (left.unreadActivity !== right.unreadActivity) {
+      return right.unreadActivity - left.unreadActivity;
+    }
+    if (left.isWaiting !== right.isWaiting) {
+      return left.isWaiting ? -1 : 1;
+    }
+    const leftSortValue = attentionSortValue(left.lastActivityMs);
+    const rightSortValue = attentionSortValue(right.lastActivityMs);
+    if (leftSortValue !== rightSortValue) {
+      return leftSortValue - rightSortValue;
+    }
+    return left.status.localeCompare(right.status);
+  });
+  const attentionCount = ordered.length;
+  const unreadSessionCount = ordered.filter((session) => session.hasUnreadActivity).length;
+  const waitingSessionCount = ordered.filter((session) => session.isWaiting).length;
+  let ariaLabel = "No sessions need attention";
+  if (attentionCount > 0) {
+    const parts = [`${attentionCount} session${attentionCount !== 1 ? "s" : ""} need attention`];
+    if (unreadSessionCount > 0) {
+      parts.push(`${unreadSessionCount} with unread activity`);
+    }
+    if (waitingSessionCount > 0) {
+      parts.push(`${waitingSessionCount} waiting for input`);
+    }
+    ariaLabel = parts.join("; ");
+  }
+  const badgeText = attentionCount === 0 ? "" : unreadSessionCount > 0 ? `\u26A1 ${attentionCount} \xB7 ${unreadSessionCount} unread` : `\u26A1 ${attentionCount}`;
+  return {
+    attentionCount,
+    unreadSessionCount,
+    waitingSessionCount,
+    badgeText,
+    ariaLabel,
+    ordered
+  };
+}
+
+// src/bus-poller.ts
+var import_child_process = require("child_process");
+var path2 = __toESM(require("path"));
+var DEFAULT_POLL_INTERVAL_MS = 15e3;
+var INBOX_CHECK_RELATIVE_PATH = ["claude", "hooks", "inbox-check.sh"];
+function resolvePollIntervalMs() {
+  var _a3;
+  const rawValue = (_a3 = process.env.AUGMENT_BUS_POLL_INTERVAL) == null ? void 0 : _a3.trim();
+  if (!rawValue) return DEFAULT_POLL_INTERVAL_MS;
+  const parsedValue = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return DEFAULT_POLL_INTERVAL_MS;
+  }
+  return parsedValue;
+}
+var BusPoller = class {
+  constructor(address, vaultRoot, writeToTerminal, callbacks = {}) {
+    this.address = address;
+    this.vaultRoot = vaultRoot;
+    this.writeToTerminal = writeToTerminal;
+    this.callbacks = callbacks;
+    this.timer = null;
+    this.pollInFlight = false;
+    this.destroyed = false;
+    this.inboxCheckPath = path2.join(this.vaultRoot, ...INBOX_CHECK_RELATIVE_PATH);
+    this.pollIntervalMs = resolvePollIntervalMs();
+  }
+  start() {
+    if (this.destroyed || this.timer !== null) return;
+    this.timer = setInterval(() => {
+      this.poll();
+    }, this.pollIntervalMs);
+  }
+  stop() {
+    if (this.timer === null) return;
+    clearInterval(this.timer);
+    this.timer = null;
+  }
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.stop();
+  }
+  poll() {
+    if (this.destroyed || this.pollInFlight) return;
+    this.pollInFlight = true;
+    this.readUnreadMessages().then((stdout) => {
+      var _a3, _b;
+      if (this.destroyed) return;
+      (_b = (_a3 = this.callbacks).onPollSuccess) == null ? void 0 : _b.call(_a3);
+      const messages = stdout.trim();
+      if (!messages) return;
+      this.writeToTerminal(this.formatPrompt(messages));
+    }).catch((error) => {
+      var _a3, _b;
+      if (this.destroyed) return;
+      console.warn(`[Augment] bus poll failed for ${this.address}`, error);
+      (_b = (_a3 = this.callbacks).onPollFailure) == null ? void 0 : _b.call(_a3, error);
+    }).finally(() => {
+      this.pollInFlight = false;
+    });
+  }
+  readUnreadMessages() {
+    return new Promise((resolve2, reject2) => {
+      (0, import_child_process.execFile)(
+        "bash",
+        [
+          this.inboxCheckPath,
+          "--address",
+          this.address,
+          "--format",
+          "claude",
+          "--mark",
+          "read"
+        ],
+        {
+          cwd: this.vaultRoot,
+          encoding: "utf8",
+          maxBuffer: 1024 * 1024,
+          windowsHide: true
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            if (stderr.trim()) {
+              reject2(new Error(stderr.trim()));
+              return;
+            }
+            reject2(error);
+            return;
+          }
+          resolve2(stdout);
+        }
+      );
+    });
+  }
+  formatPrompt(messages) {
+    return `Unread bus messages arrived. Review them and continue.
+
+${messages}
+`;
+  }
+};
+var BusPollerManager = class {
+  constructor() {
+    this.pollers = /* @__PURE__ */ new Map();
+  }
+  startPoller(key, address, vaultRoot, writeToTerminal, callbacks = {}) {
+    this.stopPoller(key);
+    const poller = new BusPoller(address, vaultRoot, writeToTerminal, callbacks);
+    this.pollers.set(key, poller);
+    poller.start();
+    return poller;
+  }
+  stopPoller(key) {
+    const poller = this.pollers.get(key);
+    if (!poller) return;
+    poller.destroy();
+    this.pollers.delete(key);
+  }
+  stopAll() {
+    for (const poller of this.pollers.values()) {
+      poller.destroy();
+    }
+    this.pollers.clear();
+  }
+};
+
+// src/control-center-redirect.ts
+var import_promises = __toESM(require("fs/promises"));
+var import_http = __toESM(require("http"));
+var import_https = __toESM(require("https"));
+var import_os = __toESM(require("os"));
+var import_path8 = __toESM(require("path"));
+var import_obsidian2 = require("obsidian");
+var AUGMENT_CONTROL_CENTER_LEARN_MORE_URL = "https://augment.md/agent-supervision-during-the-gap-period/";
+var AUGMENT_CONTROL_CENTER_UNAVAILABLE_NOTICE = "Augment Control Center is not available right now. Use Learn more for the current gap-period path.";
+var RUNTIME_OWNER_DIR = process.env.AUGMENT_RUNTIME_OWNER_DIR || import_path8.default.join(import_os.default.tmpdir(), "augment-runtime-owner");
+var OWNER_METADATA_PATH = import_path8.default.join(RUNTIME_OWNER_DIR, "owner.json");
+var CONTROL_CENTER_ROOT_TIMEOUT_MS = 1500;
+function normalizeControlCenterRootUrl(rawValue) {
+  const value = String(rawValue != null ? rawValue : "").trim();
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.href;
+  } catch (e) {
+    return null;
+  }
+}
+async function readPublishedControlCenterRootUrl() {
+  var _a3;
+  try {
+    const parsed = JSON.parse(await import_promises.default.readFile(OWNER_METADATA_PATH, "utf8"));
+    return (_a3 = normalizeControlCenterRootUrl(parsed.rootUrl)) != null ? _a3 : normalizeControlCenterRootUrl(parsed.controlCenterRootUrl);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    return null;
+  }
+}
+async function isControlCenterRootReachable(rootUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rootUrl);
+  } catch (e) {
+    return false;
+  }
+  const transport = parsed.protocol === "https:" ? import_https.default : import_http.default;
+  return await new Promise((resolve2) => {
+    const request = transport.request(
+      parsed,
+      {
+        method: "GET"
+      },
+      (response) => {
+        var _a3;
+        response.resume();
+        const statusCode = (_a3 = response.statusCode) != null ? _a3 : 0;
+        resolve2(statusCode >= 200 && statusCode < 400);
+      }
+    );
+    request.on("error", () => resolve2(false));
+    request.setTimeout(CONTROL_CENTER_ROOT_TIMEOUT_MS, () => {
+      request.destroy();
+      resolve2(false);
+    });
+    request.end();
+  });
+}
+async function resolveReachableControlCenterRootUrl() {
+  const rootUrl = await readPublishedControlCenterRootUrl();
+  if (!rootUrl) return null;
+  return await isControlCenterRootReachable(rootUrl) ? rootUrl : null;
+}
+function renderLegacyRedirectShell(container, options) {
+  var _a3;
+  container.empty();
+  container.addClass("augment-legacy-redirect-view");
+  const shell = container.createDiv({ cls: "augment-legacy-redirect-shell" });
+  const mark = shell.createDiv({ cls: "augment-legacy-redirect-mark" });
+  const markIcon = mark.createDiv({ cls: "augment-legacy-redirect-mark-icon" });
+  (0, import_obsidian2.setIcon)(markIcon, "augment-pyramid");
+  shell.createDiv({
+    cls: "augment-legacy-redirect-kicker",
+    text: "Augment Control Center"
+  });
+  shell.createEl("h3", {
+    cls: "augment-legacy-redirect-title",
+    text: options.title
+  });
+  shell.createDiv({
+    cls: "augment-legacy-redirect-copy",
+    text: options.copy
+  });
+  if (options.countLine) {
+    shell.createDiv({
+      cls: "augment-legacy-redirect-count",
+      text: options.countLine
+    });
+  }
+  const actions = shell.createDiv({ cls: "augment-legacy-redirect-actions" });
+  const openButton = actions.createEl("button", {
+    cls: "mod-cta",
+    text: "Open Control Center",
+    attr: { type: "button" }
+  });
+  openButton.addEventListener("click", () => {
+    void options.onOpenControlCenter();
+  });
+  const learnMoreLink = actions.createEl("a", {
+    cls: "augment-legacy-redirect-link",
+    text: "Learn more",
+    href: (_a3 = options.learnMoreUrl) != null ? _a3 : AUGMENT_CONTROL_CENTER_LEARN_MORE_URL
+  });
+  learnMoreLink.target = "_blank";
+  learnMoreLink.rel = "noopener";
+}
+
 // src/inbox-suggest.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/inbox-bus.ts
-var import_obsidian2 = require("obsidian");
-var BUS_ROOT = "agents/bus";
-var PARTS_ROOT = "agents/parts";
-var SIGNALS_ROOT = `${BUS_ROOT}/derived/signals`;
-var SOURCE_NOTE_PREFIX = "<!-- source_note:";
-var SOURCE_NOTE_SUFFIX = "-->";
+var fs3 = __toESM(require("fs"));
+var path4 = __toESM(require("path"));
+var import_obsidian3 = require("obsidian");
+
+// packages/shared-domain/src/messaging/address.ts
 var HUMAN_ADDRESS = "user@vault";
-var cacheByApp = /* @__PURE__ */ new WeakMap();
 function normalizeAddress(raw2, kind) {
   const trimmed = raw2.trim().toLowerCase();
   if (!trimmed) return kind === "from" ? HUMAN_ADDRESS : "@vault";
@@ -18202,6 +18523,15 @@ function normalizeSubject(value) {
   if (!compact2) return "Message";
   return compact2.slice(0, 120);
 }
+
+// packages/shared-domain/src/messaging/layout.ts
+var BUS_ROOT = "agents/bus";
+var SIGNALS_ROOT = `${BUS_ROOT}/derived/signals`;
+function normalizeVaultPath(raw2) {
+  const normalized = raw2.replace(/\\/g, "/").replace(/\/+/g, "/");
+  if (normalized === "/") return normalized;
+  return normalized.replace(/\/$/, "");
+}
 function canonicalTimestamp(date2 = /* @__PURE__ */ new Date()) {
   return date2.toISOString().replace(/\.\d+Z$/, "Z");
 }
@@ -18209,43 +18539,25 @@ function filenameTimestamp(timestamp) {
   return timestamp.replace(/:/g, "");
 }
 function messageFolderPath(privacy, createdAt) {
-  return (0, import_obsidian2.normalizePath)(
+  return normalizeVaultPath(
     `${BUS_ROOT}/${privacy}/messages/${createdAt.slice(0, 4)}/${createdAt.slice(5, 7)}`
   );
 }
-function eventFolderPath(privacy, createdAt) {
-  return (0, import_obsidian2.normalizePath)(
-    `${BUS_ROOT}/${privacy}/events/${createdAt.slice(0, 4)}/${createdAt.slice(5, 7)}`
-  );
-}
 function messageFilePath(privacy, createdAt, msgId) {
-  const folder = messageFolderPath(privacy, createdAt);
-  return (0, import_obsidian2.normalizePath)(`${folder}/${filenameTimestamp(createdAt)}__${msgId}.md`);
+  return normalizeVaultPath(
+    `${messageFolderPath(privacy, createdAt)}/${filenameTimestamp(createdAt)}__${msgId}.md`
+  );
 }
 function signalSlug(address) {
   return address.replace(/@/g, "_at_");
 }
 function signalFilePath(address) {
-  return (0, import_obsidian2.normalizePath)(`${SIGNALS_ROOT}/${signalSlug(address)}.json`);
+  return normalizeVaultPath(`${SIGNALS_ROOT}/${signalSlug(address)}.json`);
 }
-function legacyInboxFolderPath(address) {
-  const [partName, habitat] = address.split("@");
-  if (habitat && habitat !== "vault") {
-    return (0, import_obsidian2.normalizePath)(`${PARTS_ROOT}/${habitat}/${partName}/inbox`);
-  }
-  return (0, import_obsidian2.normalizePath)(`${PARTS_ROOT}/${partName}/inbox`);
-}
-function legacyInboxFilePath(address, createdAt, msgId) {
-  const folder = legacyInboxFolderPath(address);
-  const shortId = msgId.slice(0, 8);
-  return (0, import_obsidian2.normalizePath)(`${folder}/${filenameTimestamp(createdAt)}-${shortId}.md`);
-}
-function eventFilePath(privacy, createdAt, eventType, msgId, eventId) {
-  const folder = eventFolderPath(privacy, createdAt);
-  return (0, import_obsidian2.normalizePath)(
-    `${folder}/${filenameTimestamp(createdAt)}__${eventType}__${msgId}__${eventId}.md`
-  );
-}
+
+// packages/shared-domain/src/messaging/document.ts
+var SOURCE_NOTE_PREFIX = "<!-- source_note:";
+var SOURCE_NOTE_SUFFIX = "-->";
 function yamlQuote(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -18258,22 +18570,166 @@ function encodeSourceNoteBody(sourceNote, body) {
 
 ${body}` : prefix;
 }
-function decodeSourceNoteBody(rawBody) {
-  if (!rawBody.startsWith(SOURCE_NOTE_PREFIX)) {
-    return { sourceNote: "", body: rawBody };
+function parseFrontmatterScalar(raw2) {
+  const trimmed = raw2.trim();
+  if (!trimmed) return "";
+  if (trimmed === "null") return null;
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).replace(/''/g, "'");
   }
-  const end = rawBody.indexOf(SOURCE_NOTE_SUFFIX);
-  if (end === -1) {
-    return { sourceNote: "", body: rawBody };
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   }
-  const sourceNote = rawBody.slice(SOURCE_NOTE_PREFIX.length, end).trim().replace(/-- >/g, "-->");
-  const remainder = rawBody.slice(end + SOURCE_NOTE_SUFFIX.length).replace(/^\s*\n/, "");
-  return { sourceNote, body: remainder };
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  return trimmed;
 }
-function stripFrontmatter(raw2) {
-  const match = raw2.match(/^---\n[\s\S]*?\n---\n?/);
-  return match ? raw2.slice(match[0].length) : raw2;
+function parseRawFrontmatter(raw2) {
+  const match = raw2.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
+  if (!match) return null;
+  const frontmatter = {};
+  for (const line of match[1].split("\n")) {
+    const separator = line.indexOf(":");
+    if (separator === -1) continue;
+    const key = line.slice(0, separator).trim();
+    if (!key) continue;
+    frontmatter[key] = parseFrontmatterScalar(line.slice(separator + 1));
+  }
+  return Object.keys(frontmatter).length > 0 ? frontmatter : null;
 }
+function asString(value) {
+  if (typeof value === "string") return value.trim();
+  if (value === null || value === void 0) return "";
+  return String(value).trim();
+}
+function parseIndexedMessageRecord(frontmatter, filePath, privacy) {
+  if (!frontmatter) return null;
+  const msgId = asString(frontmatter.msg_id).toLowerCase();
+  const from = normalizeAddress(asString(frontmatter.from), "from");
+  const to = normalizeAddress(asString(frontmatter.to), "to");
+  if (!msgId || !to) return null;
+  const replyTo = normalizeReplyTo(asString(frontmatter.reply_to));
+  return {
+    filePath,
+    msgId,
+    threadId: asString(frontmatter.thread_id) || msgId,
+    from,
+    to,
+    msgType: normalizeMessageType(asString(frontmatter.msg_type)),
+    subject: asString(frontmatter.subject) || "Message",
+    replyTo,
+    createdAt: asString(frontmatter.created_at),
+    habitat: extractHabitat(from),
+    privacy: normalizePrivacy(asString(frontmatter.privacy) || privacy),
+    sourceNote: asString(frontmatter.source_note)
+  };
+}
+function parseIndexedEventRecord(frontmatter, filePath, privacy) {
+  if (!frontmatter) return null;
+  const eventType = asString(frontmatter.event_type);
+  if (eventType !== "delivered" && eventType !== "read" && eventType !== "acked") {
+    return null;
+  }
+  const msgId = asString(frontmatter.msg_id).toLowerCase();
+  const actor = normalizeAddress(asString(frontmatter.actor), "to");
+  if (!msgId || !actor) return null;
+  return {
+    filePath,
+    msgId,
+    threadId: asString(frontmatter.thread_id),
+    eventType,
+    actor,
+    privacy: normalizePrivacy(asString(frontmatter.privacy) || privacy),
+    createdAt: asString(frontmatter.created_at)
+  };
+}
+function buildMessageFrontmatter(message) {
+  const lines = [
+    "---",
+    `msg_id: ${message.msgId}`,
+    `thread_id: ${message.threadId}`,
+    `from: ${message.from}`,
+    `to: ${message.to}`,
+    `msg_type: ${message.msgType}`,
+    `subject: ${yamlQuote(message.subject)}`,
+    `created_at: ${message.createdAt}`,
+    `habitat: ${message.habitat}`,
+    `privacy: ${message.privacy}`,
+    "---"
+  ];
+  if (message.replyTo) {
+    lines.splice(lines.length - 1, 0, `reply_to: ${message.replyTo}`);
+  }
+  return lines.join("\n");
+}
+function buildSignalContent(message, createdAt) {
+  return `${JSON.stringify(
+    {
+      to: message.to,
+      msg_id: message.msgId,
+      thread_id: message.threadId,
+      created_at: createdAt
+    },
+    null,
+    2
+  )}
+`;
+}
+
+// packages/shared-domain/src/messaging/mutations.ts
+function randomUuid() {
+  var _a3, _b;
+  const uuid = (_b = (_a3 = globalThis.crypto) == null ? void 0 : _a3.randomUUID) == null ? void 0 : _b.call(_a3);
+  if (!uuid) {
+    throw new Error("crypto.randomUUID() is unavailable");
+  }
+  return uuid.toLowerCase();
+}
+function planMessageWrite(opts, options = {}) {
+  var _a3, _b, _c, _d, _e;
+  const to = normalizeAddress(opts.to, "to");
+  const from = normalizeAddress(opts.from, "from");
+  const msgId = ((_a3 = options.msgId) != null ? _a3 : randomUuid()).toLowerCase();
+  const replyTo = normalizeReplyTo(opts.replyTo);
+  const threadId = (((_b = opts.threadId) == null ? void 0 : _b.trim()) || replyTo || msgId).toLowerCase();
+  const createdAt = (_c = options.createdAt) != null ? _c : canonicalTimestamp();
+  const privacy = normalizePrivacy(opts.privacy);
+  const record = {
+    filePath: messageFilePath(privacy, createdAt, msgId),
+    msgId,
+    threadId,
+    from,
+    to,
+    msgType: normalizeMessageType(opts.msgType),
+    subject: normalizeSubject(opts.subject),
+    replyTo,
+    createdAt,
+    habitat: extractHabitat(from),
+    privacy,
+    sourceNote: (_e = (_d = opts.sourceNote) == null ? void 0 : _d.trim()) != null ? _e : ""
+  };
+  const body = encodeSourceNoteBody(record.sourceNote, opts.body);
+  return {
+    record,
+    folderPath: messageFolderPath(privacy, createdAt),
+    filePath: record.filePath,
+    content: `${buildMessageFrontmatter(record)}
+
+${body}`,
+    signalPath: signalFilePath(record.to),
+    signalContent: buildSignalContent(record, createdAt)
+  };
+}
+
+// packages/shared-domain/src/messaging/projections.ts
+var EVENT_PRECEDENCE = {
+  delivered: 0,
+  read: 1,
+  acked: 2
+};
 function eventKey(msgId, actor) {
   return `${msgId}::${actor}`;
 }
@@ -18281,175 +18737,37 @@ function parseTimestampMs(value) {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
-function asString(value) {
-  if (typeof value === "string") return value.trim();
-  if (value === null || value === void 0) return "";
-  return String(value).trim();
-}
-function collectMarkdownFiles(root) {
-  if (!root) return [];
-  const files = [];
-  const queue = [...root.children];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-    if (current instanceof import_obsidian2.TFolder) {
-      queue.push(...current.children);
-      continue;
-    }
-    if (current instanceof import_obsidian2.TFile && current.extension === "md") {
-      files.push(current);
-    }
-  }
-  return files;
-}
-function getBusFolder(app, privacy, kind) {
-  const path6 = (0, import_obsidian2.normalizePath)(`${BUS_ROOT}/${privacy}/${kind}`);
-  const folder = app.vault.getAbstractFileByPath(path6);
-  return folder instanceof import_obsidian2.TFolder ? folder : null;
-}
-function fileCacheFrontmatter(app, file) {
-  const cache = app.metadataCache.getFileCache(file);
-  const frontmatter = cache == null ? void 0 : cache.frontmatter;
-  return frontmatter ? frontmatter : null;
-}
-function toIndexedMessage(app, file, privacy) {
-  const fm = fileCacheFrontmatter(app, file);
-  if (!fm) return null;
-  const msgId = asString(fm.msg_id).toLowerCase();
-  const from = normalizeAddress(asString(fm.from), "from");
-  const to = normalizeAddress(asString(fm.to), "to");
-  if (!msgId || !to) return null;
-  const replyTo = normalizeReplyTo(asString(fm.reply_to));
-  return {
-    file,
-    filePath: file.path,
-    msgId,
-    threadId: asString(fm.thread_id) || msgId,
-    from,
-    to,
-    msgType: normalizeMessageType(asString(fm.msg_type)),
-    subject: asString(fm.subject) || "Message",
-    replyTo,
-    createdAt: asString(fm.created_at),
-    habitat: extractHabitat(from),
-    privacy: normalizePrivacy(asString(fm.privacy) || privacy),
-    sourceNote: asString(fm.source_note)
-  };
-}
-function toIndexedEvent(app, file, privacy) {
-  const fm = fileCacheFrontmatter(app, file);
-  if (!fm) return null;
-  const eventType = asString(fm.event_type);
-  if (eventType !== "delivered" && eventType !== "read" && eventType !== "acked") {
-    return null;
-  }
-  const msgId = asString(fm.msg_id).toLowerCase();
-  const actor = normalizeAddress(asString(fm.actor), "to");
-  if (!msgId || !actor) return null;
-  return {
-    msgId,
-    threadId: asString(fm.thread_id),
-    eventType,
-    actor,
-    privacy: normalizePrivacy(asString(fm.privacy) || privacy)
-  };
-}
 function sortMessages(messages) {
   return messages.sort((a, b) => {
     const createdCompare = a.createdAt.localeCompare(b.createdAt);
     return createdCompare !== 0 ? createdCompare : a.msgId.localeCompare(b.msgId);
   });
 }
-function buildBusIndex(app) {
-  var _a2, _b;
-  const messagesById = /* @__PURE__ */ new Map();
-  const unreadByActor = /* @__PURE__ */ new Map();
-  const unreadCounts = /* @__PURE__ */ new Map();
-  const deliveredKeys = /* @__PURE__ */ new Set();
-  const readKeys = /* @__PURE__ */ new Set();
-  for (const privacy of ["local", "shared"]) {
-    for (const file of collectMarkdownFiles(getBusFolder(app, privacy, "messages"))) {
-      const message = toIndexedMessage(app, file, privacy);
-      if (message) {
-        messagesById.set(message.msgId, message);
-      }
-    }
-    for (const file of collectMarkdownFiles(getBusFolder(app, privacy, "events"))) {
-      const event = toIndexedEvent(app, file, privacy);
-      if (!event) continue;
-      const key = eventKey(event.msgId, event.actor);
-      if (event.eventType === "delivered") deliveredKeys.add(key);
-      if (event.eventType === "read" || event.eventType === "acked") {
-        deliveredKeys.add(key);
-        readKeys.add(key);
-      }
-    }
-  }
-  for (const message of messagesById.values()) {
-    const actor = message.to;
-    if (readKeys.has(eventKey(message.msgId, actor))) continue;
-    const unread = (_a2 = unreadByActor.get(actor)) != null ? _a2 : [];
-    unread.push(message);
-    unreadByActor.set(actor, unread);
-    unreadCounts.set(actor, ((_b = unreadCounts.get(actor)) != null ? _b : 0) + 1);
-  }
-  for (const messages of unreadByActor.values()) {
-    sortMessages(messages);
-  }
-  return {
-    messagesById,
-    unreadByActor,
-    unreadCounts,
-    deliveredKeys,
-    readKeys
-  };
-}
-function getCacheState(app) {
-  let state = cacheByApp.get(app);
-  if (!state) {
-    state = { dirty: true, wired: false, index: null, notify: null };
-    cacheByApp.set(app, state);
-  }
-  if (!state.wired) wireCacheInvalidation(app, state);
-  return state;
-}
-function isBusPath(path6) {
-  return (0, import_obsidian2.normalizePath)(path6).startsWith(`${BUS_ROOT}/`);
-}
-function wireCacheInvalidation(app, state) {
-  if (state.wired) return;
-  state.wired = true;
-  const markDirty = (path6) => {
-    var _a2;
-    if (path6 && isBusPath(path6)) {
-      state.dirty = true;
-      (_a2 = state.notify) == null ? void 0 : _a2.call(state);
-    }
-  };
-  app.vault.on("create", (file) => markDirty(file.path));
-  app.vault.on("modify", (file) => markDirty(file.path));
-  app.vault.on("delete", (file) => markDirty(file.path));
-  app.vault.on("rename", (file, oldPath) => {
-    markDirty(oldPath);
-    markDirty(file.path);
-  });
-  app.metadataCache.on("resolved", () => {
-    state.dirty = true;
+function sortEvents(events) {
+  return [...events].sort((a, b) => {
+    const keyCompare = eventKey(a.msgId, a.actor).localeCompare(eventKey(b.msgId, b.actor));
+    if (keyCompare !== 0) return keyCompare;
+    const createdCompare = a.createdAt.localeCompare(b.createdAt);
+    if (createdCompare !== 0) return createdCompare;
+    const typeCompare = EVENT_PRECEDENCE[a.eventType] - EVENT_PRECEDENCE[b.eventType];
+    return typeCompare !== 0 ? typeCompare : a.filePath.localeCompare(b.filePath);
   });
 }
-function getBusIndex(app) {
-  const state = getCacheState(app);
-  if (!state.dirty && state.index) return state.index;
-  const index = buildBusIndex(app);
-  state.index = index;
-  state.dirty = false;
-  return index;
+function recordLifecycleViolation(index, event, reason) {
+  index.lifecycleViolations.push({
+    failClass: "invalid-event-lifecycle",
+    reason,
+    key: eventKey(event.msgId, event.actor),
+    msgId: event.msgId,
+    actor: event.actor,
+    eventType: event.eventType,
+    filePath: event.filePath
+  });
 }
 function insertUnreadMessage(index, message) {
-  var _a2, _b;
+  var _a3, _b;
   if (index.readKeys.has(eventKey(message.msgId, message.to))) return;
-  const unread = (_a2 = index.unreadByActor.get(message.to)) != null ? _a2 : [];
+  const unread = (_a3 = index.unreadByActor.get(message.to)) != null ? _a3 : [];
   unread.push(message);
   sortMessages(unread);
   index.unreadByActor.set(message.to, unread);
@@ -18468,35 +18786,571 @@ function removeUnreadMessage(index, msgId, actor) {
   index.unreadByActor.set(actor, next);
   index.unreadCounts.set(actor, next.length);
 }
-function recordMessageWrite(app, message) {
-  const state = getCacheState(app);
-  if (!state.index) {
-    state.index = buildBusIndex(app);
-  }
-  state.dirty = false;
-  state.index.messagesById.set(message.msgId, message);
-  insertUnreadMessage(state.index, message);
-}
-function recordEventWrite(app, event) {
-  const state = getCacheState(app);
-  if (!state.index) {
-    state.index = buildBusIndex(app);
-  }
-  state.dirty = false;
+function applyEventRecord(index, event) {
   const key = eventKey(event.msgId, event.actor);
   if (event.eventType === "delivered") {
-    state.index.deliveredKeys.add(key);
+    index.deliveredKeys.add(key);
     return;
   }
-  if (event.eventType === "read" || event.eventType === "acked") {
-    state.index.deliveredKeys.add(key);
-    if (state.index.readKeys.has(key)) return;
-    state.index.readKeys.add(key);
-    removeUnreadMessage(state.index, event.msgId, event.actor);
+  if (event.eventType === "read") {
+    if (!index.deliveredKeys.has(key)) {
+      recordLifecycleViolation(index, event, "read-without-delivered");
+      return;
+    }
+    index.deliveredKeys.add(key);
+    if (index.readKeys.has(key)) return;
+    index.readKeys.add(key);
+    removeUnreadMessage(index, event.msgId, event.actor);
+    return;
+  }
+  if (!index.readKeys.has(key)) {
+    recordLifecycleViolation(index, event, "acked-without-read");
+    return;
+  }
+  index.deliveredKeys.add(key);
+  index.readKeys.add(key);
+}
+function buildThreadSummary(index, threadId, messages, options) {
+  var _a3;
+  if (messages.length === 0) return null;
+  const ordered = sortMessages([...messages]);
+  const first2 = ordered[0];
+  const last2 = ordered[ordered.length - 1];
+  const participants = /* @__PURE__ */ new Set();
+  for (const message of ordered) {
+    participants.add(message.from);
+    participants.add(message.to);
+  }
+  const participantList = [...participants];
+  const primaryAddress = options.primaryAddress;
+  const counterparty = primaryAddress ? (_a3 = participantList.find((address) => address !== primaryAddress)) != null ? _a3 : last2.from : last2.from;
+  return {
+    threadId,
+    subject: first2.subject || last2.subject || "Message",
+    lastSender: last2.from,
+    lastTo: last2.to,
+    counterparty,
+    participants: participantList,
+    humanInvolved: participantList.includes(HUMAN_ADDRESS),
+    lastActivityAt: last2.createdAt,
+    lastActivityAge: Math.max(0, Date.now() - parseTimestampMs(last2.createdAt)),
+    messageCount: ordered.length,
+    hasUnread: ordered.some(
+      (message) => options.unreadActors.has(message.to) && !index.readKeys.has(eventKey(message.msgId, message.to))
+    )
+  };
+}
+function sortThreadSummaries(threads) {
+  return threads.sort((a, b) => {
+    const activityCompare = parseTimestampMs(b.lastActivityAt) - parseTimestampMs(a.lastActivityAt);
+    return activityCompare !== 0 ? activityCompare : a.threadId.localeCompare(b.threadId);
+  });
+}
+function buildThreadList(index, options) {
+  var _a3;
+  const primaryAddress = options.primaryAddress ? normalizeAddress(options.primaryAddress, "to") : void 0;
+  const unreadActors = new Set(
+    [...(_a3 = options.unreadActors) != null ? _a3 : primaryAddress ? [primaryAddress] : []].map(
+      (address) => normalizeAddress(address, "to")
+    )
+  );
+  const messagesByThread = /* @__PURE__ */ new Map();
+  for (const message of listIndexedMessages(index)) {
+    const threadMessages = messagesByThread.get(message.threadId);
+    if (threadMessages) {
+      threadMessages.push(message);
+      continue;
+    }
+    messagesByThread.set(message.threadId, [message]);
+  }
+  const summaries = [];
+  for (const [threadId, messages] of messagesByThread) {
+    const includeThread = options.includeThread ? options.includeThread(messages) : messages.some((message) => {
+      var _a4, _b;
+      return (_b = (_a4 = options.includeMessage) == null ? void 0 : _a4.call(options, message)) != null ? _b : true;
+    });
+    if (!includeThread) continue;
+    const summary = buildThreadSummary(index, threadId, messages, {
+      primaryAddress,
+      unreadActors
+    });
+    if (summary) summaries.push(summary);
+  }
+  return sortThreadSummaries(summaries);
+}
+function buildBusIndex(input) {
+  const messagesById = /* @__PURE__ */ new Map();
+  const unreadByActor = /* @__PURE__ */ new Map();
+  const unreadCounts = /* @__PURE__ */ new Map();
+  const deliveredKeys = /* @__PURE__ */ new Set();
+  const readKeys = /* @__PURE__ */ new Set();
+  const lifecycleViolations = [];
+  for (const message of input.messages) {
+    messagesById.set(message.msgId, message);
+  }
+  const index = {
+    messagesById,
+    unreadByActor,
+    unreadCounts,
+    deliveredKeys,
+    readKeys,
+    lifecycleViolations
+  };
+  for (const event of sortEvents(input.events)) {
+    applyEventRecord(index, event);
+  }
+  for (const message of messagesById.values()) {
+    insertUnreadMessage(index, message);
+  }
+  return index;
+}
+function recordMessageWrite(index, message) {
+  index.messagesById.set(message.msgId, message);
+  insertUnreadMessage(index, message);
+}
+function listIndexedMessages(index) {
+  return sortMessages([...index.messagesById.values()]);
+}
+function listPartThreadsFromIndex(index, address) {
+  const normalized = normalizeAddress(address, "to");
+  return buildThreadList(index, {
+    primaryAddress: normalized,
+    unreadActors: [normalized],
+    includeMessage: (message) => message.from === normalized || message.to === normalized
+  });
+}
+function listAllThreadsFromIndex(index, addresses) {
+  const visibleAddresses = new Set(
+    [...addresses].map((address) => normalizeAddress(address, "to"))
+  );
+  if (visibleAddresses.size === 0) return [];
+  return buildThreadList(index, {
+    unreadActors: visibleAddresses,
+    includeThread: (messages) => messages.every(
+      (message) => visibleAddresses.has(message.from) && visibleAddresses.has(message.to)
+    )
+  });
+}
+function listHumanThreadsFromIndex(index) {
+  return buildThreadList(index, {
+    primaryAddress: HUMAN_ADDRESS,
+    unreadActors: [HUMAN_ADDRESS],
+    includeThread: (messages) => messages.some((message) => message.from === HUMAN_ADDRESS || message.to === HUMAN_ADDRESS)
+  });
+}
+function unreadCountForActor(index, actor) {
+  var _a3;
+  return (_a3 = index.unreadCounts.get(normalizeAddress(actor, "to"))) != null ? _a3 : 0;
+}
+
+// packages/shared-domain/src/runtime/contracts.ts
+function createDeliveryObservation(address = null) {
+  return {
+    address,
+    firstDeliveryReadyAt: null,
+    lastDeliveryPollAt: null,
+    lastDeliveryError: null
+  };
+}
+function deriveRuntimeState(status) {
+  switch (status) {
+    case "shell":
+    case "running":
+      return "launching";
+    case "active":
+    case "tool":
+      return "busy";
+    case "waiting":
+    case "idle":
+      return "waiting";
+    case "exited":
+      return "exited";
+    case "crashed":
+      return "failed";
   }
 }
+function deriveManagedDeliveryState(observation) {
+  if (!observation) return "pending";
+  if (observation.firstDeliveryReadyAt === null) return "pending";
+  if (observation.lastDeliveryError) return "degraded";
+  return "ready";
+}
+function buildManagedRoleStatus(input) {
+  var _a3, _b, _c, _d, _e;
+  const observation = input.observation;
+  return {
+    teamId: input.teamId,
+    roleId: input.roleId,
+    address: (_b = (_a3 = observation == null ? void 0 : observation.address) != null ? _a3 : input.address) != null ? _b : null,
+    runtime: deriveRuntimeState(input.terminalStatus),
+    delivery: deriveManagedDeliveryState(observation),
+    terminalStatus: input.terminalStatus,
+    firstDeliveryReadyAt: (_c = observation == null ? void 0 : observation.firstDeliveryReadyAt) != null ? _c : null,
+    lastDeliveryPollAt: (_d = observation == null ? void 0 : observation.lastDeliveryPollAt) != null ? _d : null,
+    lastDeliveryError: (_e = observation == null ? void 0 : observation.lastDeliveryError) != null ? _e : null
+  };
+}
+
+// packages/shared-domain/src/launch/contracts.ts
+var DEFAULT_CC_TEAM_LEAD_MODEL = "claude-opus-4-6";
+var DEFAULT_CC_TEAM_MEMBER_MODEL = "claude-sonnet-4-6";
+var CC_TEAM_COLOR_PALETTE = ["blue", "green", "yellow", "magenta", "cyan", "red", "white"];
+function formatLaunchTimestamp(date2) {
+  const year = String(date2.getFullYear());
+  const month = String(date2.getMonth() + 1).padStart(2, "0");
+  const day = String(date2.getDate()).padStart(2, "0");
+  const hours = String(date2.getHours()).padStart(2, "0");
+  const minutes = String(date2.getMinutes()).padStart(2, "0");
+  const seconds = String(date2.getSeconds()).padStart(2, "0");
+  const milliseconds = String(date2.getMilliseconds()).padStart(3, "0");
+  return `${year}-${month}-${day}-${hours}${minutes}${seconds}-${milliseconds}`;
+}
+function orderedProjectMembers(project) {
+  return [
+    project.ceo,
+    ...project.members.filter((member) => member.roleId !== project.ceo.roleId)
+  ];
+}
+function buildManagedTeamId(project, launchedAt) {
+  const displayName = encodeURIComponent(project.projectDisplayName.trim() || project.projectId);
+  return `${project.projectId}::${displayName}::${formatLaunchTimestamp(launchedAt)}`;
+}
+function buildCCNativeTeamName(project, launchedAt) {
+  return `${project.projectId}-${formatLaunchTimestamp(launchedAt)}`;
+}
+function buildCCAgentId(member, teamName) {
+  return `${member.roleId}@${teamName}`;
+}
+function resolveCCColor(project, member) {
+  const index = orderedProjectMembers(project).findIndex(
+    (candidate) => candidate.roleId === member.roleId
+  );
+  const colorIndex = index >= 0 ? index : 0;
+  return CC_TEAM_COLOR_PALETTE[colorIndex % CC_TEAM_COLOR_PALETTE.length];
+}
+function buildCCTeamConfigContract(project, teamName, leaderSessionId, options) {
+  var _a3, _b;
+  const leadModel = (_a3 = options.leadModel) != null ? _a3 : DEFAULT_CC_TEAM_LEAD_MODEL;
+  const memberModel = (_b = options.memberModel) != null ? _b : DEFAULT_CC_TEAM_MEMBER_MODEL;
+  return {
+    name: teamName,
+    leadAgentId: buildCCAgentId(project.ceo, teamName),
+    leadSessionId: leaderSessionId,
+    members: orderedProjectMembers(project).map((member) => ({
+      agentId: buildCCAgentId(member, teamName),
+      name: member.roleId,
+      agentType: member.isLead ? "team-lead" : member.roleId,
+      model: member.roleId === project.ceo.roleId ? leadModel : memberModel,
+      joinedAt: options.joinedAt,
+      tmuxPaneId: "",
+      cwd: options.cwd,
+      subscriptions: []
+    }))
+  };
+}
+function computeTeamLayout(members) {
+  var _a3;
+  if (members.length === 0) return [];
+  const ceo = (_a3 = members.find((member) => member.isLead)) != null ? _a3 : members[0];
+  const others = members.filter((member) => member.roleId !== ceo.roleId);
+  const middleCount = Math.ceil(others.length / 2);
+  const slots = [
+    { member: ceo, column: 0, row: 0 }
+  ];
+  others.slice(0, middleCount).forEach((member, index) => {
+    slots.push({ member, column: 1, row: index });
+  });
+  others.slice(middleCount).forEach((member, index) => {
+    slots.push({ member, column: 2, row: index });
+  });
+  return slots;
+}
+
+// packages/shared-domain/src/launch/roster.ts
+var PARTS_ROOT = ["agents", "parts"];
+var REQUIRED_HEADERS = ["part", "directory", "owns", "perspective"];
+function toVaultPath(...segments) {
+  return segments.join("/");
+}
+function findProjectDisplayName(lines) {
+  var _a3;
+  for (const line of lines) {
+    const match = line.match(/^\s*#(?!#)\s+(.+?)(?:\s+#+\s*)?\s*$/);
+    if (match) {
+      const name = (_a3 = match[1]) == null ? void 0 : _a3.trim();
+      if (name) return name;
+    }
+  }
+  return null;
+}
+function findCodeRoot(lines) {
+  const idx = lines.findIndex(
+    (line) => /^\s*##(?!#)\s+Code\s+root(?:\s+#+\s*)?\s*$/i.test(line)
+  );
+  if (idx === -1) return null;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (/^\s{0,3}#{1,2}(?!#)\s+/.test(lines[i])) break;
+    const trimmed = lines[i].trim().replace(/^`+|`+$/g, "");
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+function findRosterSection(lines) {
+  const rosterIndex = lines.findIndex(
+    (line) => /^\s*##(?!#)\s+Roster(?:\s+#+\s*)?\s*$/.test(line)
+  );
+  if (rosterIndex === -1) return null;
+  const section = [];
+  for (let i = rosterIndex + 1; i < lines.length; i++) {
+    if (/^\s{0,3}#{1,2}(?!#)\s+/.test(lines[i])) break;
+    section.push(lines[i]);
+  }
+  return section;
+}
+function looksLikeTableRow(line) {
+  return /^\s*\|/.test(line) || /^\s*[^|].*\|.*\|?\s*$/.test(line);
+}
+function splitMarkdownTableRow(line) {
+  let trimmed = line.trim();
+  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+function isSeparatorCell(cell) {
+  return /^:?-{3,}:?$/.test(cell.trim());
+}
+function isSeparatorRow(cells) {
+  return cells.length > 0 && cells.every(isSeparatorCell);
+}
+function normalizeHeader(cell) {
+  return cell.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function normalizeRoleId(directory) {
+  return directory.replace(/`/g, "").trim().replace(/\/+$/, "").trim();
+}
+function normalizeLaunchModel(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+function parseRosterTable(sectionLines, projectId) {
+  var _a3, _b, _c, _d;
+  let tableStart = -1;
+  let headerCells = null;
+  for (let i = 0; i < sectionLines.length - 1; i++) {
+    if (!looksLikeTableRow(sectionLines[i]) || !looksLikeTableRow(sectionLines[i + 1])) {
+      continue;
+    }
+    const maybeHeader = splitMarkdownTableRow(sectionLines[i]);
+    const maybeSeparator = splitMarkdownTableRow(sectionLines[i + 1]);
+    if (!isSeparatorRow(maybeSeparator)) continue;
+    tableStart = i;
+    headerCells = maybeHeader;
+    break;
+  }
+  if (tableStart === -1 || headerCells === null) return null;
+  const headerIndexes = /* @__PURE__ */ new Map();
+  headerCells.forEach((cell, index) => {
+    const normalized = normalizeHeader(cell);
+    if (REQUIRED_HEADERS.includes(normalized)) {
+      headerIndexes.set(normalized, index);
+    }
+  });
+  if (headerIndexes.size !== REQUIRED_HEADERS.length) return null;
+  const members = [];
+  const seenRoleIds = /* @__PURE__ */ new Set();
+  for (let i = tableStart + 2; i < sectionLines.length; i++) {
+    const line = sectionLines[i];
+    if (!looksLikeTableRow(line)) break;
+    const cells = splitMarkdownTableRow(line);
+    if (cells.every((cell) => !cell.trim())) continue;
+    const displayName = (_a3 = cells[headerIndexes.get("part")]) != null ? _a3 : "";
+    const directory = (_b = cells[headerIndexes.get("directory")]) != null ? _b : "";
+    const owns = (_c = cells[headerIndexes.get("owns")]) != null ? _c : "";
+    const perspective = (_d = cells[headerIndexes.get("perspective")]) != null ? _d : "";
+    const roleId = normalizeRoleId(directory);
+    if (!displayName.trim() || !directory.trim() || !roleId) return null;
+    if (seenRoleIds.has(roleId)) return null;
+    seenRoleIds.add(roleId);
+    members.push({
+      roleId,
+      displayName: displayName.trim(),
+      directory: directory.trim(),
+      owns: owns.trim(),
+      perspective: perspective.trim(),
+      address: `${roleId}@${projectId}`,
+      workspacePath: toVaultPath(...PARTS_ROOT, projectId, roleId),
+      isLead: roleId === "ceo"
+    });
+  }
+  return members.length > 0 ? members : null;
+}
+function parsePartsMd(content, projectId) {
+  const lines = content.split(/\r?\n/);
+  const projectDisplayName = findProjectDisplayName(lines);
+  if (!projectDisplayName) return null;
+  const rosterSection = findRosterSection(lines);
+  if (!rosterSection) return null;
+  const members = parseRosterTable(rosterSection, projectId);
+  if (!members) return null;
+  const ceos = members.filter((member) => member.isLead);
+  if (ceos.length !== 1) return null;
+  return {
+    projectId,
+    projectDisplayName,
+    partsMdPath: toVaultPath(...PARTS_ROOT, projectId, "PARTS.md"),
+    workspacePath: toVaultPath(...PARTS_ROOT, projectId),
+    codeRoot: findCodeRoot(lines),
+    managedLaunchModel: null,
+    ccLaunchModel: null,
+    members,
+    ceo: ceos[0]
+  };
+}
+function parseLaunchConfig(raw2) {
+  var _a3, _b;
+  let parsed = {};
+  try {
+    parsed = JSON.parse(raw2);
+  } catch (e) {
+    return {
+      managedLaunchModel: null,
+      ccLaunchModel: null
+    };
+  }
+  const fallback = normalizeLaunchModel(parsed.launchModel);
+  return {
+    managedLaunchModel: (_a3 = normalizeLaunchModel(parsed.managedLaunchModel)) != null ? _a3 : fallback,
+    ccLaunchModel: (_b = normalizeLaunchModel(parsed.ccLaunchModel)) != null ? _b : fallback
+  };
+}
+
+// src/inbox-bus.ts
+var DEFAULT_WATCHED_INBOX_ADDRESSES = [HUMAN_ADDRESS, "ceo@matt-stack"];
+var PARTS_ROOT2 = "agents/parts";
+var cacheByApp = /* @__PURE__ */ new WeakMap();
+function collectMarkdownFiles(root) {
+  if (!root) return [];
+  const files = [];
+  const queue = [...root.children];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    if (current instanceof import_obsidian3.TFolder) {
+      queue.push(...current.children);
+      continue;
+    }
+    if (current instanceof import_obsidian3.TFile && current.extension === "md") {
+      files.push(current);
+    }
+  }
+  return files;
+}
+function getBusFolder(app, privacy, kind) {
+  const folder = app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(`${BUS_ROOT}/${privacy}/${kind}`));
+  return folder instanceof import_obsidian3.TFolder ? folder : null;
+}
+function getVaultBasePath(app) {
+  var _a3;
+  const adapter = app.vault.adapter;
+  return ((_a3 = typeof adapter.getBasePath === "function" ? adapter.getBasePath() : adapter.basePath) != null ? _a3 : "").trim();
+}
+function readFrontmatterFromDisk(app, file) {
+  const vaultBase = getVaultBasePath(app);
+  if (!vaultBase) return null;
+  try {
+    const raw2 = fs3.readFileSync(path4.join(vaultBase, (0, import_obsidian3.normalizePath)(file.path)), "utf8");
+    return parseRawFrontmatter(raw2);
+  } catch (e) {
+    return null;
+  }
+}
+function fileCacheFrontmatter(app, file) {
+  const cache = app.metadataCache.getFileCache(file);
+  const frontmatter = cache == null ? void 0 : cache.frontmatter;
+  if (frontmatter) {
+    return frontmatter;
+  }
+  return readFrontmatterFromDisk(app, file);
+}
+function toIndexedMessageFile(app, file, privacy) {
+  const record = parseIndexedMessageRecord(fileCacheFrontmatter(app, file), file.path, privacy);
+  if (!record) return null;
+  return { ...record, file };
+}
+function toIndexedEvent(app, file, privacy) {
+  return parseIndexedEventRecord(fileCacheFrontmatter(app, file), file.path, privacy);
+}
+function buildBusIndex2(app) {
+  const messages = [];
+  const events = [];
+  for (const privacy of ["local", "shared"]) {
+    for (const file of collectMarkdownFiles(getBusFolder(app, privacy, "messages"))) {
+      const message = toIndexedMessageFile(app, file, privacy);
+      if (message) messages.push(message);
+    }
+    for (const file of collectMarkdownFiles(getBusFolder(app, privacy, "events"))) {
+      const event = toIndexedEvent(app, file, privacy);
+      if (event) events.push(event);
+    }
+  }
+  return buildBusIndex({ messages, events });
+}
+function getCacheState(app) {
+  let state = cacheByApp.get(app);
+  if (!state) {
+    state = { dirty: true, wired: false, index: null, notify: null };
+    cacheByApp.set(app, state);
+  }
+  if (!state.wired) wireCacheInvalidation(app, state);
+  return state;
+}
+function isBusPath(filePath) {
+  return (0, import_obsidian3.normalizePath)(filePath).startsWith(`${BUS_ROOT}/`);
+}
+function wireCacheInvalidation(app, state) {
+  if (state.wired) return;
+  state.wired = true;
+  const markDirty = (filePath) => {
+    var _a3;
+    if (filePath && isBusPath(filePath)) {
+      state.dirty = true;
+      (_a3 = state.notify) == null ? void 0 : _a3.call(state);
+    }
+  };
+  app.vault.on("create", (file) => markDirty(file.path));
+  app.vault.on("modify", (file) => markDirty(file.path));
+  app.vault.on("delete", (file) => markDirty(file.path));
+  app.vault.on("rename", (file, oldPath) => {
+    markDirty(oldPath);
+    markDirty(file.path);
+  });
+  app.metadataCache.on("resolved", () => {
+    state.dirty = true;
+  });
+}
+function getBusIndex(app) {
+  const state = getCacheState(app);
+  if (!state.dirty && state.index) return state.index;
+  const index = buildBusIndex2(app);
+  state.index = index;
+  state.dirty = false;
+  return index;
+}
+function recordMessageWrite2(app, message) {
+  const state = getCacheState(app);
+  if (!state.index) {
+    state.index = buildBusIndex2(app);
+    state.dirty = false;
+    return;
+  }
+  state.dirty = false;
+  recordMessageWrite(state.index, message);
+}
 async function ensureFolder(app, folderPath) {
-  const normalized = (0, import_obsidian2.normalizePath)(folderPath);
+  const normalized = (0, import_obsidian3.normalizePath)(folderPath);
   if (app.vault.getAbstractFileByPath(normalized)) return;
   const parts = normalized.split("/");
   let current = "";
@@ -18510,234 +19364,57 @@ async function ensureFolder(app, folderPath) {
     }
   }
 }
-function buildMessageFrontmatter(message) {
-  return [
-    "---",
-    `msg_id: ${message.msgId}`,
-    `thread_id: ${message.threadId}`,
-    `from: ${message.from}`,
-    `to: ${message.to}`,
-    `msg_type: ${message.msgType}`,
-    `subject: ${yamlQuote(message.subject)}`,
-    `created_at: ${message.createdAt}`,
-    `habitat: ${message.habitat}`,
-    `privacy: ${message.privacy}`,
-    `reply_to: ${message.replyTo || "null"}`,
-    "---"
-  ].join("\n");
-}
-function buildEventFrontmatter(eventId, message, eventType, actor, createdAt) {
-  return [
-    "---",
-    `event_id: ${eventId}`,
-    `msg_id: ${message.msgId}`,
-    `thread_id: ${message.threadId}`,
-    `event_type: ${eventType}`,
-    `actor: ${actor}`,
-    "via: augment-ui",
-    `created_at: ${createdAt}`,
-    "---"
-  ].join("\n");
-}
-function buildSignalContent(message, createdAt = canonicalTimestamp()) {
-  return `${JSON.stringify(
-    {
-      to: message.to,
-      msg_id: message.msgId,
-      thread_id: message.threadId,
-      created_at: createdAt
-    },
-    null,
-    2
-  )}
-`;
-}
-function toInboxMessage(message, rawBody) {
-  const parsed = decodeSourceNoteBody(rawBody);
-  return {
-    msgId: message.msgId,
-    threadId: message.threadId,
-    from: message.from,
-    to: message.to,
-    msgType: message.msgType,
-    subject: message.subject,
-    replyTo: message.replyTo,
-    createdAt: message.createdAt,
-    habitat: message.habitat,
-    privacy: message.privacy,
-    sourceNote: parsed.sourceNote || message.sourceNote,
-    body: parsed.body,
-    filePath: message.filePath
-  };
-}
-function listIndexedMessages(index) {
-  return sortMessages([...index.messagesById.values()]);
-}
-function getIndexedThreadMessages(index, threadId) {
-  const normalized = normalizeReplyTo(threadId);
-  return listIndexedMessages(index).filter((message) => message.threadId === normalized);
-}
-function buildThreadSummary(index, threadId, messages, primaryAddress) {
-  var _a2;
-  if (messages.length === 0) return null;
-  const ordered = sortMessages([...messages]);
-  const first2 = ordered[0];
-  const last2 = ordered[ordered.length - 1];
-  const lastActivityAt = last2.createdAt;
-  const participants = /* @__PURE__ */ new Set();
-  for (const message of ordered) {
-    participants.add(message.from);
-    participants.add(message.to);
+function legacyInboxFolderPath(address) {
+  const [partName, habitat] = address.split("@");
+  if (habitat && habitat !== "vault") {
+    return (0, import_obsidian3.normalizePath)(`${PARTS_ROOT2}/${habitat}/${partName}/inbox`);
   }
-  const counterparty = (_a2 = [...participants].find((address) => address !== primaryAddress)) != null ? _a2 : last2.from;
-  return {
-    threadId,
-    subject: first2.subject || last2.subject || "Message",
-    lastSender: last2.from,
-    counterparty,
-    lastActivityAt,
-    lastActivityAge: Math.max(0, Date.now() - parseTimestampMs(lastActivityAt)),
-    messageCount: ordered.length,
-    hasUnread: ordered.some(
-      (message) => message.to === primaryAddress && !index.readKeys.has(eventKey(message.msgId, primaryAddress))
-    )
-  };
+  return (0, import_obsidian3.normalizePath)(`${PARTS_ROOT2}/${partName}/inbox`);
 }
-function sortThreadSummaries(threads) {
-  return threads.sort((a, b) => {
-    const activityCompare = parseTimestampMs(b.lastActivityAt) - parseTimestampMs(a.lastActivityAt);
-    return activityCompare !== 0 ? activityCompare : a.threadId.localeCompare(b.threadId);
-  });
-}
-function buildThreadList(app, primaryAddress, includeMessage) {
-  const index = getBusIndex(app);
-  const threadIds = /* @__PURE__ */ new Set();
-  for (const message of listIndexedMessages(index)) {
-    if (includeMessage(message)) {
-      threadIds.add(message.threadId);
-    }
-  }
-  const summaries = [];
-  for (const threadId of threadIds) {
-    const messages = getIndexedThreadMessages(index, threadId);
-    const summary = buildThreadSummary(index, threadId, messages, primaryAddress);
-    if (summary) summaries.push(summary);
-  }
-  return sortThreadSummaries(summaries);
-}
-async function writeEvent(app, message, eventType, actor, createdAt) {
-  const eventId = crypto.randomUUID().toLowerCase();
-  const folder = eventFolderPath(message.privacy, createdAt);
-  await ensureFolder(app, folder);
-  const path6 = eventFilePath(message.privacy, createdAt, eventType, message.msgId, eventId);
-  const content = `${buildEventFrontmatter(eventId, message, eventType, actor, createdAt)}
-`;
-  await app.vault.create(path6, content);
-  recordEventWrite(app, {
-    msgId: message.msgId,
-    threadId: message.threadId,
-    eventType,
-    actor,
-    privacy: message.privacy
-  });
+function legacyInboxFilePath(address, createdAt, msgId) {
+  const shortId = msgId.slice(0, 8);
+  return (0, import_obsidian3.normalizePath)(
+    `${legacyInboxFolderPath(address)}/${filenameTimestamp(createdAt)}-${shortId}.md`
+  );
 }
 async function writeMessage(app, opts) {
-  var _a2, _b, _c;
-  const to = normalizeAddress(opts.to, "to");
-  const from = normalizeAddress(opts.from, "from");
-  const msgId = crypto.randomUUID().toLowerCase();
-  const replyTo = normalizeReplyTo(opts.replyTo);
-  const threadId = (((_a2 = opts.threadId) == null ? void 0 : _a2.trim()) || replyTo || msgId).toLowerCase();
-  const createdAt = canonicalTimestamp();
-  const privacy = normalizePrivacy(opts.privacy);
-  const message = {
-    file: null,
-    filePath: "",
-    msgId,
-    threadId,
-    from,
-    to,
-    msgType: normalizeMessageType(opts.msgType),
-    subject: normalizeSubject(opts.subject),
-    replyTo,
-    createdAt,
-    habitat: extractHabitat(from),
-    privacy,
-    sourceNote: (_c = (_b = opts.sourceNote) == null ? void 0 : _b.trim()) != null ? _c : ""
-  };
-  const folder = messageFolderPath(privacy, createdAt);
-  await ensureFolder(app, folder);
-  const path6 = messageFilePath(privacy, createdAt, msgId);
-  const body = encodeSourceNoteBody(message.sourceNote, opts.body);
-  const content = `${buildMessageFrontmatter(message)}
-
-${body}`;
-  const file = await app.vault.create(path6, content);
-  message.file = file;
-  message.filePath = path6;
-  recordMessageWrite(app, message);
+  const plan = planMessageWrite(opts);
+  await ensureFolder(app, plan.folderPath);
+  const file = await app.vault.create(plan.filePath, plan.content);
+  recordMessageWrite2(app, { ...plan.record, file });
   await ensureFolder(app, SIGNALS_ROOT);
-  await app.vault.adapter.write(signalFilePath(message.to), buildSignalContent(message));
-  const legacyInboxFolder = legacyInboxFolderPath(message.to);
+  await app.vault.adapter.write(plan.signalPath, plan.signalContent);
+  const legacyInboxFolder = legacyInboxFolderPath(plan.record.to);
   await ensureFolder(app, legacyInboxFolder);
-  await app.vault.create(legacyInboxFilePath(message.to, createdAt, msgId), content);
-  return path6;
+  await app.vault.create(
+    legacyInboxFilePath(plan.record.to, plan.record.createdAt, plan.record.msgId),
+    plan.content
+  );
+  return plan.filePath;
 }
 function listPartThreads(app, address) {
-  const normalized = normalizeAddress(address, "to");
-  return buildThreadList(
-    app,
-    normalized,
-    (message) => message.from === normalized || message.to === normalized
-  );
+  return listPartThreadsFromIndex(getBusIndex(app), address);
+}
+function listAllThreads(app, addresses) {
+  return listAllThreadsFromIndex(getBusIndex(app), addresses);
 }
 function listHumanThreads(app) {
-  return buildThreadList(app, HUMAN_ADDRESS, (message) => message.to === HUMAN_ADDRESS);
-}
-async function getThread(app, threadId) {
-  const messages = getIndexedThreadMessages(getBusIndex(app), threadId);
-  if (messages.length === 0) return [];
-  const transcript = [];
-  for (const message of messages) {
-    try {
-      const raw2 = await app.vault.cachedRead(message.file);
-      const body = stripFrontmatter(raw2).trim();
-      transcript.push(toInboxMessage(message, body));
-    } catch (e) {
-    }
-  }
-  return transcript.sort((a, b) => {
-    const createdCompare = a.createdAt.localeCompare(b.createdAt);
-    return createdCompare !== 0 ? createdCompare : a.msgId.localeCompare(b.msgId);
-  });
-}
-async function markThreadRead(app, threadId, actor = HUMAN_ADDRESS) {
-  const normalizedActor = normalizeAddress(actor, "to");
-  const index = getBusIndex(app);
-  const messages = getIndexedThreadMessages(index, threadId).filter(
-    (message) => message.to === normalizedActor
-  );
-  if (messages.length === 0) return;
-  for (const message of messages) {
-    const key = eventKey(message.msgId, normalizedActor);
-    const hadDelivered = index.deliveredKeys.has(key);
-    if (!hadDelivered) {
-      await writeEvent(app, message, "delivered", normalizedActor, canonicalTimestamp());
-    }
-    if (!index.readKeys.has(key)) {
-      await writeEvent(app, message, "read", normalizedActor, canonicalTimestamp());
-    }
-  }
+  return listHumanThreadsFromIndex(getBusIndex(app));
 }
 function unreadCount(app, partName) {
-  var _a2;
-  const actor = normalizeAddress(partName, "to");
-  return (_a2 = getBusIndex(app).unreadCounts.get(actor)) != null ? _a2 : 0;
+  return unreadCountForActor(getBusIndex(app), partName);
 }
-function hasPartState(app, workspacePath) {
-  return app.vault.getAbstractFileByPath(
-    (0, import_obsidian2.normalizePath)(`${workspacePath}/.state/current.md`)
-  ) instanceof import_obsidian2.TFile;
+function unreadCountForAddresses(app, addresses) {
+  const index = getBusIndex(app);
+  const normalized = Array.from(
+    new Set(
+      addresses.map((address) => normalizeAddress(address, "to")).filter((address) => address.length > 0)
+    )
+  );
+  return normalized.reduce(
+    (total, address) => total + unreadCountForActor(index, address),
+    0
+  );
 }
 function setBusNotifier(app, fn) {
   const state = getCacheState(app);
@@ -18746,13 +19423,20 @@ function setBusNotifier(app, fn) {
     if (state.notify === fn) state.notify = null;
   };
 }
+
+// src/part-registry.ts
+var import_obsidian4 = require("obsidian");
+var PARTS_ROOT3 = "agents/parts";
+function hasVisiblePartWorkspace(app, workspacePath) {
+  return app.vault.getAbstractFileByPath((0, import_obsidian4.normalizePath)(`${workspacePath}/sessions`)) instanceof import_obsidian4.TFolder || app.vault.getAbstractFileByPath((0, import_obsidian4.normalizePath)(`${workspacePath}/inbox`)) instanceof import_obsidian4.TFolder || app.vault.getAbstractFileByPath((0, import_obsidian4.normalizePath)(`${workspacePath}/config.md`)) instanceof import_obsidian4.TFile;
+}
 function discoverVaultParts(app) {
-  const partsFolder = app.vault.getAbstractFileByPath(PARTS_ROOT);
-  if (!(partsFolder instanceof import_obsidian2.TFolder)) return [];
+  const partsFolder = app.vault.getAbstractFileByPath(PARTS_ROOT3);
+  if (!(partsFolder instanceof import_obsidian4.TFolder)) return [];
   const parts = [];
   for (const child of partsFolder.children) {
-    if (!(child instanceof import_obsidian2.TFolder)) continue;
-    if (hasPartState(app, child.path)) {
+    if (!(child instanceof import_obsidian4.TFolder)) continue;
+    if (hasVisiblePartWorkspace(app, child.path)) {
       parts.push({
         name: child.name,
         address: `${child.name}@vault`,
@@ -18762,7 +19446,7 @@ function discoverVaultParts(app) {
       });
       continue;
     }
-    const projectParts = child.children.filter((grandchild) => grandchild instanceof import_obsidian2.TFolder).filter((grandchild) => hasPartState(app, grandchild.path)).map((grandchild) => ({
+    const projectParts = child.children.filter((grandchild) => grandchild instanceof import_obsidian4.TFolder).filter((grandchild) => hasVisiblePartWorkspace(app, grandchild.path)).map((grandchild) => ({
       name: grandchild.name,
       address: `${grandchild.name}@${child.name}`,
       habitat: child.name,
@@ -18780,7 +19464,7 @@ function discoverVaultParts(app) {
 }
 
 // src/inbox-suggest.ts
-var InboxSuggest = class extends import_obsidian3.EditorSuggest {
+var InboxSuggest = class extends import_obsidian5.EditorSuggest {
   constructor(app) {
     super(app);
   }
@@ -18815,14 +19499,14 @@ var InboxSuggest = class extends import_obsidian3.EditorSuggest {
     });
   }
   selectSuggestion(part) {
-    var _a2;
+    var _a3;
     const ctx = this.context;
     if (!ctx) return;
     const editor = ctx.editor;
     const selection = editor.getSelection().trim();
     editor.replaceRange("", ctx.start, ctx.end);
     const activeFile = this.app.workspace.getActiveFile();
-    const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
+    const sourceNote = (_a3 = activeFile == null ? void 0 : activeFile.basename) != null ? _a3 : "";
     new ComposeModal(
       this.app,
       part.address,
@@ -18832,7 +19516,7 @@ var InboxSuggest = class extends import_obsidian3.EditorSuggest {
     ).open();
   }
 };
-var ComposeModal = class extends import_obsidian3.Modal {
+var ComposeModal = class extends import_obsidian5.Modal {
   constructor(app, recipientAddress, recipientLabel, sourceNote, initialBody, options = {}) {
     super(app);
     this.recipientAddress = recipientAddress;
@@ -18875,9 +19559,9 @@ var ComposeModal = class extends import_obsidian3.Modal {
     sendBtn.addEventListener("click", () => this.submit(textarea.value));
   }
   submit(body) {
-    var _a2, _b;
+    var _a3, _b;
     const trimmedBody = body.trim();
-    const subject = ((_a2 = this.options.subject) == null ? void 0 : _a2.trim()) || trimmedBody.slice(0, 80) || "Message";
+    const subject = ((_a3 = this.options.subject) == null ? void 0 : _a3.trim()) || trimmedBody.slice(0, 80) || "Message";
     void writeMessage(this.app, {
       to: this.recipientAddress,
       from: (_b = this.options.from) != null ? _b : "user",
@@ -18887,9 +19571,9 @@ var ComposeModal = class extends import_obsidian3.Modal {
       threadId: this.options.threadId,
       replyTo: this.options.replyTo
     }).then(() => {
-      new import_obsidian3.Notice(`Sent to ${this.recipientLabel}`);
+      new import_obsidian5.Notice(`Sent to ${this.recipientLabel}`);
     }).catch((err) => {
-      new import_obsidian3.Notice(`Failed to send to ${this.recipientLabel}: ${String(err)}`);
+      new import_obsidian5.Notice(`Failed to send to ${this.recipientLabel}: ${String(err)}`);
     });
     this.close();
   }
@@ -18899,7 +19583,7 @@ var ComposeModal = class extends import_obsidian3.Modal {
 };
 
 // src/context-inspector-view.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/vault-context.ts
 var DEFAULT_SETTINGS = {
@@ -18939,9 +19623,9 @@ function stripObsidianMeta(fm) {
   return Object.keys(rest).length > 0 ? rest : null;
 }
 function assembleVaultContext(app, editor, settings) {
-  var _a2, _b, _c, _d, _e, _f;
+  var _a3, _b, _c, _d, _e, _f;
   const activeFile = app.workspace.getActiveFile();
-  const title = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "Untitled";
+  const title = (_a3 = activeFile == null ? void 0 : activeFile.basename) != null ? _a3 : "Untitled";
   const rawFrontmatter = activeFile ? (_c = (_b = app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _b.frontmatter) != null ? _c : null : null;
   const frontmatter = stripObsidianMeta(rawFrontmatter);
   const selection = editor.getSelection();
@@ -18986,9 +19670,9 @@ async function populateLinkedNoteContent(app, ctx, maxCharsPerNote = 3e3) {
   }
 }
 async function assembleNoteContext(app, file, settings) {
-  var _a2, _b, _c, _d, _e;
+  var _a3, _b, _c, _d, _e;
   const title = file.basename;
-  const rawFrontmatter = (_b = (_a2 = app.metadataCache.getFileCache(file)) == null ? void 0 : _a2.frontmatter) != null ? _b : null;
+  const rawFrontmatter = (_b = (_a3 = app.metadataCache.getFileCache(file)) == null ? void 0 : _a3.frontmatter) != null ? _b : null;
   const frontmatter = stripObsidianMeta(rawFrontmatter);
   const content = await app.vault.cachedRead(file);
   const surroundingContext = content.split("\n").slice(0, 200).join("\n");
@@ -19031,7 +19715,7 @@ function formatTimeAgo(ms) {
   const hr = Math.round(min / 60);
   return `${hr}h ago`;
 }
-var ContextInspectorView = class extends import_obsidian4.ItemView {
+var ContextInspectorView = class extends import_obsidian6.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.lastEditorView = null;
@@ -19053,9 +19737,9 @@ var ContextInspectorView = class extends import_obsidian4.ItemView {
     this.contentDiv.addClass("augment-ctx-panel");
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
-        var _a2, _b, _c;
-        if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian4.MarkdownView) {
-          const prev = (_b = (_a2 = this.lastEditorView) == null ? void 0 : _a2.file) == null ? void 0 : _b.path;
+        var _a3, _b, _c;
+        if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian6.MarkdownView) {
+          const prev = (_b = (_a3 = this.lastEditorView) == null ? void 0 : _a3.file) == null ? void 0 : _b.path;
           this.lastEditorView = leaf.view;
           if (((_c = leaf.view.file) == null ? void 0 : _c.path) !== prev) {
             this.refreshToCursor();
@@ -19070,7 +19754,7 @@ var ContextInspectorView = class extends import_obsidian4.ItemView {
         this.refresh();
       })
     );
-    const current = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const current = this.app.workspace.getActiveViewOfType(import_obsidian6.MarkdownView);
     if (current) this.lastEditorView = current;
     this.refresh();
   }
@@ -19095,15 +19779,15 @@ var ContextInspectorView = class extends import_obsidian4.ItemView {
     this.render(ctx, this.lastEditorView);
   }
   render(ctx, activeView) {
-    var _a2, _b;
+    var _a3, _b;
     const el = this.contentDiv;
     const headerEl = el.createEl("div", { cls: "augment-ctx-panel-header" });
     const headerLeft = headerEl.createEl("span", { cls: "augment-ctx-panel-header-left" });
     const iconEl = headerLeft.createEl("span", { cls: "augment-ctx-panel-header-icon" });
-    (0, import_obsidian4.setIcon)(iconEl, "radio-tower");
+    (0, import_obsidian6.setIcon)(iconEl, "radio-tower");
     headerLeft.createEl("span", { text: "Context inspector" });
     const refreshBtn = headerEl.createEl("span", { cls: "augment-ctx-refresh clickable-icon" });
-    (0, import_obsidian4.setIcon)(refreshBtn, "refresh-cw");
+    (0, import_obsidian6.setIcon)(refreshBtn, "refresh-cw");
     refreshBtn.addEventListener("click", () => this.refreshToCursor());
     const subtitleEl = el.createEl("div", { cls: "augment-ctx-panel-subtitle" });
     if (this.state === "post-generation") {
@@ -19144,7 +19828,7 @@ ${key}: ${valStr}`;
     const totalCost = inCost + outCost;
     const tokenBar = el.createEl("div", { cls: "augment-ctx-token-bar" });
     const barChevron = tokenBar.createEl("span", { cls: "augment-ctx-token-bar-chevron" });
-    (0, import_obsidian4.setIcon)(barChevron, "chevron-right");
+    (0, import_obsidian6.setIcon)(barChevron, "chevron-right");
     tokenBar.createEl("span", {
       cls: "augment-ctx-token-bar-summary",
       text: `${totalTokens.toLocaleString()} tokens \xB7 ~${formatCost(totalCost)}`
@@ -19166,7 +19850,7 @@ ${key}: ${valStr}`;
     const sysSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible" });
     const sysHdr = sysSection.createEl("div", { cls: "augment-ctx-section-hdr" });
     const sysChevron = sysHdr.createEl("span", { cls: "augment-ctx-chevron" });
-    (0, import_obsidian4.setIcon)(sysChevron, "chevron-right");
+    (0, import_obsidian6.setIcon)(sysChevron, "chevron-right");
     sysHdr.createEl("span", { cls: "augment-ctx-section-label", text: "System prompt" });
     sysHdr.createEl("span", { cls: "augment-ctx-token-count", text: `~${sysTokens} tokens` });
     const sysContent = sysSection.createEl("div", { cls: "augment-ctx-collapsible-content" });
@@ -19180,12 +19864,12 @@ ${key}: ${valStr}`;
       setting.open();
       setting.openTabById("augment-terminal");
       setTimeout(() => {
-        var _a3, _b2;
-        const tab = (_b2 = (_a3 = setting.containerEl) == null ? void 0 : _a3.querySelector) == null ? void 0 : _b2.call(_a3, ".augment-tab:nth-child(2)");
+        var _a4, _b2;
+        const tab = (_b2 = (_a4 = setting.containerEl) == null ? void 0 : _a4.querySelector) == null ? void 0 : _b2.call(_a4, ".augment-tab:nth-child(2)");
         tab == null ? void 0 : tab.click();
         setTimeout(() => {
-          var _a4, _b3;
-          const textarea = (_b3 = (_a4 = setting.containerEl) == null ? void 0 : _a4.querySelector) == null ? void 0 : _b3.call(_a4, "textarea");
+          var _a5, _b3;
+          const textarea = (_b3 = (_a5 = setting.containerEl) == null ? void 0 : _a5.querySelector) == null ? void 0 : _b3.call(_a5, "textarea");
           textarea == null ? void 0 : textarea.focus();
         }, 50);
       }, 50);
@@ -19196,7 +19880,7 @@ ${key}: ${valStr}`;
     const noteSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible is-open" });
     const noteHdr = noteSection.createEl("div", { cls: "augment-ctx-section-hdr" });
     const noteChevron = noteHdr.createEl("span", { cls: "augment-ctx-chevron" });
-    (0, import_obsidian4.setIcon)(noteChevron, "chevron-right");
+    (0, import_obsidian6.setIcon)(noteChevron, "chevron-right");
     noteHdr.createEl("span", {
       cls: "augment-ctx-section-label",
       text: `This note \u2014 \u201C${ctx.title}\u201D`
@@ -19211,10 +19895,10 @@ ${key}: ${valStr}`;
     if (linkedData.length > 0) {
       const linkedSection = scroll.createEl("div", { cls: "augment-ctx-section augment-ctx-collapsible is-open" });
       const activeFile = activeView.file;
-      const totalLinks = activeFile ? ((_b = (_a2 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a2.links) != null ? _b : []).length : linkedData.length;
+      const totalLinks = activeFile ? ((_b = (_a3 = this.app.metadataCache.getFileCache(activeFile)) == null ? void 0 : _a3.links) != null ? _b : []).length : linkedData.length;
       const linkedHdr = linkedSection.createEl("div", { cls: "augment-ctx-section-hdr" });
       const linkedChevron = linkedHdr.createEl("span", { cls: "augment-ctx-chevron" });
-      (0, import_obsidian4.setIcon)(linkedChevron, "chevron-right");
+      (0, import_obsidian6.setIcon)(linkedChevron, "chevron-right");
       linkedHdr.createEl("span", {
         cls: "augment-ctx-section-label",
         text: `Linked notes (${linkedData.length} of ${totalLinks})`
@@ -19229,7 +19913,7 @@ ${key}: ${valStr}`;
         const row = list.createEl("div", { cls: "augment-ctx-linked-row" });
         const header = row.createEl("div", { cls: "augment-ctx-linked-row-header" });
         const chevron = header.createEl("span", { cls: "augment-ctx-linked-chevron" });
-        (0, import_obsidian4.setIcon)(chevron, "chevron-right");
+        (0, import_obsidian6.setIcon)(chevron, "chevron-right");
         header.createEl("span", { cls: "augment-ctx-linked-row-title", text: note.title });
         header.createEl("span", { cls: "augment-ctx-linked-row-token-count", text: `~${tokens}` });
         const content = row.createEl("div", { cls: "augment-ctx-linked-row-content" });
@@ -19246,24 +19930,27 @@ ${key}: ${valStr}`;
 };
 
 // src/part-inbox-view.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/terminal-view.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 var import_xterm = __toESM(require_xterm());
 var import_addon_fit = __toESM(require_addon_fit());
 var import_addon_web_links = __toESM(require_addon_web_links());
 var import_addon_canvas = __toESM(require_addon_canvas());
+var import_fs3 = require("fs");
+var import_os3 = require("os");
+var import_path10 = require("path");
 
 // src/pty-bridge.ts
-var import_child_process = require("child_process");
-var import_path8 = require("path");
+var import_child_process2 = require("child_process");
+var import_path9 = require("path");
 var import_fs = require("fs");
-var import_os = require("os");
-var STAGING_DIR = (0, import_path8.join)((0, import_os.tmpdir)(), "augment-pty");
+var import_os2 = require("os");
+var STAGING_DIR = (0, import_path9.join)((0, import_os2.tmpdir)(), "augment-pty");
 function stageBinary(sourcePath, binaryName) {
   if (!(0, import_fs.existsSync)(STAGING_DIR)) (0, import_fs.mkdirSync)(STAGING_DIR, { recursive: true });
-  const staged = (0, import_path8.join)(STAGING_DIR, binaryName);
+  const staged = (0, import_path9.join)(STAGING_DIR, binaryName);
   let needsCopy = !(0, import_fs.existsSync)(staged);
   if (!needsCopy) {
     try {
@@ -19279,7 +19966,7 @@ function stageBinary(sourcePath, binaryName) {
     (0, import_fs.chmodSync)(staged, 493);
     if (process.platform === "darwin") {
       try {
-        (0, import_child_process.execFileSync)("codesign", ["-s", "-", "-f", staged], { stdio: "ignore" });
+        (0, import_child_process2.execFileSync)("codesign", ["-s", "-", "-f", staged], { stdio: "ignore" });
       } catch (e) {
       }
     }
@@ -19327,7 +20014,7 @@ var PtyBridge = class {
     const platform = process.platform;
     const arch = process.arch === "arm64" ? "arm64" : "x64";
     const binaryName = `augment-pty-${platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
-    const sourcePath = (0, import_path8.join)(this.pluginDir, "scripts", binaryName);
+    const sourcePath = (0, import_path9.join)(this.pluginDir, "scripts", binaryName);
     const candidates = [];
     try {
       const stagedPath = stageBinary(sourcePath, binaryName);
@@ -19351,16 +20038,16 @@ var PtyBridge = class {
     };
     let candidateIndex = 0;
     const spawnCandidate = () => {
-      var _a2, _b, _c, _d;
+      var _a3, _b, _c, _d;
       const binaryPath = candidates[candidateIndex];
       const startedAt = Date.now();
-      this.process = (0, import_child_process.spawn)(binaryPath, [], {
+      this.process = (0, import_child_process2.spawn)(binaryPath, [], {
         cwd: this.cwd,
         env,
         stdio: ["pipe", "pipe", "pipe", "pipe"]
       });
       this.controlStream = this.process.stdio[3];
-      (_a2 = this.process.stdout) == null ? void 0 : _a2.setEncoding("utf-8");
+      (_a3 = this.process.stdout) == null ? void 0 : _a3.setEncoding("utf-8");
       (_b = this.process.stdout) == null ? void 0 : _b.on("data", (data) => {
         this.onData(data);
       });
@@ -19383,7 +20070,7 @@ var PtyBridge = class {
         this.onExit(code != null ? code : 0, signal != null ? signal : null);
       });
       this.process.on("error", (err) => {
-        var _a3;
+        var _a4;
         console.error("[augment-pty] Process error:", err);
         this.process = null;
         this.controlStream = null;
@@ -19395,19 +20082,19 @@ var PtyBridge = class {
         }
         if (this.didExit) return;
         this.didExit = true;
-        (_a3 = this.onError) == null ? void 0 : _a3.call(this, err);
+        (_a4 = this.onError) == null ? void 0 : _a4.call(this, err);
         this.onExit(1);
       });
     };
     spawnCandidate();
   }
   write(data) {
-    var _a2, _b;
-    (_b = (_a2 = this.process) == null ? void 0 : _a2.stdin) == null ? void 0 : _b.write(data);
+    var _a3, _b;
+    (_b = (_a3 = this.process) == null ? void 0 : _a3.stdin) == null ? void 0 : _b.write(data);
   }
   resize(rows, cols) {
-    var _a2;
-    (_a2 = this.controlStream) == null ? void 0 : _a2.write(`R${rows},${cols}
+    var _a3;
+    (_a3 = this.controlStream) == null ? void 0 : _a3.write(`R${rows},${cols}
 `);
   }
   kill() {
@@ -19422,9 +20109,9 @@ var PtyBridge = class {
 };
 
 // src/deps.ts
-var import_child_process2 = require("child_process");
+var import_child_process3 = require("child_process");
 var import_fs2 = require("fs");
-var path2 = __toESM(require("path"));
+var path5 = __toESM(require("path"));
 var DETECT_DEPS_SUCCESS_TTL_MS = 6e4;
 var cachedRuntimeDeps = null;
 var runtimeDepsInFlight = null;
@@ -19432,18 +20119,18 @@ var runtimeDepsEpoch = 0;
 function shellEnv() {
   const home = process.env.HOME || process.env.USERPROFILE || "";
   const extra = [
-    path2.join(home, ".local", "bin"),
-    path2.join(home, ".nvm", "versions", "node"),
+    path5.join(home, ".local", "bin"),
+    path5.join(home, ".nvm", "versions", "node"),
     // nvm
     "/usr/local/bin",
     "/opt/homebrew/bin"
   ].filter((p) => (0, import_fs2.existsSync)(p));
   const current = process.env.PATH || "";
-  return { ...process.env, PATH: [...extra, current].join(path2.delimiter) };
+  return { ...process.env, PATH: [...extra, current].join(path5.delimiter) };
 }
 function execAsync(cmd, env) {
   return new Promise((resolve2, reject2) => {
-    (0, import_child_process2.exec)(cmd, { timeout: 1e4, env }, (err, stdout, stderr) => {
+    (0, import_child_process3.exec)(cmd, { timeout: 1e4, env }, (err, stdout, stderr) => {
       if (err) reject2(err);
       else resolve2({ stdout, stderr });
     });
@@ -19814,6 +20501,8 @@ var MAX_SNAPSHOT_CHARS = 2e5;
 var MAX_PARSE_BUFFER_CHARS = 24e3;
 var MAX_TEAM_EVENTS = 40;
 var EVENT_DEDUP_WINDOW_MS = 1200;
+var _a2;
+var EXTERNAL_WAKE_STATE_DIR = ((_a2 = process.env.LAREDO_BUS_AUGMENT_STATUS_DIR) == null ? void 0 : _a2.trim()) || (process.platform === "win32" ? (0, import_path10.join)((0, import_os3.tmpdir)(), "laredo-bus", "augment-terminal-status") : "/tmp/laredo-bus/augment-terminal-status");
 var xtermStyleEl = null;
 function translatePtyError(raw2) {
   const l = raw2.toLowerCase();
@@ -19957,8 +20646,8 @@ var TeammateMessageFilter = class {
   }
   emitFormatted(clean) {
     const attr = (name) => {
-      var _a2, _b;
-      return (_b = (_a2 = clean.match(new RegExp(`${name}="([^"]*)"`))) == null ? void 0 : _a2[1]) != null ? _b : "";
+      var _a3, _b;
+      return (_b = (_a3 = clean.match(new RegExp(`${name}="([^"]*)"`))) == null ? void 0 : _a3[1]) != null ? _b : "";
     };
     const type = attr("type") || "message";
     const id = attr("teammate_id") || attr("recipient") || "?";
@@ -20013,7 +20702,7 @@ var AGENT_ID_GLOBAL_PATTERN = /\bagentId\s*[:=]\s*["']?([a-zA-Z0-9._-]+)@([a-zA-
 var AGENT_KEY_PATTERN = /\b(?:recipient|from|to|agentName|agent)\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/ig;
 var MAILBOX_WRITE_PATTERN = /Wrote message to\s+([a-zA-Z0-9._-]+)'s inbox from\s+([a-zA-Z0-9._-]+)/i;
 var GET_INBOX_AGENT_PATTERN = /\bgetInboxPath:\s*agent=([a-zA-Z0-9._-]+)/i;
-var TerminalView = class extends import_obsidian5.ItemView {
+var TerminalView = class extends import_obsidian7.ItemView {
   constructor(leaf, pluginDir, getShellPath = () => "", getDefaultWorkingDirectory = () => "") {
     super(leaf);
     this.terminal = null;
@@ -20072,6 +20761,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.launchCwd = null;
     this.managedTeamId = null;
     this.managedRoleId = null;
+    this.busAddress = null;
+    this.externalWakeStatePath = null;
     this.pluginDir = pluginDir;
     this.getShellPath = getShellPath;
     this.getDefaultWorkingDirectory = getDefaultWorkingDirectory;
@@ -20101,6 +20792,10 @@ var TerminalView = class extends import_obsidian5.ItemView {
   getManagedRoleId() {
     return this.managedRoleId;
   }
+  getBusAddress() {
+    var _a3;
+    return (_a3 = this.busAddress) != null ? _a3 : this.normalizeBusAddress(this.terminalName);
+  }
   getStatus() {
     return this.status;
   }
@@ -20120,11 +20815,11 @@ var TerminalView = class extends import_obsidian5.ItemView {
     return this.currentActivity;
   }
   getLastTeamEventSummary() {
-    var _a2, _b;
+    var _a3, _b;
     const event = this.recentTeamEvents[this.recentTeamEvents.length - 1];
     if (!event) return null;
     if (event.type === "teamcreate") {
-      const memberCount = (_b = (_a2 = event.members) == null ? void 0 : _a2.length) != null ? _b : 0;
+      const memberCount = (_b = (_a3 = event.members) == null ? void 0 : _a3.length) != null ? _b : 0;
       const parts2 = ["TeamCreate"];
       if (event.team) parts2.push(event.team);
       if (memberCount > 0) parts2.push(`(${memberCount} members)`);
@@ -20137,39 +20832,45 @@ var TerminalView = class extends import_obsidian5.ItemView {
     return parts.join(" ");
   }
   setName(name) {
+    var _a3;
     const trimmed = name.trim();
     if (!trimmed) return;
     this.terminalName = trimmed;
+    this.busAddress = (_a3 = this.busAddress) != null ? _a3 : this.normalizeBusAddress(trimmed);
     this.userRenamed = true;
     this.refreshLeafName();
     this.persistNameToLeafState();
+    this.syncExternalWakeState();
     this.app.workspace.trigger("augment-terminal:changed");
   }
   getState() {
-    var _a2, _b, _c, _d;
+    var _a3, _b, _c, _d, _e;
     let snapshot = this.scrollbackBuffer;
     if (snapshot.length > MAX_SNAPSHOT_CHARS) {
       snapshot = snapshot.slice(-MAX_SNAPSHOT_CHARS);
     }
     return {
       name: this.terminalName,
+      busAddress: (_a3 = this.busAddress) != null ? _a3 : void 0,
       snapshot,
-      launchCwd: (_a2 = this.launchCwd) != null ? _a2 : void 0,
-      managedTeamId: (_b = this.managedTeamId) != null ? _b : void 0,
-      managedRoleId: (_c = this.managedRoleId) != null ? _c : void 0,
+      launchCwd: (_b = this.launchCwd) != null ? _b : void 0,
+      managedTeamId: (_c = this.managedTeamId) != null ? _c : void 0,
+      managedRoleId: (_d = this.managedRoleId) != null ? _d : void 0,
       orchestration: {
         teams: this.getTeamNames(),
         members: this.getTeamMembers(),
         unreadActivity: this.unreadActivity,
         recentEvents: [...this.recentTeamEvents],
-        agentIdentity: (_d = this.agentIdentity) != null ? _d : void 0
+        agentIdentity: (_e = this.agentIdentity) != null ? _e : void 0
       }
     };
   }
   async setState(state) {
+    var _a3, _b;
     if (typeof (state == null ? void 0 : state.name) === "string" && state.name.trim()) {
       this.terminalName = state.name.trim();
     }
+    this.busAddress = (_b = (_a3 = this.normalizeBusAddress(state == null ? void 0 : state.busAddress)) != null ? _a3 : this.normalizeBusAddress(state == null ? void 0 : state.name)) != null ? _b : this.busAddress;
     if (typeof (state == null ? void 0 : state.snapshot) === "string") {
       this.restoredSnapshot = state.snapshot;
     }
@@ -20189,10 +20890,11 @@ var TerminalView = class extends import_obsidian5.ItemView {
       this.agentIdentity = typeof orchestration.agentIdentity === "string" && orchestration.agentIdentity.trim() ? orchestration.agentIdentity.trim() : null;
     }
     this.refreshLeafName();
+    this.syncExternalWakeState();
     this.app.workspace.trigger("augment-terminal:changed");
   }
   refreshLeafName() {
-    var _a2, _b;
+    var _a3, _b;
     const leafAny = this.leaf;
     if (typeof leafAny.updateHeader === "function") {
       leafAny.updateHeader();
@@ -20205,7 +20907,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     if ((leafAny == null ? void 0 : leafAny.tabHeaderInnerTitleEl) && typeof leafAny.tabHeaderInnerTitleEl.setText === "function") {
       leafAny.tabHeaderInnerTitleEl.setText(this.terminalName);
     }
-    const tabHeaderEl = (_a2 = leafAny == null ? void 0 : leafAny.tabHeaderEl) != null ? _a2 : null;
+    const tabHeaderEl = (_a3 = leafAny == null ? void 0 : leafAny.tabHeaderEl) != null ? _a3 : null;
     if (tabHeaderEl) {
       tabHeaderEl.setAttribute("aria-label", this.terminalName);
       tabHeaderEl.setAttribute("data-augment-terminal", "true");
@@ -20230,7 +20932,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     tabHeaderEl.appendChild(btn);
   }
   persistNameToLeafState() {
-    var _a2;
+    var _a3, _b;
     const leafAny = this.leaf;
     if (typeof leafAny.getViewState !== "function") return;
     const current = leafAny.getViewState();
@@ -20238,8 +20940,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const nextState = {
       ...current,
       state: {
-        ...(_a2 = current.state) != null ? _a2 : {},
-        name: this.terminalName
+        ...(_a3 = current.state) != null ? _a3 : {},
+        name: this.terminalName,
+        busAddress: (_b = this.busAddress) != null ? _b : void 0
       }
     };
     void this.leaf.setViewState(nextState, { focus: false });
@@ -20277,28 +20980,28 @@ var TerminalView = class extends import_obsidian5.ItemView {
     });
   }
   isSetupBypassed() {
-    var _a2, _b, _c;
-    const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    var _a3, _b, _c;
+    const plugin = (_b = (_a3 = this.app.plugins) == null ? void 0 : _a3.plugins) == null ? void 0 : _b["augment-terminal"];
     return !!((_c = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _c.terminalSetupBypassed);
   }
   setSetupBypassed(value) {
-    var _a2, _b;
-    const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    var _a3, _b;
+    const plugin = (_b = (_a3 = this.app.plugins) == null ? void 0 : _a3.plugins) == null ? void 0 : _b["augment-terminal"];
     if (!(plugin == null ? void 0 : plugin.settings)) return;
     plugin.settings.terminalSetupBypassed = value;
     if (value) plugin.settings.terminalSetupDone = true;
     void plugin.saveData(plugin.settings);
   }
   markTerminalSetupDone() {
-    var _a2, _b;
-    const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    var _a3, _b;
+    const plugin = (_b = (_a3 = this.app.plugins) == null ? void 0 : _a3.plugins) == null ? void 0 : _b["augment-terminal"];
     if (!(plugin == null ? void 0 : plugin.settings) || plugin.settings.terminalSetupDone) return;
     plugin.settings.terminalSetupDone = true;
     void plugin.saveData(plugin.settings);
   }
   openTerminalSettings() {
-    var _a2, _b, _c, _d;
-    (_b = (_a2 = this.app.setting) == null ? void 0 : _a2.open) == null ? void 0 : _b.call(_a2);
+    var _a3, _b, _c, _d;
+    (_b = (_a3 = this.app.setting) == null ? void 0 : _a3.open) == null ? void 0 : _b.call(_a3);
     (_d = (_c = this.app.setting) == null ? void 0 : _c.openTabById) == null ? void 0 : _d.call(_c, "augment-terminal");
   }
   createBootstrapperBypassActions(wrapper, dismiss) {
@@ -20307,13 +21010,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
       text: "Skip for now"
     });
-    (0, import_obsidian5.setIcon)(continueBtn, "play");
+    (0, import_obsidian7.setIcon)(continueBtn, "play");
     continueBtn.addEventListener("click", () => dismiss());
     const bypassBtn = actions.createEl("button", {
       cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
       text: "Disable setup checks"
     });
-    (0, import_obsidian5.setIcon)(bypassBtn, "eye-off");
+    (0, import_obsidian7.setIcon)(bypassBtn, "eye-off");
     bypassBtn.addEventListener("click", () => {
       this.setSetupBypassed(true);
       dismiss();
@@ -20326,7 +21029,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     wrapper.createEl("h2", { text: title, cls: "augment-bootstrapper-title" });
     wrapper.createEl("p", { text: desc, cls: "augment-bootstrapper-desc" });
     const verifyBtn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Verify" });
-    (0, import_obsidian5.setIcon)(verifyBtn, "check");
+    (0, import_obsidian7.setIcon)(verifyBtn, "check");
     verifyBtn.onclick = () => {
       verifyBtn.disabled = true;
       verifyBtn.textContent = "Checking\u2026";
@@ -20372,13 +21075,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Download Node.js" });
-      (0, import_obsidian5.setIcon)(btn, "download");
+      (0, import_obsidian7.setIcon)(btn, "download");
       btn.onclick = () => window.open("https://nodejs.org");
       const checkBtn = wrapper.createEl("button", {
         cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
         text: "Check again"
       });
-      (0, import_obsidian5.setIcon)(checkBtn, "refresh-cw");
+      (0, import_obsidian7.setIcon)(checkBtn, "refresh-cw");
       checkBtn.onclick = () => {
         checkBtn.disabled = true;
         checkBtn.textContent = "Checking\u2026";
@@ -20401,11 +21104,11 @@ var TerminalView = class extends import_obsidian5.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Install Claude Code" });
-      (0, import_obsidian5.setIcon)(btn, "terminal");
+      (0, import_obsidian7.setIcon)(btn, "terminal");
       btn.onclick = () => {
-        var _a2;
+        var _a3;
         invalidateDepsCache();
-        (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
+        (_a3 = this.ptyBridge) == null ? void 0 : _a3.write("npm install -g @anthropic-ai/claude-code && claude auth login\n");
         this.renderBootstrapperRunning(
           wrapper,
           "Installing Claude Code\u2026",
@@ -20421,11 +21124,11 @@ var TerminalView = class extends import_obsidian5.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Sign in to Claude" });
-      (0, import_obsidian5.setIcon)(btn, "log-in");
+      (0, import_obsidian7.setIcon)(btn, "log-in");
       btn.onclick = () => {
-        var _a2;
+        var _a3;
         invalidateDepsCache();
-        (_a2 = this.ptyBridge) == null ? void 0 : _a2.write("claude auth login\n");
+        (_a3 = this.ptyBridge) == null ? void 0 : _a3.write("claude auth login\n");
         this.renderBootstrapperRunning(
           wrapper,
           "Sign-in started",
@@ -20441,31 +21144,31 @@ var TerminalView = class extends import_obsidian5.ItemView {
         cls: "augment-bootstrapper-desc"
       });
       const btn = wrapper.createEl("button", { cls: "mod-cta augment-bootstrapper-btn", text: "Set up vault" });
-      (0, import_obsidian5.setIcon)(btn, "folder-plus");
+      (0, import_obsidian7.setIcon)(btn, "folder-plus");
       btn.onclick = async () => {
-        var _a2, _b, _c;
+        var _a3, _b, _c;
         btn.disabled = true;
         btn.textContent = "Setting up\u2026";
         try {
-          const plugin = (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+          const plugin = (_b = (_a3 = this.app.plugins) == null ? void 0 : _a3.plugins) == null ? void 0 : _b["augment-terminal"];
           const templateFolder = ((_c = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _c.templateFolder) || "Augment/templates";
           await setupVaultForClaude(this.app, templateFolder);
           invalidateDepsCache();
           this.markTerminalSetupDone();
           dismiss();
-          new import_obsidian5.Notice("Vault setup complete.");
+          new import_obsidian7.Notice("Vault setup complete.");
         } catch (error) {
           console.error("[Augment] vault scaffold failed from terminal bootstrapper", error);
           btn.disabled = false;
           btn.textContent = "Set up vault";
-          new import_obsidian5.Notice("Vault setup failed. Open Terminal settings to try again.");
+          new import_obsidian7.Notice("Vault setup failed. Open Terminal settings to try again.");
         }
       };
       const settingsBtn = wrapper.createEl("button", {
         cls: "augment-bootstrapper-btn augment-bootstrapper-btn--secondary",
         text: "Open Terminal settings"
       });
-      (0, import_obsidian5.setIcon)(settingsBtn, "settings");
+      (0, import_obsidian7.setIcon)(settingsBtn, "settings");
       settingsBtn.onclick = () => this.openTerminalSettings();
       this.createBootstrapperBypassActions(wrapper, dismiss);
       return;
@@ -20508,8 +21211,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.startPtyBridge();
     this.terminal.onData((data) => {
-      var _a2;
-      (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
+      var _a3;
+      (_a3 = this.ptyBridge) == null ? void 0 : _a3.write(data);
     });
     this.resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -20533,9 +21236,9 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.registerTerminalMetricObservers();
   }
   startPtyBridge(forcedShellPath) {
-    var _a2, _b, _c, _d, _e, _f, _g;
+    var _a3, _b, _c, _d, _e, _f, _g;
     const vaultPath = this.app.vault.adapter.basePath || ".";
-    const customCwd = (_a2 = this.launchCwd) != null ? _a2 : this.getDefaultWorkingDirectory();
+    const customCwd = (_a3 = this.launchCwd) != null ? _a3 : this.getDefaultWorkingDirectory();
     this.resolvedCwd = customCwd || vaultPath;
     const shellPath = forcedShellPath != null ? forcedShellPath : this.getShellPath();
     this.ptyStartedAtMs = Date.now();
@@ -20544,8 +21247,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
     (_b = this.ptyBridge) == null ? void 0 : _b.kill();
     (_c = this.messageFilter) == null ? void 0 : _c.destroy();
     this.messageFilter = new TeammateMessageFilter((formatted) => {
-      var _a3;
-      (_a3 = this.terminal) == null ? void 0 : _a3.write(formatted);
+      var _a4;
+      (_a4 = this.terminal) == null ? void 0 : _a4.write(formatted);
       this.appendToScrollback(formatted);
     });
     this.flushPendingAnalysis();
@@ -20556,8 +21259,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
       initialRows: (_e = (_d = this.terminal) == null ? void 0 : _d.rows) != null ? _e : 0,
       initialCols: (_g = (_f = this.terminal) == null ? void 0 : _f.cols) != null ? _g : 0,
       onData: (data) => {
-        var _a3;
-        (_a3 = this.terminal) == null ? void 0 : _a3.write(data);
+        var _a4;
+        (_a4 = this.terminal) == null ? void 0 : _a4.write(data);
         this.appendToScrollback(data);
         this.markPtyReady();
         this.pendingAnalysis.push(data);
@@ -20581,14 +21284,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
         this.showErrorBanner(friendly, err.message);
       },
       onExit: (code, signal) => {
-        var _a3, _b2, _c2, _d2, _e2;
+        var _a4, _b2, _c2, _d2, _e2;
         const runtimeMs = Date.now() - this.ptyStartedAtMs;
         const exitedImmediately = code === 0 && !signal && runtimeMs < 1200;
         if (exitedImmediately && this.startupRetryCount < 2) {
           const isWin = process.platform === "win32";
           const fallbackShell = this.startupRetryCount === 0 ? isWin ? "powershell.exe" : "/bin/bash" : isWin ? "cmd.exe" : "/bin/zsh";
           this.startupRetryCount++;
-          (_a3 = this.terminal) == null ? void 0 : _a3.write(
+          (_a4 = this.terminal) == null ? void 0 : _a4.write(
             `\r
 \x1B[2m[Shell exited quickly (${runtimeMs}ms); retrying with ${fallbackShell}]\x1B[0m\r
 `
@@ -20632,11 +21335,11 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const actions = banner.createDiv({ cls: "augment-terminal-error-actions" });
     const retryBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Retry" });
     retryBtn.addEventListener("click", () => {
-      var _a2;
+      var _a3;
       banner.style.display = "none";
       this.isExited = false;
       this.setStatus("shell");
-      (_a2 = this.terminal) == null ? void 0 : _a2.write("\r\n\x1B[2m[Retrying connection\u2026]\x1B[0m\r\n");
+      (_a3 = this.terminal) == null ? void 0 : _a3.write("\r\n\x1B[2m[Retrying connection\u2026]\x1B[0m\r\n");
       this.startPtyBridge();
     });
     const setupBtn = actions.createEl("button", { cls: "augment-terminal-error-btn", text: "Open Terminal settings" });
@@ -20715,7 +21418,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
   // name call returned null. autoRenameInFlight + 1200ms cooldown prevent both triggers
   // from firing simultaneously.
   setStatus(newStatus) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const wasActive = this.status === "active" || this.status === "tool";
     const nowIdle = newStatus === "shell" || newStatus === "idle" || newStatus === "waiting";
     const nowActive = newStatus === "active" || newStatus === "tool";
@@ -20731,7 +21434,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
       }
     }
     this.status = newStatus;
-    (_a2 = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _a2.setAttribute("data-augment-status", newStatus);
+    this.syncExternalWakeState();
+    (_a3 = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _a3.setAttribute("data-augment-status", newStatus);
     const leafAnyS = this.leaf;
     (_b = leafAnyS.updateHeader) == null ? void 0 : _b.call(leafAnyS);
     const tabHeaderElS = (_c = leafAnyS == null ? void 0 : leafAnyS.tabHeaderEl) != null ? _c : null;
@@ -20789,6 +21493,66 @@ var TerminalView = class extends import_obsidian5.ItemView {
   setSkillName(name) {
     this.skillName = name;
   }
+  normalizeBusAddress(value) {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed || !trimmed.includes("@") || /\s/.test(trimmed)) {
+      return null;
+    }
+    return trimmed;
+  }
+  externalWakeStateSlug(address) {
+    return address.replace(/@/g, "_").replace(/[^A-Za-z0-9_.-]+/g, "_");
+  }
+  externalWakeStateAddress() {
+    var _a3;
+    return (_a3 = this.busAddress) != null ? _a3 : this.normalizeBusAddress(this.terminalName);
+  }
+  syncExternalWakeState() {
+    const address = this.externalWakeStateAddress();
+    if (!address) {
+      this.clearExternalWakeState();
+      return;
+    }
+    try {
+      const nextPath = (0, import_path10.join)(
+        EXTERNAL_WAKE_STATE_DIR,
+        `${this.externalWakeStateSlug(address)}.json`
+      );
+      if (this.externalWakeStatePath && this.externalWakeStatePath !== nextPath) {
+        (0, import_fs3.rmSync)(this.externalWakeStatePath, { force: true });
+        this.externalWakeStatePath = null;
+      }
+      (0, import_fs3.mkdirSync)(EXTERNAL_WAKE_STATE_DIR, { recursive: true });
+      const payload = JSON.stringify(
+        {
+          address,
+          name: this.terminalName,
+          status: this.status,
+          managedTeamId: this.managedTeamId,
+          managedRoleId: this.managedRoleId,
+          updatedAtMs: Date.now()
+        },
+        null,
+        2
+      );
+      const tmpPath = `${nextPath}.${process.pid}.${Date.now()}.tmp`;
+      (0, import_fs3.writeFileSync)(tmpPath, payload, "utf8");
+      (0, import_fs3.renameSync)(tmpPath, nextPath);
+      this.externalWakeStatePath = nextPath;
+    } catch (error) {
+      console.warn("[Augment] failed to sync external wake state", error);
+    }
+  }
+  clearExternalWakeState() {
+    if (!this.externalWakeStatePath) return;
+    try {
+      (0, import_fs3.rmSync)(this.externalWakeStatePath, { force: true });
+    } catch (error) {
+      console.warn("[Augment] failed to clear external wake state", error);
+    }
+    this.externalWakeStatePath = null;
+  }
   getStartedAt() {
     return this.startedAt;
   }
@@ -20802,8 +21566,21 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
   }
   write(data) {
-    var _a2;
-    (_a2 = this.ptyBridge) == null ? void 0 : _a2.write(data);
+    var _a3;
+    (_a3 = this.ptyBridge) == null ? void 0 : _a3.write(data);
+  }
+  appendSystemOutput(data) {
+    var _a3;
+    if (!data) return;
+    (_a3 = this.terminal) == null ? void 0 : _a3.write(data);
+    this.appendToScrollback(data);
+    this.lastActivityMs = Date.now();
+    if (this.app.workspace.activeLeaf === this.leaf) {
+      this.markActivityRead();
+    } else {
+      this.unreadActivity += 1;
+      this.app.workspace.trigger("augment-terminal:changed");
+    }
   }
   markSkillRunning() {
     this.setStatus("running");
@@ -20870,13 +21647,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
   }
   detectOrchestrationActivity(rawData) {
-    var _a2;
+    var _a3;
     if (this.isExited) return;
     const cleanChunk = stripAnsi(rawData);
     if (!cleanChunk) return;
     this.parseBuffer = (this.parseBuffer + cleanChunk).slice(-MAX_PARSE_BUFFER_CHARS);
     const lines = this.parseBuffer.split(/[\r\n]+/);
-    this.parseBuffer = (_a2 = lines.pop()) != null ? _a2 : "";
+    this.parseBuffer = (_a3 = lines.pop()) != null ? _a3 : "";
     let changed = false;
     for (const line of lines) {
       changed = this.parseOrchestrationLine(line) || changed;
@@ -20905,6 +21682,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const identity = this.extractAgentIdentity(clean);
     if (identity && identity !== this.agentIdentity) {
       this.agentIdentity = identity;
+      changed = true;
+    }
+    const busAddress = this.extractBusAddress(clean);
+    if (busAddress && busAddress !== this.busAddress) {
+      this.busAddress = busAddress;
+      this.persistNameToLeafState();
+      this.syncExternalWakeState();
       changed = true;
     }
     const names = this.extractAgentNames(clean);
@@ -20943,28 +21727,28 @@ var TerminalView = class extends import_obsidian5.ItemView {
   //   Bash(bash ~/.claude/hooks/pane-name.sh topic "dirt bikes pros cons")
   // In Augment that may be the only observable rename signal, so capture it.
   extractPaneNameHookRename(text) {
-    var _a2, _b, _c, _d;
+    var _a3, _b, _c, _d;
     if (!/\bBash\(/i.test(text) || !/pane-name\.sh/i.test(text)) return null;
     const topicCall = text.match(
       /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
     );
     if (!topicCall) return null;
     return this.normalizeRenameCandidate(
-      (_d = (_c = (_b = (_a2 = topicCall[1]) != null ? _a2 : topicCall[2]) != null ? _b : topicCall[3]) != null ? _c : topicCall[4]) != null ? _d : ""
+      (_d = (_c = (_b = (_a3 = topicCall[1]) != null ? _a3 : topicCall[2]) != null ? _b : topicCall[3]) != null ? _c : topicCall[4]) != null ? _d : ""
     );
   }
   // Claude Code often emits tmux rename commands (e.g. select-pane -T) after
   // a few turns. In Augment there may be no live tmux bridge, so mirror that
   // intent by applying the requested title directly to the leaf state.
   extractTmuxRename(text) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h;
+    var _a3, _b, _c, _d, _e, _f, _g, _h;
     if (!/\bBash\(/i.test(text) || !/\btmux\b/i.test(text)) return null;
     const selectPane = text.match(
       /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
     );
     if (selectPane) {
       return this.normalizeRenameCandidate(
-        (_d = (_c = (_b = (_a2 = selectPane[1]) != null ? _a2 : selectPane[2]) != null ? _b : selectPane[3]) != null ? _c : selectPane[4]) != null ? _d : ""
+        (_d = (_c = (_b = (_a3 = selectPane[1]) != null ? _a3 : selectPane[2]) != null ? _b : selectPane[3]) != null ? _c : selectPane[4]) != null ? _d : ""
       );
     }
     const renameWindow = text.match(
@@ -20991,14 +21775,14 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.autoNamedThisTurn = true;
     this.app.workspace.trigger("augment-terminal:changed");
     this.app.workspace.getLeavesOfType("augment-terminal-manager").forEach((leaf) => {
-      var _a2, _b;
-      (_b = (_a2 = leaf.view).requestRefresh) == null ? void 0 : _b.call(_a2);
+      var _a3, _b;
+      (_b = (_a3 = leaf.view).requestRefresh) == null ? void 0 : _b.call(_a3);
     });
     setTimeout(() => {
       if (this.terminalName === trimmed) {
         this.app.workspace.getLeavesOfType("augment-terminal-manager").forEach((leaf) => {
-          var _a2, _b;
-          (_b = (_a2 = leaf.view).requestRefresh) == null ? void 0 : _b.call(_a2);
+          var _a3, _b;
+          (_b = (_a3 = leaf.view).requestRefresh) == null ? void 0 : _b.call(_a3);
         });
       }
       this.autoNamedThisTurn = false;
@@ -21006,8 +21790,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
     return true;
   }
   recordTeamEvent(event) {
-    var _a2, _b, _c;
-    const signature = `${event.type}|${(_a2 = event.team) != null ? _a2 : ""}|${(_b = event.from) != null ? _b : ""}|${(_c = event.to) != null ? _c : ""}`;
+    var _a3, _b, _c;
+    const signature = `${event.type}|${(_a3 = event.team) != null ? _a3 : ""}|${(_b = event.from) != null ? _b : ""}|${(_c = event.to) != null ? _c : ""}`;
     const now = Date.now();
     if (signature === this.lastEventSignature && now - this.lastEventAt < EVENT_DEDUP_WINDOW_MS) {
       return false;
@@ -21062,6 +21846,15 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const byName = text.match(/\bagentName\s*[:=]\s*["']?([a-zA-Z0-9._-]+)/i);
     if (byName == null ? void 0 : byName[1]) {
       return this.normalizeIdentifier(byName[1]);
+    }
+    return null;
+  }
+  extractBusAddress(text) {
+    const contextual = text.match(
+      /\b(?:Your bus address is|bus address|Boot as)\s*:?\s*([A-Za-z0-9._-]+@[A-Za-z0-9._-]+)/i
+    );
+    if (contextual == null ? void 0 : contextual[1]) {
+      return this.normalizeBusAddress(contextual[1]);
     }
     return null;
   }
@@ -21131,7 +21924,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
   }
   /** Drain pending analysis batch. Called from rAF or setTimeout fallback. */
   drainAnalysis() {
-    var _a2;
+    var _a3;
     if (this.analysisTimer !== null) {
       clearTimeout(this.analysisTimer);
       this.analysisTimer = null;
@@ -21140,7 +21933,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     const batch = this.pendingAnalysis.join("");
     this.pendingAnalysis = [];
     const clean = stripAnsi(batch);
-    (_a2 = this.messageFilter) == null ? void 0 : _a2.detect(clean);
+    (_a3 = this.messageFilter) == null ? void 0 : _a3.detect(clean);
     this.detectStatus(clean);
     this.detectUserPromptTurns(batch);
     this.detectOrchestrationActivity(batch);
@@ -21180,10 +21973,10 @@ var TerminalView = class extends import_obsidian5.ItemView {
    *  (when Canvas addon is not loaded), ensuring font/metric changes are
    *  reflected in the cache and in subsequent proposeDimensions() calls. */
   updateCellCache() {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const core = this.terminal._core;
     if (!this.canvasAddon) {
-      (_b = (_a2 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a2.measure) == null ? void 0 : _b.call(_a2);
+      (_b = (_a3 = core == null ? void 0 : core._charSizeService) == null ? void 0 : _a3.measure) == null ? void 0 : _b.call(_a3);
       (_f = (_e = (_d = (_c = core == null ? void 0 : core._renderService) == null ? void 0 : _c._renderer) == null ? void 0 : _d.value) == null ? void 0 : _e._setDefaultSpacing) == null ? void 0 : _f.call(_e);
     }
     const dims = (_i = (_h = (_g = core == null ? void 0 : core._renderService) == null ? void 0 : _g.dimensions) == null ? void 0 : _h.css) == null ? void 0 : _i.cell;
@@ -21212,13 +22005,13 @@ var TerminalView = class extends import_obsidian5.ItemView {
    *  Only called when wouldChangeCellGrid() returned true or from font/
    *  visibility handlers that bypass the cell-grid gate. */
   applyResize() {
-    var _a2, _b, _c, _d;
+    var _a3, _b, _c, _d;
     if (!this.terminal || !this.fitAddon) return;
     if (this.resizeInFlight) {
       this.scheduleResize();
       return;
     }
-    const el = (_a2 = this.terminal.element) == null ? void 0 : _a2.parentElement;
+    const el = (_a3 = this.terminal.element) == null ? void 0 : _a3.parentElement;
     if (el && (el.clientWidth === 0 || el.clientHeight === 0)) return;
     const proposed = this.fitAddon.proposeDimensions();
     if (proposed && proposed.cols === this.terminal.cols && proposed.rows === this.terminal.rows) {
@@ -21300,7 +22093,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     return themeMono || "'SF Mono', 'Cascadia Mono', Menlo, 'DejaVu Sans Mono', monospace";
   }
   async onClose() {
-    var _a2, _b, _c, _d, _e;
+    var _a3, _b, _c, _d, _e;
     if (this.statusDebounceTimer !== null) {
       clearTimeout(this.statusDebounceTimer);
       this.statusDebounceTimer = null;
@@ -21319,7 +22112,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     }
     this.clearPendingInputFlushTimer();
     this.flushPendingAnalysis();
-    (_a2 = this.resizeObserver) == null ? void 0 : _a2.disconnect();
+    (_a3 = this.resizeObserver) == null ? void 0 : _a3.disconnect();
     (_b = this.messageFilter) == null ? void 0 : _b.destroy();
     this.messageFilter = null;
     (_c = this.ptyBridge) == null ? void 0 : _c.kill();
@@ -21327,6 +22120,7 @@ var TerminalView = class extends import_obsidian5.ItemView {
     this.canvasAddon = null;
     (_e = this.terminal) == null ? void 0 : _e.dispose();
     this.terminal = null;
+    this.clearExternalWakeState();
     this.fitAddon = null;
     this.ptyBridge = null;
     this.resizeObserver = null;
@@ -21335,6 +22129,8 @@ var TerminalView = class extends import_obsidian5.ItemView {
 
 // src/part-inbox-view.ts
 var VIEW_TYPE_PART_INBOX = "augment-part-inbox";
+var ALL_MESSAGES_FILTER = "__all_messages__";
+var WITH_MATT_FILTER = "__with_matt__";
 function normalizeInboxAddress(value) {
   const normalized = value.trim().toLowerCase();
   if (!normalized || normalized === "human" || normalized === "user") {
@@ -21356,7 +22152,7 @@ function formatAddressLabel(address) {
   return habitat === "vault" ? name : `${name}@${habitat}`;
 }
 function formatMailboxLabel(address, part) {
-  if (normalizeInboxAddress(address) === HUMAN_ADDRESS) return "My inbox";
+  if (normalizeInboxAddress(address) === HUMAN_ADDRESS) return "With Matt";
   if (part) {
     return part.habitat === "vault" ? part.name : `${part.name} @ ${part.habitat}`;
   }
@@ -21365,6 +22161,31 @@ function formatMailboxLabel(address, part) {
 }
 function formatPartQueueLabel(unread) {
   return unread > 0 ? `Part has ${unread} unread` : "Part inbox clear";
+}
+function formatParticipantList(participants) {
+  return participants.map((address) => formatAddressLabel(address)).join(", ");
+}
+function renderLabeledField(container, classPrefix, label, value) {
+  const field = container.createDiv({ cls: `${classPrefix}-field` });
+  field.createSpan({ cls: `${classPrefix}-field-label`, text: label });
+  field.createSpan({ cls: `${classPrefix}-field-value`, text: value });
+}
+function formatThreadSubject(thread) {
+  const subject = thread.subject.trim();
+  if (subject && subject.toLowerCase() !== "message") {
+    return subject;
+  }
+  const [firstParticipant, secondParticipant] = thread.participants;
+  const fromLabel = formatAddressLabel(firstParticipant || thread.lastSender);
+  const toLabel = formatAddressLabel(secondParticipant || thread.lastTo || thread.lastSender);
+  return `Conversation: ${fromLabel} to ${toLabel}`;
+}
+function formatThreadParticipants(thread) {
+  const count = `${thread.messageCount} ${thread.messageCount === 1 ? "message" : "messages"}`;
+  if (thread.participants.length <= 2) {
+    return count;
+  }
+  return `${thread.participants.length} participants \xB7 ${count}`;
 }
 function formatTerminalStatus(status) {
   switch (status) {
@@ -21431,9 +22252,9 @@ function getTerminalLeaves(app) {
   return found;
 }
 function scorePartMatch(leaf, part) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h;
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
   const view = leaf.view;
-  const identity = (_c = (_b = (_a2 = view.getAgentIdentity) == null ? void 0 : _a2.call(view)) == null ? void 0 : _b.trim().toLowerCase()) != null ? _c : "";
+  const identity = (_c = (_b = (_a3 = view.getAgentIdentity) == null ? void 0 : _a3.call(view)) == null ? void 0 : _b.trim().toLowerCase()) != null ? _c : "";
   const name = (_f = (_e = (_d = view.getName) == null ? void 0 : _d.call(view)) == null ? void 0 : _e.trim().toLowerCase()) != null ? _f : "";
   const cwd = ((_h = (_g = view.getWorkingDirectory) == null ? void 0 : _g.call(view)) != null ? _h : "").toLowerCase().replace(/\\/g, "/");
   const partName = part.name.toLowerCase();
@@ -21463,18 +22284,18 @@ function findTerminalLeafForPart(app, part) {
   return bestLeaf;
 }
 function focusLeaf(app, leaf) {
-  var _a2;
+  var _a3;
   app.workspace.revealLeaf(leaf);
   const view = leaf.view;
-  (_a2 = view.markActivityRead) == null ? void 0 : _a2.call(view);
+  (_a3 = view.markActivityRead) == null ? void 0 : _a3.call(view);
 }
 async function openPartInboxLeaf(app, state) {
-  var _a2, _b, _c;
+  var _a3, _b, _c;
   const workspace = app.workspace;
   const existing = workspace.getLeavesOfType(VIEW_TYPE_PART_INBOX);
   let leaf = existing[0];
   if (!leaf) {
-    const baseLeaf = (_a2 = workspace.getMostRecentLeaf()) != null ? _a2 : workspace.getLeaf("tab");
+    const baseLeaf = (_a3 = workspace.getMostRecentLeaf()) != null ? _a3 : workspace.getLeaf("tab");
     leaf = (_c = (_b = workspace.createLeafBySplit) == null ? void 0 : _b.call(workspace, baseLeaf, "vertical")) != null ? _c : workspace.getLeaf("split", "vertical");
   }
   await leaf.setViewState({
@@ -21491,13 +22312,13 @@ async function openPartInboxForPart(app, address) {
     address: normalizeInboxAddress(address)
   });
 }
-async function openHumanInbox(app) {
-  return openPartInboxLeaf(app, { mode: "human" });
+async function openAllMessages(app) {
+  return openPartInboxLeaf(app, { mode: "all" });
 }
-var PartInboxView = class extends import_obsidian6.ItemView {
+var PartInboxView = class extends import_obsidian8.ItemView {
   constructor(leaf) {
     super(leaf);
-    this.viewState = { mode: "human" };
+    this.viewState = { mode: "all" };
     this.refreshToken = 0;
     this.discoveredParts = [];
   }
@@ -21514,23 +22335,30 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     return { ...this.viewState };
   }
   async setState(state) {
-    await this.setMode(state.mode === "human" ? HUMAN_ADDRESS : state.address, {
+    if (state.mode === "all") {
+      await this.setMode("all", { selectedThreadId: state.selectedThreadId });
+      return;
+    }
+    await this.setMode(state.mode === "human" ? "human" : state.address, {
       selectedThreadId: state.selectedThreadId
     });
   }
   async setMode(modeOrAddress, options = {}) {
-    const address = normalizeInboxAddress(modeOrAddress);
-    const nextState = address === HUMAN_ADDRESS ? { mode: "human", selectedThreadId: options.selectedThreadId } : {
-      mode: "part",
-      address,
-      selectedThreadId: options.selectedThreadId
-    };
+    const nextState = modeOrAddress === "all" ? { mode: "all", selectedThreadId: options.selectedThreadId } : (() => {
+      const address = modeOrAddress === "human" ? HUMAN_ADDRESS : normalizeInboxAddress(modeOrAddress);
+      return address === HUMAN_ADDRESS ? { mode: "human", selectedThreadId: options.selectedThreadId } : {
+        mode: "part",
+        address,
+        selectedThreadId: options.selectedThreadId
+      };
+    })();
     const currentMode = this.viewState.mode;
     const currentAddress = this.selectedAddress();
     const currentThreadId = this.viewState.selectedThreadId;
+    const nextAddress = nextState.mode === "part" ? nextState.address : nextState.mode === "human" ? HUMAN_ADDRESS : null;
     this.viewState = nextState;
     this.syncLeafTitle();
-    if (currentMode !== nextState.mode || currentAddress !== address || currentThreadId !== nextState.selectedThreadId) {
+    if (currentMode !== nextState.mode || currentAddress !== nextAddress || currentThreadId !== nextState.selectedThreadId) {
       await this.refresh();
     }
   }
@@ -21542,17 +22370,18 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     this.registerEvent(
       workspaceEvents.on("augment-bus:changed", () => void this.refresh())
     );
-    this.registerEvent(
-      workspaceEvents.on("augment-terminal:changed", () => void this.refresh())
-    );
-    this.registerEvent(
-      this.app.workspace.on("layout-change", () => void this.refresh())
-    );
-    this.registerInterval(window.setInterval(() => this.refreshRelativeTimes(), 3e4));
     await this.refresh();
   }
   selectedAddress() {
-    return this.viewState.mode === "human" ? HUMAN_ADDRESS : this.viewState.address;
+    return this.viewState.mode === "part" ? this.viewState.address : this.viewState.mode === "human" ? HUMAN_ADDRESS : null;
+  }
+  selectedFilterValue() {
+    if (this.viewState.mode === "all") return ALL_MESSAGES_FILTER;
+    if (this.viewState.mode === "human") return WITH_MATT_FILTER;
+    return this.viewState.address;
+  }
+  visibleAddresses() {
+    return Array.from(/* @__PURE__ */ new Set([HUMAN_ADDRESS, ...this.discoveredParts.map((part) => part.address)]));
   }
   fallbackPart(address) {
     const normalized = normalizeInboxAddress(address);
@@ -21572,16 +22401,17 @@ var PartInboxView = class extends import_obsidian6.ItemView {
       isProjectPart: part.isProjectPart
     }));
     const currentAddress = this.selectedAddress();
-    if (currentAddress !== HUMAN_ADDRESS && !discovered.some((part) => part.address === currentAddress)) {
+    if (currentAddress && currentAddress !== HUMAN_ADDRESS && !discovered.some((part) => part.address === currentAddress)) {
       discovered.push(this.fallbackPart(currentAddress));
     }
     this.discoveredParts = discovered;
   }
   resolvePart(address = this.selectedAddress()) {
-    var _a2;
+    var _a3;
+    if (!address) return null;
     const normalized = normalizeInboxAddress(address);
     if (normalized === HUMAN_ADDRESS) return null;
-    const discovered = (_a2 = this.discoveredParts.find((part) => part.address === normalized)) != null ? _a2 : discoverVaultParts(this.app).find((part) => part.address === normalized);
+    const discovered = (_a3 = this.discoveredParts.find((part) => part.address === normalized)) != null ? _a3 : discoverVaultParts(this.app).find((part) => part.address === normalized);
     if (discovered) {
       return {
         name: discovered.name,
@@ -21593,13 +22423,15 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     return this.fallbackPart(normalized);
   }
   getSelectedMailboxLabel() {
-    return formatMailboxLabel(this.selectedAddress(), this.resolvePart());
+    if (this.viewState.mode === "all") return "All messages";
+    if (this.viewState.mode === "human") return "With Matt";
+    return formatMailboxLabel(this.viewState.address, this.resolvePart());
   }
   syncLeafTitle() {
-    var _a2, _b, _c, _d;
+    var _a3, _b, _c, _d;
     const title = this.getDisplayText();
     const leafLike = this.leaf;
-    (_a2 = leafLike.updateHeader) == null ? void 0 : _a2.call(leafLike);
+    (_a3 = leafLike.updateHeader) == null ? void 0 : _a3.call(leafLike);
     const headerTitleEl = (_b = this.contentEl.closest(".workspace-leaf")) == null ? void 0 : _b.querySelector(".view-header-title");
     if (headerTitleEl instanceof HTMLElement) {
       headerTitleEl.textContent = title;
@@ -21607,53 +22439,39 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     (_d = (_c = leafLike.tabHeaderInnerTitleEl) == null ? void 0 : _c.setText) == null ? void 0 : _d.call(_c, title);
   }
   currentThreads() {
-    if (this.selectedAddress() === HUMAN_ADDRESS) {
+    if (this.viewState.mode === "all") {
+      return listAllThreads(this.app, this.visibleAddresses());
+    }
+    if (this.viewState.mode === "human") {
       return listHumanThreads(this.app);
     }
-    return listPartThreads(this.app, this.selectedAddress());
+    return listPartThreads(this.app, this.viewState.address);
   }
   async refresh() {
-    const token = ++this.refreshToken;
-    this.refreshDiscoveredParts();
     this.syncLeafTitle();
-    const threads = this.currentThreads();
-    let selectedThreadId = this.viewState.selectedThreadId;
-    if (selectedThreadId && !threads.some((thread) => thread.threadId === selectedThreadId)) {
-      selectedThreadId = void 0;
-    }
-    if (!selectedThreadId && threads.length > 0) {
-      selectedThreadId = threads[0].threadId;
-    }
-    if (this.viewState.mode === "part") {
-      this.viewState = {
-        ...this.viewState,
-        selectedThreadId
-      };
-    } else {
-      this.viewState = {
-        mode: "human",
-        selectedThreadId
-      };
-    }
-    if (selectedThreadId && this.viewState.mode === "human") {
-      await markThreadRead(this.app, selectedThreadId, HUMAN_ADDRESS);
-      if (token !== this.refreshToken) return;
-    }
-    const refreshedThreads = this.currentThreads();
-    const transcript = selectedThreadId && refreshedThreads.some((thread) => thread.threadId === selectedThreadId) ? await getThread(this.app, selectedThreadId) : [];
-    if (token !== this.refreshToken) return;
-    this.render(refreshedThreads, transcript);
+    this.contentEl.addClass("augment-part-inbox-view");
+    const unread = unreadCountForAddresses(this.app, DEFAULT_WATCHED_INBOX_ADDRESSES);
+    renderLegacyRedirectShell(this.contentEl, {
+      title: "Inbox moved",
+      copy: "The legacy inbox view moved out of Augment for Obsidian. Open Augment Control Center when it is available, or use Learn more for the current gap-period path.",
+      countLine: unread > 0 ? `Unread attention: ${unread}` : null,
+      onOpenControlCenter: () => {
+        var _a3, _b, _c, _d;
+        void ((_d = (_c = (_b = (_a3 = this.app.plugins) == null ? void 0 : _a3.plugins) == null ? void 0 : _b["augment-terminal"]) == null ? void 0 : _c.openControlCenter) == null ? void 0 : _d.call(_c));
+      }
+    });
   }
   refreshRelativeTimes() {
     this.contentEl.querySelectorAll("[data-augment-ts]").forEach((el) => {
-      var _a2;
-      const timestampMs = Number((_a2 = el.dataset.augmentTs) != null ? _a2 : "0");
-      el.textContent = relativeTime(timestampMs);
+      var _a3, _b;
+      const timestampMs = Number((_a3 = el.dataset.augmentTs) != null ? _a3 : "0");
+      const prefix = (_b = el.dataset.augmentTsPrefix) != null ? _b : "";
+      el.textContent = `${prefix}${relativeTime(timestampMs)}`;
     });
   }
   render(threads, transcript) {
-    var _a2, _b;
-    const selectedThread = (_a2 = threads.find((thread) => thread.threadId === this.viewState.selectedThreadId)) != null ? _a2 : null;
+    var _a3, _b;
+    const selectedThread = (_a3 = threads.find((thread) => thread.threadId === this.viewState.selectedThreadId)) != null ? _a3 : null;
     this.contentEl.empty();
     this.contentEl.addClass("augment-part-inbox-view");
     this.renderHeader(selectedThread, transcript);
@@ -21666,21 +22484,27 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     this.renderTranscript(transcriptPane, selectedThread, transcript);
   }
   renderHeader(selectedThread, transcript) {
-    var _a2, _b;
+    var _a3, _b;
     const header = this.contentEl.createDiv({ cls: "augment-part-inbox-header" });
     const titleBlock = header.createDiv({ cls: "augment-part-inbox-title-block" });
     const titleRow = titleBlock.createDiv({ cls: "augment-part-inbox-title-row" });
     const metaRow = titleBlock.createDiv({ cls: "augment-part-inbox-meta-row" });
     const actions = header.createDiv({ cls: "augment-part-inbox-actions" });
-    const activeAddress = this.selectedAddress();
     titleRow.createDiv({ cls: "augment-part-inbox-title", text: "Messages" });
-    const selector = titleRow.createEl("select", {
-      cls: "dropdown augment-part-inbox-selector",
-      attr: { "aria-label": "Select inbox" }
+    const selectorWrapper = titleRow.createDiv({
+      cls: "dropdown augment-part-inbox-selector-wrap"
+    });
+    const selector = selectorWrapper.createEl("select", {
+      cls: "augment-part-inbox-selector",
+      attr: { "aria-label": "Filter messages" }
     });
     selector.createEl("option", {
-      value: HUMAN_ADDRESS,
-      text: "My inbox"
+      value: ALL_MESSAGES_FILTER,
+      text: "All messages"
+    });
+    selector.createEl("option", {
+      value: WITH_MATT_FILTER,
+      text: "With Matt"
     });
     for (const part of this.discoveredParts) {
       selector.createEl("option", {
@@ -21688,21 +22512,35 @@ var PartInboxView = class extends import_obsidian6.ItemView {
         text: formatMailboxLabel(part.address, part)
       });
     }
-    selector.value = activeAddress;
+    selector.value = this.selectedFilterValue();
     selector.addEventListener("change", () => {
+      if (selector.value === ALL_MESSAGES_FILTER) {
+        void this.setMode("all");
+        return;
+      }
+      if (selector.value === WITH_MATT_FILTER) {
+        void this.setMode("human");
+        return;
+      }
       void this.setMode(selector.value);
     });
-    if (this.viewState.mode === "human") {
+    if (this.viewState.mode === "all") {
+      const visibleCount = this.visibleAddresses().length;
+      metaRow.createSpan({
+        cls: "augment-part-inbox-pill",
+        text: `${visibleCount} visible ${visibleCount === 1 ? "address" : "addresses"}`
+      });
+    } else if (this.viewState.mode === "human") {
       const unread = unreadCount(this.app, HUMAN_ADDRESS);
       metaRow.createSpan({
         cls: "augment-part-inbox-pill",
-        text: unread > 0 ? `${unread} unread` : "No unread messages"
+        text: unread > 0 ? `${unread} unread for Matt` : "No unread for Matt"
       });
     } else {
-      const part = this.resolvePart(activeAddress);
+      const part = this.resolvePart(this.viewState.address);
       if (!part) return;
       const terminalLeaf = findTerminalLeafForPart(this.app, part);
-      const terminalStatus = (_b = (_a2 = terminalLeaf == null ? void 0 : terminalLeaf.view) == null ? void 0 : _a2.getStatus) == null ? void 0 : _b.call(_a2);
+      const terminalStatus = (_b = (_a3 = terminalLeaf == null ? void 0 : terminalLeaf.view) == null ? void 0 : _a3.getStatus) == null ? void 0 : _b.call(_a3);
       const unread = unreadCount(this.app, part.address);
       metaRow.createSpan({ cls: "augment-part-inbox-pill", text: part.habitat });
       metaRow.createSpan({
@@ -21729,11 +22567,11 @@ var PartInboxView = class extends import_obsidian6.ItemView {
         jumpBtn.addEventListener("click", () => focusLeaf(this.app, terminalLeaf));
       }
     }
-    const replyTarget = this.getReplyTarget(selectedThread);
+    const replyTarget = this.getReplyTarget(selectedThread, transcript);
     const replyTo = transcript.length > 0 ? transcript[transcript.length - 1].msgId : "";
     if (selectedThread && replyTarget && replyTo) {
       const replyBtn = actions.createEl("button", {
-        text: "Reply",
+        text: `Reply to ${formatAddressLabel(replyTarget)}`,
         attr: { type: "button" }
       });
       replyBtn.addEventListener("click", () => {
@@ -21749,19 +22587,34 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     const list = container.createDiv({ cls: "augment-part-inbox-thread-list" });
     if (threads.length === 0) {
       const empty = list.createDiv({ cls: "augment-part-inbox-empty" });
-      if (this.viewState.mode === "human") {
+      if (this.viewState.mode === "all") {
         empty.createDiv({
           cls: "augment-part-inbox-empty-title",
-          text: "No messages for you yet."
+          text: "No messages in scope yet."
         });
         empty.createDiv({
           cls: "augment-part-inbox-empty-copy",
-          text: this.discoveredParts.length > 0 ? "Choose a part from the inbox menu above to start a conversation." : "No parts found yet. Parts are AI agents that live in your vault."
+          text: "When Augment has visible traffic between Matt and the listed agents, threads will appear here."
         });
-      } else {
+      } else if (this.viewState.mode === "human") {
         empty.createDiv({
           cls: "augment-part-inbox-empty-title",
-          text: "No threads with this part yet."
+          text: "No messages with Matt yet."
+        });
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-copy",
+          text: "This view only shows threads where one side is Matt. Switch to All messages to inspect agent traffic."
+        });
+      } else {
+        const part = this.resolvePart();
+        const partLabel = formatMailboxLabel(this.viewState.address, part);
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-title",
+          text: `No messages with ${partLabel} yet.`
+        });
+        empty.createDiv({
+          cls: "augment-part-inbox-empty-copy",
+          text: `This view only shows threads where one side is ${partLabel}. Start a conversation or switch filters.`
         });
       }
       if (this.viewState.mode === "part") {
@@ -21788,14 +22641,27 @@ var PartInboxView = class extends import_obsidian6.ItemView {
       });
       rowTop.createSpan({
         cls: "augment-part-inbox-thread-title",
-        text: this.viewState.mode === "human" ? formatAddressLabel(thread.counterparty) : thread.subject
+        text: formatThreadSubject(thread)
       });
       const age = rowTop.createSpan({ cls: "augment-part-inbox-thread-age" });
       age.dataset.augmentTs = String(parseTimestampMs2(thread.lastActivityAt));
       age.textContent = relativeTime(parseTimestampMs2(thread.lastActivityAt));
+      const route = row.createDiv({ cls: "augment-part-inbox-thread-route" });
+      renderLabeledField(
+        route,
+        "augment-part-inbox-thread",
+        "From",
+        formatAddressLabel(thread.lastSender)
+      );
+      renderLabeledField(
+        route,
+        "augment-part-inbox-thread",
+        "To",
+        formatAddressLabel(thread.lastTo)
+      );
       row.createDiv({
-        cls: "augment-part-inbox-thread-subline",
-        text: this.viewState.mode === "human" ? thread.subject : `${formatAddressLabel(thread.lastSender)} \xB7 ${thread.messageCount} messages`
+        cls: "augment-part-inbox-thread-participants",
+        text: formatThreadParticipants(thread)
       });
       row.addEventListener("click", () => {
         if (this.viewState.mode === "part") {
@@ -21803,9 +22669,14 @@ var PartInboxView = class extends import_obsidian6.ItemView {
             ...this.viewState,
             selectedThreadId: thread.threadId
           };
-        } else {
+        } else if (this.viewState.mode === "human") {
           this.viewState = {
             mode: "human",
+            selectedThreadId: thread.threadId
+          };
+        } else {
+          this.viewState = {
+            mode: "all",
             selectedThreadId: thread.threadId
           };
         }
@@ -21836,55 +22707,87 @@ var PartInboxView = class extends import_obsidian6.ItemView {
     const transcriptHeader = container.createDiv({ cls: "augment-part-inbox-transcript-header" });
     transcriptHeader.createDiv({
       cls: "augment-part-inbox-transcript-title",
-      text: selectedThread.subject
+      text: formatThreadSubject(selectedThread)
     });
     transcriptHeader.createDiv({
       cls: "augment-part-inbox-transcript-subtitle",
-      text: this.viewState.mode === "human" ? formatAddressLabel(selectedThread.counterparty) : `${selectedThread.messageCount} messages`
+      text: `Participants: ${formatParticipantList(selectedThread.participants)}`
     });
+    const transcriptMeta = transcriptHeader.createDiv({
+      cls: "augment-part-inbox-transcript-meta"
+    });
+    transcriptMeta.createSpan({
+      cls: "augment-part-inbox-transcript-count",
+      text: `${selectedThread.messageCount} ${selectedThread.messageCount === 1 ? "message" : "messages"}`
+    });
+    const activity = transcriptMeta.createSpan({
+      cls: "augment-part-inbox-transcript-activity"
+    });
+    activity.dataset.augmentTs = String(parseTimestampMs2(selectedThread.lastActivityAt));
+    activity.dataset.augmentTsPrefix = "Last activity ";
+    activity.textContent = `Last activity ${relativeTime(parseTimestampMs2(selectedThread.lastActivityAt))}`;
     const messages = container.createDiv({ cls: "augment-part-inbox-messages" });
     for (const message of transcript) {
       this.renderMessage(messages, message);
     }
   }
   renderMessage(container, message) {
-    const outbound = message.from === HUMAN_ADDRESS;
-    const wrapper = container.createDiv({
-      cls: "augment-part-inbox-message" + (outbound ? " is-outbound" : " is-inbound")
-    });
+    const wrapper = container.createDiv({ cls: "augment-part-inbox-message" });
     const bubble = wrapper.createDiv({ cls: "augment-part-inbox-bubble" });
-    const meta = bubble.createDiv({ cls: "augment-part-inbox-message-meta" });
-    meta.createSpan({
-      cls: "augment-part-inbox-message-sender",
-      text: formatAddressLabel(message.from)
+    const route = bubble.createDiv({
+      cls: "augment-part-inbox-message-meta augment-part-inbox-message-route"
     });
-    meta.createSpan({
+    const routeFields = route.createDiv({
+      cls: "augment-part-inbox-message-route-fields"
+    });
+    renderLabeledField(
+      routeFields,
+      "augment-part-inbox-message",
+      "From",
+      formatAddressLabel(message.from)
+    );
+    renderLabeledField(
+      routeFields,
+      "augment-part-inbox-message",
+      "To",
+      formatAddressLabel(message.to)
+    );
+    route.createSpan({
       cls: "augment-part-inbox-message-time",
       text: absoluteTime(message.createdAt)
     });
-    if (message.privacy === "shared") {
-      meta.createSpan({
-        cls: "augment-part-inbox-message-privacy",
-        text: "Shared"
+    if (message.privacy === "shared" || message.sourceNote) {
+      const context = bubble.createDiv({
+        cls: "augment-part-inbox-message-meta augment-part-inbox-message-context"
       });
-    }
-    if (message.sourceNote) {
-      bubble.createDiv({
-        cls: "augment-part-inbox-message-source",
-        text: message.sourceNote
-      });
+      if (message.privacy === "shared") {
+        context.createSpan({
+          cls: "augment-part-inbox-message-privacy",
+          text: "Shared"
+        });
+      }
+      if (message.sourceNote) {
+        context.createSpan({
+          cls: "augment-part-inbox-message-source",
+          text: `Source: ${message.sourceNote}`
+        });
+      }
     }
     bubble.createDiv({
       cls: "augment-part-inbox-message-body",
       text: message.body || " "
     });
   }
-  getReplyTarget(selectedThread) {
-    if (!selectedThread) return null;
+  getReplyTarget(selectedThread, transcript) {
+    var _a3;
+    if (!selectedThread || transcript.length === 0) return null;
     if (this.viewState.mode === "part") {
       return this.viewState.address;
     }
-    return selectedThread.counterparty === HUMAN_ADDRESS ? null : selectedThread.counterparty;
+    if (selectedThread.humanInvolved) {
+      return (_a3 = selectedThread.participants.find((participant) => participant !== HUMAN_ADDRESS)) != null ? _a3 : null;
+    }
+    return selectedThread.lastSender || transcript[transcript.length - 1].from;
   }
   openCompose(recipientAddress, options = {}) {
     new ComposeModal(
@@ -21899,18 +22802,18 @@ var PartInboxView = class extends import_obsidian6.ItemView {
 };
 
 // src/settings-tab.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 
 // src/template-picker.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 function getTemplateFiles(app, folderPath) {
   const folder = app.vault.getAbstractFileByPath(folderPath);
-  if (!(folder instanceof import_obsidian7.TFolder)) return [];
+  if (!(folder instanceof import_obsidian9.TFolder)) return [];
   return folder.children.filter(
-    (f) => f instanceof import_obsidian7.TFile && f.extension === "md"
+    (f) => f instanceof import_obsidian9.TFile && f.extension === "md"
   );
 }
-var TemplatePicker = class extends import_obsidian7.FuzzySuggestModal {
+var TemplatePicker = class extends import_obsidian9.FuzzySuggestModal {
   constructor(app, files, onChoose) {
     super(app);
     this.files = files;
@@ -21924,9 +22827,9 @@ var TemplatePicker = class extends import_obsidian7.FuzzySuggestModal {
     return file.basename;
   }
   renderSuggestion(match, el) {
-    var _a2, _b;
+    var _a3, _b;
     el.createEl("div", { text: match.item.basename });
-    const desc = (_b = (_a2 = this.app.metadataCache.getFileCache(match.item)) == null ? void 0 : _a2.frontmatter) == null ? void 0 : _b["description"];
+    const desc = (_b = (_a3 = this.app.metadataCache.getFileCache(match.item)) == null ? void 0 : _a3.frontmatter) == null ? void 0 : _b["description"];
     if (desc && typeof desc === "string") {
       el.createEl("div", { cls: "augment-tpl-desc", text: desc });
     }
@@ -21935,7 +22838,7 @@ var TemplatePicker = class extends import_obsidian7.FuzzySuggestModal {
     this.onChoose(file);
   }
 };
-var TemplatePreviewModal = class extends import_obsidian7.Modal {
+var TemplatePreviewModal = class extends import_obsidian9.Modal {
   constructor(app, renderedPrompt, ctx, onConfirm) {
     super(app);
     this.skipPreview = false;
@@ -21960,7 +22863,7 @@ var TemplatePreviewModal = class extends import_obsidian7.Modal {
         text: `~${approxTokens.toLocaleString()} tokens (${charCount.toLocaleString()} chars)`
       });
     }
-    new import_obsidian7.Setting(contentEl).setName("Don't show preview").addToggle((toggle) => {
+    new import_obsidian9.Setting(contentEl).setName("Don't show preview").addToggle((toggle) => {
       toggle.setValue(false).onChange((val) => {
         this.skipPreview = val;
       });
@@ -21969,7 +22872,7 @@ var TemplatePreviewModal = class extends import_obsidian7.Modal {
       this.close();
       this.onConfirm(this.skipPreview);
     };
-    new import_obsidian7.Setting(contentEl).addButton((btn) => {
+    new import_obsidian9.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Cancel").onClick(() => this.close());
     }).addButton((btn) => {
       btn.setButtonText("Generate").setCta().onClick(submit);
@@ -21985,7 +22888,7 @@ var TemplatePreviewModal = class extends import_obsidian7.Modal {
   }
 };
 var NO_FILES_ERROR = "no-files";
-var FolderSuggestModal = class extends import_obsidian7.FuzzySuggestModal {
+var FolderSuggestModal = class extends import_obsidian9.FuzzySuggestModal {
   constructor(app, onChoose) {
     super(app);
     this.setPlaceholder("Select folder to scan\u2026");
@@ -21995,7 +22898,7 @@ var FolderSuggestModal = class extends import_obsidian7.FuzzySuggestModal {
     const folders = [];
     const collect = (folder) => {
       for (const child of folder.children) {
-        if (child instanceof import_obsidian7.TFolder) {
+        if (child instanceof import_obsidian9.TFolder) {
           folders.push(child);
           collect(child);
         }
@@ -22012,19 +22915,19 @@ var FolderSuggestModal = class extends import_obsidian7.FuzzySuggestModal {
   }
 };
 async function analyzeFolderContents(app, folder) {
-  const files = folder.children.filter((f) => f instanceof import_obsidian7.TFile && f.extension === "md").slice(0, 15);
+  const files = folder.children.filter((f) => f instanceof import_obsidian9.TFile && f.extension === "md").slice(0, 15);
   const keyFreq = /* @__PURE__ */ new Map();
   const headingFreq = /* @__PURE__ */ new Map();
   const samples = [];
   await Promise.all(files.map(async (file) => {
-    var _a2, _b;
+    var _a3, _b;
     try {
       const content = await app.vault.cachedRead(file);
       const cache = app.metadataCache.getFileCache(file);
       if (cache == null ? void 0 : cache.frontmatter) {
         for (const key of Object.keys(cache.frontmatter)) {
           if (key === "position") continue;
-          keyFreq.set(key, ((_a2 = keyFreq.get(key)) != null ? _a2 : 0) + 1);
+          keyFreq.set(key, ((_a3 = keyFreq.get(key)) != null ? _a3 : 0) + 1);
         }
       }
       if (cache == null ? void 0 : cache.headings) {
@@ -22085,7 +22988,7 @@ async function generateTemplatesFromFolder(app, folder, settings, resolvedModel)
 }
 function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
   new FolderSuggestModal(app, async (folder) => {
-    const notice = new import_obsidian7.Notice("Scanning folder and generating templates\u2026", 0);
+    const notice = new import_obsidian9.Notice("Scanning folder and generating templates\u2026", 0);
     try {
       const templates = await generateTemplatesFromFolder(app, folder, settings, resolvedModel);
       notice.hide();
@@ -22099,25 +23002,25 @@ function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
         }
         let created = 0;
         for (const t of ts) {
-          const path6 = `${targetFolder}/${t.name}.md`;
-          if (!app.vault.getAbstractFileByPath(path6)) {
-            await app.vault.create(path6, buildTemplateFileContent(t));
+          const path8 = `${targetFolder}/${t.name}.md`;
+          if (!app.vault.getAbstractFileByPath(path8)) {
+            await app.vault.create(path8, buildTemplateFileContent(t));
             created++;
           }
         }
         if (created > 0) {
-          new import_obsidian7.Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
+          new import_obsidian9.Notice(`Created ${created} template${created !== 1 ? "s" : ""}`);
           onComplete == null ? void 0 : onComplete();
         } else {
-          new import_obsidian7.Notice("All generated templates already exist \u2014 no files created");
+          new import_obsidian9.Notice("All generated templates already exist \u2014 no files created");
         }
       }).open();
     } catch (err) {
       notice.hide();
       if ((err == null ? void 0 : err.message) === NO_FILES_ERROR) {
-        new import_obsidian7.Notice("No .md notes found in that folder");
+        new import_obsidian9.Notice("No .md notes found in that folder");
       } else {
-        new import_obsidian7.Notice("Template generation failed \u2014 see console for details");
+        new import_obsidian9.Notice("Template generation failed \u2014 see console for details");
         console.error("[Augment] generate-templates-from-folder failed", err);
       }
     }
@@ -22135,7 +23038,7 @@ function buildTemplateFileContent(t) {
   lines.push("---", t.body);
   return lines.join("\n");
 }
-var GeneratedTemplatesModal = class extends import_obsidian7.Modal {
+var GeneratedTemplatesModal = class extends import_obsidian9.Modal {
   constructor(app, templates, templateFolder, onConfirm) {
     super(app);
     this.templates = templates;
@@ -22159,7 +23062,7 @@ var GeneratedTemplatesModal = class extends import_obsidian7.Modal {
       const pre = card.createEl("pre", { cls: "augment-scan-template-body" });
       pre.textContent = t.body.length > 240 ? t.body.slice(0, 240) + "\u2026" : t.body;
     }
-    new import_obsidian7.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => {
+    new import_obsidian9.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => {
       btn.setButtonText("Create templates").setCta().onClick(async () => {
         btn.setDisabled(true);
         btn.setButtonText("Creating\u2026");
@@ -22197,7 +23100,7 @@ Liquid syntax:
 - Join filter: {{ linked_notes_array | map: "title" | join: ", " }}
 
 Return ONLY the raw template text. No markdown fences, no explanation, no preamble.`;
-var TemplateAssistantModal = class extends import_obsidian7.Modal {
+var TemplateAssistantModal = class extends import_obsidian9.Modal {
   constructor(app, settings, resolvedModel, targetFolder, onSave) {
     super(app);
     this.settings = settings;
@@ -22261,8 +23164,8 @@ var TemplateAssistantModal = class extends import_obsidian7.Modal {
     saveBtn.addEventListener("click", () => void this.runSave());
   }
   async runGenerate(generateBtn) {
-    var _a2, _b;
-    const description = (_a2 = this.descriptionEl) == null ? void 0 : _a2.value.trim();
+    var _a3, _b;
+    const description = (_a3 = this.descriptionEl) == null ? void 0 : _a3.value.trim();
     if (!description || this.isGenerating) return;
     this.isGenerating = true;
     generateBtn.disabled = true;
@@ -22293,9 +23196,9 @@ var TemplateAssistantModal = class extends import_obsidian7.Modal {
     }
   }
   async renderPreview() {
-    var _a2;
+    var _a3;
     if (!this.previewEl) return;
-    const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
+    const template = ((_a3 = this.templateEditorEl) == null ? void 0 : _a3.value.trim()) || this.generatedTemplate;
     if (!template) return;
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) {
@@ -22312,8 +23215,8 @@ var TemplateAssistantModal = class extends import_obsidian7.Modal {
     }
   }
   async runSave() {
-    var _a2, _b, _c;
-    const template = ((_a2 = this.templateEditorEl) == null ? void 0 : _a2.value.trim()) || this.generatedTemplate;
+    var _a3, _b, _c;
+    const template = ((_a3 = this.templateEditorEl) == null ? void 0 : _a3.value.trim()) || this.generatedTemplate;
     if (!template) return;
     const description = (_c = (_b = this.descriptionEl) == null ? void 0 : _b.value.trim()) != null ? _c : "";
     new TemplateSaveNameModal(this.app, async (name) => {
@@ -22324,13 +23227,13 @@ var TemplateAssistantModal = class extends import_obsidian7.Modal {
         } catch (e) {
         }
       }
-      const path6 = `${folder}/${name}.md`;
-      if (this.app.vault.getAbstractFileByPath(path6)) {
-        new import_obsidian7.Notice(`Template "${name}" already exists`);
+      const path8 = `${folder}/${name}.md`;
+      if (this.app.vault.getAbstractFileByPath(path8)) {
+        new import_obsidian9.Notice(`Template "${name}" already exists`);
         return;
       }
-      await this.app.vault.create(path6, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
-      new import_obsidian7.Notice(`Template "${name}" saved`);
+      await this.app.vault.create(path8, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
+      new import_obsidian9.Notice(`Template "${name}" saved`);
       this.onSave();
       this.close();
     }).open();
@@ -22339,7 +23242,7 @@ var TemplateAssistantModal = class extends import_obsidian7.Modal {
     this.contentEl.empty();
   }
 };
-var TemplateSaveNameModal = class extends import_obsidian7.Modal {
+var TemplateSaveNameModal = class extends import_obsidian9.Modal {
   constructor(app, onConfirm) {
     super(app);
     this.onConfirm = onConfirm;
@@ -22348,7 +23251,7 @@ var TemplateSaveNameModal = class extends import_obsidian7.Modal {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Name your template" });
     let name = "";
-    const setting = new import_obsidian7.Setting(contentEl).setName("Template name").addText((text) => {
+    const setting = new import_obsidian9.Setting(contentEl).setName("Template name").addText((text) => {
       text.setPlaceholder("My template").onChange((val) => {
         name = val;
       });
@@ -22366,7 +23269,7 @@ var TemplateSaveNameModal = class extends import_obsidian7.Modal {
       await this.onConfirm(trimmed);
       this.close();
     };
-    new import_obsidian7.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(save));
+    new import_obsidian9.Setting(contentEl).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close())).addButton((btn) => btn.setButtonText("Save").setCta().onClick(save));
   }
   onClose() {
     this.contentEl.empty();
@@ -22500,7 +23403,7 @@ function detectCalloutTypes() {
   }
   return ["ai", ...BUILTIN_CALLOUT_TYPES, ...Array.from(custom).sort()];
 }
-var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
+var AugmentSettingTab = class extends import_obsidian10.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -22524,10 +23427,10 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
   }
   /** Read the current hotkey binding for a command and format for display. */
   formatHotkey(commandId) {
-    var _a2, _b;
+    var _a3, _b;
     const hm = this.app.hotkeyManager;
     const isMac = process.platform === "darwin";
-    const custom = (_a2 = hm == null ? void 0 : hm.customKeys) == null ? void 0 : _a2[commandId];
+    const custom = (_a3 = hm == null ? void 0 : hm.customKeys) == null ? void 0 : _a3[commandId];
     if (Array.isArray(custom) && custom.length > 0) {
       const h = custom[0];
       return formatHotkeyStr(h.modifiers || [], h.key || "?", isMac);
@@ -22541,13 +23444,13 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
     return isMac ? "Cmd+Enter" : "Ctrl+Enter";
   }
   display() {
-    var _a2;
+    var _a3;
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("augment-settings-container");
     const header = containerEl.createEl("div", { cls: "augment-settings-header" });
     const iconEl = header.createEl("div", { cls: "augment-settings-header-icon" });
-    (0, import_obsidian8.setIcon)(iconEl, "radio-tower");
+    (0, import_obsidian10.setIcon)(iconEl, "radio-tower");
     const wordmark = header.createEl("div", { cls: "augment-settings-header-text" });
     wordmark.createEl("div", { cls: "augment-settings-wordmark", text: "Augment" });
     wordmark.createEl("div", {
@@ -22611,7 +23514,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         { label: "Open terminal", commandId: "augment-terminal:open-terminal" }
       ]);
     }
-    const apiKeySetting = new import_obsidian8.Setting(overviewPane).setName("API key").addText((text) => {
+    const apiKeySetting = new import_obsidian10.Setting(overviewPane).setName("API key").addText((text) => {
       apiKeyInputEl = text.inputEl;
       text.inputEl.type = "password";
       text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
@@ -22655,7 +23558,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" }
     ];
     const modelList = this.plugin.availableModels.length > 0 ? this.plugin.availableModels : FALLBACK_MODELS;
-    const modelSetting = new import_obsidian8.Setting(overviewPane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
+    const modelSetting = new import_obsidian10.Setting(overviewPane).setName("Model").setDesc("Claude model to use for generation. Auto selects the best available model.").addDropdown((drop) => {
       drop.addOption("auto", "Auto (best available)");
       drop.addOption("auto-opus", "Latest Opus");
       drop.addOption("auto-sonnet", "Latest Sonnet");
@@ -22688,12 +23591,12 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         { id: "switch-terminal", label: "Switch terminal", defaultKeys: [] },
         { id: "rename-terminal", label: "Rename terminal", defaultKeys: [] },
         { id: "augment-view-context", label: "Open context inspector", defaultKeys: [] },
-        { id: "jump-to-next-waiting-session", label: "Jump to next waiting session", defaultKeys: [] },
+        { id: "jump-to-next-waiting-session", label: "Jump to next session needing attention", defaultKeys: [] },
         { id: "augment-open-settings", label: "Open settings", defaultKeys: [] }
       ];
       const renderHotkeyStr = (hk) => formatHotkeyStr(hk.modifiers, hk.key, isMac);
       const hm = this.app.hotkeyManager;
-      const customKeys = (_a2 = hm == null ? void 0 : hm.customKeys) != null ? _a2 : {};
+      const customKeys = (_a3 = hm == null ? void 0 : hm.customKeys) != null ? _a3 : {};
       const kbTable = shortcutsDetails.createEl("table", { cls: "augment-var-table" });
       const kbTbody = kbTable.createEl("tbody");
       for (const cmd of AUGMENT_CMDS) {
@@ -22799,7 +23702,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       "code-2": "Code",
       "terminal": "Terminal"
     };
-    const ribbonIconSetting = new import_obsidian8.Setting(continuationPane).setName("Generate ribbon icon").setDesc("Icon shown on the Generate ribbon button.").addDropdown((dd) => {
+    const ribbonIconSetting = new import_obsidian10.Setting(continuationPane).setName("Generate ribbon icon").setDesc("Icon shown on the Generate ribbon button.").addDropdown((dd) => {
       for (const [id, label] of Object.entries(RIBBON_ICONS)) {
         dd.addOption(id, label);
       }
@@ -22808,13 +23711,13 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         this.plugin.settings.ribbonIcon = val;
         await this.plugin.saveData(this.plugin.settings);
         this.plugin.applyRibbonIcon();
-        if (ribbonPreviewEl) (0, import_obsidian8.setIcon)(ribbonPreviewEl, val);
+        if (ribbonPreviewEl) (0, import_obsidian10.setIcon)(ribbonPreviewEl, val);
       });
     });
     const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
     ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
-    (0, import_obsidian8.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
-    new import_obsidian8.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
+    (0, import_obsidian10.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
+    new import_obsidian10.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
         this.plugin.settings.coloredRibbonIcon = val;
         await this.plugin.saveData(this.plugin.settings);
@@ -22822,7 +23725,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       });
     });
     const calloutTypes = detectCalloutTypes();
-    const formatSetting = new import_obsidian8.Setting(continuationPane).setName("Output format").setDesc("How generated text is wrapped when inserted.").addDropdown((drop) => {
+    const formatSetting = new import_obsidian10.Setting(continuationPane).setName("Output format").setDesc("How generated text is wrapped when inserted.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
         this.plugin.settings.outputFormat = value;
         await this.plugin.saveData(this.plugin.settings);
@@ -22889,7 +23792,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       this.plugin.settings.calloutExpanded = tertiarySelect.value === "expanded";
       await this.plugin.saveData(this.plugin.settings);
     });
-    const linkedNotesSetting = new import_obsidian8.Setting(continuationPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
+    const linkedNotesSetting = new import_obsidian10.Setting(continuationPane).setName("Linked notes in context").setDesc("Number of wikilinked notes to include as context (0\u201310). For each linked note, Augment sends the note title and its frontmatter \u2014 not the note body. Set to 0 to disable linked note context.").addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text.inputEl.max = "10";
@@ -22902,14 +23805,14 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       });
     });
     addInfoTooltip(linkedNotesSetting.descEl, "Outgoing wikilinks only \u2014 notes the current note links to, not notes that link back to it. Frontmatter (tags, aliases, custom properties) is included; note body is not. Use {{linked_notes_full}} in a template if you need the full body content.");
-    new import_obsidian8.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.").addToggle((toggle) => {
+    new import_obsidian10.Setting(continuationPane).setName("Show generation notice").setDesc("Show a brief notice when generation starts. Helps confirm the keyboard shortcut fired.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showGenerationToast).onChange(async (value) => {
         this.plugin.settings.showGenerationToast = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
     {
-      const contextLimitSetting = new import_obsidian8.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
+      const contextLimitSetting = new import_obsidian10.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
         text.inputEl.type = "number";
         text.inputEl.min = "1";
         text.setPlaceholder("2000").setValue(String(this.plugin.settings.maxContextTokens)).onChange(async (value) => {
@@ -22921,7 +23824,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         });
       });
       addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
-      const systemPromptSetting = new import_obsidian8.Setting(continuationPane).setName("System prompt").setDesc("Sent to Claude before every generation. Supports LiquidJS variables \u2014 {{ now }} inserts the current date and time.").addTextArea((text) => {
+      const systemPromptSetting = new import_obsidian10.Setting(continuationPane).setName("System prompt").setDesc("Sent to Claude before every generation. Supports LiquidJS variables \u2014 {{ now }} inserts the current date and time.").addTextArea((text) => {
         text.setPlaceholder("The current date and time is {{ now }}.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
           this.plugin.settings.systemPrompt = value;
           await this.plugin.saveData(this.plugin.settings);
@@ -22954,7 +23857,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
           const link = desc.createEl("a", { text: "Open keyboard shortcuts \u2197" });
           link.style.cursor = "pointer";
           link.addEventListener("click", () => openHotkeysPage());
-          new import_obsidian8.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc(desc).addButton((btn) => {
+          new import_obsidian10.Setting(continuationPane).setName(`Generate: ${generateHotkey}`).setDesc(desc).addButton((btn) => {
             btn.setButtonText("Restore original").onClick(async () => {
               await this.plugin.restoreObsidianLinkHotkey();
               this.display();
@@ -22966,7 +23869,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
           const link2 = desc2.createEl("a", { text: "Open keyboard shortcuts \u2197" });
           link2.style.cursor = "pointer";
           link2.addEventListener("click", () => openHotkeysPage());
-          new import_obsidian8.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(desc2).addButton((btn) => {
+          new import_obsidian10.Setting(continuationPane).setName(`${generateHotkey} conflict`).setDesc(desc2).addButton((btn) => {
             btn.setButtonText(`Claim ${generateHotkey}`).setCta().onClick(async () => {
               await this.plugin.clearObsidianLinkHotkey();
               this.display();
@@ -23003,7 +23906,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
     eli5Footer.appendText(" below to create one with AI, or ");
     eli5Footer.createEl("strong", { text: "+ New template" });
     eli5Footer.appendText(" to start from scratch.");
-    const templateFolderSetting = new import_obsidian8.Setting(templatesPane).setName("Template folder").setDesc("Vault path to the folder containing .md prompt templates.").addText((text) => {
+    const templateFolderSetting = new import_obsidian10.Setting(templatesPane).setName("Template folder").setDesc("Vault path to the folder containing .md prompt templates.").addText((text) => {
       templateFolderInputEl = text.inputEl;
       text.setPlaceholder("Augment/templates").setValue(this.plugin.settings.templateFolder).onChange(async (value) => {
         this.plugin.settings.templateFolder = value;
@@ -23019,25 +23922,25 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
     });
     openFolderEl.href = "#";
     openFolderEl.addEventListener("click", (e) => {
-      var _a3, _b, _c;
+      var _a4, _b, _c;
       e.preventDefault();
       const folderPath = this.plugin.settings.templateFolder;
       const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
       if (folder) {
-        const fe = (_b = (_a3 = this.plugin.app.internalPlugins) == null ? void 0 : _a3.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
+        const fe = (_b = (_a4 = this.plugin.app.internalPlugins) == null ? void 0 : _a4.getPluginById("file-explorer")) == null ? void 0 : _b.instance;
         (_c = fe == null ? void 0 : fe.revealInFolder) == null ? void 0 : _c.call(fe, folder);
       } else {
         console.log(`[Augment] folder not found: "${folderPath}"`);
-        new import_obsidian8.Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
+        new import_obsidian10.Notice(`Folder "${folderPath}" not found \u2014 check the path above`);
       }
     });
-    new import_obsidian8.Setting(templatesPane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
+    new import_obsidian10.Setting(templatesPane).setName("Show template preview").setDesc("Preview the rendered prompt before generating from a template").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.showTemplatePreview).onChange(async (value) => {
         this.plugin.settings.showTemplatePreview = value;
         await this.plugin.saveData(this.plugin.settings);
       });
     });
-    new import_obsidian8.Setting(templatesPane).setName("Generate template").setDesc("Describe what you want in plain English and Augment will write a Liquid template for you.").addButton((btn) => {
+    new import_obsidian10.Setting(templatesPane).setName("Generate template").setDesc("Describe what you want in plain English and Augment will write a Liquid template for you.").addButton((btn) => {
       btn.setButtonText("Generate template\u2026").setCta().onClick(() => {
         const targetFolder = this.plugin.settings.templateFolder || "Augment/templates";
         new TemplateAssistantModal(
@@ -23052,18 +23955,18 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
     templatesPane.createDiv({ cls: "augment-pane-section", text: "Your templates" });
     const templateListEl = templatesPane.createDiv({ cls: "augment-template-list" });
     const renderTemplateList = () => {
-      var _a3;
+      var _a4;
       templateListEl.empty();
       const folderPath = this.plugin.settings.templateFolder;
       const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
-      if (!folder || !(folder instanceof import_obsidian8.TFolder)) {
+      if (!folder || !(folder instanceof import_obsidian10.TFolder)) {
         templateListEl.createDiv({
           cls: "augment-template-empty",
           text: "No templates found. Check the folder path above or create a template."
         });
         return;
       }
-      const files = folder.children.filter((f) => f instanceof import_obsidian8.TFile && f.extension === "md").sort((a, b) => a.basename.localeCompare(b.basename));
+      const files = folder.children.filter((f) => f instanceof import_obsidian10.TFile && f.extension === "md").sort((a, b) => a.basename.localeCompare(b.basename));
       if (files.length === 0) {
         templateListEl.createDiv({
           cls: "augment-template-empty",
@@ -23072,7 +23975,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         return;
       }
       for (const file of files) {
-        const meta = (_a3 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a3.frontmatter;
+        const meta = (_a4 = this.plugin.app.metadataCache.getFileCache(file)) == null ? void 0 : _a4.frontmatter;
         const name = (meta == null ? void 0 : meta.name) || file.basename;
         const desc = (meta == null ? void 0 : meta.description) || "";
         const row = templateListEl.createDiv({ cls: "augment-template-row" });
@@ -23104,19 +24007,19 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         renderTemplateList();
       } catch (e) {
         const existing = this.plugin.app.vault.getAbstractFileByPath(newPath);
-        if (existing instanceof import_obsidian8.TFile) {
+        if (existing instanceof import_obsidian10.TFile) {
           await this.plugin.app.workspace.getLeaf().openFile(existing);
         } else {
           console.log("[Augment] could not create template");
-          new import_obsidian8.Notice("Could not create template");
+          new import_obsidian10.Notice("Could not create template");
         }
       }
     });
     if (this.plugin.settings.hasUsedTemplate) {
-      const genTplSetting = new import_obsidian8.Setting(templatesPane).setName("Generate templates from folder").setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.").addButton((btn) => {
+      const genTplSetting = new import_obsidian10.Setting(templatesPane).setName("Generate templates from folder").setDesc("Scan a vault folder and generate LiquidJS templates based on the content patterns found there.").addButton((btn) => {
         btn.setButtonText("Choose folder\u2026").onClick(async () => {
           if (!this.plugin.settings.apiKey) {
-            new import_obsidian8.Notice("Add an API key in the Overview tab first");
+            new import_obsidian10.Notice("Add an API key in the Overview tab first");
             return;
           }
           runGenerateTemplatesFlow(this.app, this.plugin.settings, this.plugin.resolveModel(), () => renderTemplateList());
@@ -23234,7 +24137,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       this.renderHotkeyBox(termHeader, [
         { label: "Open terminal", commandId: "augment-terminal:open-terminal" },
         { label: "Terminal manager", commandId: "augment-terminal:open-terminal-manager" },
-        { label: "Next waiting", commandId: "augment-terminal:jump-to-next-waiting-session" }
+        { label: "Next attention", commandId: "augment-terminal:jump-to-next-waiting-session" }
       ]);
     }
     const wizardSection = terminalPane.createDiv({ cls: "augment-setup-card" });
@@ -23348,24 +24251,24 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
     };
     void renderStatusCard();
     if (this.plugin.settings.terminalSetupDone) {
-      const terminalLocationSetting = new import_obsidian8.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
-        var _a3;
-        drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a3 = this.plugin.settings.defaultTerminalLocation) != null ? _a3 : "tab").onChange(async (value) => {
+      const terminalLocationSetting = new import_obsidian10.Setting(terminalPane).setName("Default terminal location").setDesc("Where new terminals open when using the default command or ribbon button. Use explicit location commands to bind keyboard shortcuts to specific positions.").addDropdown((drop) => {
+        var _a4;
+        drop.addOption("tab", "New tab").addOption("split-right", "Split right").addOption("split-down", "Split below").addOption("sidebar-right-top", "Right sidebar (top)").addOption("sidebar-right-bottom", "Right sidebar (bottom)").addOption("sidebar-left-top", "Left sidebar (top)").addOption("sidebar-left-bottom", "Left sidebar (bottom)").setValue((_a4 = this.plugin.settings.defaultTerminalLocation) != null ? _a4 : "tab").onChange(async (value) => {
           this.plugin.settings.defaultTerminalLocation = value;
           await this.plugin.saveData(this.plugin.settings);
         });
       });
       addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
-      new import_obsidian8.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
+      new import_obsidian10.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
           this.plugin.settings.showOtherProjects = value;
           await this.plugin.saveData(this.plugin.settings);
           this.plugin.app.workspace.trigger("augment-terminal:changed");
         });
       });
-      new import_obsidian8.Setting(terminalPane).setName("Workspace scope").setDesc("Controls how the agent treats this workspace's paths relative to other workspaces.").addDropdown((drop) => {
-        var _a3;
-        drop.addOption("open", "No restrictions").addOption("focused", "Focus on this workspace").addOption("restricted", "Treat as private workspace").setValue((_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open").onChange(async (value) => {
+      new import_obsidian10.Setting(terminalPane).setName("Workspace scope").setDesc("Controls how the agent treats this workspace's paths relative to other workspaces.").addDropdown((drop) => {
+        var _a4;
+        drop.addOption("open", "No restrictions").addOption("focused", "Focus on this workspace").addOption("restricted", "Treat as private workspace").setValue((_a4 = this.plugin.settings.workspaceScope) != null ? _a4 : "open").onChange(async (value) => {
           this.plugin.settings.workspaceScope = value;
           await this.plugin.saveData(this.plugin.settings);
           renderScopeExtras();
@@ -23373,26 +24276,26 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       });
       const scopeExtrasEl = terminalPane.createDiv({ cls: "augment-scope-extras" });
       const renderScopeExtras = () => {
-        var _a3;
+        var _a4;
         scopeExtrasEl.empty();
-        const scope = (_a3 = this.plugin.settings.workspaceScope) != null ? _a3 : "open";
-        const path6 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
+        const scope = (_a4 = this.plugin.settings.workspaceScope) != null ? _a4 : "open";
+        const path8 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
         const descMap = {
           open: "The agent works across your full vault without scope guidance.",
           focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
           restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it."
         };
         scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
-        if (path6 && scope !== "open") {
+        if (path8 && scope !== "open") {
           const verb = scope === "focused" ? "focus on" : "treat as private";
-          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path6}` });
+          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path8}` });
         }
         if (scope !== "open") {
           const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
           box.createSpan({ cls: "augment-scope-infobox-icon", text: "\u2139" });
           box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions \u2014 the agent is told to apply this, not technically prevented from other access." });
         }
-        if (scope !== "open" && !path6) {
+        if (scope !== "open" && !path8) {
           scopeExtrasEl.createDiv({
             cls: "augment-scope-validation",
             text: "Set a working directory (Terminal \u2192 Advanced \u2192 Working directory) to apply scope guidance."
@@ -23403,7 +24306,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
       const advancedDetails = terminalPane.createEl("details", { cls: "augment-advanced-details" });
       advancedDetails.createEl("summary", { cls: "augment-advanced-summary", text: "Advanced" });
       if (process.platform === "win32") {
-        new import_obsidian8.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
+        new import_obsidian10.Setting(advancedDetails).setName("Shell").setDesc("Shell to launch in new terminals.").addDropdown((dropdown) => {
           const knownValues = ["", "wsl.exe", "cmd.exe"];
           const current = this.plugin.settings.shellPath;
           dropdown.addOption("", "PowerShell (default)").addOption("wsl.exe", "WSL").addOption("cmd.exe", "Command Prompt");
@@ -23417,14 +24320,14 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
         });
       } else {
         const defaultShell = process.platform === "darwin" ? "/bin/zsh" : "/bin/bash";
-        new import_obsidian8.Setting(advancedDetails).setName("Shell").setDesc("Custom shell path. Leave blank to use the system default.").addText((text) => {
+        new import_obsidian10.Setting(advancedDetails).setName("Shell").setDesc("Custom shell path. Leave blank to use the system default.").addText((text) => {
           text.setPlaceholder(defaultShell).setValue(this.plugin.settings.shellPath).onChange(async (value) => {
             this.plugin.settings.shellPath = value;
             await this.plugin.saveData(this.plugin.settings);
           });
         });
       }
-      new import_obsidian8.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
+      new import_obsidian10.Setting(advancedDetails).setName("Default working directory").setDesc("Starting directory for new terminals. Leave blank to use the vault root.").addText((text) => {
         text.setPlaceholder("(vault root)").setValue(this.plugin.settings.defaultWorkingDirectory).onChange(async (value) => {
           this.plugin.settings.defaultWorkingDirectory = value;
           await this.plugin.saveData(this.plugin.settings);
@@ -23443,316 +24346,7 @@ var AugmentSettingTab = class extends import_obsidian8.PluginSettingTab {
 };
 
 // src/terminal-manager-view.ts
-var import_obsidian9 = require("obsidian");
-
-// src/session-store.ts
-var fs2 = __toESM(require("fs"));
-var path3 = __toESM(require("path"));
-var os = __toESM(require("os"));
-var SessionStore = class {
-  constructor(vaultBasePath) {
-    this.vaultBasePath = vaultBasePath;
-    this.summaryCache = /* @__PURE__ */ new Map();
-  }
-  // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
-  // CC encodes cwd by replacing '/' and spaces with '-'.
-  async findProjectDir() {
-    var _a2;
-    const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
-    const encoded = this.vaultBasePath.replace(/[/\\ ]/g, "-");
-    const dir = path3.join(home, ".claude", "projects", encoded);
-    try {
-      if ((await fs2.promises.stat(dir)).isDirectory()) return dir;
-    } catch (e) {
-    }
-    return null;
-  }
-  // Enumerate all project directories under ~/.claude/projects/.
-  async findAllProjectDirs() {
-    var _a2;
-    const home = (_a2 = process.env.HOME) != null ? _a2 : os.homedir();
-    const projectsRoot = path3.join(home, ".claude", "projects");
-    const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
-    const encodedHome = home.replace(/[/ ]/g, "-");
-    try {
-      const names = await fs2.promises.readdir(projectsRoot);
-      const dirs = await Promise.all(
-        names.map(async (encodedName) => {
-          const projectDir = path3.join(projectsRoot, encodedName);
-          try {
-            const stat = await fs2.promises.stat(projectDir);
-            if (!stat.isDirectory()) return null;
-          } catch (e) {
-            return null;
-          }
-          const isVault = encodedName === vaultEncoded;
-          const relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
-          const projectName = relative.replace(/-/g, "/") || encodedName;
-          return { encodedName, projectDir, isVault, projectName };
-        })
-      );
-      return dirs.filter((d) => d !== null);
-    } catch (e) {
-      return [];
-    }
-  }
-  // Sort session files by mtime desc, take first `limit`.
-  async loadSessions(limit2) {
-    const dir = await this.findProjectDir();
-    if (!dir) return [];
-    return (await this.loadSessionsFromDir(dir, limit2)).sessions;
-  }
-  // Load sessions from all CC project directories, grouped by project.
-  // Vault project is flagged with isVault=true.
-  async loadAllProjectGroups(limitPerProject = 50) {
-    const dirs = await this.findAllProjectDirs();
-    const groups = await Promise.all(
-      dirs.map(async ({ encodedName, projectDir, isVault, projectName }) => {
-        var _a2, _b;
-        const { sessions, totalOnDisk } = await this.loadSessionsFromDir(projectDir, limitPerProject);
-        if (sessions.length === 0) return null;
-        const lastActivityMs = (_b = (_a2 = sessions[0]) == null ? void 0 : _a2.mtimeMs) != null ? _b : 0;
-        return {
-          projectName,
-          projectDir,
-          encodedName,
-          isVault,
-          sessions,
-          totalOnDisk,
-          lastActivityMs
-        };
-      })
-    );
-    return groups.filter((g) => g !== null).sort((a, b) => b.lastActivityMs - a.lastActivityMs);
-  }
-  async loadSessionsFromDir(dir, limit2) {
-    try {
-      const now = Date.now();
-      const files = (await fs2.promises.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
-      const totalOnDisk = files.length;
-      const entries = (await Promise.all(
-        files.map(async (name) => {
-          const fullPath = path3.join(dir, name);
-          try {
-            const st = await fs2.promises.stat(fullPath);
-            return { name, fullPath, mtimeMs: st.mtimeMs };
-          } catch (e) {
-            return null;
-          }
-        })
-      )).filter((e) => e !== null).sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit2);
-      const sessions = await Promise.all(
-        entries.map(async (e) => {
-          var _a2;
-          const id = e.name.slice(0, -6);
-          const summary = await this.readSessionSummary(e.fullPath, id, e.mtimeMs);
-          if (summary.msgCount <= 0) return null;
-          return {
-            id,
-            resumeId: (_a2 = summary.resumeId) != null ? _a2 : id,
-            title: summary.title,
-            titleFull: summary.titleFull,
-            status: now - e.mtimeMs < 3e4 ? "stale" : "complete",
-            mtimeMs: e.mtimeMs,
-            msgCount: summary.msgCount
-          };
-        })
-      );
-      return { sessions: sessions.filter((s) => s !== null), totalOnDisk };
-    } catch (e) {
-      return { sessions: [], totalOnDisk: 0 };
-    }
-  }
-  async readSessionSummary(sessionPath, fallbackTitle, mtimeMs) {
-    const cached = this.summaryCache.get(sessionPath);
-    if (cached && cached.mtimeMs === mtimeMs) {
-      return cached.summary;
-    }
-    try {
-      const content = await fs2.promises.readFile(sessionPath, "utf-8");
-      const summary = this.parseSessionContent(content, fallbackTitle);
-      this.summaryCache.set(sessionPath, { mtimeMs, summary });
-      if (this.summaryCache.size > 200) {
-        this.summaryCache.delete(this.summaryCache.keys().next().value);
-      }
-      return summary;
-    } catch (e) {
-      return { msgCount: 0, resumeId: null, title: fallbackTitle };
-    }
-  }
-  parseSessionContent(content, fallbackTitle) {
-    var _a2, _b, _c;
-    let firstUserTitle = null;
-    let firstUserRaw = null;
-    let firstAssistantText = null;
-    let firstAssistantRaw = null;
-    let explicitRenameTitle = null;
-    let resumeId = null;
-    let msgCount = 0;
-    for (const line of content.split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        const obj = JSON.parse(line);
-        if (!resumeId && typeof (obj == null ? void 0 : obj.sessionId) === "string" && obj.sessionId.trim()) {
-          resumeId = obj.sessionId.trim();
-        }
-        const command = (_a2 = obj == null ? void 0 : obj.data) == null ? void 0 : _a2.command;
-        if (typeof command === "string" && command.trim()) {
-          const renamed = this.extractExplicitRenameTitle(command);
-          if (renamed) {
-            explicitRenameTitle = renamed;
-          }
-        }
-        if (obj.type === "user") {
-          const msgContent = (_b = obj.message) == null ? void 0 : _b.content;
-          let text = "";
-          if (typeof msgContent === "string") {
-            text = msgContent;
-          } else if (Array.isArray(msgContent)) {
-            for (const block of msgContent) {
-              if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
-                text = block.text;
-                break;
-              }
-            }
-          }
-          if (text.trim() && !this.isMetaUserText(text)) {
-            msgCount++;
-            if (!firstUserTitle) {
-              const cleaned = this.cleanTitle(text);
-              if (cleaned) {
-                firstUserTitle = cleaned;
-                firstUserRaw = text;
-              }
-            }
-          }
-        }
-        if (!firstAssistantText && obj.type === "assistant") {
-          const msgContent = (_c = obj.message) == null ? void 0 : _c.content;
-          if (Array.isArray(msgContent)) {
-            for (const block of msgContent) {
-              if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
-                const text = block.text.trim();
-                const firstLine = text.replace(/\n[\s\S]*/m, "").trim();
-                const sentence = firstLine.replace(/[.!?].*/, "").trim();
-                const candidate = (sentence.length > 5 ? sentence : firstLine).slice(0, 55);
-                if (candidate.length > 3) {
-                  firstAssistantText = candidate;
-                  firstAssistantRaw = firstLine.slice(0, 200);
-                }
-                break;
-              }
-            }
-          }
-        }
-      } catch (e) {
-      }
-    }
-    const parts = [];
-    if (firstUserTitle) parts.push(firstUserTitle);
-    if (firstAssistantText) parts.push(firstAssistantText);
-    const combined = parts.join(" \u2014 ").slice(0, 60) || fallbackTitle;
-    const title = explicitRenameTitle != null ? explicitRenameTitle : combined;
-    const longParts = [];
-    if (firstUserRaw) {
-      const userLong = this.cleanTitle(firstUserRaw, 180);
-      if (userLong) longParts.push(userLong);
-    } else if (firstUserTitle) {
-      longParts.push(firstUserTitle);
-    }
-    if (firstAssistantRaw) {
-      longParts.push(firstAssistantRaw);
-    } else if (firstAssistantText) {
-      longParts.push(firstAssistantText);
-    }
-    const titleFull = explicitRenameTitle != null ? explicitRenameTitle : longParts.join(" \u2014 ").slice(0, 280) || fallbackTitle;
-    return { msgCount, resumeId, title, titleFull };
-  }
-  extractExplicitRenameTitle(command) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
-    const paneHook = command.match(
-      /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
-    );
-    if (paneHook) {
-      return this.normalizeExplicitTitle(
-        (_d = (_c = (_b = (_a2 = paneHook[1]) != null ? _a2 : paneHook[2]) != null ? _b : paneHook[3]) != null ? _c : paneHook[4]) != null ? _d : ""
-      );
-    }
-    const tmuxSelect = command.match(
-      /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
-    );
-    if (tmuxSelect) {
-      return this.normalizeExplicitTitle(
-        (_h = (_g = (_f = (_e = tmuxSelect[1]) != null ? _e : tmuxSelect[2]) != null ? _f : tmuxSelect[3]) != null ? _g : tmuxSelect[4]) != null ? _h : ""
-      );
-    }
-    const tmuxWindow = command.match(
-      /\btmux\b[\s\S]*?\brename-window\b[\s\S]*?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
-    );
-    if (tmuxWindow) {
-      return this.normalizeExplicitTitle(
-        (_l = (_k = (_j = (_i = tmuxWindow[1]) != null ? _i : tmuxWindow[2]) != null ? _j : tmuxWindow[3]) != null ? _k : tmuxWindow[4]) != null ? _l : ""
-      );
-    }
-    return null;
-  }
-  normalizeExplicitTitle(value) {
-    const compact2 = value.replace(/\\n/g, " ").replace(/\\t/g, " ").replace(/\\(["'`\\])/g, "$1").trim();
-    if (!compact2) return null;
-    const readable = compact2.includes(" ") ? compact2 : compact2.replace(/[-_]+/g, " ");
-    const cleaned = readable.replace(/\s+/g, " ").trim();
-    return cleaned ? cleaned.slice(0, 60) : null;
-  }
-  isMetaUserText(text) {
-    const stripped = text.replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, "").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "").replace(/<command-name>[\s\S]*?<\/command-name>/gi, "").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, "").replace(/\s+/g, " ").trim();
-    if (!stripped) return true;
-    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(stripped)) return true;
-    return false;
-  }
-  cleanTitle(raw2, limit2 = 60) {
-    var _a2, _b;
-    const compact2 = raw2.replace(/\s+/g, " ").trim();
-    if (!compact2) return null;
-    const teammate = this.cleanTeammateXmlTitle(compact2, limit2);
-    if (teammate) return teammate.slice(0, limit2);
-    const deSystemed = compact2.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ").replace(/<env>[\s\S]*?<\/env>/gi, " ").replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, " ").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, " ").replace(/<command-name>[\s\S]*?<\/command-name>/gi, " ").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, " ").replace(/\s+/g, " ").trim();
-    if (!deSystemed) return null;
-    const stripped = deSystemed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    if (!stripped) return null;
-    const roleForwarded = stripped.match(
-      /^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i
-    );
-    if (roleForwarded == null ? void 0 : roleForwarded[1]) {
-      const role = roleForwarded[1].replace(/\s+part$/i, "").trim();
-      const project = (_b = (_a2 = stripped.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _a2[1]) == null ? void 0 : _b.trim();
-      const label = project ? `${role} - ${project}` : role;
-      return label.slice(0, limit2);
-    }
-    return stripped.slice(0, limit2);
-  }
-  cleanTeammateXmlTitle(text, limit2 = 60) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-    const xml = text.match(
-      /<teammate-message\b([^>]*)>([\s\S]*?)<\/teammate-message>/i
-    );
-    if (!xml) return null;
-    const attrs = (_a2 = xml[1]) != null ? _a2 : "";
-    const body = ((_b = xml[2]) != null ? _b : "").replace(/\s+/g, " ").trim();
-    const teammateId = (_h = (_g = (_d = (_c = attrs.match(/\bteammate_id="([^"]+)"/i)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim()) != null ? _g : (_f = (_e = attrs.match(/\brecipient="([^"]+)"/i)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim()) != null ? _h : null;
-    const summary = (_k = (_j = (_i = attrs.match(/\bsummary="([^"]+)"/i)) == null ? void 0 : _i[1]) == null ? void 0 : _j.trim()) != null ? _k : null;
-    if (summary && teammateId) return `${teammateId} - ${summary}`;
-    if (summary) return summary;
-    const role = (_m = (_l = body.match(/^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i)) == null ? void 0 : _l[1]) == null ? void 0 : _m.trim();
-    const project = (_o = (_n = body.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _n[1]) == null ? void 0 : _o.trim();
-    if (role && project) return `${role} - ${project}`;
-    if (role) return role;
-    if (teammateId) return teammateId;
-    if (body) return body.slice(0, limit2);
-    return null;
-  }
-};
-
-// src/terminal-manager-view.ts
+var import_obsidian11 = require("obsidian");
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 var STATUS_PRIORITY = {
   crashed: 7,
@@ -23764,7 +24358,7 @@ var STATUS_PRIORITY = {
   idle: 1,
   exited: 0
 };
-var TerminalManagerView = class extends import_obsidian9.ItemView {
+var TerminalManagerView = class extends import_obsidian11.ItemView {
   constructor(leaf) {
     super(leaf);
     this.listEl = null;
@@ -23802,65 +24396,8 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     return "square-terminal";
   }
   async onOpen() {
-    var _a2, _b;
-    const container = this.contentEl;
-    container.empty();
-    container.addClass("augment-terminal-manager");
-    const header = container.createDiv({ cls: "augment-tm-header" });
-    header.createSpan({ cls: "augment-tm-title", text: "AUGMENT" });
-    const headerActions = header.createDiv({ cls: "augment-tm-header-actions" });
-    const launchBtn = headerActions.createEl("button", {
-      cls: "augment-tm-launch clickable-icon",
-      attr: { type: "button", "aria-label": "Launch managed team" }
-    });
-    launchBtn.setAttribute("title", "Launch managed team");
-    (0, import_obsidian9.setIcon)(launchBtn, "rocket");
-    launchBtn.addEventListener("click", () => {
-      var _a3, _b2;
-      void ((_b2 = (_a3 = this.getPlugin()) == null ? void 0 : _a3.openTeamLaunchPicker) == null ? void 0 : _b2.call(_a3));
-    });
-    const ccLaunchBtn = headerActions.createEl("button", {
-      cls: "augment-tm-launch augment-tm-launch-cc clickable-icon",
-      attr: { type: "button", "aria-label": "Launch CC team" }
-    });
-    ccLaunchBtn.setAttribute("title", "Launch CC team");
-    (0, import_obsidian9.setIcon)(ccLaunchBtn, "terminal");
-    ccLaunchBtn.addEventListener("click", () => {
-      var _a3, _b2;
-      void ((_b2 = (_a3 = this.getPlugin()) == null ? void 0 : _a3.openCCTeamLaunchPicker) == null ? void 0 : _b2.call(_a3));
-    });
-    const addBtn = headerActions.createEl("button", {
-      cls: "augment-tm-add clickable-icon",
-      attr: { type: "button", "aria-label": "Open terminal" }
-    });
-    addBtn.setAttribute("title", "Open terminal");
-    (0, import_obsidian9.setIcon)(addBtn, "plus");
-    addBtn.addEventListener("click", () => {
-      this.app.commands.executeCommandById(
-        "augment-terminal:open-terminal"
-      );
-    });
-    this.listEl = container.createDiv({ cls: "augment-tm-list" });
-    const vaultPath = this.app.vault.adapter.basePath;
-    this.sessionStore = new SessionStore(vaultPath);
-    if ((_b = (_a2 = this.getPlugin()) == null ? void 0 : _a2.settings) == null ? void 0 : _b.showOtherProjects) {
-      this.otherProjectsEnabled = true;
-    }
-    let historyRequestedLimit = 0;
-    this.maybeLoadHistory = this.createAsyncLoader(
-      this.historyState,
-      () => {
-        historyRequestedLimit = this.historyLoadedCount;
-        return this.sessionStore.loadSessions(historyRequestedLimit);
-      },
-      1500,
-      () => this.historyLoadedCount !== historyRequestedLimit
-    );
-    this.maybeLoadProjects = this.createAsyncLoader(
-      this.projectsState,
-      () => this.sessionStore.loadAllProjectGroups(50).then((gs) => gs.filter((g) => !g.isVault)),
-      2e3
-    );
+    this.contentEl.empty();
+    this.contentEl.addClass("augment-terminal-manager");
     this.requestRefresh();
     window.setTimeout(() => this.requestRefresh(), 0);
     this.app.workspace.onLayoutReady(() => this.requestRefresh());
@@ -23885,8 +24422,8 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     this.registerInterval(window.setInterval(() => this.refreshTimestamps(), 3e4));
   }
   getPlugin() {
-    var _a2, _b;
-    return (_b = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) == null ? void 0 : _b["augment-terminal"];
+    var _a3, _b;
+    return (_b = (_a3 = this.app.plugins) == null ? void 0 : _a3.plugins) == null ? void 0 : _b["augment-terminal"];
   }
   requestRefresh() {
     if (this.refreshFrameId !== null) {
@@ -23924,9 +24461,9 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       }).catch(() => {
         state.lastLoadTime = Date.now();
       }).finally(() => {
-        var _a2;
+        var _a3;
         state.inFlight = false;
-        const needsReload = state.reloadRequested || ((_a2 = extraReload == null ? void 0 : extraReload()) != null ? _a2 : false);
+        const needsReload = state.reloadRequested || ((_a3 = extraReload == null ? void 0 : extraReload()) != null ? _a3 : false);
         state.reloadRequested = false;
         if (needsReload) {
           state.lastLoadTime = 0;
@@ -23963,12 +24500,12 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
   }
   findLeafForAgent(agentName) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const target = agentName.toLowerCase();
     const leaves = this.getTerminalLeaves();
     for (const leaf of leaves) {
       const view = leaf.view;
-      const identity = typeof view.getAgentIdentity === "function" ? (_a2 = view.getAgentIdentity()) != null ? _a2 : "" : "";
+      const identity = typeof view.getAgentIdentity === "function" ? (_a3 = view.getAgentIdentity()) != null ? _a3 : "" : "";
       if (identity.toLowerCase() === target) return leaf;
     }
     for (const leaf of leaves) {
@@ -24032,13 +24569,13 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     return result;
   }
   computeManagedTeamGroups(leaves) {
-    var _a2;
+    var _a3;
     const byTeam = /* @__PURE__ */ new Map();
     for (const leaf of leaves) {
       const view = leaf.view;
       const teamId = this.getManagedTeamId(view);
       if (!teamId) continue;
-      const group = (_a2 = byTeam.get(teamId)) != null ? _a2 : [];
+      const group = (_a3 = byTeam.get(teamId)) != null ? _a3 : [];
       group.push(leaf);
       byTeam.set(teamId, group);
     }
@@ -24058,119 +24595,46 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       return a.displayName.localeCompare(b.displayName);
     });
   }
+  getActiveSessionCount() {
+    return this.getTerminalLeaves().filter((leaf) => {
+      const status = this.getLeafStatus(leaf.view);
+      return status !== "crashed" && status !== "exited";
+    }).length;
+  }
+  getLegacyRedirectCountLine(activeSessionCount) {
+    const attention = summarizeAttentionSessions(
+      this.getTerminalLeaves().map((leaf) => {
+        const view = leaf.view;
+        return {
+          id: leaf,
+          status: this.getLeafStatus(view),
+          unreadActivity: typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0,
+          lastActivityMs: typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0
+        };
+      })
+    );
+    if (attention.attentionCount === 0) {
+      return activeSessionCount > 0 ? `Active sessions: ${activeSessionCount}` : null;
+    }
+    if (attention.unreadSessionCount > 0) {
+      return `Needs attention: ${attention.attentionCount} \xB7 ${attention.unreadSessionCount} unread`;
+    }
+    return `Needs attention: ${attention.attentionCount} waiting`;
+  }
   refresh() {
-    if (!this.listEl) return;
-    this.listEl.empty();
-    const plugin = this.getPlugin();
-    if (plugin == null ? void 0 : plugin.settings) {
-      this.otherProjectsEnabled = plugin.settings.showOtherProjects;
-    }
-    const leaves = this.getTerminalLeaves();
-    const sessions = this.getHistorySessions();
-    const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
-    const parts = discoverVaultParts(this.app);
-    const activeLeaf = this.app.workspace.activeLeaf;
-    const hasOpen = leaves.length > 0;
-    const hasHistory = sessions.length > 0;
-    const hasOtherProjects = otherGroups.length > 0;
-    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
-    if (!hasOpen && !hasHistory && !hasOtherProjects) {
-      const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
-      emptyEl.createDiv({ text: "No terminals yet." });
-      emptyEl.createDiv({ text: "Press + to open one." });
-    }
-    if (hasOpen) {
-      const managedTeamGroups = this.computeManagedTeamGroups(leaves);
-      const managedLeaves = /* @__PURE__ */ new Set();
-      for (const group of managedTeamGroups) {
-        for (const member of group.members) {
-          managedLeaves.add(member);
-        }
+    this.hideActivityTooltip();
+    this.contentEl.addClass("augment-terminal-manager");
+    const activeSessionCount = this.getActiveSessionCount();
+    renderLegacyRedirectShell(this.contentEl, {
+      title: "Terminal manager moved",
+      copy: "The legacy terminal manager view moved out of Augment for Obsidian. Open Augment Control Center when it is available, or use Learn more for the current gap-period path.",
+      countLine: this.getLegacyRedirectCountLine(activeSessionCount),
+      onOpenControlCenter: () => {
+        var _a3, _b;
+        void ((_b = (_a3 = this.getPlugin()) == null ? void 0 : _a3.openControlCenter) == null ? void 0 : _b.call(_a3));
       }
-      if (managedTeamGroups.length > 0) {
-        this.renderManagedTeamCards(managedTeamGroups, activeLeaf);
-      }
-      const unmanagedLeaves = leaves.filter((leaf) => !managedLeaves.has(leaf));
-      const teamGroups = this.computeTeamGroups(unmanagedLeaves);
-      this.renderOpenSectionWithGroups(this.listEl, unmanagedLeaves, teamGroups, activeLeaf);
-    }
-    this.renderInboxSection();
-    this.renderPartsSection(parts);
-    if (hasHistory) {
-      const isExpanded = this.historyCollapseState === "open" || this.historyCollapseState === "auto" && !hasOpen;
-      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (isExpanded) divider.addClass("is-open");
-      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
-      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
-      divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
-      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-      if (!isExpanded) historyContainer.style.display = "none";
-      this.renderHistorySections(sessions, historyContainer);
-      divider.addEventListener("click", () => {
-        this.historyCollapseState = isExpanded ? "closed" : "open";
-        divider.toggleClass("is-open", !isExpanded);
-        historyContainer.style.display = isExpanded ? "none" : "";
-      });
-    }
-    if (this.otherProjectsEnabled) {
-      const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
-      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
-      otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
-      const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
-      if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
-      if (hasOtherProjects) {
-        this.renderOtherProjectsSection(otherGroups, otherContainer);
-      } else if (this.projectsState.inFlight) {
-        otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading\u2026" });
-      } else {
-        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
-      }
-      otherDivider.addEventListener("click", () => {
-        this.otherProjectsExpanded = !this.otherProjectsExpanded;
-        otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
-        otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
-      });
-    } else {
-      const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
-      const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24D8" });
-      let tip = null;
-      infoIcon.addEventListener("mouseenter", () => {
-        tip = document.createElement("div");
-        tip.className = "augment-api-key-tip";
-        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
-        document.body.appendChild(tip);
-        const rect = infoIcon.getBoundingClientRect();
-        tip.style.top = `${rect.bottom + 6}px`;
-        tip.style.left = `${rect.left}px`;
-      });
-      infoIcon.addEventListener("mouseleave", () => {
-        tip == null ? void 0 : tip.remove();
-        tip = null;
-      });
-      const loadBtn = loadDivider.createEl("button", {
-        cls: "augment-tm-load-projects-btn",
-        text: "Show other projects"
-      });
-      loadBtn.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        loadBtn.disabled = true;
-        loadBtn.textContent = "";
-        loadBtn.addClass("is-loading");
-        const spinner = loadBtn.createSpan({ cls: "augment-tm-spinner" });
-        this.otherProjectsEnabled = true;
-        this.otherProjectsExpanded = true;
-        this.projectsState.lastLoadTime = 0;
-        this.projectsState.reloadRequested = true;
-        const plugin2 = this.getPlugin();
-        if (plugin2 == null ? void 0 : plugin2.settings) {
-          plugin2.settings.showOtherProjects = true;
-          void plugin2.saveData(plugin2.settings);
-        }
-        this.requestRefresh();
-      });
-    }
+    });
+    this.listEl = null;
   }
   renderOpenSectionWithGroups(container, leaves, teamGroups, activeLeaf) {
     const assignedLeaves = /* @__PURE__ */ new Set();
@@ -24202,7 +24666,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
   }
   renderOpenRow(container, leaf, activeLeaf, teamContext = { isTeamMember: false, isSubAgent: false }) {
-    var _a2;
+    var _a3;
     const view = leaf.view;
     const row = container.createDiv({ cls: "augment-tm-item" });
     if (leaf === activeLeaf) row.addClass("is-active");
@@ -24217,7 +24681,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     dot.setAttribute("title", this.getStatusTooltipLabel(status));
     const name = this.getLeafTerminalName(leaf, view);
     const identity = typeof view.getAgentIdentity === "function" ? view.getAgentIdentity() : null;
-    const managedRoleId = ((_a2 = teamContext.managedRoleId) == null ? void 0 : _a2.trim()) ? teamContext.managedRoleId.trim() : null;
+    const managedRoleId = ((_a3 = teamContext.managedRoleId) == null ? void 0 : _a3.trim()) ? teamContext.managedRoleId.trim() : null;
     const primaryName = managedRoleId != null ? managedRoleId : teamContext.isManagedTeamMember ? identity != null ? identity : name : name;
     const autoNamed = typeof view.getAutoNamed === "function" && view.getAutoNamed();
     const nameEl = line.createSpan({
@@ -24227,10 +24691,10 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     if (autoNamed) setTimeout(() => nameEl.removeClass("is-just-named"), 1200);
     if (!teamContext.isManagedTeamMember && typeof view.setName === "function") {
       nameEl.addEventListener("click", (evt) => {
-        var _a3;
+        var _a4;
         evt.preventDefault();
         evt.stopPropagation();
-        const currentName = (_a3 = nameEl.textContent) != null ? _a3 : "";
+        const currentName = (_a4 = nameEl.textContent) != null ? _a4 : "";
         const input = document.createElement("input");
         input.type = "text";
         input.value = currentName;
@@ -24348,7 +24812,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     row.addEventListener("click", () => this.focusLeaf(leaf));
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
-      const menu = new import_obsidian9.Menu();
+      const menu = new import_obsidian11.Menu();
       menu.addItem(
         (item) => item.setTitle("Focus").setIcon("eye").onClick(() => this.focusLeaf(leaf))
       );
@@ -24381,12 +24845,12 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
         attr: { type: "button", "aria-label": "Shutdown team" }
       });
       shutdownBtn.setAttribute("title", "Shutdown team");
-      (0, import_obsidian9.setIcon)(shutdownBtn, "square");
+      (0, import_obsidian11.setIcon)(shutdownBtn, "square");
       shutdownBtn.addEventListener("click", (evt) => {
-        var _a2, _b;
+        var _a3, _b;
         evt.preventDefault();
         evt.stopPropagation();
-        void ((_b = (_a2 = this.getPlugin()) == null ? void 0 : _a2.shutdownManagedTeam) == null ? void 0 : _b.call(_a2, group.teamId));
+        void ((_b = (_a3 = this.getPlugin()) == null ? void 0 : _a3.shutdownManagedTeam) == null ? void 0 : _b.call(_a3, group.teamId));
       });
       headerTrailing.createSpan({ cls: "augment-tm-team-chevron", text: "\u203A" });
       const body = card.createDiv({ cls: "augment-tm-team-body" });
@@ -24413,7 +24877,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
   }
   showActivityTooltip(evt, view) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
     const status = typeof view.getStatus === "function" ? view.getStatus() : null;
     const lastMs = typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0;
@@ -24425,7 +24889,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
         write: "Writing file",
         mcp: "Using tool"
       };
-      const label = (_c = stateLabel[(_a2 = activity.state) != null ? _a2 : ""]) != null ? _c : (_b = activity.state) != null ? _b : "Active";
+      const label = (_c = stateLabel[(_a3 = activity.state) != null ? _a3 : ""]) != null ? _c : (_b = activity.state) != null ? _b : "Active";
       this.hideActivityTooltip();
       const tip2 = document.body.createDiv({ cls: "augment-tm-activity-tip" });
       this.tooltipEl = tip2;
@@ -24483,7 +24947,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     });
   }
   renderPartsSection(parts) {
-    var _a2;
+    var _a3;
     const isExpanded = this.partsCollapseState !== "closed";
     const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
@@ -24503,7 +24967,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     }
     const groups = /* @__PURE__ */ new Map();
     for (const part of parts) {
-      const group = (_a2 = groups.get(part.habitat)) != null ? _a2 : [];
+      const group = (_a3 = groups.get(part.habitat)) != null ? _a3 : [];
       group.push(part);
       groups.set(part.habitat, group);
     }
@@ -24523,35 +24987,32 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     });
   }
   renderInboxSection() {
-    const unread = unreadCount(this.app, HUMAN_ADDRESS);
     const isExpanded = this.inboxCollapseState !== "closed";
     const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
-    divider.createSpan({ cls: "augment-tm-section-label", text: "INBOX" });
-    if (unread > 0) {
-      divider.createSpan({
-        cls: "augment-tm-section-count",
-        text: `(${unread} unread)`
-      });
-    }
+    divider.createSpan({ cls: "augment-tm-section-label", text: "MESSAGES" });
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
     const inboxContainer = this.listEl.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) inboxContainer.style.display = "none";
-    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-part-row augment-tm-inbox-row" });
-    if (unread > 0) row.addClass("has-unread");
-    const line = row.createDiv({ cls: "augment-tm-line" });
-    line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
-    line.createSpan({ cls: "augment-tm-name", text: "My inbox" });
-    line.createDiv({ cls: "augment-tm-spacer" });
-    if (unread > 0) {
-      line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
-    }
+    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-messages-row" });
+    const line = row.createDiv({ cls: "augment-tm-messages-line" });
+    const iconWrap = line.createDiv({ cls: "augment-tm-messages-icon-wrap" });
+    const iconEl = iconWrap.createDiv({ cls: "augment-tm-messages-icon" });
+    (0, import_obsidian11.setIcon)(iconEl, "inbox");
+    const copy = line.createDiv({ cls: "augment-tm-messages-copy" });
+    copy.createDiv({ cls: "augment-tm-messages-eyebrow", text: "Messaging center" });
+    copy.createDiv({ cls: "augment-tm-messages-title", text: "Messages" });
+    copy.createDiv({
+      cls: "augment-tm-messages-subtitle",
+      text: "Matt and agent traffic"
+    });
+    line.createSpan({ cls: "augment-tm-messages-badge", text: "All traffic" });
     this.bindRowActivation(
       row,
       () => {
-        void openHumanInbox(this.app);
+        void openAllMessages(this.app);
       },
-      "Open messages addressed to you"
+      "Open messaging center"
     );
     divider.addEventListener("click", () => {
       this.inboxCollapseState = isExpanded ? "closed" : "open";
@@ -24571,13 +25032,13 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       cls: "augment-tm-part-compose clickable-icon",
       attr: { type: "button", "aria-label": `Compose to ${part.name}` }
     });
-    (0, import_obsidian9.setIcon)(composeBtn, "square-pen");
+    (0, import_obsidian11.setIcon)(composeBtn, "square-pen");
     composeBtn.addEventListener("click", (evt) => {
-      var _a2;
+      var _a3;
       evt.preventDefault();
       evt.stopPropagation();
       const activeFile = this.app.workspace.getActiveFile();
-      const sourceNote = (_a2 = activeFile == null ? void 0 : activeFile.basename) != null ? _a2 : "";
+      const sourceNote = (_a3 = activeFile == null ? void 0 : activeFile.basename) != null ? _a3 : "";
       new ComposeModal(
         this.app,
         part.address,
@@ -24711,7 +25172,7 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     });
     row.addEventListener("contextmenu", (evt) => {
       evt.preventDefault();
-      const menu = new import_obsidian9.Menu();
+      const menu = new import_obsidian11.Menu();
       menu.addItem(
         (item) => item.setTitle("Resume in terminal").setIcon("terminal").onClick(async () => {
           const plugin = this.getPlugin();
@@ -24761,15 +25222,15 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     return trimmed.length > 0 ? trimmed : null;
   }
   getLeafStatus(view) {
-    var _a2;
-    return typeof view.getStatus === "function" ? (_a2 = view.getStatus()) != null ? _a2 : "shell" : "shell";
+    var _a3;
+    return typeof view.getStatus === "function" ? (_a3 = view.getStatus()) != null ? _a3 : "shell" : "shell";
   }
   getStatusPriority(status) {
-    var _a2;
-    return (_a2 = STATUS_PRIORITY[status != null ? status : ""]) != null ? _a2 : 0;
+    var _a3;
+    return (_a3 = STATUS_PRIORITY[status != null ? status : ""]) != null ? _a3 : 0;
   }
   getStatusTooltipLabel(status) {
-    var _a2;
+    var _a3;
     const labels = {
       active: "Generating (yellow)",
       tool: "Using tool (blue)",
@@ -24780,10 +25241,10 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       crashed: "Crashed",
       exited: "Exited"
     };
-    return (_a2 = labels[status]) != null ? _a2 : status;
+    return (_a3 = labels[status]) != null ? _a3 : status;
   }
   getMemberActivityLabel(view) {
-    var _a2;
+    var _a3;
     const activity = typeof view.getCurrentActivity === "function" ? view.getCurrentActivity() : null;
     switch (activity == null ? void 0 : activity.state) {
       case "thinking":
@@ -24812,13 +25273,13 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       crashed: "Crashed",
       exited: "Exited"
     };
-    return (_a2 = statusLabels[status]) != null ? _a2 : "Open";
+    return (_a3 = statusLabels[status]) != null ? _a3 : "Open";
   }
   compareManagedTeamMembers(a, b) {
-    var _a2, _b;
+    var _a3, _b;
     const aView = a.view;
     const bView = b.view;
-    const aRole = (_a2 = this.getManagedRoleId(aView)) != null ? _a2 : "";
+    const aRole = (_a3 = this.getManagedRoleId(aView)) != null ? _a3 : "";
     const bRole = (_b = this.getManagedRoleId(bView)) != null ? _b : "";
     const aIsLead = /\bceo\b/i.test(aRole);
     const bIsLead = /\bceo\b/i.test(bRole);
@@ -24841,10 +25302,10 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
       }
     }
     const cwdBasenames = members.map((leaf) => {
-      var _a2;
+      var _a3;
       const view = leaf.view;
       const cwd = typeof view.getWorkingDirectory === "function" ? view.getWorkingDirectory() : "";
-      return (_a2 = cwd.split(/[/\\]/).filter(Boolean).pop()) != null ? _a2 : "";
+      return (_a3 = cwd.split(/[/\\]/).filter(Boolean).pop()) != null ? _a3 : "";
     }).filter((name) => name.length > 0);
     if (cwdBasenames.length > 0) {
       const [first2] = cwdBasenames;
@@ -24908,13 +25369,13 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
     this.listEl = null;
   }
   getLeafTerminalName(leaf, view) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     if (typeof view.getName === "function") {
       const value = view.getName();
       if (value == null ? void 0 : value.trim()) return value.trim();
     }
     const leafAny = leaf;
-    const stateName = (_c = (_b = (_a2 = leafAny.getViewState) == null ? void 0 : _a2.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
+    const stateName = (_c = (_b = (_a3 = leafAny.getViewState) == null ? void 0 : _a3.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
     if (typeof stateName === "string" && stateName.trim()) {
       return stateName.trim();
     }
@@ -24926,8 +25387,8 @@ var TerminalManagerView = class extends import_obsidian9.ItemView {
 };
 
 // src/terminal-switcher.ts
-var import_obsidian10 = require("obsidian");
-var TerminalSwitcherModal = class extends import_obsidian10.FuzzySuggestModal {
+var import_obsidian12 = require("obsidian");
+var TerminalSwitcherModal = class extends import_obsidian12.FuzzySuggestModal {
   constructor(app) {
     super(app);
     this.setPlaceholder("Switch to terminal...");
@@ -24951,9 +25412,9 @@ var TerminalSwitcherModal = class extends import_obsidian10.FuzzySuggestModal {
     this.app.workspace.revealLeaf(leaf);
   }
   getLeafTerminalName(leaf, view) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const leafAny = leaf;
-    const stateName = (_c = (_b = (_a2 = leafAny.getViewState) == null ? void 0 : _a2.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
+    const stateName = (_c = (_b = (_a3 = leafAny.getViewState) == null ? void 0 : _a3.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
     if (typeof stateName === "string" && stateName.trim()) {
       return stateName.trim();
     }
@@ -24962,19 +25423,26 @@ var TerminalSwitcherModal = class extends import_obsidian10.FuzzySuggestModal {
 };
 
 // src/team-launch.ts
-var fs3 = __toESM(require("fs"));
+var team_launch_exports = {};
+__export(team_launch_exports, {
+  buildBusWatcherCommand: () => buildBusWatcherCommand,
+  buildCCNativeTeamLaunchSpec: () => buildCCNativeTeamLaunchSpec,
+  buildCCTeamConfig: () => buildCCTeamConfig,
+  buildCCTeammateCommand: () => buildCCTeammateCommand,
+  buildCeoBootPrompt: () => buildCeoBootPrompt,
+  buildCeoOnlyBootPrompt: () => buildCeoOnlyBootPrompt,
+  buildMemberBootPrompt: () => buildMemberBootPrompt,
+  buildPostLaunchWatcherSetup: () => buildPostLaunchWatcherSetup,
+  buildTeamLaunchSpec: () => buildTeamLaunchSpec,
+  computeTeamLayout: () => computeTeamLayout2,
+  generateSessionId: () => generateSessionId,
+  seedCCInboxMessage: () => seedCCInboxMessage,
+  writeCCTeamScaffolding: () => writeCCTeamScaffolding
+});
+var fs4 = __toESM(require("fs"));
+var crypto = __toESM(require("crypto"));
 var os2 = __toESM(require("os"));
-var path4 = __toESM(require("path"));
-function formatLaunchTimestamp(date2) {
-  const year = String(date2.getFullYear());
-  const month = String(date2.getMonth() + 1).padStart(2, "0");
-  const day = String(date2.getDate()).padStart(2, "0");
-  const hours = String(date2.getHours()).padStart(2, "0");
-  const minutes = String(date2.getMinutes()).padStart(2, "0");
-  const seconds = String(date2.getSeconds()).padStart(2, "0");
-  const milliseconds = String(date2.getMilliseconds()).padStart(3, "0");
-  return `${year}-${month}-${day}-${hours}${minutes}${seconds}-${milliseconds}`;
-}
+var path6 = __toESM(require("path"));
 function formatMemberRole(member) {
   const displayName = member.displayName.trim();
   if (/part$/i.test(displayName)) {
@@ -24987,28 +25455,91 @@ function withTrailingSeparator(filePath) {
   return `${filePath}${filePath.includes("\\") ? "\\" : "/"}`;
 }
 function toFsPath(rootPath, relativePath) {
-  return path4.join(rootPath, ...relativePath.split("/").filter(Boolean));
+  return path6.join(rootPath, ...relativePath.split("/").filter(Boolean));
 }
 function writePromptFileAndBuildCommand(promptText, label, model) {
   const tmpDir = os2.tmpdir();
   const timestamp = Date.now();
   const filename = `augment-boot-${label}-${timestamp}.txt`;
-  const filePath = path4.join(tmpDir, filename);
-  fs3.writeFileSync(filePath, promptText, "utf-8");
+  const filePath = path6.join(tmpDir, filename);
+  fs4.writeFileSync(filePath, promptText, "utf-8");
   const trimmedModel = model == null ? void 0 : model.trim();
   const modelArg = trimmedModel ? ` --model ${JSON.stringify(trimmedModel)}` : "";
   return `claude${modelArg} "$(cat ${JSON.stringify(filePath)})"
 `;
 }
-function buildManagedTeamId(project, launchedAt) {
-  const displayName = encodeURIComponent(project.projectDisplayName.trim() || project.projectId);
-  return `${project.projectId}::${displayName}::${formatLaunchTimestamp(launchedAt)}`;
+function sanitizeFilenameFragment(value) {
+  const sanitized = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-");
+  return sanitized || "prompt";
 }
-function orderedProjectMembers(project) {
+function writeRawPromptTempFile(promptText, label) {
+  const filename = `augment-cc-boot-${sanitizeFilenameFragment(label)}-${Date.now()}-${crypto.randomUUID()}.txt`;
+  const filePath = path6.join(os2.tmpdir(), filename);
+  fs4.writeFileSync(filePath, promptText, "utf-8");
+  return filePath;
+}
+function resolveCCTeamCwd(project) {
+  var _a3;
+  const trimmedCodeRoot = (_a3 = project.codeRoot) == null ? void 0 : _a3.trim();
+  return trimmedCodeRoot || process.cwd();
+}
+function buildCCNativeCeoPrompt(project, codeRoot, vaultRoot, teamName, userBrief) {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path6.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const brief = userBrief == null ? void 0 : userBrief.trim();
+  const roster = orderedProjectMembers(project).map(formatRosterEntry).join("\n");
   return [
-    project.ceo,
-    ...project.members.filter((member) => member.roleId !== project.ceo.roleId)
-  ];
+    `You are the CEO for the ${project.projectDisplayName} project.`,
+    `Project identity: ${project.projectId} (${project.projectDisplayName}).`,
+    `Boot as ${project.ceo.address}.`,
+    `Project root path: ${codeRootPath}.`,
+    `Vault workspace path: ${vaultWorkspacePath}.`,
+    `PARTS.md path: ${partsMdPath}.`,
+    `CEO skill path: ${skillPath}.`,
+    `You are in a Claude Code native team named "${teamName}". The team is already scaffolded \u2014 config.json and inboxes are pre-created. Do NOT call TeamCreate. Do NOT use the vault bus (inbox-send.sh/inbox-check.sh). Use Claude Code's native SendMessage tool to communicate with teammates.`,
+    `All roster members are launched in separate terminals and are part of this CC team. They can receive messages via SendMessage immediately.`,
+    `Read PARTS.md and the CEO skill before delegating.`,
+    "Roster:",
+    roster,
+    brief ? `User brief: ${brief}.` : null
+  ].filter((part) => Boolean(part)).join("\n");
+}
+function buildCCNativeMemberPrompt(project, member, codeRoot, vaultRoot, teamName) {
+  const codeRootPath = withTrailingSeparator(codeRoot);
+  const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
+  const memberWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, member.workspacePath));
+  const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
+  const skillPath = path6.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
+  return [
+    `You are ${formatMemberRole(member)} for the ${project.projectDisplayName} project.`,
+    `Boot as ${member.address}.`,
+    `Project root: ${codeRootPath}.`,
+    `Vault workspace: ${vaultWorkspacePath}.`,
+    `Read the project constitution at ${partsMdPath}.`,
+    `Follow the generic role skill at ${skillPath}.`,
+    `Read your workspace at ${memberWorkspacePath}.`,
+    `You are part of a Claude Code native team named "${teamName}". Use SendMessage to communicate with teammates. Do NOT use the vault bus (inbox-send.sh/inbox-check.sh). The team roster and inboxes are pre-configured.`
+  ].join("\n");
+}
+function resolveCCBootPromptText(project, member, codeRoot, vaultRoot, teamName, userBrief) {
+  if (member.roleId === project.ceo.roleId) {
+    return buildCCNativeCeoPrompt(project, codeRoot, vaultRoot, teamName, userBrief);
+  }
+  return buildCCNativeMemberPrompt(project, member, codeRoot, vaultRoot, teamName);
+}
+function buildCCTeammateCommandFromPrompt(member, project, teamName, leaderSessionId, codeRoot, promptText) {
+  const promptFilePath = writeRawPromptTempFile(promptText, `${member.roleId}-${teamName}`);
+  const agentId = buildCCAgentId(member, teamName);
+  const color = resolveCCColor(project, member);
+  return `cd ${JSON.stringify(codeRoot)} && CLAUDECODE=1 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude --agent-id ${JSON.stringify(agentId)} --agent-name ${JSON.stringify(member.roleId)} --team-name ${JSON.stringify(teamName)} --agent-color ${JSON.stringify(color)} --parent-session-id ${JSON.stringify(leaderSessionId)} --teammate-mode tmux "$(cat ${JSON.stringify(promptFilePath)})"`;
+}
+function getCCTeamDirectory(teamName) {
+  return path6.join(os2.homedir(), ".claude", "teams", teamName);
+}
+function getCCInboxDirectory(teamName) {
+  return path6.join(getCCTeamDirectory(teamName), "inboxes");
 }
 function formatRosterDirectory(member) {
   const trimmed = member.directory.trim().replace(/`/g, "").replace(/^\/+|\/+$/g, "");
@@ -25022,7 +25553,7 @@ function formatRosterEntry(member) {
 function buildBusInstructions(project, member, vaultRoot) {
   const slug = project.projectId;
   const address = `${member.roleId}@${slug}`;
-  const hooksDir = path4.join(vaultRoot, "claude", "hooks");
+  const hooksDir = path6.join(vaultRoot, "claude", "hooks");
   const rosterAddresses = project.members.map((m) => `${m.roleId}@${slug}`).join(", ");
   return [
     `=== Inter-role communication ===`,
@@ -25034,7 +25565,7 @@ function buildBusInstructions(project, member, vaultRoot) {
   ].join(" ");
 }
 function buildBusWatcherCommand(address, paneId, vaultRoot) {
-  const watcherPath = path4.join(
+  const watcherPath = path6.join(
     vaultRoot,
     "agents",
     "skills",
@@ -25054,7 +25585,7 @@ function buildCeoBootPrompt(project, codeRoot, vaultRoot, userBrief) {
   const codeRootPath = withTrailingSeparator(codeRoot);
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path4.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const skillPath = path6.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
   const brief = userBrief == null ? void 0 : userBrief.trim();
   const busInstructions = buildBusInstructions(project, project.ceo, vaultRoot);
   const message = [
@@ -25079,7 +25610,7 @@ function buildCeoOnlyBootPrompt(project, codeRoot, vaultRoot, userBrief) {
   const codeRootPath = withTrailingSeparator(codeRoot);
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path4.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const skillPath = path6.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
   const brief = userBrief == null ? void 0 : userBrief.trim();
   const roster = orderedProjectMembers(project).map(formatRosterEntry).join("\n");
   const message = [
@@ -25111,7 +25642,7 @@ function buildMemberBootPrompt(project, member, codeRoot, vaultRoot) {
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const memberWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, member.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path4.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
+  const skillPath = path6.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
   const busInstructions = buildBusInstructions(project, member, vaultRoot);
   const message = [
     `You are ${formatMemberRole(member)} for the ${project.projectDisplayName} project.`,
@@ -25144,106 +25675,120 @@ function buildTeamLaunchSpec(project, codeRoot, vaultRoot, userBrief) {
     specs
   };
 }
-function computeTeamLayout(members) {
-  var _a2;
-  if (members.length === 0) return [];
-  const ceo = (_a2 = members.find((member) => member.isLead)) != null ? _a2 : members[0];
-  const others = members.filter((member) => member.roleId !== ceo.roleId);
-  const middleCount = Math.ceil(others.length / 2);
-  const slots = [
-    { member: ceo, column: 0, row: 0 }
+function generateSessionId() {
+  return crypto.randomUUID();
+}
+function buildCCTeamConfig(project, teamName, leaderSessionId) {
+  const cwd = resolveCCTeamCwd(project);
+  const joinedAt = Date.now();
+  return buildCCTeamConfigContract(project, teamName, leaderSessionId, {
+    cwd,
+    joinedAt
+  });
+}
+function writeCCTeamScaffolding(teamName, config) {
+  const teamDirectory = getCCTeamDirectory(teamName);
+  const inboxDirectory = getCCInboxDirectory(teamName);
+  const configPath = path6.join(teamDirectory, "config.json");
+  fs4.mkdirSync(inboxDirectory, { recursive: true });
+  fs4.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}
+`, "utf-8");
+  for (const member of config.members) {
+    const inboxPath = path6.join(inboxDirectory, `${member.name}.json`);
+    if (!fs4.existsSync(inboxPath)) {
+      fs4.writeFileSync(inboxPath, "[]\n", "utf-8");
+    }
+  }
+}
+function seedCCInboxMessage(teamName, agentName, fromName, text) {
+  const inboxDirectory = getCCInboxDirectory(teamName);
+  const inboxPath = path6.join(inboxDirectory, `${agentName}.json`);
+  const messages = [
+    {
+      from: fromName,
+      text,
+      summary: "Initial boot prompt",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      read: false
+    }
   ];
-  others.slice(0, middleCount).forEach((member, index) => {
-    slots.push({ member, column: 1, row: index });
+  fs4.mkdirSync(inboxDirectory, { recursive: true });
+  fs4.writeFileSync(inboxPath, `${JSON.stringify(messages, null, 2)}
+`, "utf-8");
+}
+function buildCCTeammateCommand(member, project, teamName, leaderSessionId, codeRoot, vaultRoot) {
+  const resolvedCodeRoot = codeRoot.trim() || resolveCCTeamCwd(project);
+  const resolvedVaultRoot = vaultRoot.trim() || process.cwd();
+  const promptText = resolveCCBootPromptText(
+    project,
+    member,
+    resolvedCodeRoot,
+    resolvedVaultRoot,
+    teamName
+  );
+  return buildCCTeammateCommandFromPrompt(
+    member,
+    project,
+    teamName,
+    leaderSessionId,
+    resolvedCodeRoot,
+    promptText
+  );
+}
+function buildCCNativeTeamLaunchSpec(project, codeRoot, vaultRoot, userBrief) {
+  const launchedAt = /* @__PURE__ */ new Date();
+  const teamName = buildCCNativeTeamName(project, launchedAt);
+  const leaderSessionId = generateSessionId();
+  const resolvedCodeRoot = codeRoot.trim() || resolveCCTeamCwd(project);
+  const resolvedVaultRoot = vaultRoot.trim() || process.cwd();
+  const configProject = {
+    ...project,
+    codeRoot: resolvedCodeRoot
+  };
+  const config = buildCCTeamConfig(configProject, teamName, leaderSessionId);
+  const memberCommands = orderedProjectMembers(project).map((member) => {
+    const bootPromptText = resolveCCBootPromptText(
+      configProject,
+      member,
+      resolvedCodeRoot,
+      resolvedVaultRoot,
+      teamName,
+      member.roleId === project.ceo.roleId ? userBrief : void 0
+    );
+    return {
+      member,
+      cwd: resolvedCodeRoot,
+      bootPromptText,
+      command: buildCCTeammateCommandFromPrompt(
+        member,
+        configProject,
+        teamName,
+        leaderSessionId,
+        resolvedCodeRoot,
+        bootPromptText
+      )
+    };
   });
-  others.slice(middleCount).forEach((member, index) => {
-    slots.push({ member, column: 2, row: index });
-  });
-  return slots;
+  return {
+    teamName,
+    leaderSessionId,
+    config,
+    memberCommands
+  };
+}
+function computeTeamLayout2(members) {
+  return computeTeamLayout(members);
 }
 
 // src/team-roster.ts
-var fs4 = __toESM(require("fs"));
-var path5 = __toESM(require("path"));
-var PARTS_ROOT2 = ["agents", "parts"];
-var REQUIRED_HEADERS = ["part", "directory", "owns", "perspective"];
-function toVaultPath(...segments) {
-  return segments.join("/");
-}
-function findProjectDisplayName(lines) {
-  var _a2;
-  for (const line of lines) {
-    const match = line.match(/^\s*#(?!#)\s+(.+?)(?:\s+#+\s*)?\s*$/);
-    if (match) {
-      const name = (_a2 = match[1]) == null ? void 0 : _a2.trim();
-      if (name) return name;
-    }
-  }
-  return null;
-}
-function findCodeRoot(lines) {
-  const idx = lines.findIndex(
-    (line) => /^\s*##(?!#)\s+Code\s+root(?:\s+#+\s*)?\s*$/i.test(line)
-  );
-  if (idx === -1) return null;
-  for (let i = idx + 1; i < lines.length; i++) {
-    if (/^\s{0,3}#{1,2}(?!#)\s+/.test(lines[i])) break;
-    const trimmed = lines[i].trim().replace(/^`+|`+$/g, "");
-    if (trimmed) return trimmed;
-  }
-  return null;
-}
-function findRosterSection(lines) {
-  const rosterIndex = lines.findIndex(
-    (line) => /^\s*##(?!#)\s+Roster(?:\s+#+\s*)?\s*$/.test(line)
-  );
-  if (rosterIndex === -1) return null;
-  const section = [];
-  for (let i = rosterIndex + 1; i < lines.length; i++) {
-    if (/^\s{0,3}#{1,2}(?!#)\s+/.test(lines[i])) break;
-    section.push(lines[i]);
-  }
-  return section;
-}
-function looksLikeTableRow(line) {
-  return /^\s*\|/.test(line) || /^\s*[^|].*\|.*\|?\s*$/.test(line);
-}
-function splitMarkdownTableRow(line) {
-  let trimmed = line.trim();
-  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
-  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
-  return trimmed.split("|").map((cell) => cell.trim());
-}
-function isSeparatorCell(cell) {
-  return /^:?-{3,}:?$/.test(cell.trim());
-}
-function isSeparatorRow(cells) {
-  return cells.length > 0 && cells.every(isSeparatorCell);
-}
-function normalizeHeader(cell) {
-  return cell.trim().toLowerCase().replace(/\s+/g, " ");
-}
-function normalizeRoleId(directory) {
-  return directory.replace(/`/g, "").trim().replace(/\/+$/, "").trim();
-}
-function normalizeLaunchModel(value) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (!/^[A-Za-z0-9._-]+$/.test(trimmed)) return null;
-  return trimmed;
-}
+var fs5 = __toESM(require("fs"));
+var path7 = __toESM(require("path"));
+var PARTS_ROOT4 = ["agents", "parts"];
 async function readLaunchConfig(projectDir) {
-  var _a2, _b;
-  const configPath = path5.join(projectDir, "launch-config.json");
+  const configPath = path7.join(projectDir, "launch-config.json");
   try {
-    const raw2 = await fs4.promises.readFile(configPath, "utf-8");
-    const parsed = JSON.parse(raw2);
-    const fallback = normalizeLaunchModel(parsed.launchModel);
-    return {
-      managedLaunchModel: (_a2 = normalizeLaunchModel(parsed.managedLaunchModel)) != null ? _a2 : fallback,
-      ccLaunchModel: (_b = normalizeLaunchModel(parsed.ccLaunchModel)) != null ? _b : fallback
-    };
+    const raw2 = await fs5.promises.readFile(configPath, "utf-8");
+    return parseLaunchConfig(raw2);
   } catch (e) {
     return {
       managedLaunchModel: null,
@@ -25251,101 +25796,27 @@ async function readLaunchConfig(projectDir) {
     };
   }
 }
-function parseRosterTable(sectionLines, projectId) {
-  var _a2, _b, _c, _d;
-  let tableStart = -1;
-  let headerCells = null;
-  for (let i = 0; i < sectionLines.length - 1; i++) {
-    if (!looksLikeTableRow(sectionLines[i]) || !looksLikeTableRow(sectionLines[i + 1])) {
-      continue;
-    }
-    const maybeHeader = splitMarkdownTableRow(sectionLines[i]);
-    const maybeSeparator = splitMarkdownTableRow(sectionLines[i + 1]);
-    if (!isSeparatorRow(maybeSeparator)) continue;
-    tableStart = i;
-    headerCells = maybeHeader;
-    break;
-  }
-  if (tableStart === -1 || headerCells === null) return null;
-  const headerIndexes = /* @__PURE__ */ new Map();
-  headerCells.forEach((cell, index) => {
-    const normalized = normalizeHeader(cell);
-    if (REQUIRED_HEADERS.includes(normalized)) {
-      headerIndexes.set(normalized, index);
-    }
-  });
-  if (headerIndexes.size !== REQUIRED_HEADERS.length) return null;
-  const members = [];
-  const seenRoleIds = /* @__PURE__ */ new Set();
-  for (let i = tableStart + 2; i < sectionLines.length; i++) {
-    const line = sectionLines[i];
-    if (!looksLikeTableRow(line)) break;
-    const cells = splitMarkdownTableRow(line);
-    if (cells.every((cell) => !cell.trim())) continue;
-    const displayName = (_a2 = cells[headerIndexes.get("part")]) != null ? _a2 : "";
-    const directory = (_b = cells[headerIndexes.get("directory")]) != null ? _b : "";
-    const owns = (_c = cells[headerIndexes.get("owns")]) != null ? _c : "";
-    const perspective = (_d = cells[headerIndexes.get("perspective")]) != null ? _d : "";
-    const roleId = normalizeRoleId(directory);
-    if (!displayName.trim() || !directory.trim() || !roleId) return null;
-    if (seenRoleIds.has(roleId)) return null;
-    seenRoleIds.add(roleId);
-    members.push({
-      roleId,
-      displayName: displayName.trim(),
-      directory: directory.trim(),
-      owns: owns.trim(),
-      perspective: perspective.trim(),
-      address: `${roleId}@${projectId}`,
-      workspacePath: toVaultPath(...PARTS_ROOT2, projectId, roleId),
-      isLead: roleId === "ceo"
-    });
-  }
-  return members.length > 0 ? members : null;
-}
-function parsePartsMd(content, projectId) {
-  const lines = content.split(/\r?\n/);
-  const projectDisplayName = findProjectDisplayName(lines);
-  if (!projectDisplayName) return null;
-  const rosterSection = findRosterSection(lines);
-  if (!rosterSection) return null;
-  const members = parseRosterTable(rosterSection, projectId);
-  if (!members) return null;
-  const ceos = members.filter((member) => member.isLead);
-  if (ceos.length !== 1) return null;
-  return {
-    projectId,
-    projectDisplayName,
-    partsMdPath: toVaultPath(...PARTS_ROOT2, projectId, "PARTS.md"),
-    workspacePath: toVaultPath(...PARTS_ROOT2, projectId),
-    codeRoot: findCodeRoot(lines),
-    managedLaunchModel: null,
-    ccLaunchModel: null,
-    members,
-    ceo: ceos[0]
-  };
-}
 async function discoverTeamProjects(vaultPath) {
-  const projectsRoot = path5.join(vaultPath, ...PARTS_ROOT2);
+  const projectsRoot = path7.join(vaultPath, ...PARTS_ROOT4);
   let entries;
   try {
-    entries = await fs4.promises.readdir(projectsRoot, { withFileTypes: true });
+    entries = await fs5.promises.readdir(projectsRoot, { withFileTypes: true });
   } catch (e) {
     return [];
   }
   const projectDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort((a, b) => a.localeCompare(b));
   const projects = await Promise.all(
     projectDirs.map(async (projectId) => {
-      const projectDir = path5.join(projectsRoot, projectId);
-      const partsMdFsPath = path5.join(projectDir, "PARTS.md");
+      const projectDir = path7.join(projectsRoot, projectId);
+      const partsMdFsPath = path7.join(projectDir, "PARTS.md");
       try {
-        const stat = await fs4.promises.stat(partsMdFsPath);
+        const stat = await fs5.promises.stat(partsMdFsPath);
         if (!stat.isFile()) return null;
       } catch (e) {
         return null;
       }
       try {
-        const content = await fs4.promises.readFile(partsMdFsPath, "utf-8");
+        const content = await fs5.promises.readFile(partsMdFsPath, "utf-8");
         const project = parsePartsMd(content, projectId);
         if (!project) return null;
         const launchConfig = await readLaunchConfig(projectDir);
@@ -25705,9 +26176,9 @@ var spinnerField = import_state.StateField.define({
         });
         if (deleted) {
           Promise.resolve().then(() => {
-            var _a2;
+            var _a3;
             try {
-              (_a2 = globalThis.__augmentCancelGeneration) == null ? void 0 : _a2.call(globalThis);
+              (_a3 = globalThis.__augmentCancelGeneration) == null ? void 0 : _a3.call(globalThis);
             } catch (e) {
             }
           });
@@ -25764,11 +26235,11 @@ var agentWidgetField = import_state.StateField.define({
 });
 
 // src/terminal-modals.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // src/team-scaffold.ts
-var fs5 = __toESM(require("fs"));
-var import_path9 = require("path");
+var fs6 = __toESM(require("fs"));
+var import_path11 = require("path");
 var GENERATED_HEADER = "<!-- Generated by augment init-team. Customize freely.\n     Re-run with refresh-skills to pull latest defaults (overwrites SKILL.md files only). -->\n";
 var ROLES = ["ceo", "cto", "design", "product", "visionary", "values"];
 var PARTS_TEMPLATE = `# [Project name]
@@ -26412,59 +26883,59 @@ function configStub(role) {
   }
 }
 function ensureDir(dir) {
-  if (!fs5.existsSync(dir)) fs5.mkdirSync(dir, { recursive: true });
+  if (!fs6.existsSync(dir)) fs6.mkdirSync(dir, { recursive: true });
 }
 function writeIfMissing(filePath, content) {
-  if (fs5.existsSync(filePath)) return false;
-  fs5.writeFileSync(filePath, content, "utf-8");
+  if (fs6.existsSync(filePath)) return false;
+  fs6.writeFileSync(filePath, content, "utf-8");
   return true;
 }
 function scaffoldTeam(projectRoot) {
-  const partsDir = (0, import_path9.join)(projectRoot, ".parts");
-  const skillsDir = (0, import_path9.join)(partsDir, "skills");
+  const partsDir = (0, import_path11.join)(projectRoot, ".parts");
+  const skillsDir = (0, import_path11.join)(partsDir, "skills");
   const created = [];
   const skipped = [];
   ensureDir(partsDir);
-  if (writeIfMissing((0, import_path9.join)(partsDir, "PARTS.md"), PARTS_TEMPLATE)) {
+  if (writeIfMissing((0, import_path11.join)(partsDir, "PARTS.md"), PARTS_TEMPLATE)) {
     created.push(".parts/PARTS.md");
   } else {
     skipped.push(".parts/PARTS.md");
   }
   for (const role of ROLES) {
-    const roleDir = (0, import_path9.join)(partsDir, role);
-    const stateDir = (0, import_path9.join)(roleDir, ".state");
-    const sessionsDir = (0, import_path9.join)(roleDir, "sessions");
+    const roleDir = (0, import_path11.join)(partsDir, role);
+    const stateDir = (0, import_path11.join)(roleDir, ".state");
+    const sessionsDir = (0, import_path11.join)(roleDir, "sessions");
     ensureDir(roleDir);
     ensureDir(stateDir);
     ensureDir(sessionsDir);
     const configPath = `.parts/${role}/config.md`;
-    if (writeIfMissing((0, import_path9.join)(roleDir, "config.md"), configStub(role))) {
+    if (writeIfMissing((0, import_path11.join)(roleDir, "config.md"), configStub(role))) {
       created.push(configPath);
     } else {
       skipped.push(configPath);
     }
     const statePath = `.parts/${role}/.state/current.md`;
-    if (writeIfMissing((0, import_path9.join)(stateDir, "current.md"), "")) {
+    if (writeIfMissing((0, import_path11.join)(stateDir, "current.md"), "")) {
       created.push(statePath);
     } else {
       skipped.push(statePath);
     }
     const gitkeepPath = `.parts/${role}/sessions/.gitkeep`;
-    if (writeIfMissing((0, import_path9.join)(sessionsDir, ".gitkeep"), "")) {
+    if (writeIfMissing((0, import_path11.join)(sessionsDir, ".gitkeep"), "")) {
       created.push(gitkeepPath);
     }
   }
   for (const role of ROLES) {
-    const skillDir = (0, import_path9.join)(skillsDir, `project-${role}`);
+    const skillDir = (0, import_path11.join)(skillsDir, `project-${role}`);
     ensureDir(skillDir);
     const skillPath = `.parts/skills/project-${role}/SKILL.md`;
-    if (writeIfMissing((0, import_path9.join)(skillDir, "SKILL.md"), SKILLS[role])) {
+    if (writeIfMissing((0, import_path11.join)(skillDir, "SKILL.md"), SKILLS[role])) {
       created.push(skillPath);
     } else {
       skipped.push(skillPath);
     }
   }
-  const gitignorePath = (0, import_path9.join)(projectRoot, ".gitignore");
+  const gitignorePath = (0, import_path11.join)(projectRoot, ".gitignore");
   const GITIGNORE_MARKER = "# augment-team: session logs";
   const GITIGNORE_BLOCK = `
 ${GITIGNORE_MARKER}
@@ -26472,11 +26943,11 @@ ${GITIGNORE_MARKER}
 `;
   let existingGitignore = "";
   try {
-    existingGitignore = fs5.readFileSync(gitignorePath, "utf-8");
+    existingGitignore = fs6.readFileSync(gitignorePath, "utf-8");
   } catch (e) {
   }
   if (!existingGitignore.includes(GITIGNORE_MARKER)) {
-    fs5.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
+    fs6.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
     created.push(".gitignore (appended session log patterns)");
   } else {
     skipped.push(".gitignore (session log patterns already present)");
@@ -26484,20 +26955,20 @@ ${GITIGNORE_MARKER}
   return { created, skipped };
 }
 function refreshTeamSkills(projectRoot) {
-  const skillsDir = (0, import_path9.join)(projectRoot, ".parts", "skills");
+  const skillsDir = (0, import_path11.join)(projectRoot, ".parts", "skills");
   const updated = [];
   for (const role of ROLES) {
-    const skillDir = (0, import_path9.join)(skillsDir, `project-${role}`);
+    const skillDir = (0, import_path11.join)(skillsDir, `project-${role}`);
     ensureDir(skillDir);
-    const skillFile = (0, import_path9.join)(skillDir, "SKILL.md");
-    fs5.writeFileSync(skillFile, SKILLS[role], "utf-8");
+    const skillFile = (0, import_path11.join)(skillDir, "SKILL.md");
+    fs6.writeFileSync(skillFile, SKILLS[role], "utf-8");
     updated.push(`.parts/skills/project-${role}/SKILL.md`);
   }
   return { created: updated, skipped: [] };
 }
 
 // src/terminal-modals.ts
-var RenameModal = class extends import_obsidian11.Modal {
+var RenameModal = class extends import_obsidian13.Modal {
   constructor(app, view) {
     super(app);
     this.view = view;
@@ -26506,7 +26977,7 @@ var RenameModal = class extends import_obsidian11.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h3", { text: "Rename terminal" });
-    new import_obsidian11.Setting(contentEl).setName("Name").addText((text) => {
+    new import_obsidian13.Setting(contentEl).setName("Name").addText((text) => {
       text.setValue(this.newName);
       text.onChange((value) => {
         this.newName = value;
@@ -26521,7 +26992,7 @@ var RenameModal = class extends import_obsidian11.Modal {
         text.inputEl.select();
       }, 10);
     });
-    new import_obsidian11.Setting(contentEl).addButton((btn) => {
+    new import_obsidian13.Setting(contentEl).addButton((btn) => {
       btn.setButtonText("Rename").setCta().onClick(() => this.submit());
     });
   }
@@ -26536,7 +27007,7 @@ var RenameModal = class extends import_obsidian11.Modal {
     this.contentEl.empty();
   }
 };
-var InitTeamModal = class extends import_obsidian11.Modal {
+var InitTeamModal = class extends import_obsidian13.Modal {
   constructor(app, refreshOnly) {
     super(app);
     this.projectPath = "";
@@ -26551,7 +27022,7 @@ var InitTeamModal = class extends import_obsidian11.Modal {
       text: desc,
       cls: "setting-item-description"
     });
-    new import_obsidian11.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
+    new import_obsidian13.Setting(contentEl).setName("Project root").setDesc("Absolute path to the project directory").addText((text) => {
       text.setPlaceholder("/Users/you/Development/my-project");
       text.onChange((value) => {
         this.projectPath = value;
@@ -26562,38 +27033,38 @@ var InitTeamModal = class extends import_obsidian11.Modal {
       });
       setTimeout(() => text.inputEl.focus(), 10);
     });
-    new import_obsidian11.Setting(contentEl).addButton((btn) => {
+    new import_obsidian13.Setting(contentEl).addButton((btn) => {
       btn.setButtonText(this.refreshOnly ? "Refresh skills" : "Init team").setCta().onClick(() => this.submit());
     });
   }
   submit() {
     const root = this.projectPath.trim();
     if (!root) {
-      new import_obsidian11.Notice("Project path is required.");
+      new import_obsidian13.Notice("Project path is required.");
       return;
     }
     try {
-      const fs6 = require("fs");
-      if (!fs6.existsSync(root)) {
-        new import_obsidian11.Notice(`Directory not found: ${root}`);
+      const fs7 = require("fs");
+      if (!fs7.existsSync(root)) {
+        new import_obsidian13.Notice(`Directory not found: ${root}`);
         return;
       }
       let result;
       if (this.refreshOnly) {
         const partsDir = require("path").join(root, ".parts");
-        if (!fs6.existsSync(partsDir)) {
-          new import_obsidian11.Notice("No .parts/ directory found. Run Init team first.");
+        if (!fs7.existsSync(partsDir)) {
+          new import_obsidian13.Notice("No .parts/ directory found. Run Init team first.");
           return;
         }
         result = refreshTeamSkills(root);
-        new import_obsidian11.Notice(`Refreshed ${result.created.length} skill files.`);
+        new import_obsidian13.Notice(`Refreshed ${result.created.length} skill files.`);
       } else {
         result = scaffoldTeam(root);
         const msg = result.created.length > 0 ? `Created ${result.created.length} files. ${result.skipped.length} skipped (already exist).` : "Everything already exists \u2014 nothing to do.";
-        new import_obsidian11.Notice(msg);
+        new import_obsidian13.Notice(msg);
       }
     } catch (err) {
-      new import_obsidian11.Notice(`Error: ${err.message}`);
+      new import_obsidian13.Notice(`Error: ${err.message}`);
       console.error("init-team error:", err);
     }
     this.close();
@@ -26603,9 +27074,409 @@ var InitTeamModal = class extends import_obsidian11.Modal {
   }
 };
 
+// src/selection-transform-modal.ts
+var import_obsidian14 = require("obsidian");
+var SelectionTransformModal = class extends import_obsidian14.Modal {
+  constructor(app, options) {
+    super(app);
+    this.instruction = "";
+    this.candidate = "";
+    this.hasCandidate = false;
+    this.isLoading = false;
+    this.instructionEl = null;
+    this.candidateSectionEl = null;
+    this.candidatePreEl = null;
+    this.buttonRowEl = null;
+    this.abortController = null;
+    this.options = options;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("augment-selection-transform-modal");
+    contentEl.createEl("h3", { text: "Transform selection" });
+    contentEl.createEl("p", {
+      cls: "augment-selection-transform-hint",
+      text: "Review the candidate before changing the selected text. Nothing in the note changes until you click Replace or Keep both."
+    });
+    contentEl.createEl("div", {
+      cls: "augment-selection-transform-context",
+      text: "Context: selection only"
+    });
+    contentEl.createEl("div", {
+      cls: "augment-selection-transform-label",
+      text: "Selected text"
+    });
+    const selectionPre = contentEl.createEl("pre", {
+      cls: "augment-selection-transform-preview"
+    });
+    selectionPre.setText(this.options.selectionText);
+    contentEl.createEl("div", {
+      cls: "augment-selection-transform-label",
+      text: "Describe the change"
+    });
+    this.instructionEl = contentEl.createEl("textarea", {
+      cls: "augment-selection-transform-input",
+      attr: {
+        rows: "5",
+        placeholder: "Turn this into a markdown table"
+      }
+    });
+    this.instructionEl.addEventListener("input", () => {
+      var _a3, _b;
+      this.instruction = (_b = (_a3 = this.instructionEl) == null ? void 0 : _a3.value) != null ? _b : "";
+    });
+    this.instructionEl.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !this.hasCandidate) {
+        event.preventDefault();
+        void this.submitTransform();
+      }
+    });
+    this.candidateSectionEl = contentEl.createDiv({
+      cls: "augment-selection-transform-candidate-section"
+    });
+    this.candidateSectionEl.createEl("div", {
+      cls: "augment-selection-transform-label",
+      text: "Candidate"
+    });
+    this.candidatePreEl = this.candidateSectionEl.createEl("pre", {
+      cls: "augment-selection-transform-preview"
+    });
+    this.buttonRowEl = contentEl.createDiv({
+      cls: "augment-selection-transform-btn-row"
+    });
+    this.render();
+    window.setTimeout(() => {
+      var _a3;
+      return (_a3 = this.instructionEl) == null ? void 0 : _a3.focus();
+    }, 10);
+  }
+  onClose() {
+    var _a3;
+    (_a3 = this.abortController) == null ? void 0 : _a3.abort();
+    this.abortController = null;
+    this.contentEl.empty();
+  }
+  render() {
+    if (this.instructionEl) {
+      this.instructionEl.disabled = this.isLoading || this.hasCandidate;
+    }
+    if (this.candidatePreEl) {
+      if (this.isLoading && !this.hasCandidate) {
+        this.candidatePreEl.setText("Generating candidate\u2026");
+      } else if (!this.hasCandidate) {
+        this.candidatePreEl.setText("Generate a candidate to preview the change.");
+      } else {
+        this.candidatePreEl.setText(this.candidate);
+      }
+    }
+    if (!this.buttonRowEl) return;
+    this.buttonRowEl.empty();
+    const cancelBtn = this.buttonRowEl.createEl("button", { text: "Cancel" });
+    cancelBtn.disabled = false;
+    cancelBtn.addEventListener("click", () => this.close());
+    if (!this.hasCandidate) {
+      const transformBtn = this.buttonRowEl.createEl("button", {
+        cls: "mod-cta",
+        text: this.isLoading ? "Generating candidate\u2026" : "Generate candidate"
+      });
+      transformBtn.disabled = this.isLoading;
+      transformBtn.addEventListener("click", () => {
+        void this.submitTransform();
+      });
+      return;
+    }
+    const keepBothBtn = this.buttonRowEl.createEl("button", {
+      text: "Keep both"
+    });
+    keepBothBtn.disabled = this.isLoading;
+    keepBothBtn.addEventListener("click", () => {
+      void this.applyCandidate("keep-both");
+    });
+    const replaceBtn = this.buttonRowEl.createEl("button", {
+      cls: "mod-cta",
+      text: "Replace"
+    });
+    replaceBtn.disabled = this.isLoading;
+    replaceBtn.addEventListener("click", () => {
+      void this.applyCandidate("replace");
+    });
+  }
+  async submitTransform() {
+    const instruction = this.instruction.trim();
+    if (!instruction) {
+      new import_obsidian14.Notice("Enter an instruction first");
+      return;
+    }
+    if (this.isLoading) return;
+    this.isLoading = true;
+    this.candidate = "";
+    this.hasCandidate = false;
+    const controller = new AbortController();
+    this.abortController = controller;
+    this.render();
+    try {
+      const candidate = await this.options.onTransform(instruction, controller.signal);
+      if (controller.signal.aborted) return;
+      this.candidate = candidate;
+      this.hasCandidate = true;
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const message = err instanceof Error ? err.message : String(err);
+      const lead = "Augment couldn't generate a candidate for this selection.";
+      new import_obsidian14.Notice(message ? `${lead} ${message}` : lead);
+    } finally {
+      if (this.abortController === controller) {
+        this.abortController = null;
+      }
+      this.isLoading = false;
+      this.render();
+    }
+  }
+  async applyCandidate(mode) {
+    if (!this.hasCandidate || this.isLoading) return;
+    this.isLoading = true;
+    this.render();
+    try {
+      const applied = mode === "replace" ? await this.options.onReplace(this.candidate) : await this.options.onKeepBoth(this.candidate);
+      if (applied) this.close();
+    } finally {
+      this.isLoading = false;
+      this.render();
+    }
+  }
+};
+
+// src/side-question-modal.ts
+var import_obsidian15 = require("obsidian");
+var SideQuestionModal = class extends import_obsidian15.Modal {
+  constructor(app, options) {
+    super(app);
+    this.question = "";
+    this.answer = "";
+    this.hasAnswer = false;
+    this.isLoading = false;
+    this.questionEl = null;
+    this.answerSectionEl = null;
+    this.answerPreEl = null;
+    this.buttonRowEl = null;
+    this.abortController = null;
+    this.options = options;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("augment-side-question-modal");
+    contentEl.createEl("h3", { text: "Ask side question" });
+    contentEl.createEl("p", {
+      cls: "augment-side-question-hint",
+      text: "This answer is ephemeral. Nothing is written to the note unless you click Insert into note."
+    });
+    contentEl.createEl("div", {
+      cls: "augment-side-question-context",
+      text: "Context: question only"
+    });
+    contentEl.createEl("div", {
+      cls: "augment-side-question-label",
+      text: "Question"
+    });
+    this.questionEl = contentEl.createEl("textarea", {
+      cls: "augment-side-question-input",
+      attr: {
+        rows: "5",
+        placeholder: "Why is this section unclear?"
+      }
+    });
+    this.questionEl.addEventListener("input", () => {
+      var _a3, _b;
+      this.question = (_b = (_a3 = this.questionEl) == null ? void 0 : _a3.value) != null ? _b : "";
+    });
+    this.questionEl.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !this.hasAnswer) {
+        event.preventDefault();
+        void this.submitQuestion();
+      }
+    });
+    this.answerSectionEl = contentEl.createDiv({
+      cls: "augment-side-question-answer-section"
+    });
+    this.answerSectionEl.createEl("div", {
+      cls: "augment-side-question-label",
+      text: "Answer"
+    });
+    this.answerPreEl = this.answerSectionEl.createEl("pre", {
+      cls: "augment-side-question-preview"
+    });
+    this.buttonRowEl = contentEl.createDiv({
+      cls: "augment-side-question-btn-row"
+    });
+    this.render();
+    window.setTimeout(() => {
+      var _a3;
+      return (_a3 = this.questionEl) == null ? void 0 : _a3.focus();
+    }, 10);
+  }
+  onClose() {
+    var _a3;
+    (_a3 = this.abortController) == null ? void 0 : _a3.abort();
+    this.abortController = null;
+    this.contentEl.empty();
+  }
+  render() {
+    if (this.questionEl) {
+      this.questionEl.disabled = this.isLoading || this.hasAnswer;
+    }
+    if (this.answerPreEl) {
+      if (this.isLoading && !this.hasAnswer) {
+        this.answerPreEl.setText("Generating answer...");
+      } else if (!this.hasAnswer) {
+        this.answerPreEl.setText("Ask one question to preview the answer outside the note.");
+      } else {
+        this.answerPreEl.setText(this.answer);
+      }
+    }
+    if (!this.buttonRowEl) return;
+    this.buttonRowEl.empty();
+    const closeBtn = this.buttonRowEl.createEl("button", { text: "Close" });
+    closeBtn.addEventListener("click", () => this.close());
+    if (!this.hasAnswer) {
+      const askBtn = this.buttonRowEl.createEl("button", {
+        cls: "mod-cta",
+        text: this.isLoading ? "Asking..." : "Ask"
+      });
+      askBtn.disabled = this.isLoading;
+      askBtn.addEventListener("click", () => {
+        void this.submitQuestion();
+      });
+      return;
+    }
+    const copyBtn = this.buttonRowEl.createEl("button", {
+      text: "Copy"
+    });
+    copyBtn.disabled = this.isLoading;
+    copyBtn.addEventListener("click", () => {
+      void this.copyAnswer();
+    });
+    const insertBtn = this.buttonRowEl.createEl("button", {
+      cls: "mod-cta",
+      text: "Insert into note"
+    });
+    insertBtn.disabled = this.isLoading;
+    insertBtn.addEventListener("click", () => {
+      void this.insertAnswer();
+    });
+  }
+  async submitQuestion() {
+    const question = this.question.trim();
+    if (!question) {
+      new import_obsidian15.Notice("Enter a question first");
+      return;
+    }
+    if (this.isLoading || this.hasAnswer) return;
+    this.isLoading = true;
+    this.answer = "";
+    this.hasAnswer = false;
+    const controller = new AbortController();
+    this.abortController = controller;
+    this.render();
+    try {
+      const answer = await this.options.onAsk(question, controller.signal);
+      if (controller.signal.aborted) return;
+      this.answer = answer;
+      this.hasAnswer = true;
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const message = err instanceof Error ? err.message : String(err);
+      const lead = "Augment couldn't answer that side question.";
+      new import_obsidian15.Notice(message ? `${lead} ${message}` : lead);
+    } finally {
+      if (this.abortController === controller) {
+        this.abortController = null;
+      }
+      this.isLoading = false;
+      this.render();
+    }
+  }
+  async copyAnswer() {
+    if (!this.hasAnswer || this.isLoading) return;
+    try {
+      await navigator.clipboard.writeText(this.answer);
+      new import_obsidian15.Notice("Augment: copied to clipboard", 5e3);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const lead = "Augment couldn't copy this answer.";
+      new import_obsidian15.Notice(message ? `${lead} ${message}` : lead);
+    }
+  }
+  async insertAnswer() {
+    if (!this.hasAnswer || this.isLoading) return;
+    this.isLoading = true;
+    this.render();
+    try {
+      const inserted = await this.options.onInsert(this.answer);
+      if (inserted) this.close();
+    } finally {
+      this.isLoading = false;
+      this.render();
+    }
+  }
+};
+
+// src/status-bridge.ts
+var ACTIVE_SESSION_LIMIT = 5;
+var INACTIVE_SESSION_STATUSES = /* @__PURE__ */ new Set(["crashed", "exited"]);
+var STATUS_LABELS = {
+  active: "Active",
+  tool: "Tool",
+  waiting: "Waiting",
+  running: "Running",
+  shell: "Shell",
+  idle: "Idle",
+  crashed: "Crashed",
+  exited: "Exited"
+};
+function normalizeSessionName(rawName) {
+  const trimmed = rawName.trim();
+  return trimmed || "Terminal";
+}
+function normalizeStatus2(rawStatus) {
+  const trimmed = rawStatus.trim().toLowerCase();
+  return trimmed || "shell";
+}
+function normalizeLastActivityMs2(rawLastActivityMs) {
+  return Number.isFinite(rawLastActivityMs) ? rawLastActivityMs : 0;
+}
+function isStatusBridgeSessionActive(status) {
+  return !INACTIVE_SESSION_STATUSES.has(normalizeStatus2(status));
+}
+function formatStatusBridgeStatusLabel(status) {
+  var _a3;
+  const normalized = normalizeStatus2(status);
+  return (_a3 = STATUS_LABELS[normalized]) != null ? _a3 : `${normalized.slice(0, 1).toUpperCase()}${normalized.slice(1)}`;
+}
+function summarizeStatusBridgeSessions(sessions) {
+  const activeSessions = sessions.map((session) => ({
+    name: normalizeSessionName(session.name),
+    status: normalizeStatus2(session.status),
+    lastActivityMs: normalizeLastActivityMs2(session.lastActivityMs)
+  })).filter((session) => isStatusBridgeSessionActive(session.status)).sort((left, right) => {
+    if (left.lastActivityMs !== right.lastActivityMs) {
+      return right.lastActivityMs - left.lastActivityMs;
+    }
+    return left.name.localeCompare(right.name);
+  });
+  const activeSessionCount = activeSessions.length;
+  return {
+    label: activeSessionCount > 0 ? `Augment \xB7 ${activeSessionCount} active` : "Augment",
+    activeSessionCount,
+    recentSessions: activeSessions.slice(0, ACTIVE_SESSION_LIMIT).map((session) => ({
+      ...session,
+      statusLabel: formatStatusBridgeStatusLabel(session.status)
+    }))
+  };
+}
+
 // src/main.ts
 var import_util = require("util");
-var execFileAsync = (0, import_util.promisify)(import_child_process3.execFile);
+var execFileAsync = (0, import_util.promisify)(import_child_process4.execFile);
 var CC_NATIVE_TEAM_ID_PREFIX = "cc-native-team::";
 async function isWslAvailable() {
   try {
@@ -26686,7 +27557,7 @@ Augment hosts Claude Code agent sessions in a panel alongside your notes. Each s
 *This note lives at \`Augment/Get started.md\`. Reopen it any time: command palette \u2192 \`Augment: Open welcome\`.*
 `;
 }
-var TeamProjectPickerModal = class extends import_obsidian12.FuzzySuggestModal {
+var TeamProjectPickerModal = class extends import_obsidian16.FuzzySuggestModal {
   constructor(app, projects, onChoose) {
     super(app);
     this.projects = projects;
@@ -26708,17 +27579,19 @@ var TeamProjectPickerModal = class extends import_obsidian12.FuzzySuggestModal {
     this.onChoose(project);
   }
 };
-var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
+var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-10T07:55:08.348Z";
-    this.gitSha = "4207188";
+    this.buildId = "2026-03-14T17:34:52.023Z";
+    this.gitSha = "55c49b7";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
+    this.statusBridgePopoverEl = null;
+    this.statusBridgePopoverCleanup = null;
     this.ribbonGenerateEl = null;
     this.ribbonTerminalEl = null;
     this._tier1Registered = false;
@@ -26729,6 +27602,148 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.waitingCursor = 0;
     this.activeGenerations = /* @__PURE__ */ new Map();
     this.generationCounter = 0;
+    this.busPollerManager = null;
+    this.managedDeliveryByRole = /* @__PURE__ */ new Map();
+    this.addressedTerminalPollers = /* @__PURE__ */ new Map();
+  }
+  buildManagedRoleKey(teamId, roleId) {
+    return `${teamId}::${roleId}`;
+  }
+  updateManagedDeliveryObservation(teamId, roleId, updater) {
+    const key = this.buildManagedRoleKey(teamId, roleId);
+    const current = this.managedDeliveryByRole.get(key);
+    if (!current) return;
+    this.managedDeliveryByRole.set(key, updater(current));
+    this.app.workspace.trigger("augment-terminal:changed");
+  }
+  noteManagedDeliveryPollSuccess(teamId, roleId) {
+    this.updateManagedDeliveryObservation(teamId, roleId, (current) => {
+      var _a3;
+      const now = Date.now();
+      return {
+        ...current,
+        firstDeliveryReadyAt: (_a3 = current.firstDeliveryReadyAt) != null ? _a3 : now,
+        lastDeliveryPollAt: now,
+        lastDeliveryError: null
+      };
+    });
+  }
+  noteManagedDeliveryPollFailure(teamId, roleId, error) {
+    this.updateManagedDeliveryObservation(teamId, roleId, (current) => ({
+      ...current,
+      lastDeliveryPollAt: Date.now(),
+      lastDeliveryError: error instanceof Error ? error.message : String(error)
+    }));
+  }
+  addressedTerminalPollerKey(address) {
+    return `augment-terminal::${address}`;
+  }
+  stopAddressedTerminalPollers() {
+    if (!this.busPollerManager) return;
+    for (const key of this.addressedTerminalPollers.keys()) {
+      this.busPollerManager.stopPoller(key);
+    }
+    this.addressedTerminalPollers.clear();
+  }
+  syncAddressedTerminalBusPollers() {
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+    if (!this.busPollerManager) return;
+    const vaultBase = ((_a3 = this.app.vault.adapter.basePath) != null ? _a3 : "").trim();
+    if (!vaultBase) {
+      this.stopAddressedTerminalPollers();
+      return;
+    }
+    const activeLeaf = this.app.workspace.activeLeaf;
+    const desired = /* @__PURE__ */ new Map();
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
+      const view = leaf.view;
+      const leafState = (_c = (_b = leaf.getViewState) == null ? void 0 : _b.call(leaf)) == null ? void 0 : _c.state;
+      const address = (typeof view.getBusAddress === "function" ? (_e = (_d = view.getBusAddress()) == null ? void 0 : _d.trim()) != null ? _e : "" : "") || (typeof (leafState == null ? void 0 : leafState.busAddress) === "string" ? leafState.busAddress.trim() : "");
+      if (!address) continue;
+      const key = this.addressedTerminalPollerKey(address);
+      const candidate = {
+        address,
+        view,
+        managedTeamId: (typeof view.getManagedTeamId === "function" ? (_g = (_f = view.getManagedTeamId()) == null ? void 0 : _f.trim()) != null ? _g : "" : "") || (typeof (leafState == null ? void 0 : leafState.managedTeamId) === "string" ? leafState.managedTeamId.trim() : ""),
+        managedRoleId: (typeof view.getManagedRoleId === "function" ? (_i = (_h = view.getManagedRoleId()) == null ? void 0 : _h.trim()) != null ? _i : "" : "") || (typeof (leafState == null ? void 0 : leafState.managedRoleId) === "string" ? leafState.managedRoleId.trim() : ""),
+        isActive: leaf === activeLeaf
+      };
+      const existing = desired.get(key);
+      if (!existing || !existing.isActive && candidate.isActive) {
+        desired.set(key, candidate);
+      }
+    }
+    for (const key of this.addressedTerminalPollers.keys()) {
+      if (desired.has(key)) continue;
+      this.busPollerManager.stopPoller(key);
+      this.addressedTerminalPollers.delete(key);
+    }
+    for (const [key, target] of desired.entries()) {
+      const existing = this.addressedTerminalPollers.get(key);
+      if (existing && existing.address === target.address && existing.view === target.view) {
+        continue;
+      }
+      if (existing) {
+        this.busPollerManager.stopPoller(key);
+      }
+      this.busPollerManager.startPoller(
+        key,
+        target.address,
+        vaultBase,
+        (text) => {
+          var _a4, _b2;
+          if (typeof target.view.appendSystemOutput === "function") {
+            target.view.appendSystemOutput(text);
+            return;
+          }
+          (_b2 = (_a4 = target.view).write) == null ? void 0 : _b2.call(_a4, text);
+        },
+        {
+          onPollSuccess: () => {
+            if (target.managedTeamId && target.managedRoleId) {
+              this.noteManagedDeliveryPollSuccess(target.managedTeamId, target.managedRoleId);
+            }
+          },
+          onPollFailure: (error) => {
+            if (target.managedTeamId && target.managedRoleId) {
+              this.noteManagedDeliveryPollFailure(target.managedTeamId, target.managedRoleId, error);
+            }
+          }
+        }
+      );
+      this.addressedTerminalPollers.set(key, { address: target.address, view: target.view });
+    }
+  }
+  getManagedRoleStatuses(teamId) {
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+    const targetTeamId = (_a3 = teamId == null ? void 0 : teamId.trim()) != null ? _a3 : "";
+    const statuses = [];
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
+      const view = leaf.view;
+      const leafState = (_c = (_b = leaf.getViewState) == null ? void 0 : _b.call(leaf)) == null ? void 0 : _c.state;
+      const resolvedTeamId = (typeof view.getManagedTeamId === "function" ? (_e = (_d = view.getManagedTeamId()) == null ? void 0 : _d.trim()) != null ? _e : "" : "") || (typeof (leafState == null ? void 0 : leafState.managedTeamId) === "string" ? leafState.managedTeamId.trim() : "");
+      const resolvedRoleId = (typeof view.getManagedRoleId === "function" ? (_g = (_f = view.getManagedRoleId()) == null ? void 0 : _f.trim()) != null ? _g : "" : "") || (typeof (leafState == null ? void 0 : leafState.managedRoleId) === "string" ? leafState.managedRoleId.trim() : "");
+      if (!resolvedTeamId || !resolvedRoleId) continue;
+      if (resolvedTeamId.startsWith(CC_NATIVE_TEAM_ID_PREFIX)) continue;
+      if (targetTeamId && resolvedTeamId !== targetTeamId) continue;
+      const terminalStatus = typeof view.getStatus === "function" ? view.getStatus() : "shell";
+      const observation = this.managedDeliveryByRole.get(this.buildManagedRoleKey(resolvedTeamId, resolvedRoleId));
+      const viewName = typeof view.getName === "function" ? (_i = (_h = view.getName()) == null ? void 0 : _h.trim()) != null ? _i : "" : "";
+      const stateName = typeof (leafState == null ? void 0 : leafState.name) === "string" ? leafState.name.trim() : "";
+      statuses.push(buildManagedRoleStatus({
+        teamId: resolvedTeamId,
+        roleId: resolvedRoleId,
+        address: viewName || stateName || null,
+        observation,
+        terminalStatus
+      }));
+    }
+    statuses.sort((left, right) => {
+      const teamCompare = left.teamId.localeCompare(right.teamId);
+      if (teamCompare !== 0) return teamCompare;
+      return left.roleId.localeCompare(right.roleId);
+    });
+    return statuses;
   }
   async maybeDefaultWindowsShellToWsl() {
     if (process.platform !== "win32") return;
@@ -26744,10 +27759,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   }
   // Returns the actual model ID to use, resolving "auto" and tier aliases to the best available.
   resolveModel() {
-    var _a2, _b, _c, _d;
+    var _a3, _b, _c, _d;
     switch (this.settings.model) {
       case "auto":
-        return (_a2 = bestModelId(this.availableModels)) != null ? _a2 : "claude-opus-4-6";
+        return (_a3 = bestModelId(this.availableModels)) != null ? _a3 : "claude-opus-4-6";
       case "auto-opus":
         return (_b = bestModelByTier(this.availableModels, "opus")) != null ? _b : "claude-opus-4-6";
       case "auto-sonnet":
@@ -26761,12 +27776,12 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   // Display name for the resolved model — used in status bar and output formats.
   // Prefers curated local names over API-returned display_name (API may truncate, e.g. "Claude Opus 4" vs "Claude Opus 4.6").
   resolveModelDisplayName() {
-    var _a2;
+    var _a3;
     const id = this.resolveModel();
     const localName = modelDisplayName(id);
     if (localName !== id) return localName;
     const found = this.availableModels.find((m) => m.id === id);
-    return (_a2 = found == null ? void 0 : found.display_name) != null ? _a2 : id;
+    return (_a3 = found == null ? void 0 : found.display_name) != null ? _a3 : id;
   }
   /** Sync the `.augment-ribbon-colored` class with the current setting value. */
   applyRibbonColoredClass() {
@@ -26780,22 +27795,34 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   /** Swap the ribbon Generate button icon to match the current ribbonIcon setting. */
   applyRibbonIcon() {
     if (!this.ribbonGenerateEl) return;
-    (0, import_obsidian12.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
+    (0, import_obsidian16.setIcon)(this.ribbonGenerateEl, this.settings.ribbonIcon || "augment-pyramid");
   }
   refreshStatusBar() {
-    var _a2, _b;
+    var _a3, _b;
     if (this.activeGenerations.size > 0) {
       this.showStatusBarGenerating();
-      return;
-    }
-    (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.removeClass("augment-ribbon-generating");
-    (_b = this.ribbonGenerateEl) == null ? void 0 : _b.removeClass("is-generating");
-    if (!this.statusBarEl) return;
-    this.statusBarEl.empty();
-    if (!this.settings.apiKey) {
-      this.statusBarEl.createEl("span", { text: "Augment: API key needed" });
     } else {
-      this.statusBarEl.createEl("span", { text: `Augment: ${this.resolveModelDisplayName()}` });
+      (_a3 = this.ribbonGenerateEl) == null ? void 0 : _a3.removeClass("augment-ribbon-generating");
+      (_b = this.ribbonGenerateEl) == null ? void 0 : _b.removeClass("is-generating");
+    }
+    if (!this.statusBarEl) return;
+    const snapshot = this.getStatusBridgeSnapshot();
+    this.statusBarEl.empty();
+    this.statusBarEl.addClass("augment-status-bridge");
+    this.statusBarEl.toggleClass("is-quiet", snapshot.activeSessionCount === 0);
+    this.statusBarEl.toggleClass("is-active", snapshot.activeSessionCount > 0);
+    this.statusBarEl.setAttribute("role", "button");
+    this.statusBarEl.setAttribute("aria-haspopup", "dialog");
+    this.statusBarEl.setAttribute("aria-expanded", this.statusBridgePopoverEl ? "true" : "false");
+    this.statusBarEl.setAttribute("aria-label", snapshot.label);
+    this.statusBarEl.setAttribute("title", snapshot.label);
+    this.statusBarEl.createSpan({
+      cls: "augment-status-bridge-label",
+      text: snapshot.label
+    });
+    if (this.statusBridgePopoverEl) {
+      this.renderStatusBridgePopoverContent();
+      this.positionStatusBridgePopover();
     }
   }
   getBuildFingerprint() {
@@ -26874,20 +27901,367 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
     this.refreshStatusBar();
     console.log("[Augment] generation cancelled");
-    new import_obsidian12.Notice("Augment: generation cancelled");
+    new import_obsidian16.Notice("Augment: generation cancelled");
   }
   showStatusBarGenerating() {
-    var _a2, _b;
-    if (this.statusBarEl) {
-      this.statusBarEl.empty();
-      const sbSpinner = this.statusBarEl.createEl("span", { cls: "augment-sb-spinner" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      sbSpinner.createEl("span", { cls: "augment-sb-dot" });
-      this.statusBarEl.createEl("span", { text: " Generating\u2026" });
-    }
-    (_a2 = this.ribbonGenerateEl) == null ? void 0 : _a2.addClass("augment-ribbon-generating");
+    var _a3, _b;
+    (_a3 = this.ribbonGenerateEl) == null ? void 0 : _a3.addClass("augment-ribbon-generating");
     (_b = this.ribbonGenerateEl) == null ? void 0 : _b.addClass("is-generating");
+  }
+  getStatusBridgeSnapshot() {
+    return summarizeStatusBridgeSessions(
+      this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL).map((leaf) => {
+        var _a3, _b, _c, _d, _e;
+        const view = leaf.view;
+        const leafState = (_b = (_a3 = leaf.getViewState) == null ? void 0 : _a3.call(leaf)) == null ? void 0 : _b.state;
+        const name = (typeof view.getName === "function" ? (_d = (_c = view.getName()) == null ? void 0 : _c.trim()) != null ? _d : "" : "") || (typeof (leafState == null ? void 0 : leafState.name) === "string" ? leafState.name.trim() : "") || "Terminal";
+        const rawStatus = typeof view.getStatus === "function" ? view.getStatus() : "shell";
+        const status = typeof rawStatus === "string" && rawStatus.trim().length > 0 ? rawStatus : "shell";
+        const lastActivityMs = typeof view.getLastActivityMs === "function" ? (_e = view.getLastActivityMs()) != null ? _e : 0 : 0;
+        return { name, status, lastActivityMs };
+      })
+    );
+  }
+  renderStatusBridgePopoverContent() {
+    if (!this.statusBridgePopoverEl) return;
+    const snapshot = this.getStatusBridgeSnapshot();
+    this.statusBridgePopoverEl.empty();
+    const header = this.statusBridgePopoverEl.createDiv({ cls: "augment-status-bridge-popover-header" });
+    header.createDiv({
+      cls: "augment-status-bridge-popover-kicker",
+      text: "Augment"
+    });
+    header.createDiv({
+      cls: "augment-status-bridge-popover-title",
+      text: snapshot.label
+    });
+    if (snapshot.recentSessions.length === 0) {
+      this.statusBridgePopoverEl.createDiv({
+        cls: "augment-status-bridge-empty",
+        text: "No active sessions"
+      });
+    } else {
+      const sessionsEl = this.statusBridgePopoverEl.createDiv({ cls: "augment-status-bridge-sessions" });
+      for (const session of snapshot.recentSessions) {
+        const row = sessionsEl.createDiv({ cls: "augment-status-bridge-session" });
+        const dot = row.createDiv({ cls: "augment-status-bridge-session-dot" });
+        dot.addClass(`is-${session.status}`);
+        row.createDiv({ cls: "augment-status-bridge-session-name", text: session.name });
+        row.createDiv({
+          cls: "augment-status-bridge-session-meta",
+          text: session.statusLabel
+        });
+      }
+    }
+    const actions = this.statusBridgePopoverEl.createDiv({ cls: "augment-status-bridge-actions" });
+    const newSessionButton = actions.createEl("button", {
+      cls: "augment-status-bridge-link",
+      text: "+ New session",
+      attr: { type: "button" }
+    });
+    newSessionButton.addEventListener("click", () => {
+      this.closeStatusBridgePopover();
+      void this.openTerminalAt(this.settings.defaultTerminalLocation);
+    });
+    const openControlCenterButton = actions.createEl("button", {
+      cls: "mod-cta",
+      text: "Open Control Center",
+      attr: { type: "button" }
+    });
+    openControlCenterButton.addEventListener("click", () => {
+      this.closeStatusBridgePopover();
+      void this.openControlCenter();
+    });
+  }
+  positionStatusBridgePopover() {
+    if (!this.statusBarEl || !this.statusBridgePopoverEl) return;
+    const anchorRect = this.statusBarEl.getBoundingClientRect();
+    const popoverRect = this.statusBridgePopoverEl.getBoundingClientRect();
+    const top = Math.max(8, anchorRect.top - popoverRect.height - 8);
+    const left = Math.min(
+      window.innerWidth - popoverRect.width - 8,
+      Math.max(8, anchorRect.right - popoverRect.width)
+    );
+    this.statusBridgePopoverEl.style.top = `${top}px`;
+    this.statusBridgePopoverEl.style.left = `${left}px`;
+  }
+  openStatusBridgePopover() {
+    if (!this.statusBarEl || this.statusBridgePopoverEl) return;
+    this.statusBridgePopoverEl = document.body.createDiv({ cls: "augment-status-bridge-popover" });
+    this.statusBridgePopoverEl.setAttribute("role", "dialog");
+    this.statusBridgePopoverEl.setAttribute("aria-label", "Augment active sessions");
+    this.renderStatusBridgePopoverContent();
+    this.positionStatusBridgePopover();
+    const handlePointerDown = (event) => {
+      var _a3, _b;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if ((_a3 = this.statusBridgePopoverEl) == null ? void 0 : _a3.contains(target)) return;
+      if ((_b = this.statusBarEl) == null ? void 0 : _b.contains(target)) return;
+      this.closeStatusBridgePopover();
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        this.closeStatusBridgePopover();
+      }
+    };
+    const handleResize = () => {
+      this.closeStatusBridgePopover();
+    };
+    document.addEventListener("mousedown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("resize", handleResize);
+    this.statusBridgePopoverCleanup = () => {
+      document.removeEventListener("mousedown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("resize", handleResize);
+    };
+    this.statusBarEl.setAttribute("aria-expanded", "true");
+  }
+  closeStatusBridgePopover() {
+    var _a3, _b, _c;
+    (_a3 = this.statusBridgePopoverCleanup) == null ? void 0 : _a3.call(this);
+    this.statusBridgePopoverCleanup = null;
+    (_b = this.statusBridgePopoverEl) == null ? void 0 : _b.remove();
+    this.statusBridgePopoverEl = null;
+    (_c = this.statusBarEl) == null ? void 0 : _c.setAttribute("aria-expanded", "false");
+  }
+  toggleStatusBridgePopover() {
+    if (this.statusBridgePopoverEl) {
+      this.closeStatusBridgePopover();
+      return;
+    }
+    this.openStatusBridgePopover();
+  }
+  captureSelectionTransformSnapshot(editor) {
+    var _a3, _b;
+    const originalText = editor.getSelection();
+    if (!originalText) return null;
+    const activeFile = this.app.workspace.getActiveFile();
+    return {
+      originalText,
+      from: editor.getCursor("from"),
+      to: editor.getCursor("to"),
+      noteTitle: (_a3 = activeFile == null ? void 0 : activeFile.basename) != null ? _a3 : "Untitled",
+      filePath: (_b = activeFile == null ? void 0 : activeFile.path) != null ? _b : null
+    };
+  }
+  captureSideQuestionSnapshot(editor) {
+    var _a3, _b;
+    const activeFile = this.app.workspace.getActiveFile();
+    return {
+      insertPos: editor.posToOffset(editor.getCursor()),
+      noteTitle: (_a3 = activeFile == null ? void 0 : activeFile.basename) != null ? _a3 : "Untitled",
+      filePath: (_b = activeFile == null ? void 0 : activeFile.path) != null ? _b : null
+    };
+  }
+  openSelectionTransform(editor) {
+    if (!this.settings.apiKey) {
+      console.log("[Augment] API key required");
+      const notice = new import_obsidian16.Notice("Augment: API key required \u2014 click to open settings", 0);
+      notice.noticeEl.style.cursor = "pointer";
+      notice.noticeEl.addEventListener("click", () => {
+        notice.hide();
+        this.app.setting.open();
+        this.app.setting.openTabById("augment-terminal");
+      });
+      return;
+    }
+    const snapshot = this.captureSelectionTransformSnapshot(editor);
+    if (!snapshot) {
+      new import_obsidian16.Notice("Select text to transform.");
+      return;
+    }
+    new SelectionTransformModal(this.app, {
+      noteTitle: snapshot.noteTitle,
+      selectionText: snapshot.originalText,
+      onTransform: (instruction, signal) => this.runSelectionTransform(snapshot, instruction, signal),
+      onReplace: (candidate) => this.applySelectionTransform(editor, snapshot, candidate, "replace"),
+      onKeepBoth: (candidate) => this.applySelectionTransform(editor, snapshot, candidate, "keep-both")
+    }).open();
+  }
+  openSideQuestion(editor) {
+    if (!this.settings.apiKey) {
+      console.log("[Augment] API key required");
+      const notice = new import_obsidian16.Notice("Augment: API key required \u2014 click to open settings", 0);
+      notice.noticeEl.style.cursor = "pointer";
+      notice.noticeEl.addEventListener("click", () => {
+        notice.hide();
+        this.app.setting.open();
+        this.app.setting.openTabById("augment-terminal");
+      });
+      return;
+    }
+    const snapshot = this.captureSideQuestionSnapshot(editor);
+    new SideQuestionModal(this.app, {
+      onAsk: (question, signal) => this.runSideQuestion(snapshot, question, signal),
+      onInsert: (answer) => this.insertSideQuestionAnswer(editor, snapshot, answer)
+    }).open();
+  }
+  async runSelectionTransform(snapshot, instruction, signal) {
+    var _a3;
+    const context = {
+      title: snapshot.noteTitle,
+      frontmatter: null,
+      selection: snapshot.originalText,
+      surroundingContext: "",
+      linkedNotes: []
+    };
+    const baseSystemPrompt = await buildSystemPrompt(
+      context,
+      this.settings.systemPrompt || void 0,
+      this.settings.workspaceScope,
+      this.settings.defaultWorkingDirectory || void 0
+    );
+    const systemPrompt = [
+      baseSystemPrompt,
+      "Transform the selected text according to the user's instruction. Return only the replacement text. Do not add commentary or code fences unless the instruction asks for them."
+    ].filter(Boolean).join("\n\n");
+    const userMessage = [
+      "Instruction:",
+      instruction.trim(),
+      "",
+      "Selected text:",
+      snapshot.originalText
+    ].join("\n");
+    this.showStatusBarGenerating();
+    if (this.settings.showGenerationToast) {
+      new import_obsidian16.Notice("Generating...", 3e3);
+    }
+    try {
+      const resolvedModel = this.resolveModel();
+      const resolvedModelName = this.resolveModelDisplayName();
+      const { text: result, usage: genUsage } = await generateText(
+        systemPrompt,
+        userMessage,
+        this.settings,
+        resolvedModel,
+        signal
+      );
+      if (signal.aborted) return "";
+      void this.accumulateSpend(resolvedModel, genUsage);
+      const entry = {
+        timestamp: Date.now(),
+        noteName: snapshot.noteTitle,
+        model: resolvedModelName,
+        systemPrompt,
+        userMessage
+      };
+      this.pushContextHistory(entry);
+      if (!this.settings.hasGenerated) {
+        this.settings.hasGenerated = true;
+        await this.saveData(this.settings);
+        this.registerTieredCommands();
+      }
+      return result;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      console.error("[Augment] selection transform failed", err);
+      logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
+      const errMsg = (_a3 = friendlyApiError(err)) != null ? _a3 : err instanceof Error ? err.message : String(err);
+      throw new Error(errMsg);
+    } finally {
+      this.refreshStatusBar();
+    }
+  }
+  async runSideQuestion(snapshot, question, signal) {
+    var _a3;
+    const context = {
+      title: snapshot.noteTitle,
+      frontmatter: null,
+      selection: "",
+      surroundingContext: "",
+      linkedNotes: []
+    };
+    const baseSystemPrompt = await buildSystemPrompt(
+      context,
+      this.settings.systemPrompt || void 0,
+      this.settings.workspaceScope,
+      this.settings.defaultWorkingDirectory || void 0
+    );
+    const systemPrompt = [
+      baseSystemPrompt,
+      "Answer the user's side question using only the question provided. Do not claim to have read the current note, selection, linked notes, or any other hidden context. Return only the answer."
+    ].filter(Boolean).join("\n\n");
+    const userMessage = [
+      "Question:",
+      question.trim()
+    ].join("\n");
+    this.showStatusBarGenerating();
+    if (this.settings.showGenerationToast) {
+      new import_obsidian16.Notice("Asking...", 3e3);
+    }
+    try {
+      const resolvedModel = this.resolveModel();
+      const resolvedModelName = this.resolveModelDisplayName();
+      const { text: result, usage: genUsage } = await generateText(
+        systemPrompt,
+        userMessage,
+        this.settings,
+        resolvedModel,
+        signal
+      );
+      if (signal.aborted) return "";
+      void this.accumulateSpend(resolvedModel, genUsage);
+      const entry = {
+        timestamp: Date.now(),
+        noteName: snapshot.noteTitle,
+        model: resolvedModelName,
+        systemPrompt,
+        userMessage
+      };
+      this.pushContextHistory(entry);
+      if (!this.settings.hasGenerated) {
+        this.settings.hasGenerated = true;
+        await this.saveData(this.settings);
+        this.registerTieredCommands();
+      }
+      return result;
+    } catch (err) {
+      if (signal.aborted) throw err;
+      console.error("[Augment] side question failed", err);
+      logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
+      const errMsg = (_a3 = friendlyApiError(err)) != null ? _a3 : err instanceof Error ? err.message : String(err);
+      throw new Error(errMsg);
+    } finally {
+      this.refreshStatusBar();
+    }
+  }
+  async applySelectionTransform(editor, snapshot, candidate, mode) {
+    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeView || activeView.editor !== editor || snapshot.filePath && (activeFile == null ? void 0 : activeFile.path) !== snapshot.filePath) {
+      new import_obsidian16.Notice("Augment: reopen Transform selection\u2026 from the note you want to edit");
+      return false;
+    }
+    const currentText = editor.getRange(snapshot.from, snapshot.to);
+    if (currentText !== snapshot.originalText) {
+      new import_obsidian16.Notice("The selected text changed before Augment could apply this transform. Review the candidate, then copy it manually or run the transform again.");
+      return false;
+    }
+    const nextText = mode === "replace" ? candidate : `${snapshot.originalText}
+
+${candidate}`;
+    editor.replaceRange(nextText, snapshot.from, snapshot.to);
+    new import_obsidian16.Notice(
+      mode === "replace" ? "Selection replaced. Undo to restore the original." : "Inserted the candidate below the original selection. Undo to remove it."
+    );
+    return true;
+  }
+  async insertSideQuestionAnswer(editor, snapshot, answer) {
+    var _a3;
+    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
+    const activeFile = this.app.workspace.getActiveFile();
+    const activePath = (_a3 = activeFile == null ? void 0 : activeFile.path) != null ? _a3 : null;
+    if (!activeView || activeView.editor !== editor || activePath !== snapshot.filePath) {
+      new import_obsidian16.Notice("Augment: return to the original note to insert this answer, or use Copy instead");
+      return false;
+    }
+    const safeInsertPos = Math.min(snapshot.insertPos, editor.getValue().length);
+    editor.replaceRange(answer, editor.offsetToPos(safeInsertPos));
+    editor.setCursor(editor.offsetToPos(safeInsertPos + answer.length));
+    new import_obsidian16.Notice("Inserted the answer into the note. Undo to remove it.");
+    return true;
   }
   triggerGenerate(editor) {
     const cursor = editor.getCursor();
@@ -26896,7 +28270,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     const ctx = assembleVaultContext(this.app, editor, this.settings);
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
-      const genNotice = new import_obsidian12.Notice("Generating\u2026", 3e3);
+      const genNotice = new import_obsidian16.Notice("Generating\u2026", 3e3);
     }
     const isBlock = this.settings.outputFormat !== "plain";
     let insertPos;
@@ -26910,7 +28284,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     const abortController = new AbortController();
     const generation = this.registerGeneration(cmView, insertPos, abortController, true);
     void (async () => {
-      var _a2;
+      var _a3;
       try {
         await populateLinkedNoteContent(this.app, ctx);
         const resolvedModel = this.resolveModel();
@@ -26937,7 +28311,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         };
         this.pushContextHistory(entry);
         console.log("[Augment] generation done");
-        const notice = new import_obsidian12.Notice("", 5e3);
+        const notice = new import_obsidian16.Notice("", 5e3);
         notice.noticeEl.empty();
         notice.noticeEl.createEl("span", { text: "Augment: done" });
         notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -26958,8 +28332,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         if (abortController.signal.aborted) return;
         console.error("[Augment] generation failed", err);
         logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
-        const errMsg = (_a2 = friendlyApiError(err)) != null ? _a2 : err instanceof Error ? err.message : String(err);
-        new import_obsidian12.Notice(`Augment: ${errMsg}`);
+        const errMsg = (_a3 = friendlyApiError(err)) != null ? _a3 : err instanceof Error ? err.message : String(err);
+        new import_obsidian16.Notice(`Augment: ${errMsg}`);
       } finally {
         this.unregisterGeneration(generation.id);
       }
@@ -26976,7 +28350,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.refreshStatusBar();
   }
   async clearObsidianLinkHotkey() {
-    var _a2, _b;
+    var _a3, _b;
     const CONFLICT_IDS = [
       "editor:cycle-list-checklist",
       "editor:open-link-in-new-leaf",
@@ -26997,7 +28371,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         hotkeys[id] = [];
       }
       await this.app.vault.adapter.write(hotkeyPath, JSON.stringify(hotkeys, null, 2));
-      (_b = (_a2 = this.app.hotkeyManager) == null ? void 0 : _a2.load) == null ? void 0 : _b.call(_a2);
+      (_b = (_a3 = this.app.hotkeyManager) == null ? void 0 : _a3.load) == null ? void 0 : _b.call(_a3);
       this.settings.clearedLinkHotkey = true;
       this.settings.clearedHotkeyOriginals = originals;
       await this.saveData(this.settings);
@@ -27006,7 +28380,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
   }
   async restoreObsidianLinkHotkey() {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const CONFLICT_IDS = [
       "editor:cycle-list-checklist",
       "editor:open-link-in-new-leaf",
@@ -27024,7 +28398,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         hotkeys = JSON.parse(raw2);
       } catch (e) {
       }
-      const originals = (_a2 = this.settings.clearedHotkeyOriginals) != null ? _a2 : {};
+      const originals = (_a3 = this.settings.clearedHotkeyOriginals) != null ? _a3 : {};
       for (const id of CONFLICT_IDS) {
         if (id in originals) {
           hotkeys[id] = originals[id];
@@ -27046,17 +28420,17 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
   }
   showHotkeyClaimedNotice() {
-    const notice = new import_obsidian12.Notice("", 0);
+    const notice = new import_obsidian16.Notice("", 0);
     notice.noticeEl.empty();
     notice.noticeEl.createEl("span", { text: "Augment claimed Ctrl+Enter \u2014 " });
     const link = notice.noticeEl.createEl("a", { text: "Restore Obsidian\u2019s default", href: "#" });
     link.style.color = "var(--text-accent)";
     link.style.cursor = "pointer";
     link.addEventListener("click", (e) => {
-      var _a2, _b, _c, _d;
+      var _a3, _b, _c, _d;
       e.preventDefault();
       notice.hide();
-      (_b = (_a2 = this.app.setting) == null ? void 0 : _a2.open) == null ? void 0 : _b.call(_a2);
+      (_b = (_a3 = this.app.setting) == null ? void 0 : _a3.open) == null ? void 0 : _b.call(_a3);
       (_d = (_c = this.app.setting) == null ? void 0 : _c.openTabById) == null ? void 0 : _d.call(_c, "augment-terminal");
     });
   }
@@ -27073,10 +28447,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       await this.saveData(this.settings);
     }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path6 = `${targetFolder}/${name}.md`;
-      if (!this.app.vault.getAbstractFileByPath(path6)) {
+      const path8 = `${targetFolder}/${name}.md`;
+      if (!this.app.vault.getAbstractFileByPath(path8)) {
         try {
-          await this.app.vault.create(path6, content);
+          await this.app.vault.create(path8, content);
         } catch (e) {
         }
       }
@@ -27109,8 +28483,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
   }
   async onload() {
-    var _a2;
-    (0, import_obsidian12.addIcon)("augment-pyramid", `
+    var _a3;
+    (0, import_obsidian16.addIcon)("augment-pyramid", `
       <circle cx="50" cy="18" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="18" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
       <circle cx="82" cy="72" r="13" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
@@ -27155,7 +28529,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         "editor:cycle-list-checklist"
       ];
       for (const id of RUNTIME_CONFLICTS) {
-        (_a2 = hm == null ? void 0 : hm.removeDefaultHotkeys) == null ? void 0 : _a2.call(hm, id);
+        (_a3 = hm == null ? void 0 : hm.removeDefaultHotkeys) == null ? void 0 : _a3.call(hm, id);
       }
       const isFirst = !this.settings.clearedLinkHotkey;
       void this.clearObsidianLinkHotkey().then(() => {
@@ -27163,6 +28537,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       });
     }
     void this.loadAvailableModels();
+    this.busPollerManager = new BusPollerManager();
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
     this.calloutStyleEl.textContent = [
@@ -27213,19 +28588,45 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     );
     this.registerEditorSuggest(new InboxSuggest(this.app));
     this.addCommand({
+      id: "augment-btw-side-question",
+      name: "btw: Ask side question\u2026",
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for side question");
+          new import_obsidian16.Notice("Open a note to ask a side question");
+          return;
+        }
+        this.openSideQuestion(view.editor);
+      }
+    });
+    this.addCommand({
+      id: "augment-transform-selection",
+      name: "Transform selection\u2026",
+      callback: () => {
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
+        if (!view) {
+          console.log("[Augment] no active note for selection transform");
+          new import_obsidian16.Notice("Open a note to transform selected text");
+          return;
+        }
+        this.openSelectionTransform(view.editor);
+      }
+    });
+    this.addCommand({
       id: "augment-generate",
       name: "Generate",
       hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate");
-          new import_obsidian12.Notice("Open a note to generate");
+          new import_obsidian16.Notice("Open a note to generate");
           return;
         }
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian12.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian16.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -27242,16 +28643,16 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       name: "Generate from template",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "Enter" }],
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
         if (!view) {
           console.log("[Augment] no active note for generate-from-template");
-          new import_obsidian12.Notice("Open a note to generate");
+          new import_obsidian16.Notice("Open a note to generate");
           return;
         }
         const editor = view.editor;
         if (!this.settings.apiKey) {
           console.log("[Augment] API key required");
-          const notice = new import_obsidian12.Notice("Augment: API key required \u2014 click to open settings", 0);
+          const notice = new import_obsidian16.Notice("Augment: API key required \u2014 click to open settings", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -27262,7 +28663,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         }
         if (!this.settings.templateFolder) {
           console.log("[Augment] no template folder set");
-          const notice = new import_obsidian12.Notice("Augment: no template folder set \u2014 click to configure", 0);
+          const notice = new import_obsidian16.Notice("Augment: no template folder set \u2014 click to configure", 0);
           notice.noticeEl.style.cursor = "pointer";
           notice.noticeEl.addEventListener("click", () => {
             notice.hide();
@@ -27274,15 +28675,15 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         const files = getTemplateFiles(this.app, this.settings.templateFolder);
         if (files.length === 0) {
           console.log("[Augment] no templates found in", this.settings.templateFolder);
-          new import_obsidian12.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
+          new import_obsidian16.Notice(`Augment: no templates found in ${this.settings.templateFolder}`);
           return;
         }
         const cursor = editor.getCursor();
         const ctx = assembleVaultContext(this.app, editor, this.settings);
         new TemplatePicker(this.app, files, async (templateFile) => {
-          var _a3;
+          var _a4;
           const templateContent = await this.app.vault.read(templateFile);
-          const templateFm = (_a3 = this.app.metadataCache.getFileCache(templateFile)) == null ? void 0 : _a3.frontmatter;
+          const templateFm = (_a4 = this.app.metadataCache.getFileCache(templateFile)) == null ? void 0 : _a4.frontmatter;
           const systemPromptOverride = typeof (templateFm == null ? void 0 : templateFm.system_prompt) === "string" ? templateFm.system_prompt : void 0;
           const targetMode = typeof (templateFm == null ? void 0 : templateFm.target) === "string" ? templateFm.target : "cursor";
           const targetFilePath = typeof (templateFm == null ? void 0 : templateFm.target_file) === "string" ? templateFm.target_file : null;
@@ -27304,7 +28705,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           }
           const rendered = await substituteVariables(templateContent, ctx);
           const runGenerate = async () => {
-            var _a4, _b;
+            var _a5, _b;
             this.showStatusBarGenerating();
             const isCursorMode = targetMode === "cursor";
             const isBlock = this.settings.outputFormat !== "plain";
@@ -27330,10 +28731,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
               void this.accumulateSpend(resolvedModel, genUsage);
               if (targetMode === "clipboard") {
                 await navigator.clipboard.writeText(result);
-                new import_obsidian12.Notice("Augment: copied to clipboard", 5e3);
+                new import_obsidian16.Notice("Augment: copied to clipboard", 5e3);
               } else if (targetMode === "file" && targetFilePath) {
                 const destFile = this.app.vault.getAbstractFileByPath(targetFilePath);
-                if (destFile instanceof import_obsidian12.TFile) {
+                if (destFile instanceof import_obsidian16.TFile) {
                   const prev = await this.app.vault.read(destFile);
                   await this.app.vault.modify(destFile, prev + "\n\n" + result);
                 } else {
@@ -27346,8 +28747,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                   }
                   await this.app.vault.create(targetFilePath, result);
                 }
-                const shortName = (_a4 = targetFilePath.split("/").pop()) != null ? _a4 : targetFilePath;
-                new import_obsidian12.Notice(`Augment: appended to ${shortName}`, 5e3);
+                const shortName = (_a5 = targetFilePath.split("/").pop()) != null ? _a5 : targetFilePath;
+                new import_obsidian16.Notice(`Augment: appended to ${shortName}`, 5e3);
               } else if (targetMode === "frontmatter" && targetField) {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) {
@@ -27355,7 +28756,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                     fm[targetField] = result;
                   });
                 }
-                new import_obsidian12.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
+                new import_obsidian16.Notice(`Augment: wrote to frontmatter.${targetField}`, 5e3);
               } else {
                 const formatted = applyOutputFormat(result, this.settings, resolvedModelName);
                 if (isBlock) {
@@ -27366,7 +28767,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
                   this.insertTextAndShiftGenerations(editor, generation.insertPos, formatted, generation.id);
                 }
                 console.log("[Augment] template generation done");
-                const notice = new import_obsidian12.Notice("", 5e3);
+                const notice = new import_obsidian16.Notice("", 5e3);
                 notice.noticeEl.empty();
                 notice.noticeEl.createEl("span", { text: "Augment: done" });
                 notice.noticeEl.createEl("span", { cls: "augment-notice-sep", text: " \xB7 " });
@@ -27401,7 +28802,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
               console.error("[Augment] template generation failed", err);
               logApiDiagnostics(err, this.settings.apiKey, this.resolveModel());
               const errMsg = (_b = friendlyApiError(err)) != null ? _b : err instanceof Error ? err.message : String(err);
-              new import_obsidian12.Notice(`Augment: ${errMsg}`);
+              new import_obsidian16.Notice(`Augment: ${errMsg}`);
             } finally {
               this.unregisterGeneration(generation.id);
             }
@@ -27425,7 +28826,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       name: "Generate templates from folder\u2026",
       callback: () => {
         if (!this.settings.apiKey) {
-          new import_obsidian12.Notice("Augment: add an API key in Settings \u2192 Augment first");
+          new import_obsidian16.Notice("Augment: add an API key in Settings \u2192 Augment first");
           return;
         }
         runGenerateTemplatesFlow(this.app, this.settings, this.resolveModel());
@@ -27449,9 +28850,15 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.addSettingTab(new AugmentSettingTab(this.app, this));
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.style.cursor = "pointer";
-    this.statusBarEl.addEventListener("click", () => {
-      this.app.setting.open();
-      this.app.setting.openTabById("augment-terminal");
+    this.statusBarEl.tabIndex = 0;
+    this.statusBarEl.addEventListener("click", (event) => {
+      event.preventDefault();
+      this.toggleStatusBridgePopover();
+    });
+    this.statusBarEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      this.toggleStatusBridgePopover();
     });
     this.refreshStatusBar();
     if (!this.settings.apiKey && !this.settings.hasSeenWelcome) {
@@ -27462,7 +28869,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       });
     }
     this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu) => {
+      this.app.workspace.on("editor-menu", (menu, editor) => {
         const menuIcon = this.settings.ribbonIcon || "augment-pyramid";
         if (!this.settings.apiKey) {
           menu.addItem((item) => {
@@ -27473,6 +28880,11 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
           });
           return;
         }
+        menu.addItem((item) => {
+          item.setTitle("Augment: Transform selection\u2026").setIcon(menuIcon).onClick(() => {
+            this.openSelectionTransform(editor);
+          });
+        });
         menu.addItem((item) => {
           item.setTitle("Augment: Generate").setIcon(menuIcon).onClick(() => {
             this.app.commands.executeCommandById("augment-terminal:augment-generate");
@@ -27486,9 +28898,9 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       })
     );
     this.ribbonGenerateEl = this.addRibbonIcon(this.settings.ribbonIcon || "augment-pyramid", "Generate", () => {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian12.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian16.MarkdownView);
       if (!view) {
-        new import_obsidian12.Notice("Open a note to generate");
+        new import_obsidian16.Notice("Open a note to generate");
         return;
       }
       this.triggerGenerate(view.editor);
@@ -27530,18 +28942,33 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     this.waitingBadgeEl = this.addStatusBarItem();
     this.waitingBadgeEl.style.cursor = "pointer";
     this.waitingBadgeEl.style.display = "none";
-    this.waitingBadgeEl.addEventListener("click", () => this.jumpToNextWaiting());
+    this.waitingBadgeEl.addEventListener("click", () => this.jumpToNextAttention());
     this.registerEvent(
-      this.app.workspace.on("augment-terminal:changed", () => this.refreshAttentionBadge())
+      this.app.workspace.on("augment-terminal:changed", () => {
+        this.refreshStatusBar();
+        this.refreshAttentionBadge();
+        this.syncAddressedTerminalBusPollers();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on("augment-bus:changed", () => {
+        this.refreshAttentionBadge();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.refreshStatusBar();
+      })
     );
     this.register(
       setBusNotifier(this.app, () => this.app.workspace.trigger("augment-bus:changed"))
     );
     this.app.workspace.onLayoutReady(() => {
+      this.syncAddressedTerminalBusPollers();
       void this.loadSpendData().then(() => {
-        var _a3, _b;
+        var _a4, _b;
         let migrated = false;
-        if (!this.settings.terminalSetupDone && ((_b = (_a3 = this.settings.sessionHistory) == null ? void 0 : _a3.length) != null ? _b : 0) > 0) {
+        if (!this.settings.terminalSetupDone && ((_b = (_a4 = this.settings.sessionHistory) == null ? void 0 : _a4.length) != null ? _b : 0) > 0) {
           this.settings.terminalSetupDone = true;
           migrated = true;
         }
@@ -27557,13 +28984,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       });
       void this.scaffoldDefaultTemplates();
       void this.scaffoldDefaultSkills();
+      this.refreshStatusBar();
       this.refreshAttentionBadge();
-      if (this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL_MANAGER).length === 0) {
-        const leaf = this.app.workspace.getLeftLeaf(false);
-        if (leaf) {
-          leaf.setViewState({ type: VIEW_TYPE_TERMINAL_MANAGER, active: false });
-        }
-      }
       const inspectorLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CONTEXT_INSPECTOR);
       if (inspectorLeaves.length === 0) {
         const leaf = this.app.workspace.getRightLeaf(false);
@@ -27710,8 +29132,8 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       });
       this.addCommand({
         id: "jump-to-next-waiting-session",
-        name: "Jump to next waiting session",
-        callback: () => this.jumpToNextWaiting()
+        name: "Jump to next session needing attention",
+        callback: () => this.jumpToNextAttention()
       });
     }
   }
@@ -27724,49 +29146,76 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
   }
   async onunload() {
-    var _a2;
+    var _a3, _b;
     delete globalThis.__augmentCancelGeneration;
+    (_a3 = this.busPollerManager) == null ? void 0 : _a3.stopAll();
+    this.busPollerManager = null;
+    this.addressedTerminalPollers.clear();
+    this.managedDeliveryByRole.clear();
+    this.closeStatusBridgePopover();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
     cleanupXtermStyle();
-    (_a2 = this.calloutStyleEl) == null ? void 0 : _a2.remove();
+    (_b = this.calloutStyleEl) == null ? void 0 : _b.remove();
     this.calloutStyleEl = null;
   }
-  getWaitingLeaves() {
-    const leaves = [];
+  getAttentionSnapshot() {
+    const sessions = [];
     this.app.workspace.iterateAllLeaves((leaf) => {
-      var _a2, _b;
-      if (((_b = (_a2 = leaf.view) == null ? void 0 : _a2.getViewType) == null ? void 0 : _b.call(_a2)) === VIEW_TYPE_TERMINAL) {
+      var _a3, _b;
+      if (((_b = (_a3 = leaf.view) == null ? void 0 : _a3.getViewType) == null ? void 0 : _b.call(_a3)) === VIEW_TYPE_TERMINAL) {
         const view = leaf.view;
-        if (typeof view.getStatus === "function" && view.getStatus() === "waiting") {
-          leaves.push(leaf);
-        }
+        sessions.push({
+          id: leaf,
+          status: typeof view.getStatus === "function" ? view.getStatus() : "shell",
+          unreadActivity: typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0,
+          lastActivityMs: typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0
+        });
       }
     });
-    leaves.sort((a, b) => {
-      const aMs = typeof a.view.getLastActivityMs === "function" ? a.view.getLastActivityMs() : 0;
-      const bMs = typeof b.view.getLastActivityMs === "function" ? b.view.getLastActivityMs() : 0;
-      return aMs - bMs;
-    });
-    return leaves;
+    return summarizeAttentionSessions(sessions);
+  }
+  getAttentionLeaves() {
+    return this.getAttentionSnapshot().ordered.map((session) => session.id);
+  }
+  getWatchedInboxUnreadAttention() {
+    return unreadCountForAddresses(this.app, [...DEFAULT_WATCHED_INBOX_ADDRESSES]);
   }
   refreshAttentionBadge() {
     if (!this.waitingBadgeEl) return;
-    const waiting = this.getWaitingLeaves();
-    if (waiting.length === 0) {
+    const attention = this.getAttentionSnapshot();
+    const watchedInboxUnread = this.getWatchedInboxUnreadAttention();
+    if (attention.attentionCount === 0 && watchedInboxUnread === 0) {
       this.waitingBadgeEl.style.display = "none";
       this.waitingCursor = 0;
+      this.waitingBadgeEl.removeAttribute("title");
+      this.waitingBadgeEl.setAttribute("aria-label", "No sessions need attention");
     } else {
+      let badgeText = attention.badgeText;
+      let ariaLabel = attention.ariaLabel;
+      if (attention.attentionCount === 0) {
+        badgeText = `\u26A1 ${watchedInboxUnread} inbox`;
+        ariaLabel = `${watchedInboxUnread} watched-address unread`;
+      } else if (watchedInboxUnread > 0) {
+        badgeText = `${attention.badgeText} \xB7 ${watchedInboxUnread} inbox`;
+        ariaLabel = `${attention.ariaLabel}; ${watchedInboxUnread} watched-address unread`;
+      }
       this.waitingBadgeEl.style.display = "";
-      this.waitingBadgeEl.setText(`\u26A1 ${waiting.length}`);
-      this.waitingBadgeEl.setAttribute("aria-label", `${waiting.length} session${waiting.length !== 1 ? "s" : ""} waiting for input`);
+      this.waitingBadgeEl.setText(badgeText);
+      this.waitingBadgeEl.setAttribute("aria-label", ariaLabel);
+      this.waitingBadgeEl.setAttribute("title", ariaLabel);
     }
   }
-  jumpToNextWaiting() {
-    const waiting = this.getWaitingLeaves();
-    if (waiting.length === 0) return;
-    this.waitingCursor = this.waitingCursor % waiting.length;
-    const target = waiting[this.waitingCursor];
-    this.waitingCursor = (this.waitingCursor + 1) % waiting.length;
+  jumpToNextAttention() {
+    const attention = this.getAttentionLeaves();
+    if (attention.length === 0) {
+      if (this.getWatchedInboxUnreadAttention() > 0) {
+        void openAllMessages(this.app);
+      }
+      return;
+    }
+    this.waitingCursor = this.waitingCursor % attention.length;
+    const target = attention[this.waitingCursor];
+    this.waitingCursor = (this.waitingCursor + 1) % attention.length;
     this.app.workspace.setActiveLeaf(target, { focus: true });
   }
   getPluginDir() {
@@ -27790,9 +29239,9 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
   // for explicit-location commands). Sidebar locations fall back to a new tab if
   // the workspace API returns null for the sidebar leaf.
   async openTerminalAt(location = "tab", options) {
-    var _a2, _b, _c, _d, _e, _f, _g;
+    var _a3, _b, _c, _d, _e, _f, _g;
     const { workspace } = this.app;
-    const desiredName = (_a2 = options == null ? void 0 : options.name) == null ? void 0 : _a2.trim();
+    const desiredName = (_a3 = options == null ? void 0 : options.name) == null ? void 0 : _a3.trim();
     const active = (_b = options == null ? void 0 : options.active) != null ? _b : true;
     const reveal = (_c = options == null ? void 0 : options.reveal) != null ? _c : true;
     let leaf;
@@ -27856,6 +29305,14 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       workspace.revealLeaf(leaf);
     }
   }
+  async openControlCenter() {
+    const rootUrl = await resolveReachableControlCenterRootUrl();
+    if (!rootUrl) {
+      new import_obsidian16.Notice(AUGMENT_CONTROL_CENTER_UNAVAILABLE_NOTICE);
+      return;
+    }
+    window.open(rootUrl, "_blank", "noopener");
+  }
   async openTerminalGrid() {
     const { workspace } = this.app;
     const topLeft = workspace.getLeaf("tab");
@@ -27869,11 +29326,11 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     workspace.revealLeaf(topLeft);
   }
   getTeamLaunchCodeRoot() {
-    var _a2, _b;
+    var _a3, _b;
     const configuredCwd = this.settings.defaultWorkingDirectory.trim();
     if (configuredCwd) return configuredCwd;
     const activeTerminal = this.app.workspace.getActiveViewOfType(TerminalView);
-    const activeTerminalCwd = (_a2 = activeTerminal == null ? void 0 : activeTerminal.getWorkingDirectory().trim()) != null ? _a2 : "";
+    const activeTerminalCwd = (_a3 = activeTerminal == null ? void 0 : activeTerminal.getWorkingDirectory().trim()) != null ? _a3 : "";
     if (activeTerminalCwd) return activeTerminalCwd;
     try {
       const cwd = process.cwd().trim();
@@ -27884,15 +29341,15 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     return vaultBase || ".";
   }
   async openTeamLaunchPicker() {
-    var _a2;
-    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    var _a3;
+    const vaultBase = ((_a3 = this.app.vault.adapter.basePath) != null ? _a3 : "").trim();
     if (!vaultBase) {
-      new import_obsidian12.Notice("Augment: vault path unavailable");
+      new import_obsidian16.Notice("Augment: vault path unavailable");
       return;
     }
     const projects = await discoverTeamProjects(vaultBase);
     if (projects.length === 0) {
-      new import_obsidian12.Notice("Augment: no team projects found in agents/parts/");
+      new import_obsidian16.Notice("Augment: no team projects found in agents/parts/");
       return;
     }
     if (projects.length === 1) {
@@ -27904,15 +29361,15 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }).open();
   }
   async openCCTeamLaunchPicker() {
-    var _a2;
-    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    var _a3;
+    const vaultBase = ((_a3 = this.app.vault.adapter.basePath) != null ? _a3 : "").trim();
     if (!vaultBase) {
-      new import_obsidian12.Notice("Augment: vault path unavailable");
+      new import_obsidian16.Notice("Augment: vault path unavailable");
       return;
     }
     const projects = await discoverTeamProjects(vaultBase);
     if (projects.length === 0) {
-      new import_obsidian12.Notice("Augment: no team projects found in agents/parts/");
+      new import_obsidian16.Notice("Augment: no team projects found in agents/parts/");
       return;
     }
     if (projects.length === 1) {
@@ -27924,18 +29381,18 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }).open();
   }
   async launchProjectTeam(projectId, userBrief) {
-    var _a2, _b, _c;
+    var _a3, _b, _c, _d;
     const targetProjectId = projectId.trim();
     if (!targetProjectId) return;
-    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    const vaultBase = ((_a3 = this.app.vault.adapter.basePath) != null ? _a3 : "").trim();
     if (!vaultBase) {
-      new import_obsidian12.Notice("Augment: vault path unavailable");
+      new import_obsidian16.Notice("Augment: vault path unavailable");
       return;
     }
     const projects = await discoverTeamProjects(vaultBase);
     const project = projects.find((candidate) => candidate.projectId === targetProjectId);
     if (!project) {
-      new import_obsidian12.Notice(`Augment: team project not found: ${targetProjectId}`);
+      new import_obsidian16.Notice(`Augment: team project not found: ${targetProjectId}`);
       return;
     }
     const codeRoot = (_b = project.codeRoot) != null ? _b : this.getTeamLaunchCodeRoot();
@@ -27945,14 +29402,14 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       vaultBase,
       userBrief
     );
-    const layoutSlots = computeTeamLayout(launchSpec.specs.map((spec) => spec.member));
+    const layoutSlots = computeTeamLayout2(launchSpec.specs.map((spec) => spec.member));
     if (layoutSlots.length === 0) {
-      new import_obsidian12.Notice(`Augment: no team members found for ${project.projectDisplayName}`);
+      new import_obsidian16.Notice(`Augment: no team members found for ${project.projectDisplayName}`);
       return;
     }
     const orderedSlots = layoutSlots.slice().sort((a, b) => a.column - b.column || a.row - b.row);
     const specByRoleId = new Map(launchSpec.specs.map((spec) => [spec.member.roleId, spec]));
-    const watcherSetupByRoleId = new Map(
+    const pollerAddressByRoleId = new Map(
       buildPostLaunchWatcherSetup(project, vaultBase).map((entry) => [entry.roleId, entry.address])
     );
     const workspace = this.app.workspace;
@@ -28008,20 +29465,18 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
       createdTerminals.push({
         bootPrompt: spec.bootPrompt,
         roleId: spec.member.roleId,
+        address: (_d = pollerAddressByRoleId.get(spec.member.roleId)) != null ? _d : null,
         view
       });
     }
-    const paneIdExpression = "${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}";
-    for (const { bootPrompt, roleId, view } of createdTerminals) {
+    for (const { bootPrompt, roleId, address, view } of createdTerminals) {
+      this.managedDeliveryByRole.set(
+        this.buildManagedRoleKey(launchSpec.teamId, roleId),
+        createDeliveryObservation(address)
+      );
       if (typeof view.enqueueInitialInput !== "function") continue;
-      const watcherAddress = watcherSetupByRoleId.get(roleId);
-      if (watcherAddress) {
-        view.enqueueInitialInput(
-          `${buildBusWatcherCommand(watcherAddress, paneIdExpression, vaultBase)}
-`
-        );
-      }
       view.enqueueInitialInput(bootPrompt);
+      if (!address) continue;
     }
     if (ceoLeaf) {
       workspace.revealLeaf(ceoLeaf);
@@ -28029,59 +29484,147 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     workspace.trigger("augment-terminal:changed");
   }
   async launchCCProjectTeam(projectId, userBrief) {
-    var _a2, _b;
+    var _a3, _b, _c, _d;
     const targetProjectId = projectId.trim();
     if (!targetProjectId) return;
-    const vaultBase = ((_a2 = this.app.vault.adapter.basePath) != null ? _a2 : "").trim();
+    const vaultBase = ((_a3 = this.app.vault.adapter.basePath) != null ? _a3 : "").trim();
     if (!vaultBase) {
-      new import_obsidian12.Notice("Augment: vault path unavailable");
+      new import_obsidian16.Notice("Augment: vault path unavailable");
       return;
     }
     const projects = await discoverTeamProjects(vaultBase);
     const project = projects.find((candidate) => candidate.projectId === targetProjectId);
     if (!project) {
-      new import_obsidian12.Notice(`Augment: team project not found: ${targetProjectId}`);
+      new import_obsidian16.Notice(`Augment: team project not found: ${targetProjectId}`);
       return;
     }
-    const cwd = ((_b = project.codeRoot) != null ? _b : this.getTeamLaunchCodeRoot()).trim();
-    const terminalName = `ceo@${project.projectId}`;
-    const bootPrompt = buildCeoOnlyBootPrompt(project, cwd, vaultBase, userBrief);
-    const managedTeamId = `${CC_NATIVE_TEAM_ID_PREFIX}${project.projectId}::${Date.now()}`;
-    const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({
-      type: VIEW_TYPE_TERMINAL,
-      active: true,
-      state: {
-        name: terminalName,
-        launchCwd: cwd,
-        managedTeamId,
-        managedRoleId: "ceo"
+    const codeRoot = ((_b = project.codeRoot) != null ? _b : this.getTeamLaunchCodeRoot()).trim();
+    const ccNativeHelpers = team_launch_exports;
+    if (typeof ccNativeHelpers.buildCCNativeTeamLaunchSpec !== "function" || typeof ccNativeHelpers.writeCCTeamScaffolding !== "function" || typeof ccNativeHelpers.seedCCInboxMessage !== "function") {
+      new import_obsidian16.Notice("Augment: CC native team helpers unavailable");
+      return;
+    }
+    const { teamName, leaderSessionId, config, memberCommands } = ccNativeHelpers.buildCCNativeTeamLaunchSpec(project, codeRoot, vaultBase, userBrief);
+    if (!Array.isArray(memberCommands) || memberCommands.length === 0) {
+      new import_obsidian16.Notice(`Augment: no CC native team members found for ${project.projectDisplayName}`);
+      return;
+    }
+    const managedTeamId = `${CC_NATIVE_TEAM_ID_PREFIX}${teamName}::${leaderSessionId}`;
+    const layoutSlots = computeTeamLayout2(memberCommands.map((entry) => entry.member));
+    if (layoutSlots.length === 0) {
+      new import_obsidian16.Notice(`Augment: no team members found for ${project.projectDisplayName}`);
+      return;
+    }
+    await ccNativeHelpers.writeCCTeamScaffolding(teamName, config);
+    const commandByRoleId = new Map(
+      memberCommands.map((entry) => [entry.member.roleId, entry])
+    );
+    for (const entry of memberCommands) {
+      const bootPromptText = typeof entry.bootPromptText === "string" ? entry.bootPromptText.trim() : "";
+      if (!bootPromptText) {
+        new import_obsidian16.Notice(`Augment: missing CC native boot prompt for ${entry.member.displayName}`);
+        return;
       }
-    });
-    const view = leaf.view;
-    if (typeof view.setName === "function") {
-      view.setName(terminalName);
+      await ccNativeHelpers.seedCCInboxMessage(
+        teamName,
+        entry.member.roleId,
+        "augment",
+        bootPromptText
+      );
     }
-    if (typeof view.enqueueInitialInput === "function") {
-      view.enqueueInitialInput(bootPrompt);
+    const orderedSlots = layoutSlots.slice().sort((a, b) => a.column - b.column || a.row - b.row);
+    const workspace = this.app.workspace;
+    const workspaceAny = workspace;
+    let ceoLeaf = null;
+    let middleColumnLeaf = null;
+    let rightColumnLeaf = null;
+    const createdTerminals = [];
+    for (const slot of orderedSlots) {
+      const entry = commandByRoleId.get(slot.member.roleId);
+      if (!entry) continue;
+      const command = typeof entry.command === "string" ? entry.command : "";
+      if (!command.trim()) {
+        new import_obsidian16.Notice(`Augment: missing CC native launch command for ${entry.member.displayName}`);
+        return;
+      }
+      let leaf;
+      if (slot.column === 0) {
+        leaf = workspace.getLeaf("tab");
+        ceoLeaf = leaf;
+      } else if (slot.column === 1) {
+        if (middleColumnLeaf === null) {
+          const anchorLeaf = ceoLeaf != null ? ceoLeaf : workspace.getLeaf("tab");
+          ceoLeaf = ceoLeaf != null ? ceoLeaf : anchorLeaf;
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          middleColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = middleColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(middleColumnLeaf, "horizontal");
+        }
+      } else {
+        const anchorLeaf = (_c = middleColumnLeaf != null ? middleColumnLeaf : ceoLeaf) != null ? _c : workspace.getLeaf("tab");
+        ceoLeaf = ceoLeaf != null ? ceoLeaf : anchorLeaf;
+        if (rightColumnLeaf === null) {
+          leaf = workspaceAny.createLeafBySplit(anchorLeaf, "vertical");
+          rightColumnLeaf = leaf;
+        } else if (slot.row === 0) {
+          leaf = rightColumnLeaf;
+        } else {
+          leaf = workspaceAny.createLeafBySplit(rightColumnLeaf, "horizontal");
+        }
+      }
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
+        active: slot.column === 0 && slot.row === 0,
+        state: {
+          name: entry.member.address,
+          launchCwd: ((_d = entry.cwd) == null ? void 0 : _d.trim()) || codeRoot,
+          managedTeamId,
+          managedRoleId: entry.member.roleId
+        }
+      });
+      const view = leaf.view;
+      if (typeof view.setName === "function") {
+        view.setName(entry.member.address);
+      }
+      createdTerminals.push({
+        command: command.endsWith("\n") ? command : `${command}
+`,
+        view
+      });
     }
-    this.app.workspace.revealLeaf(leaf);
-    this.app.workspace.trigger("augment-terminal:changed");
+    for (const { command, view } of createdTerminals) {
+      if (typeof view.enqueueInitialInput !== "function") continue;
+      view.enqueueInitialInput(command);
+    }
+    if (ceoLeaf) {
+      workspace.revealLeaf(ceoLeaf);
+    }
+    workspace.trigger("augment-terminal:changed");
   }
   async shutdownManagedTeam(teamId) {
+    var _a3, _b, _c;
     const targetTeamId = teamId.trim();
     if (!targetTeamId) return;
     const activeLeaf = this.app.workspace.activeLeaf;
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL).filter((leaf) => {
-      var _a2;
+      var _a4;
       const view = leaf.view;
-      return typeof view.getManagedTeamId === "function" && ((_a2 = view.getManagedTeamId()) == null ? void 0 : _a2.trim()) === targetTeamId;
+      return typeof view.getManagedTeamId === "function" && ((_a4 = view.getManagedTeamId()) == null ? void 0 : _a4.trim()) === targetTeamId;
     }).sort((a, b) => {
       if (a === activeLeaf) return 1;
       if (b === activeLeaf) return -1;
       return 0;
     });
     for (const leaf of leaves) {
+      const view = leaf.view;
+      const managedRoleId = typeof view.getManagedRoleId === "function" ? (_b = (_a3 = view.getManagedRoleId()) == null ? void 0 : _a3.trim()) != null ? _b : "" : "";
+      if (managedRoleId) {
+        const managedRoleKey = this.buildManagedRoleKey(targetTeamId, managedRoleId);
+        (_c = this.busPollerManager) == null ? void 0 : _c.stopPoller(managedRoleKey);
+        this.managedDeliveryByRole.delete(managedRoleKey);
+      }
       leaf.detach();
     }
     if (leaves.length > 0) {
@@ -28089,11 +29632,11 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
   }
   async handleTeamCreateSpawn(event) {
-    var _a2, _b;
+    var _a3, _b;
     if (this.isNativeCCTeamLaunchSource(event.sourceName)) return;
     const members = Array.from(
       new Set(
-        ((_a2 = event.members) != null ? _a2 : []).map((name) => name.trim()).filter((name) => name.length > 0)
+        ((_a3 = event.members) != null ? _a3 : []).map((name) => name.trim()).filter((name) => name.length > 0)
       )
     );
     if (members.length === 0) return;
@@ -28174,10 +29717,10 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     }
   }
   async accumulateSpend(modelId, usage) {
-    var _a2;
+    var _a3;
     if (!this.spendData) this.spendData = { byModel: {} };
     if (!this.spendData.since) this.spendData.since = Date.now();
-    const entry = (_a2 = this.spendData.byModel[modelId]) != null ? _a2 : { inputTokens: 0, outputTokens: 0, generations: 0 };
+    const entry = (_a3 = this.spendData.byModel[modelId]) != null ? _a3 : { inputTokens: 0, outputTokens: 0, generations: 0 };
     entry.inputTokens += usage.input_tokens;
     entry.outputTokens += usage.output_tokens;
     entry.generations += 1;
@@ -28296,13 +29839,13 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     return this.openTerminalAt("tab", { active: true });
   }
   deleteSessionRecord(id) {
-    var _a2;
-    this.settings.sessionHistory = ((_a2 = this.settings.sessionHistory) != null ? _a2 : []).filter((r) => r.id !== id);
+    var _a3;
+    this.settings.sessionHistory = ((_a3 = this.settings.sessionHistory) != null ? _a3 : []).filter((r) => r.id !== id);
     void this.saveData(this.settings);
     this.app.workspace.trigger("augment-terminal:changed");
   }
   hasTerminalNamed(name) {
-    var _a2, _b, _c;
+    var _a3, _b, _c;
     const target = name.trim().toLowerCase();
     if (!target) return false;
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -28313,7 +29856,7 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
         return true;
       }
       const leafAny = leaf;
-      const stateName = (_c = (_b = (_a2 = leafAny.getViewState) == null ? void 0 : _a2.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
+      const stateName = (_c = (_b = (_a3 = leafAny.getViewState) == null ? void 0 : _a3.call(leafAny)) == null ? void 0 : _b.state) == null ? void 0 : _c.name;
       if (typeof stateName === "string" && stateName.trim().toLowerCase() === target) {
         return true;
       }
@@ -28321,14 +29864,14 @@ var AugmentTerminalPlugin = class extends import_obsidian12.Plugin {
     return false;
   }
   isNativeCCTeamLaunchSource(sourceName) {
-    var _a2, _b, _c, _d, _e, _f;
+    var _a3, _b, _c, _d, _e, _f;
     const target = sourceName == null ? void 0 : sourceName.trim().toLowerCase();
     if (!target) return false;
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
     for (const leaf of leaves) {
       const view = leaf.view;
       const viewName = typeof view.getName === "function" ? view.getName().trim().toLowerCase() : "";
-      const leafState = (_b = (_a2 = leaf.getViewState) == null ? void 0 : _a2.call(leaf)) == null ? void 0 : _b.state;
+      const leafState = (_b = (_a3 = leaf.getViewState) == null ? void 0 : _a3.call(leaf)) == null ? void 0 : _b.state;
       const stateName = typeof (leafState == null ? void 0 : leafState.name) === "string" ? leafState.name.trim().toLowerCase() : "";
       if (viewName !== target && stateName !== target) continue;
       const managedTeamId = typeof view.getManagedTeamId === "function" ? (_d = (_c = view.getManagedTeamId()) == null ? void 0 : _c.trim()) != null ? _d : "" : "";

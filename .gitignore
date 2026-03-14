@@ -6,6 +6,10 @@ dist-electron/
 # AI team working files — ephemeral, regenerated each session
 .parts/
 
+# Agent memory belongs in the vault, not the code repo
+agents/
+claude/
+
 # Build artifacts and dev test files
 build/
 spinner-test.html
