@@ -1888,6 +1888,15 @@ export class TerminalView extends ItemView {
       this.fitAddon.fit();
       this.terminal.element?.style.removeProperty("height");
 
+      // Force full viewport repaint after fit. The Canvas renderer clears
+      // all canvases during handleResize() but does NOT schedule a redraw —
+      // it relies on xterm core's RenderService to repaint via rAF. On
+      // systems with slower GPU compositing (Intel iGPU, WSL/Direct3D),
+      // the compositor can read stale textures before the rAF repaint
+      // fires, producing ghost glyph fragments. refresh() marks every row
+      // dirty so the next render pass repaints the entire viewport.
+      this.terminal.refresh(0, this.terminal.rows - 1);
+
       const { rows, cols } = this.terminal;
 
       if (rows > 0 && cols > 0 &&

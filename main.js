@@ -22023,6 +22023,7 @@ var TerminalView = class extends import_obsidian7.ItemView {
       const oldRows = this.terminal.rows;
       this.fitAddon.fit();
       (_c = this.terminal.element) == null ? void 0 : _c.style.removeProperty("height");
+      this.terminal.refresh(0, this.terminal.rows - 1);
       const { rows, cols } = this.terminal;
       if (rows > 0 && cols > 0 && (rows !== this.lastPtyRows || cols !== this.lastPtyCols)) {
         this.lastPtyRows = rows;
@@ -27585,8 +27586,8 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-14T17:34:52.023Z";
-    this.gitSha = "55c49b7";
+    this.buildId = "2026-03-14T18:12:32.626Z";
+    this.gitSha = "4908b02";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
