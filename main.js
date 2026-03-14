@@ -9653,12 +9653,12 @@ function encodeURIPath(str) {
   return str.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@]+/g, encodeURIComponent);
 }
 var EMPTY = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.create(null));
-var createPathTagFunction = (pathEncoder = encodeURIPath) => function path8(statics, ...params) {
+var createPathTagFunction = (pathEncoder = encodeURIPath) => function path9(statics, ...params) {
   if (statics.length === 1)
     return statics[0];
   let postPath = false;
   const invalidSegments = [];
-  const path9 = statics.reduce((previousValue, currentValue, index) => {
+  const path10 = statics.reduce((previousValue, currentValue, index) => {
     var _a3, _b, _c;
     if (/[?#]/.test(currentValue)) {
       postPath = true;
@@ -9676,7 +9676,7 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path8(stat
     }
     return previousValue + currentValue + (index === params.length ? "" : encoded);
   }, "");
-  const pathOnly = path9.split(/[?#]/, 1)[0];
+  const pathOnly = path10.split(/[?#]/, 1)[0];
   const invalidSegmentPattern = /(?<=^|\/)(?:\.|%2e){1,2}(?=\/|$)/gi;
   let match;
   while ((match = invalidSegmentPattern.exec(pathOnly)) !== null) {
@@ -9697,10 +9697,10 @@ var createPathTagFunction = (pathEncoder = encodeURIPath) => function path8(stat
     }, "");
     throw new AnthropicError(`Path parameters result in path with invalid segments:
 ${invalidSegments.map((e) => e.error).join("\n")}
-${path9}
+${path10}
 ${underline}`);
   }
-  return path9;
+  return path10;
 };
 var path = /* @__PURE__ */ createPathTagFunction(encodeURIPath);
 
@@ -12839,9 +12839,9 @@ var BaseAnthropic = class {
   makeStatusError(status, error, message, headers) {
     return APIError.generate(status, error, message, headers);
   }
-  buildURL(path8, query, defaultBaseURL) {
+  buildURL(path9, query, defaultBaseURL) {
     const baseURL = !__classPrivateFieldGet(this, _BaseAnthropic_instances, "m", _BaseAnthropic_baseURLOverridden).call(this) && defaultBaseURL || this.baseURL;
-    const url = isAbsoluteURL(path8) ? new URL(path8) : new URL(baseURL + (baseURL.endsWith("/") && path8.startsWith("/") ? path8.slice(1) : path8));
+    const url = isAbsoluteURL(path9) ? new URL(path9) : new URL(baseURL + (baseURL.endsWith("/") && path9.startsWith("/") ? path9.slice(1) : path9));
     const defaultQuery = this.defaultQuery();
     if (!isEmptyObj(defaultQuery)) {
       query = { ...defaultQuery, ...query };
@@ -12872,24 +12872,24 @@ var BaseAnthropic = class {
    */
   async prepareRequest(request, { url, options }) {
   }
-  get(path8, opts) {
-    return this.methodRequest("get", path8, opts);
+  get(path9, opts) {
+    return this.methodRequest("get", path9, opts);
   }
-  post(path8, opts) {
-    return this.methodRequest("post", path8, opts);
+  post(path9, opts) {
+    return this.methodRequest("post", path9, opts);
   }
-  patch(path8, opts) {
-    return this.methodRequest("patch", path8, opts);
+  patch(path9, opts) {
+    return this.methodRequest("patch", path9, opts);
   }
-  put(path8, opts) {
-    return this.methodRequest("put", path8, opts);
+  put(path9, opts) {
+    return this.methodRequest("put", path9, opts);
   }
-  delete(path8, opts) {
-    return this.methodRequest("delete", path8, opts);
+  delete(path9, opts) {
+    return this.methodRequest("delete", path9, opts);
   }
-  methodRequest(method, path8, opts) {
+  methodRequest(method, path9, opts) {
     return this.request(Promise.resolve(opts).then((opts2) => {
-      return { method, path: path8, ...opts2 };
+      return { method, path: path9, ...opts2 };
     }));
   }
   request(options, remainingRetries = null) {
@@ -12994,8 +12994,8 @@ var BaseAnthropic = class {
     }));
     return { response, options, controller, requestLogID, retryOfRequestLogID, startTime };
   }
-  getAPIList(path8, Page2, opts) {
-    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path8, ...opts2 })) : { method: "get", path: path8, ...opts });
+  getAPIList(path9, Page2, opts) {
+    return this.requestAPIList(Page2, opts && "then" in opts ? opts.then((opts2) => ({ method: "get", path: path9, ...opts2 })) : { method: "get", path: path9, ...opts });
   }
   requestAPIList(Page2, options) {
     const request = this.makeRequest(options, null, void 0);
@@ -13085,8 +13085,8 @@ var BaseAnthropic = class {
   async buildRequest(inputOptions, { retryCount = 0 } = {}) {
     var _a3, _b, _c;
     const options = { ...inputOptions };
-    const { method, path: path8, query, defaultBaseURL } = options;
-    const url = this.buildURL(path8, query, defaultBaseURL);
+    const { method, path: path9, query, defaultBaseURL } = options;
+    const url = this.buildURL(path9, query, defaultBaseURL);
     if ("timeout" in options)
       validatePositiveInteger("timeout", options.timeout);
     options.timeout = (_a3 = options.timeout) != null ? _a3 : this.timeout;
@@ -14561,13 +14561,13 @@ var LRU = class {
       this.remove(this.tail.prev.key);
   }
 };
-function domResolve(root, path8) {
+function domResolve(root, path9) {
   const base = document.createElement("base");
   base.href = root;
   const head = document.getElementsByTagName("head")[0];
   head.insertBefore(base, head.firstChild);
   const a = document.createElement("a");
-  a.href = path8;
+  a.href = path9;
   const resolved = a.href;
   head.removeChild(base);
   return resolved;
@@ -14576,11 +14576,11 @@ function resolve(root, filepath, ext) {
   if (root.length && last(root) !== "/")
     root += "/";
   const url = domResolve(root, filepath);
-  return url.replace(/^(\w+:\/\/[^/]+)(\/[^?]+)/, (str, origin, path8) => {
-    const last2 = path8.split("/").pop();
+  return url.replace(/^(\w+:\/\/[^/]+)(\/[^?]+)/, (str, origin, path9) => {
+    const last2 = path9.split("/").pop();
     if (/\.\w+$/.test(last2))
       return str;
-    return origin + path8 + ext;
+    return origin + path9 + ext;
   });
 }
 function readFile(url) {
@@ -15787,18 +15787,18 @@ var Loader = class {
     this.contains = this.options.fs.contains || (() => true);
   }
   *lookup(file, type, sync, currentFile) {
-    const { fs: fs7 } = this.options;
+    const { fs: fs8 } = this.options;
     const dirs = this.options[type];
     for (const filepath of this.candidates(file, dirs, currentFile, type !== LookupType.Root)) {
-      if (sync ? fs7.existsSync(filepath) : yield fs7.exists(filepath))
+      if (sync ? fs8.existsSync(filepath) : yield fs8.exists(filepath))
         return filepath;
     }
     throw this.lookupError(file, dirs);
   }
   *candidates(file, dirs, currentFile, enforceRoot) {
-    const { fs: fs7, extname } = this.options;
+    const { fs: fs8, extname } = this.options;
     if (this.shouldLoadRelative(file) && currentFile) {
-      const referenced = fs7.resolve(this.dirname(currentFile), file, extname);
+      const referenced = fs8.resolve(this.dirname(currentFile), file, extname);
       for (const dir of dirs) {
         if (!enforceRoot || this.contains(dir, referenced)) {
           yield referenced;
@@ -15807,21 +15807,21 @@ var Loader = class {
       }
     }
     for (const dir of dirs) {
-      const referenced = fs7.resolve(dir, file, extname);
+      const referenced = fs8.resolve(dir, file, extname);
       if (!enforceRoot || this.contains(dir, referenced)) {
         yield referenced;
       }
     }
-    if (fs7.fallback !== void 0) {
-      const filepath = fs7.fallback(file);
+    if (fs8.fallback !== void 0) {
+      const filepath = fs8.fallback(file);
       if (filepath !== void 0)
         yield filepath;
     }
   }
-  dirname(path8) {
-    const fs7 = this.options.fs;
-    assert(fs7.dirname, "`fs.dirname` is required for relative reference");
-    return fs7.dirname(path8);
+  dirname(path9) {
+    const fs8 = this.options.fs;
+    assert(fs8.dirname, "`fs.dirname` is required for relative reference");
+    return fs8.dirname(path9);
   }
   lookupError(file, roots) {
     const err = new Error("ENOENT");
@@ -22360,6 +22360,9 @@ async function openPartInboxForPart(app, address) {
 async function openAllMessages(app) {
   return openPartInboxLeaf(app, { mode: "all" });
 }
+async function openHumanInbox(app) {
+  return openPartInboxLeaf(app, { mode: "human" });
+}
 var PartInboxView = class extends import_obsidian8.ItemView {
   constructor(leaf) {
     super(leaf);
@@ -23047,9 +23050,9 @@ function runGenerateTemplatesFlow(app, settings, resolvedModel, onComplete) {
         }
         let created = 0;
         for (const t of ts) {
-          const path8 = `${targetFolder}/${t.name}.md`;
-          if (!app.vault.getAbstractFileByPath(path8)) {
-            await app.vault.create(path8, buildTemplateFileContent(t));
+          const path9 = `${targetFolder}/${t.name}.md`;
+          if (!app.vault.getAbstractFileByPath(path9)) {
+            await app.vault.create(path9, buildTemplateFileContent(t));
             created++;
           }
         }
@@ -23272,12 +23275,12 @@ var TemplateAssistantModal = class extends import_obsidian9.Modal {
         } catch (e) {
         }
       }
-      const path8 = `${folder}/${name}.md`;
-      if (this.app.vault.getAbstractFileByPath(path8)) {
+      const path9 = `${folder}/${name}.md`;
+      if (this.app.vault.getAbstractFileByPath(path9)) {
         new import_obsidian9.Notice(`Template "${name}" already exists`);
         return;
       }
-      await this.app.vault.create(path8, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
+      await this.app.vault.create(path9, buildTemplateFileContent({ name, description, system_prompt: null, body: template }));
       new import_obsidian9.Notice(`Template "${name}" saved`);
       this.onSave();
       this.close();
@@ -24324,23 +24327,23 @@ var AugmentSettingTab = class extends import_obsidian10.PluginSettingTab {
         var _a4;
         scopeExtrasEl.empty();
         const scope = (_a4 = this.plugin.settings.workspaceScope) != null ? _a4 : "open";
-        const path8 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
+        const path9 = (this.plugin.settings.defaultWorkingDirectory || "").trim();
         const descMap = {
           open: "The agent works across your full vault without scope guidance.",
           focused: "The agent is instructed to work within this workspace's paths and treat other workspaces as out of scope.",
           restricted: "The agent is instructed not to reference content from this workspace in outputs or summaries outside it."
         };
         scopeExtrasEl.createDiv({ cls: "augment-scope-desc", text: descMap[scope] });
-        if (path8 && scope !== "open") {
+        if (path9 && scope !== "open") {
           const verb = scope === "focused" ? "focus on" : "treat as private";
-          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path8}` });
+          scopeExtrasEl.createDiv({ cls: "augment-scope-path", text: `The agent will ${verb}: ${path9}` });
         }
         if (scope !== "open") {
           const box = scopeExtrasEl.createDiv({ cls: "augment-scope-infobox" });
           box.createSpan({ cls: "augment-scope-infobox-icon", text: "\u2139" });
           box.createSpan({ cls: "augment-scope-infobox-text", text: "Scope works through agent instructions \u2014 the agent is told to apply this, not technically prevented from other access." });
         }
-        if (scope !== "open" && !path8) {
+        if (scope !== "open" && !path9) {
           scopeExtrasEl.createDiv({
             cls: "augment-scope-validation",
             text: "Set a working directory (Terminal \u2192 Advanced \u2192 Working directory) to apply scope guidance."
@@ -24392,6 +24395,315 @@ var AugmentSettingTab = class extends import_obsidian10.PluginSettingTab {
 
 // src/terminal-manager-view.ts
 var import_obsidian11 = require("obsidian");
+
+// src/session-store.ts
+var fs4 = __toESM(require("fs"));
+var path6 = __toESM(require("path"));
+var os2 = __toESM(require("os"));
+var SessionStore = class {
+  constructor(vaultBasePath) {
+    this.vaultBasePath = vaultBasePath;
+    this.summaryCache = /* @__PURE__ */ new Map();
+  }
+  // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
+  // CC encodes cwd by replacing '/' and spaces with '-'.
+  async findProjectDir() {
+    var _a3;
+    const home = (_a3 = process.env.HOME) != null ? _a3 : os2.homedir();
+    const encoded = this.vaultBasePath.replace(/[/\\ ]/g, "-");
+    const dir = path6.join(home, ".claude", "projects", encoded);
+    try {
+      if ((await fs4.promises.stat(dir)).isDirectory()) return dir;
+    } catch (e) {
+    }
+    return null;
+  }
+  // Enumerate all project directories under ~/.claude/projects/.
+  async findAllProjectDirs() {
+    var _a3;
+    const home = (_a3 = process.env.HOME) != null ? _a3 : os2.homedir();
+    const projectsRoot = path6.join(home, ".claude", "projects");
+    const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const encodedHome = home.replace(/[/ ]/g, "-");
+    try {
+      const names = await fs4.promises.readdir(projectsRoot);
+      const dirs = await Promise.all(
+        names.map(async (encodedName) => {
+          const projectDir = path6.join(projectsRoot, encodedName);
+          try {
+            const stat = await fs4.promises.stat(projectDir);
+            if (!stat.isDirectory()) return null;
+          } catch (e) {
+            return null;
+          }
+          const isVault = encodedName === vaultEncoded;
+          const relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
+          const projectName = relative.replace(/-/g, "/") || encodedName;
+          return { encodedName, projectDir, isVault, projectName };
+        })
+      );
+      return dirs.filter((d) => d !== null);
+    } catch (e) {
+      return [];
+    }
+  }
+  // Sort session files by mtime desc, take first `limit`.
+  async loadSessions(limit2) {
+    const dir = await this.findProjectDir();
+    if (!dir) return [];
+    return (await this.loadSessionsFromDir(dir, limit2)).sessions;
+  }
+  // Load sessions from all CC project directories, grouped by project.
+  // Vault project is flagged with isVault=true.
+  async loadAllProjectGroups(limitPerProject = 50) {
+    const dirs = await this.findAllProjectDirs();
+    const groups = await Promise.all(
+      dirs.map(async ({ encodedName, projectDir, isVault, projectName }) => {
+        var _a3, _b;
+        const { sessions, totalOnDisk } = await this.loadSessionsFromDir(projectDir, limitPerProject);
+        if (sessions.length === 0) return null;
+        const lastActivityMs = (_b = (_a3 = sessions[0]) == null ? void 0 : _a3.mtimeMs) != null ? _b : 0;
+        return {
+          projectName,
+          projectDir,
+          encodedName,
+          isVault,
+          sessions,
+          totalOnDisk,
+          lastActivityMs
+        };
+      })
+    );
+    return groups.filter((g) => g !== null).sort((a, b) => b.lastActivityMs - a.lastActivityMs);
+  }
+  async loadSessionsFromDir(dir, limit2) {
+    try {
+      const now = Date.now();
+      const files = (await fs4.promises.readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+      const totalOnDisk = files.length;
+      const entries = (await Promise.all(
+        files.map(async (name) => {
+          const fullPath = path6.join(dir, name);
+          try {
+            const st = await fs4.promises.stat(fullPath);
+            return { name, fullPath, mtimeMs: st.mtimeMs };
+          } catch (e) {
+            return null;
+          }
+        })
+      )).filter((e) => e !== null).sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit2);
+      const sessions = await Promise.all(
+        entries.map(async (e) => {
+          var _a3;
+          const id = e.name.slice(0, -6);
+          const summary = await this.readSessionSummary(e.fullPath, id, e.mtimeMs);
+          if (summary.msgCount <= 0) return null;
+          return {
+            id,
+            resumeId: (_a3 = summary.resumeId) != null ? _a3 : id,
+            title: summary.title,
+            titleFull: summary.titleFull,
+            status: now - e.mtimeMs < 3e4 ? "stale" : "complete",
+            mtimeMs: e.mtimeMs,
+            msgCount: summary.msgCount
+          };
+        })
+      );
+      return { sessions: sessions.filter((s) => s !== null), totalOnDisk };
+    } catch (e) {
+      return { sessions: [], totalOnDisk: 0 };
+    }
+  }
+  async readSessionSummary(sessionPath, fallbackTitle, mtimeMs) {
+    const cached = this.summaryCache.get(sessionPath);
+    if (cached && cached.mtimeMs === mtimeMs) {
+      return cached.summary;
+    }
+    try {
+      const content = await fs4.promises.readFile(sessionPath, "utf-8");
+      const summary = this.parseSessionContent(content, fallbackTitle);
+      this.summaryCache.set(sessionPath, { mtimeMs, summary });
+      if (this.summaryCache.size > 200) {
+        this.summaryCache.delete(this.summaryCache.keys().next().value);
+      }
+      return summary;
+    } catch (e) {
+      return { msgCount: 0, resumeId: null, title: fallbackTitle };
+    }
+  }
+  parseSessionContent(content, fallbackTitle) {
+    var _a3, _b, _c;
+    let firstUserTitle = null;
+    let firstUserRaw = null;
+    let firstAssistantText = null;
+    let firstAssistantRaw = null;
+    let explicitRenameTitle = null;
+    let resumeId = null;
+    let msgCount = 0;
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (!resumeId && typeof (obj == null ? void 0 : obj.sessionId) === "string" && obj.sessionId.trim()) {
+          resumeId = obj.sessionId.trim();
+        }
+        const command = (_a3 = obj == null ? void 0 : obj.data) == null ? void 0 : _a3.command;
+        if (typeof command === "string" && command.trim()) {
+          const renamed = this.extractExplicitRenameTitle(command);
+          if (renamed) {
+            explicitRenameTitle = renamed;
+          }
+        }
+        if (obj.type === "user") {
+          const msgContent = (_b = obj.message) == null ? void 0 : _b.content;
+          let text = "";
+          if (typeof msgContent === "string") {
+            text = msgContent;
+          } else if (Array.isArray(msgContent)) {
+            for (const block of msgContent) {
+              if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
+                text = block.text;
+                break;
+              }
+            }
+          }
+          if (text.trim() && !this.isMetaUserText(text)) {
+            msgCount++;
+            if (!firstUserTitle) {
+              const cleaned = this.cleanTitle(text);
+              if (cleaned) {
+                firstUserTitle = cleaned;
+                firstUserRaw = text;
+              }
+            }
+          }
+        }
+        if (!firstAssistantText && obj.type === "assistant") {
+          const msgContent = (_c = obj.message) == null ? void 0 : _c.content;
+          if (Array.isArray(msgContent)) {
+            for (const block of msgContent) {
+              if ((block == null ? void 0 : block.type) === "text" && typeof block.text === "string") {
+                const text = block.text.trim();
+                const firstLine = text.replace(/\n[\s\S]*/m, "").trim();
+                const sentence = firstLine.replace(/[.!?].*/, "").trim();
+                const candidate = (sentence.length > 5 ? sentence : firstLine).slice(0, 55);
+                if (candidate.length > 3) {
+                  firstAssistantText = candidate;
+                  firstAssistantRaw = firstLine.slice(0, 200);
+                }
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+      }
+    }
+    const parts = [];
+    if (firstUserTitle) parts.push(firstUserTitle);
+    if (firstAssistantText) parts.push(firstAssistantText);
+    const combined = parts.join(" \u2014 ").slice(0, 60) || fallbackTitle;
+    const title = explicitRenameTitle != null ? explicitRenameTitle : combined;
+    const longParts = [];
+    if (firstUserRaw) {
+      const userLong = this.cleanTitle(firstUserRaw, 180);
+      if (userLong) longParts.push(userLong);
+    } else if (firstUserTitle) {
+      longParts.push(firstUserTitle);
+    }
+    if (firstAssistantRaw) {
+      longParts.push(firstAssistantRaw);
+    } else if (firstAssistantText) {
+      longParts.push(firstAssistantText);
+    }
+    const titleFull = explicitRenameTitle != null ? explicitRenameTitle : longParts.join(" \u2014 ").slice(0, 280) || fallbackTitle;
+    return { msgCount, resumeId, title, titleFull };
+  }
+  extractExplicitRenameTitle(command) {
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    const paneHook = command.match(
+      /pane-name\.sh[\s\S]*?topic\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (paneHook) {
+      return this.normalizeExplicitTitle(
+        (_d = (_c = (_b = (_a3 = paneHook[1]) != null ? _a3 : paneHook[2]) != null ? _b : paneHook[3]) != null ? _c : paneHook[4]) != null ? _d : ""
+      );
+    }
+    const tmuxSelect = command.match(
+      /\btmux\b[\s\S]*?\bselect-pane\b[\s\S]*?\s-T\s+(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (tmuxSelect) {
+      return this.normalizeExplicitTitle(
+        (_h = (_g = (_f = (_e = tmuxSelect[1]) != null ? _e : tmuxSelect[2]) != null ? _f : tmuxSelect[3]) != null ? _g : tmuxSelect[4]) != null ? _h : ""
+      );
+    }
+    const tmuxWindow = command.match(
+      /\btmux\b[\s\S]*?\brename-window\b[\s\S]*?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s)]+))/i
+    );
+    if (tmuxWindow) {
+      return this.normalizeExplicitTitle(
+        (_l = (_k = (_j = (_i = tmuxWindow[1]) != null ? _i : tmuxWindow[2]) != null ? _j : tmuxWindow[3]) != null ? _k : tmuxWindow[4]) != null ? _l : ""
+      );
+    }
+    return null;
+  }
+  normalizeExplicitTitle(value) {
+    const compact2 = value.replace(/\\n/g, " ").replace(/\\t/g, " ").replace(/\\(["'`\\])/g, "$1").trim();
+    if (!compact2) return null;
+    const readable = compact2.includes(" ") ? compact2 : compact2.replace(/[-_]+/g, " ");
+    const cleaned = readable.replace(/\s+/g, " ").trim();
+    return cleaned ? cleaned.slice(0, 60) : null;
+  }
+  isMetaUserText(text) {
+    const stripped = text.replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, "").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, "").replace(/<command-name>[\s\S]*?<\/command-name>/gi, "").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, "").replace(/\s+/g, " ").trim();
+    if (!stripped) return true;
+    if (/^<[^>]+>[\s\S]*<\/[^>]+>$/.test(stripped)) return true;
+    return false;
+  }
+  cleanTitle(raw2, limit2 = 60) {
+    var _a3, _b;
+    const compact2 = raw2.replace(/\s+/g, " ").trim();
+    if (!compact2) return null;
+    const teammate = this.cleanTeammateXmlTitle(compact2, limit2);
+    if (teammate) return teammate.slice(0, limit2);
+    const deSystemed = compact2.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, " ").replace(/<env>[\s\S]*?<\/env>/gi, " ").replace(/<user-prompt-submit-hook>[\s\S]*?<\/user-prompt-submit-hook>/gi, " ").replace(/<local-command-caveat>[\s\S]*?<\/local-command-caveat>/gi, " ").replace(/<command-name>[\s\S]*?<\/command-name>/gi, " ").replace(/<local-command-stdout>[\s\S]*?<\/local-command-stdout>/gi, " ").replace(/\s+/g, " ").trim();
+    if (!deSystemed) return null;
+    const stripped = deSystemed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!stripped) return null;
+    const roleForwarded = stripped.match(
+      /^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i
+    );
+    if (roleForwarded == null ? void 0 : roleForwarded[1]) {
+      const role = roleForwarded[1].replace(/\s+part$/i, "").trim();
+      const project = (_b = (_a3 = stripped.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _a3[1]) == null ? void 0 : _b.trim();
+      const label = project ? `${role} - ${project}` : role;
+      return label.slice(0, limit2);
+    }
+    return stripped.slice(0, limit2);
+  }
+  cleanTeammateXmlTitle(text, limit2 = 60) {
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+    const xml = text.match(
+      /<teammate-message\b([^>]*)>([\s\S]*?)<\/teammate-message>/i
+    );
+    if (!xml) return null;
+    const attrs = (_a3 = xml[1]) != null ? _a3 : "";
+    const body = ((_b = xml[2]) != null ? _b : "").replace(/\s+/g, " ").trim();
+    const teammateId = (_h = (_g = (_d = (_c = attrs.match(/\bteammate_id="([^"]+)"/i)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim()) != null ? _g : (_f = (_e = attrs.match(/\brecipient="([^"]+)"/i)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim()) != null ? _h : null;
+    const summary = (_k = (_j = (_i = attrs.match(/\bsummary="([^"]+)"/i)) == null ? void 0 : _i[1]) == null ? void 0 : _j.trim()) != null ? _k : null;
+    if (summary && teammateId) return `${teammateId} - ${summary}`;
+    if (summary) return summary;
+    const role = (_m = (_l = body.match(/^You are (?:a|the)\s+(.+?)(?:\s+for\b|\.|,|$)/i)) == null ? void 0 : _l[1]) == null ? void 0 : _m.trim();
+    const project = (_o = (_n = body.match(/\bfor (?:the )?(.+?)(?: project|\.)/i)) == null ? void 0 : _n[1]) == null ? void 0 : _o.trim();
+    if (role && project) return `${role} - ${project}`;
+    if (role) return role;
+    if (teammateId) return teammateId;
+    if (body) return body.slice(0, limit2);
+    return null;
+  }
+};
+
+// src/terminal-manager-view.ts
 var VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 var STATUS_PRIORITY = {
   crashed: 7,
@@ -24441,8 +24753,65 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
     return "square-terminal";
   }
   async onOpen() {
-    this.contentEl.empty();
-    this.contentEl.addClass("augment-terminal-manager");
+    var _a3, _b;
+    const container = this.contentEl;
+    container.empty();
+    container.addClass("augment-terminal-manager");
+    const header = container.createDiv({ cls: "augment-tm-header" });
+    header.createSpan({ cls: "augment-tm-title", text: "AUGMENT" });
+    const headerActions = header.createDiv({ cls: "augment-tm-header-actions" });
+    const launchBtn = headerActions.createEl("button", {
+      cls: "augment-tm-launch clickable-icon",
+      attr: { type: "button", "aria-label": "Launch managed team" }
+    });
+    launchBtn.setAttribute("title", "Launch managed team");
+    (0, import_obsidian11.setIcon)(launchBtn, "rocket");
+    launchBtn.addEventListener("click", () => {
+      var _a4, _b2;
+      void ((_b2 = (_a4 = this.getPlugin()) == null ? void 0 : _a4.openTeamLaunchPicker) == null ? void 0 : _b2.call(_a4));
+    });
+    const ccLaunchBtn = headerActions.createEl("button", {
+      cls: "augment-tm-launch augment-tm-launch-cc clickable-icon",
+      attr: { type: "button", "aria-label": "Launch CC team" }
+    });
+    ccLaunchBtn.setAttribute("title", "Launch CC team");
+    (0, import_obsidian11.setIcon)(ccLaunchBtn, "terminal");
+    ccLaunchBtn.addEventListener("click", () => {
+      var _a4, _b2;
+      void ((_b2 = (_a4 = this.getPlugin()) == null ? void 0 : _a4.openCCTeamLaunchPicker) == null ? void 0 : _b2.call(_a4));
+    });
+    const addBtn = headerActions.createEl("button", {
+      cls: "augment-tm-add clickable-icon",
+      attr: { type: "button", "aria-label": "Open terminal" }
+    });
+    addBtn.setAttribute("title", "Open terminal");
+    (0, import_obsidian11.setIcon)(addBtn, "plus");
+    addBtn.addEventListener("click", () => {
+      this.app.commands.executeCommandById(
+        "augment-terminal:open-terminal"
+      );
+    });
+    this.listEl = container.createDiv({ cls: "augment-tm-list" });
+    const vaultPath = this.app.vault.adapter.basePath;
+    this.sessionStore = new SessionStore(vaultPath);
+    if ((_b = (_a3 = this.getPlugin()) == null ? void 0 : _a3.settings) == null ? void 0 : _b.showOtherProjects) {
+      this.otherProjectsEnabled = true;
+    }
+    let historyRequestedLimit = 0;
+    this.maybeLoadHistory = this.createAsyncLoader(
+      this.historyState,
+      () => {
+        historyRequestedLimit = this.historyLoadedCount;
+        return this.sessionStore.loadSessions(historyRequestedLimit);
+      },
+      1500,
+      () => this.historyLoadedCount !== historyRequestedLimit
+    );
+    this.maybeLoadProjects = this.createAsyncLoader(
+      this.projectsState,
+      () => this.sessionStore.loadAllProjectGroups(50).then((gs) => gs.filter((g) => !g.isVault)),
+      2e3
+    );
     this.requestRefresh();
     window.setTimeout(() => this.requestRefresh(), 0);
     this.app.workspace.onLayoutReady(() => this.requestRefresh());
@@ -24640,46 +25009,119 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
       return a.displayName.localeCompare(b.displayName);
     });
   }
-  getActiveSessionCount() {
-    return this.getTerminalLeaves().filter((leaf) => {
-      const status = this.getLeafStatus(leaf.view);
-      return status !== "crashed" && status !== "exited";
-    }).length;
-  }
-  getLegacyRedirectCountLine(activeSessionCount) {
-    const attention = summarizeAttentionSessions(
-      this.getTerminalLeaves().map((leaf) => {
-        const view = leaf.view;
-        return {
-          id: leaf,
-          status: this.getLeafStatus(view),
-          unreadActivity: typeof view.getUnreadActivity === "function" ? view.getUnreadActivity() : 0,
-          lastActivityMs: typeof view.getLastActivityMs === "function" ? view.getLastActivityMs() : 0
-        };
-      })
-    );
-    if (attention.attentionCount === 0) {
-      return activeSessionCount > 0 ? `Active sessions: ${activeSessionCount}` : null;
-    }
-    if (attention.unreadSessionCount > 0) {
-      return `Needs attention: ${attention.attentionCount} \xB7 ${attention.unreadSessionCount} unread`;
-    }
-    return `Needs attention: ${attention.attentionCount} waiting`;
-  }
   refresh() {
-    this.hideActivityTooltip();
-    this.contentEl.addClass("augment-terminal-manager");
-    const activeSessionCount = this.getActiveSessionCount();
-    renderLegacyRedirectShell(this.contentEl, {
-      title: "Terminal manager moved",
-      copy: "The legacy terminal manager view moved out of Augment for Obsidian. Open Augment Control Center when it is available, or use Learn more for the current gap-period path.",
-      countLine: this.getLegacyRedirectCountLine(activeSessionCount),
-      onOpenControlCenter: () => {
-        var _a3, _b;
-        void ((_b = (_a3 = this.getPlugin()) == null ? void 0 : _a3.openControlCenter) == null ? void 0 : _b.call(_a3));
+    if (!this.listEl) return;
+    this.listEl.empty();
+    const plugin = this.getPlugin();
+    if (plugin == null ? void 0 : plugin.settings) {
+      this.otherProjectsEnabled = plugin.settings.showOtherProjects;
+    }
+    const leaves = this.getTerminalLeaves();
+    const sessions = this.getHistorySessions();
+    const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
+    const parts = discoverVaultParts(this.app);
+    const activeLeaf = this.app.workspace.activeLeaf;
+    const hasOpen = leaves.length > 0;
+    const hasHistory = sessions.length > 0;
+    const hasOtherProjects = otherGroups.length > 0;
+    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
+    if (!hasOpen && !hasHistory && !hasOtherProjects) {
+      const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
+      emptyEl.createDiv({ text: "No terminals yet." });
+      emptyEl.createDiv({ text: "Press + to open one." });
+    }
+    if (hasOpen) {
+      const managedTeamGroups = this.computeManagedTeamGroups(leaves);
+      const managedLeaves = /* @__PURE__ */ new Set();
+      for (const group of managedTeamGroups) {
+        for (const member of group.members) {
+          managedLeaves.add(member);
+        }
       }
-    });
-    this.listEl = null;
+      if (managedTeamGroups.length > 0) {
+        this.renderManagedTeamCards(managedTeamGroups, activeLeaf);
+      }
+      const unmanagedLeaves = leaves.filter((leaf) => !managedLeaves.has(leaf));
+      const teamGroups = this.computeTeamGroups(unmanagedLeaves);
+      this.renderOpenSectionWithGroups(this.listEl, unmanagedLeaves, teamGroups, activeLeaf);
+    }
+    this.renderInboxSection();
+    this.renderPartsSection(parts);
+    if (hasHistory) {
+      const isExpanded = this.historyCollapseState === "open" || this.historyCollapseState === "auto" && !hasOpen;
+      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (isExpanded) divider.addClass("is-open");
+      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
+      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
+      divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
+      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+      if (!isExpanded) historyContainer.style.display = "none";
+      this.renderHistorySections(sessions, historyContainer);
+      divider.addEventListener("click", () => {
+        this.historyCollapseState = isExpanded ? "closed" : "open";
+        divider.toggleClass("is-open", !isExpanded);
+        historyContainer.style.display = isExpanded ? "none" : "";
+      });
+    }
+    if (this.otherProjectsEnabled) {
+      const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
+      const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
+      if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
+      if (hasOtherProjects) {
+        this.renderOtherProjectsSection(otherGroups, otherContainer);
+      } else if (this.projectsState.inFlight) {
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading\u2026" });
+      } else {
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
+      }
+      otherDivider.addEventListener("click", () => {
+        this.otherProjectsExpanded = !this.otherProjectsExpanded;
+        otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
+        otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
+      });
+    } else {
+      const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24D8" });
+      let tip = null;
+      infoIcon.addEventListener("mouseenter", () => {
+        tip = document.createElement("div");
+        tip.className = "augment-api-key-tip";
+        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
+        document.body.appendChild(tip);
+        const rect = infoIcon.getBoundingClientRect();
+        tip.style.top = `${rect.bottom + 6}px`;
+        tip.style.left = `${rect.left}px`;
+      });
+      infoIcon.addEventListener("mouseleave", () => {
+        tip == null ? void 0 : tip.remove();
+        tip = null;
+      });
+      const loadBtn = loadDivider.createEl("button", {
+        cls: "augment-tm-load-projects-btn",
+        text: "Show other projects"
+      });
+      loadBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        loadBtn.disabled = true;
+        loadBtn.textContent = "";
+        loadBtn.addClass("is-loading");
+        const spinner = loadBtn.createSpan({ cls: "augment-tm-spinner" });
+        this.otherProjectsEnabled = true;
+        this.otherProjectsExpanded = true;
+        this.projectsState.lastLoadTime = 0;
+        this.projectsState.reloadRequested = true;
+        const plugin2 = this.getPlugin();
+        if (plugin2 == null ? void 0 : plugin2.settings) {
+          plugin2.settings.showOtherProjects = true;
+          void plugin2.saveData(plugin2.settings);
+        }
+        this.requestRefresh();
+      });
+    }
   }
   renderOpenSectionWithGroups(container, leaves, teamGroups, activeLeaf) {
     const assignedLeaves = /* @__PURE__ */ new Set();
@@ -25032,32 +25474,35 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
     });
   }
   renderInboxSection() {
+    const unread = unreadCount(this.app, HUMAN_ADDRESS);
     const isExpanded = this.inboxCollapseState !== "closed";
     const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
-    divider.createSpan({ cls: "augment-tm-section-label", text: "MESSAGES" });
+    divider.createSpan({ cls: "augment-tm-section-label", text: "INBOX" });
+    if (unread > 0) {
+      divider.createSpan({
+        cls: "augment-tm-section-count",
+        text: `(${unread} unread)`
+      });
+    }
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
     const inboxContainer = this.listEl.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) inboxContainer.style.display = "none";
-    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-messages-row" });
-    const line = row.createDiv({ cls: "augment-tm-messages-line" });
-    const iconWrap = line.createDiv({ cls: "augment-tm-messages-icon-wrap" });
-    const iconEl = iconWrap.createDiv({ cls: "augment-tm-messages-icon" });
-    (0, import_obsidian11.setIcon)(iconEl, "inbox");
-    const copy = line.createDiv({ cls: "augment-tm-messages-copy" });
-    copy.createDiv({ cls: "augment-tm-messages-eyebrow", text: "Messaging center" });
-    copy.createDiv({ cls: "augment-tm-messages-title", text: "Messages" });
-    copy.createDiv({
-      cls: "augment-tm-messages-subtitle",
-      text: "Matt and agent traffic"
-    });
-    line.createSpan({ cls: "augment-tm-messages-badge", text: "All traffic" });
+    const row = inboxContainer.createDiv({ cls: "augment-tm-item augment-tm-part-row augment-tm-inbox-row" });
+    if (unread > 0) row.addClass("has-unread");
+    const line = row.createDiv({ cls: "augment-tm-line" });
+    line.createDiv({ cls: "augment-tm-dot augment-tm-part-dot" });
+    line.createSpan({ cls: "augment-tm-name", text: "My inbox" });
+    line.createDiv({ cls: "augment-tm-spacer" });
+    if (unread > 0) {
+      line.createSpan({ cls: "augment-tm-part-badge", text: String(unread) });
+    }
     this.bindRowActivation(
       row,
       () => {
-        void openAllMessages(this.app);
+        void openHumanInbox(this.app);
       },
-      "Open messaging center"
+      "Open messages addressed to you"
     );
     divider.addEventListener("click", () => {
       this.inboxCollapseState = isExpanded ? "closed" : "open";
@@ -25484,10 +25929,10 @@ __export(team_launch_exports, {
   seedCCInboxMessage: () => seedCCInboxMessage,
   writeCCTeamScaffolding: () => writeCCTeamScaffolding
 });
-var fs4 = __toESM(require("fs"));
+var fs5 = __toESM(require("fs"));
 var crypto = __toESM(require("crypto"));
-var os2 = __toESM(require("os"));
-var path6 = __toESM(require("path"));
+var os3 = __toESM(require("os"));
+var path7 = __toESM(require("path"));
 function formatMemberRole(member) {
   const displayName = member.displayName.trim();
   if (/part$/i.test(displayName)) {
@@ -25500,14 +25945,14 @@ function withTrailingSeparator(filePath) {
   return `${filePath}${filePath.includes("\\") ? "\\" : "/"}`;
 }
 function toFsPath(rootPath, relativePath) {
-  return path6.join(rootPath, ...relativePath.split("/").filter(Boolean));
+  return path7.join(rootPath, ...relativePath.split("/").filter(Boolean));
 }
 function writePromptFileAndBuildCommand(promptText, label, model) {
-  const tmpDir = os2.tmpdir();
+  const tmpDir = os3.tmpdir();
   const timestamp = Date.now();
   const filename = `augment-boot-${label}-${timestamp}.txt`;
-  const filePath = path6.join(tmpDir, filename);
-  fs4.writeFileSync(filePath, promptText, "utf-8");
+  const filePath = path7.join(tmpDir, filename);
+  fs5.writeFileSync(filePath, promptText, "utf-8");
   const trimmedModel = model == null ? void 0 : model.trim();
   const modelArg = trimmedModel ? ` --model ${JSON.stringify(trimmedModel)}` : "";
   return `claude${modelArg} "$(cat ${JSON.stringify(filePath)})"
@@ -25519,8 +25964,8 @@ function sanitizeFilenameFragment(value) {
 }
 function writeRawPromptTempFile(promptText, label) {
   const filename = `augment-cc-boot-${sanitizeFilenameFragment(label)}-${Date.now()}-${crypto.randomUUID()}.txt`;
-  const filePath = path6.join(os2.tmpdir(), filename);
-  fs4.writeFileSync(filePath, promptText, "utf-8");
+  const filePath = path7.join(os3.tmpdir(), filename);
+  fs5.writeFileSync(filePath, promptText, "utf-8");
   return filePath;
 }
 function resolveCCTeamCwd(project) {
@@ -25532,7 +25977,7 @@ function buildCCNativeCeoPrompt(project, codeRoot, vaultRoot, teamName, userBrie
   const codeRootPath = withTrailingSeparator(codeRoot);
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path6.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const skillPath = path7.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
   const brief = userBrief == null ? void 0 : userBrief.trim();
   const roster = orderedProjectMembers(project).map(formatRosterEntry).join("\n");
   return [
@@ -25556,7 +26001,7 @@ function buildCCNativeMemberPrompt(project, member, codeRoot, vaultRoot, teamNam
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const memberWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, member.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path6.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
+  const skillPath = path7.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
   return [
     `You are ${formatMemberRole(member)} for the ${project.projectDisplayName} project.`,
     `Boot as ${member.address}.`,
@@ -25581,10 +26026,10 @@ function buildCCTeammateCommandFromPrompt(member, project, teamName, leaderSessi
   return `cd ${JSON.stringify(codeRoot)} && CLAUDECODE=1 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude --agent-id ${JSON.stringify(agentId)} --agent-name ${JSON.stringify(member.roleId)} --team-name ${JSON.stringify(teamName)} --agent-color ${JSON.stringify(color)} --parent-session-id ${JSON.stringify(leaderSessionId)} --teammate-mode tmux "$(cat ${JSON.stringify(promptFilePath)})"`;
 }
 function getCCTeamDirectory(teamName) {
-  return path6.join(os2.homedir(), ".claude", "teams", teamName);
+  return path7.join(os3.homedir(), ".claude", "teams", teamName);
 }
 function getCCInboxDirectory(teamName) {
-  return path6.join(getCCTeamDirectory(teamName), "inboxes");
+  return path7.join(getCCTeamDirectory(teamName), "inboxes");
 }
 function formatRosterDirectory(member) {
   const trimmed = member.directory.trim().replace(/`/g, "").replace(/^\/+|\/+$/g, "");
@@ -25598,7 +26043,7 @@ function formatRosterEntry(member) {
 function buildBusInstructions(project, member, vaultRoot) {
   const slug = project.projectId;
   const address = `${member.roleId}@${slug}`;
-  const hooksDir = path6.join(vaultRoot, "claude", "hooks");
+  const hooksDir = path7.join(vaultRoot, "claude", "hooks");
   const rosterAddresses = project.members.map((m) => `${m.roleId}@${slug}`).join(", ");
   return [
     `=== Inter-role communication ===`,
@@ -25610,7 +26055,7 @@ function buildBusInstructions(project, member, vaultRoot) {
   ].join(" ");
 }
 function buildBusWatcherCommand(address, paneId, vaultRoot) {
-  const watcherPath = path6.join(
+  const watcherPath = path7.join(
     vaultRoot,
     "agents",
     "skills",
@@ -25630,7 +26075,7 @@ function buildCeoBootPrompt(project, codeRoot, vaultRoot, userBrief) {
   const codeRootPath = withTrailingSeparator(codeRoot);
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path6.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const skillPath = path7.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
   const brief = userBrief == null ? void 0 : userBrief.trim();
   const busInstructions = buildBusInstructions(project, project.ceo, vaultRoot);
   const message = [
@@ -25655,7 +26100,7 @@ function buildCeoOnlyBootPrompt(project, codeRoot, vaultRoot, userBrief) {
   const codeRootPath = withTrailingSeparator(codeRoot);
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path6.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
+  const skillPath = path7.join(vaultRoot, "agents", "skills", "project-ceo", "SKILL.md");
   const brief = userBrief == null ? void 0 : userBrief.trim();
   const roster = orderedProjectMembers(project).map(formatRosterEntry).join("\n");
   const message = [
@@ -25687,7 +26132,7 @@ function buildMemberBootPrompt(project, member, codeRoot, vaultRoot) {
   const vaultWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, project.workspacePath));
   const memberWorkspacePath = withTrailingSeparator(toFsPath(vaultRoot, member.workspacePath));
   const partsMdPath = toFsPath(vaultRoot, project.partsMdPath);
-  const skillPath = path6.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
+  const skillPath = path7.join(vaultRoot, "agents", "skills", `project-${member.roleId}`, "SKILL.md");
   const busInstructions = buildBusInstructions(project, member, vaultRoot);
   const message = [
     `You are ${formatMemberRole(member)} for the ${project.projectDisplayName} project.`,
@@ -25734,20 +26179,20 @@ function buildCCTeamConfig(project, teamName, leaderSessionId) {
 function writeCCTeamScaffolding(teamName, config) {
   const teamDirectory = getCCTeamDirectory(teamName);
   const inboxDirectory = getCCInboxDirectory(teamName);
-  const configPath = path6.join(teamDirectory, "config.json");
-  fs4.mkdirSync(inboxDirectory, { recursive: true });
-  fs4.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}
+  const configPath = path7.join(teamDirectory, "config.json");
+  fs5.mkdirSync(inboxDirectory, { recursive: true });
+  fs5.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}
 `, "utf-8");
   for (const member of config.members) {
-    const inboxPath = path6.join(inboxDirectory, `${member.name}.json`);
-    if (!fs4.existsSync(inboxPath)) {
-      fs4.writeFileSync(inboxPath, "[]\n", "utf-8");
+    const inboxPath = path7.join(inboxDirectory, `${member.name}.json`);
+    if (!fs5.existsSync(inboxPath)) {
+      fs5.writeFileSync(inboxPath, "[]\n", "utf-8");
     }
   }
 }
 function seedCCInboxMessage(teamName, agentName, fromName, text) {
   const inboxDirectory = getCCInboxDirectory(teamName);
-  const inboxPath = path6.join(inboxDirectory, `${agentName}.json`);
+  const inboxPath = path7.join(inboxDirectory, `${agentName}.json`);
   const messages = [
     {
       from: fromName,
@@ -25757,8 +26202,8 @@ function seedCCInboxMessage(teamName, agentName, fromName, text) {
       read: false
     }
   ];
-  fs4.mkdirSync(inboxDirectory, { recursive: true });
-  fs4.writeFileSync(inboxPath, `${JSON.stringify(messages, null, 2)}
+  fs5.mkdirSync(inboxDirectory, { recursive: true });
+  fs5.writeFileSync(inboxPath, `${JSON.stringify(messages, null, 2)}
 `, "utf-8");
 }
 function buildCCTeammateCommand(member, project, teamName, leaderSessionId, codeRoot, vaultRoot) {
@@ -25826,13 +26271,13 @@ function computeTeamLayout2(members) {
 }
 
 // src/team-roster.ts
-var fs5 = __toESM(require("fs"));
-var path7 = __toESM(require("path"));
+var fs6 = __toESM(require("fs"));
+var path8 = __toESM(require("path"));
 var PARTS_ROOT4 = ["agents", "parts"];
 async function readLaunchConfig(projectDir) {
-  const configPath = path7.join(projectDir, "launch-config.json");
+  const configPath = path8.join(projectDir, "launch-config.json");
   try {
-    const raw2 = await fs5.promises.readFile(configPath, "utf-8");
+    const raw2 = await fs6.promises.readFile(configPath, "utf-8");
     return parseLaunchConfig(raw2);
   } catch (e) {
     return {
@@ -25842,26 +26287,26 @@ async function readLaunchConfig(projectDir) {
   }
 }
 async function discoverTeamProjects(vaultPath) {
-  const projectsRoot = path7.join(vaultPath, ...PARTS_ROOT4);
+  const projectsRoot = path8.join(vaultPath, ...PARTS_ROOT4);
   let entries;
   try {
-    entries = await fs5.promises.readdir(projectsRoot, { withFileTypes: true });
+    entries = await fs6.promises.readdir(projectsRoot, { withFileTypes: true });
   } catch (e) {
     return [];
   }
   const projectDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort((a, b) => a.localeCompare(b));
   const projects = await Promise.all(
     projectDirs.map(async (projectId) => {
-      const projectDir = path7.join(projectsRoot, projectId);
-      const partsMdFsPath = path7.join(projectDir, "PARTS.md");
+      const projectDir = path8.join(projectsRoot, projectId);
+      const partsMdFsPath = path8.join(projectDir, "PARTS.md");
       try {
-        const stat = await fs5.promises.stat(partsMdFsPath);
+        const stat = await fs6.promises.stat(partsMdFsPath);
         if (!stat.isFile()) return null;
       } catch (e) {
         return null;
       }
       try {
-        const content = await fs5.promises.readFile(partsMdFsPath, "utf-8");
+        const content = await fs6.promises.readFile(partsMdFsPath, "utf-8");
         const project = parsePartsMd(content, projectId);
         if (!project) return null;
         const launchConfig = await readLaunchConfig(projectDir);
@@ -26283,7 +26728,7 @@ var agentWidgetField = import_state.StateField.define({
 var import_obsidian13 = require("obsidian");
 
 // src/team-scaffold.ts
-var fs6 = __toESM(require("fs"));
+var fs7 = __toESM(require("fs"));
 var import_path11 = require("path");
 var GENERATED_HEADER = "<!-- Generated by augment init-team. Customize freely.\n     Re-run with refresh-skills to pull latest defaults (overwrites SKILL.md files only). -->\n";
 var ROLES = ["ceo", "cto", "design", "product", "visionary", "values"];
@@ -26928,11 +27373,11 @@ function configStub(role) {
   }
 }
 function ensureDir(dir) {
-  if (!fs6.existsSync(dir)) fs6.mkdirSync(dir, { recursive: true });
+  if (!fs7.existsSync(dir)) fs7.mkdirSync(dir, { recursive: true });
 }
 function writeIfMissing(filePath, content) {
-  if (fs6.existsSync(filePath)) return false;
-  fs6.writeFileSync(filePath, content, "utf-8");
+  if (fs7.existsSync(filePath)) return false;
+  fs7.writeFileSync(filePath, content, "utf-8");
   return true;
 }
 function scaffoldTeam(projectRoot) {
@@ -26988,11 +27433,11 @@ ${GITIGNORE_MARKER}
 `;
   let existingGitignore = "";
   try {
-    existingGitignore = fs6.readFileSync(gitignorePath, "utf-8");
+    existingGitignore = fs7.readFileSync(gitignorePath, "utf-8");
   } catch (e) {
   }
   if (!existingGitignore.includes(GITIGNORE_MARKER)) {
-    fs6.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
+    fs7.writeFileSync(gitignorePath, existingGitignore + GITIGNORE_BLOCK, "utf-8");
     created.push(".gitignore (appended session log patterns)");
   } else {
     skipped.push(".gitignore (session log patterns already present)");
@@ -27006,7 +27451,7 @@ function refreshTeamSkills(projectRoot) {
     const skillDir = (0, import_path11.join)(skillsDir, `project-${role}`);
     ensureDir(skillDir);
     const skillFile = (0, import_path11.join)(skillDir, "SKILL.md");
-    fs6.writeFileSync(skillFile, SKILLS[role], "utf-8");
+    fs7.writeFileSync(skillFile, SKILLS[role], "utf-8");
     updated.push(`.parts/skills/project-${role}/SKILL.md`);
   }
   return { created: updated, skipped: [] };
@@ -27089,15 +27534,15 @@ var InitTeamModal = class extends import_obsidian13.Modal {
       return;
     }
     try {
-      const fs7 = require("fs");
-      if (!fs7.existsSync(root)) {
+      const fs8 = require("fs");
+      if (!fs8.existsSync(root)) {
         new import_obsidian13.Notice(`Directory not found: ${root}`);
         return;
       }
       let result;
       if (this.refreshOnly) {
         const partsDir = require("path").join(root, ".parts");
-        if (!fs7.existsSync(partsDir)) {
+        if (!fs8.existsSync(partsDir)) {
           new import_obsidian13.Notice("No .parts/ directory found. Run Init team first.");
           return;
         }
@@ -27630,8 +28075,8 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-14T18:19:52.555Z";
-    this.gitSha = "45a7a61";
+    this.buildId = "2026-03-14T18:24:53.478Z";
+    this.gitSha = "67f2ba2";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -28492,10 +28937,10 @@ ${candidate}`;
       await this.saveData(this.settings);
     }
     for (const [name, content] of SCAFFOLD_TEMPLATES) {
-      const path8 = `${targetFolder}/${name}.md`;
-      if (!this.app.vault.getAbstractFileByPath(path8)) {
+      const path9 = `${targetFolder}/${name}.md`;
+      if (!this.app.vault.getAbstractFileByPath(path9)) {
         try {
-          await this.app.vault.create(path8, content);
+          await this.app.vault.create(path9, content);
         } catch (e) {
         }
       }
