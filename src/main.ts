@@ -49,6 +49,7 @@ import { promisify } from "util";
 
 declare const __AUGMENT_BUILD_ID__: string;
 declare const __AUGMENT_GIT_SHA__: string;
+declare const __CONTROL_CENTER__: boolean;
 
 const execFileAsync = promisify(execFile);
 const CC_NATIVE_TEAM_ID_PREFIX = "cc-native-team::";
@@ -686,15 +687,17 @@ export default class AugmentTerminalPlugin extends Plugin {
       void this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
 
-    const openControlCenterButton = actions.createEl("button", {
-      cls: "mod-cta",
-      text: "Open Control Center",
-      attr: { type: "button" },
-    });
-    openControlCenterButton.addEventListener("click", () => {
-      this.closeStatusBridgePopover();
-      void this.openControlCenter();
-    });
+    if (__CONTROL_CENTER__) {
+      const openControlCenterButton = actions.createEl("button", {
+        cls: "mod-cta",
+        text: "Open Control Center",
+        attr: { type: "button" },
+      });
+      openControlCenterButton.addEventListener("click", () => {
+        this.closeStatusBridgePopover();
+        void this.openControlCenter();
+      });
+    }
   }
 
   private positionStatusBridgePopover(): void {
@@ -1354,7 +1357,9 @@ export default class AugmentTerminalPlugin extends Plugin {
     // Fetch available models in the background — populates the model dropdown
     // and resolves "auto" to the best available model name in the status bar.
     void this.loadAvailableModels();
-    this.busPollerManager = new BusPollerManager();
+    if (__CONTROL_CENTER__) {
+      this.busPollerManager = new BusPollerManager();
+    }
 
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
@@ -1383,9 +1388,11 @@ export default class AugmentTerminalPlugin extends Plugin {
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
     });
-    this.registerView(VIEW_TYPE_PART_INBOX, (leaf) => {
-      return new PartInboxView(leaf);
-    });
+    if (__CONTROL_CENTER__) {
+      this.registerView(VIEW_TYPE_PART_INBOX, (leaf) => {
+        return new PartInboxView(leaf);
+      });
+    }
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
     });
@@ -1412,7 +1419,9 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.app.metadataCache.on("resolved", () => agentSuggest.reload())
     );
 
-    this.registerEditorSuggest(new InboxSuggest(this.app));
+    if (__CONTROL_CENTER__) {
+      this.registerEditorSuggest(new InboxSuggest(this.app));
+    }
 
     // AI generation commands
     this.addCommand({
@@ -1858,9 +1867,11 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
-    this.register(
-      setBusNotifier(this.app, () => (this.app.workspace as any).trigger("augment-bus:changed"))
-    );
+    if (__CONTROL_CENTER__) {
+      this.register(
+        setBusNotifier(this.app, () => (this.app.workspace as any).trigger("augment-bus:changed"))
+      );
+    }
 
     this.app.workspace.onLayoutReady(() => {
       this.syncAddressedTerminalBusPollers();
@@ -2083,6 +2094,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   private getWatchedInboxUnreadAttention(): number {
+    if (!__CONTROL_CENTER__) return 0;
     return unreadCountForAddresses(this.app, [...DEFAULT_WATCHED_INBOX_ADDRESSES]);
   }
 
@@ -2116,7 +2128,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private jumpToNextAttention(): void {
     const attention = this.getAttentionLeaves();
     if (attention.length === 0) {
-      if (this.getWatchedInboxUnreadAttention() > 0) {
+      if (__CONTROL_CENTER__ && this.getWatchedInboxUnreadAttention() > 0) {
         void openAllMessages(this.app);
       }
       return;
@@ -2237,6 +2249,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   }
 
   public async openControlCenter(): Promise<void> {
+    if (!__CONTROL_CENTER__) return;
     const rootUrl = await resolveReachableControlCenterRootUrl();
     if (!rootUrl) {
       new Notice(AUGMENT_CONTROL_CENTER_UNAVAILABLE_NOTICE);

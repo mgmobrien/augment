@@ -10,6 +10,8 @@ import {
   openPartInboxForPart,
 } from "./part-inbox-view";
 
+declare const __CONTROL_CENTER__: boolean;
+
 export const VIEW_TYPE_TERMINAL_MANAGER = "augment-terminal-manager";
 
 
@@ -443,7 +445,7 @@ export class TerminalManagerView extends ItemView {
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
-    const parts = discoverVaultParts(this.app);
+    const parts = __CONTROL_CENTER__ ? discoverVaultParts(this.app) : [];
     const activeLeaf = this.app.workspace.activeLeaf;
 
     const hasOpen = leaves.length > 0;
@@ -477,11 +479,11 @@ export class TerminalManagerView extends ItemView {
       this.renderOpenSectionWithGroups(this.listEl!, unmanagedLeaves, teamGroups, activeLeaf);
     }
 
-    // ── INBOX section ─────────────────────────────────────────
-    this.renderInboxSection();
-
-    // ── PARTS section ─────────────────────────────────────────
-    this.renderPartsSection(parts);
+    // ── INBOX + PARTS sections (control-center only) ──────────
+    if (__CONTROL_CENTER__) {
+      this.renderInboxSection();
+      this.renderPartsSection(parts);
+    }
 
     // ── RECENT section with collapse ──────────────────────────
     if (hasHistory) {

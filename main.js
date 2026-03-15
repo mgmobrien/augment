@@ -24585,23 +24585,50 @@ var SessionStore = class {
   }
   // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
   // CC encodes cwd by replacing '/' and spaces with '-'.
+  // On WSL, Obsidian sees a Windows path (C:\Users\...) but CC running in
+  // WSL sees /mnt/c/Users/... — the encodings differ. Try both.
   async findProjectDir() {
     var _a3;
     const home = (_a3 = process.env.HOME) != null ? _a3 : os2.homedir();
-    const encoded = this.vaultBasePath.replace(/[/\\ ]/g, "-");
-    const dir = path6.join(home, ".claude", "projects", encoded);
-    try {
-      if ((await fs4.promises.stat(dir)).isDirectory()) return dir;
-    } catch (e) {
+    const projectsRoot = path6.join(home, ".claude", "projects");
+    for (const candidate of this.vaultPathEncodings()) {
+      const dir = path6.join(projectsRoot, candidate);
+      try {
+        if ((await fs4.promises.stat(dir)).isDirectory()) return dir;
+      } catch (e) {
+      }
     }
     return null;
+  }
+  // Generate candidate encoded directory names for this vault path.
+  // Returns the primary encoding first, then WSL cross-path alternatives.
+  vaultPathEncodings() {
+    const primary = this.vaultBasePath.replace(/[/\\ ]/g, "-");
+    const candidates = [primary];
+    const winDriveMatch = this.vaultBasePath.match(/^([A-Za-z]):[/\\]/);
+    if (winDriveMatch) {
+      const driveLetter = winDriveMatch[1].toLowerCase();
+      const rest = this.vaultBasePath.slice(3).replace(/\\/g, "/");
+      const wslPath = `/mnt/${driveLetter}/${rest}`;
+      const wslEncoded = wslPath.replace(/[/ ]/g, "-");
+      if (wslEncoded !== primary) candidates.push(wslEncoded);
+    }
+    const wslMntMatch = this.vaultBasePath.match(/^\/mnt\/([a-z])\//);
+    if (wslMntMatch) {
+      const driveLetter = wslMntMatch[1].toUpperCase();
+      const rest = this.vaultBasePath.slice(7);
+      const winPath = `${driveLetter}:\\${rest.replace(/\//g, "\\")}`;
+      const winEncoded = winPath.replace(/[/\\ ]/g, "-");
+      if (winEncoded !== primary) candidates.push(winEncoded);
+    }
+    return candidates;
   }
   // Enumerate all project directories under ~/.claude/projects/.
   async findAllProjectDirs() {
     var _a3;
     const home = (_a3 = process.env.HOME) != null ? _a3 : os2.homedir();
     const projectsRoot = path6.join(home, ".claude", "projects");
-    const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const vaultEncodings = new Set(this.vaultPathEncodings());
     const encodedHome = home.replace(/[/ ]/g, "-");
     try {
       const names = await fs4.promises.readdir(projectsRoot);
@@ -24614,7 +24641,7 @@ var SessionStore = class {
           } catch (e) {
             return null;
           }
-          const isVault = encodedName === vaultEncoded;
+          const isVault = vaultEncodings.has(encodedName);
           const relative = encodedName.startsWith(encodedHome) ? encodedName.slice(encodedHome.length).replace(/^-+/, "") : encodedName.replace(/^-+/, "");
           const projectName = relative.replace(/-/g, "/") || encodedName;
           return { encodedName, projectDir, isVault, projectName };
@@ -25197,7 +25224,7 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
     const leaves = this.getTerminalLeaves();
     const sessions = this.getHistorySessions();
     const otherGroups = this.otherProjectsEnabled ? this.getOtherProjectGroups() : [];
-    const parts = discoverVaultParts(this.app);
+    const parts = true ? discoverVaultParts(this.app) : [];
     const activeLeaf = this.app.workspace.activeLeaf;
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
@@ -25223,8 +25250,10 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
       const teamGroups = this.computeTeamGroups(unmanagedLeaves);
       this.renderOpenSectionWithGroups(this.listEl, unmanagedLeaves, teamGroups, activeLeaf);
     }
-    this.renderInboxSection();
-    this.renderPartsSection(parts);
+    if (true) {
+      this.renderInboxSection();
+      this.renderPartsSection(parts);
+    }
     if (hasHistory) {
       const isExpanded = this.historyCollapseState === "open" || this.historyCollapseState === "auto" && !hasOpen;
       const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
@@ -28407,8 +28436,8 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T06:25:26.746Z";
-    this.gitSha = "25dd4d9";
+    this.buildId = "2026-03-15T06:41:53.860Z";
+    this.gitSha = "41f2212";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -28797,15 +28826,17 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
       this.closeStatusBridgePopover();
       void this.openTerminalAt(this.settings.defaultTerminalLocation);
     });
-    const openControlCenterButton = actions.createEl("button", {
-      cls: "mod-cta",
-      text: "Open Control Center",
-      attr: { type: "button" }
-    });
-    openControlCenterButton.addEventListener("click", () => {
-      this.closeStatusBridgePopover();
-      void this.openControlCenter();
-    });
+    if (true) {
+      const openControlCenterButton = actions.createEl("button", {
+        cls: "mod-cta",
+        text: "Open Control Center",
+        attr: { type: "button" }
+      });
+      openControlCenterButton.addEventListener("click", () => {
+        this.closeStatusBridgePopover();
+        void this.openControlCenter();
+      });
+    }
   }
   positionStatusBridgePopover() {
     if (!this.statusBarEl || !this.statusBridgePopoverEl) return;
@@ -29386,7 +29417,9 @@ ${candidate}`;
       });
     }
     void this.loadAvailableModels();
-    this.busPollerManager = new BusPollerManager();
+    if (true) {
+      this.busPollerManager = new BusPollerManager();
+    }
     this.calloutStyleEl = document.head.createEl("style");
     this.calloutStyleEl.id = "augment-callout-styles";
     this.calloutStyleEl.textContent = [
@@ -29412,9 +29445,11 @@ ${candidate}`;
     this.registerView(VIEW_TYPE_TERMINAL_MANAGER, (leaf) => {
       return new TerminalManagerView(leaf);
     });
-    this.registerView(VIEW_TYPE_PART_INBOX, (leaf) => {
-      return new PartInboxView(leaf);
-    });
+    if (true) {
+      this.registerView(VIEW_TYPE_PART_INBOX, (leaf) => {
+        return new PartInboxView(leaf);
+      });
+    }
     this.registerView(VIEW_TYPE_CONTEXT_INSPECTOR, (leaf) => {
       return new ContextInspectorView(leaf, this);
     });
@@ -29435,7 +29470,9 @@ ${candidate}`;
     this.registerEvent(
       this.app.metadataCache.on("resolved", () => agentSuggest.reload())
     );
-    this.registerEditorSuggest(new InboxSuggest(this.app));
+    if (true) {
+      this.registerEditorSuggest(new InboxSuggest(this.app));
+    }
     this.addCommand({
       id: "augment-btw-side-question",
       name: "btw: Ask side question\u2026",
@@ -29817,9 +29854,11 @@ ${candidate}`;
         (_a4 = this.contextWriter) == null ? void 0 : _a4.onActiveLeafChange(leaf);
       })
     );
-    this.register(
-      setBusNotifier(this.app, () => this.app.workspace.trigger("augment-bus:changed"))
-    );
+    if (true) {
+      this.register(
+        setBusNotifier(this.app, () => this.app.workspace.trigger("augment-bus:changed"))
+      );
+    }
     this.app.workspace.onLayoutReady(() => {
       this.syncAddressedTerminalBusPollers();
       void this.loadSpendData().then(() => {
@@ -30037,6 +30076,7 @@ ${candidate}`;
     return this.getAttentionSnapshot().ordered.map((session) => session.id);
   }
   getWatchedInboxUnreadAttention() {
+    if (false) return 0;
     return unreadCountForAddresses(this.app, [...DEFAULT_WATCHED_INBOX_ADDRESSES]);
   }
   refreshAttentionBadge() {
@@ -30165,6 +30205,7 @@ ${candidate}`;
     }
   }
   async openControlCenter() {
+    if (false) return;
     const rootUrl = await resolveReachableControlCenterRootUrl();
     if (!rootUrl) {
       new import_obsidian17.Notice(AUGMENT_CONTROL_CENTER_UNAVAILABLE_NOTICE);
