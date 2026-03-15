@@ -42,7 +42,7 @@ import { EditorSelection } from "@codemirror/state";
 import { SCAFFOLD_FOLDER, SCAFFOLD_TEMPLATES, SCAFFOLD_SKILLS_FOLDER, SCAFFOLD_SKILLS } from "./scaffold-data";
 import { addSpinnerEffect, removeSpinnerEffect, spinnerField, addAgentWidgetEffect, removeAgentWidgetEffect, agentWidgetField } from "./editor-extensions";
 import { TeamCreateSpawnEvent, RenameModal, InitTeamModal } from "./terminal-modals";
-import { SelectionTransformModal } from "./selection-transform-modal";
+import { SelectionTransformModal, TransformHistoryEntry } from "./selection-transform-modal";
 import { SideQuestionModal } from "./side-question-modal";
 import { summarizeStatusBridgeSessions } from "./status-bridge";
 import { promisify } from "util";
@@ -815,8 +815,8 @@ export default class AugmentTerminalPlugin extends Plugin {
     new SelectionTransformModal(this.app, {
       noteTitle: snapshot.noteTitle,
       selectionText: snapshot.originalText,
-      onTransform: (instruction, signal) =>
-        this.runSelectionTransform(snapshot, instruction, signal),
+      onTransform: (instruction, history, signal) =>
+        this.runSelectionTransform(snapshot, instruction, history, signal),
       onReplace: (candidate) =>
         this.applySelectionTransform(editor, snapshot, candidate, "replace"),
       onKeepBoth: (candidate) =>
@@ -849,6 +849,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private async runSelectionTransform(
     snapshot: SelectionTransformSnapshot,
     instruction: string,
+    history: TransformHistoryEntry[],
     signal: AbortSignal
   ): Promise<string> {
     const context = {
@@ -868,13 +869,32 @@ export default class AugmentTerminalPlugin extends Plugin {
       baseSystemPrompt,
       "Transform the selected text according to the user's instruction. Return only the replacement text. Do not add commentary or code fences unless the instruction asks for them.",
     ].filter(Boolean).join("\n\n");
-    const userMessage = [
-      "Instruction:",
-      instruction.trim(),
-      "",
-      "Selected text:",
-      snapshot.originalText,
-    ].join("\n");
+    // First round includes selected text; refinement rounds are instruction-only.
+    const isRefinement = history.length > 0;
+    const userMessage = isRefinement
+      ? instruction.trim()
+      : [
+          "Instruction:",
+          instruction.trim(),
+          "",
+          "Selected text:",
+          snapshot.originalText,
+        ].join("\n");
+
+    // Build prior messages from history. First user message includes selection context.
+    const priorMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+    for (let i = 0; i < history.length; i++) {
+      const entry = history[i];
+      if (i === 0 && entry.role === "user") {
+        // First user turn: include selection context
+        priorMessages.push({
+          role: "user",
+          content: ["Instruction:", entry.content, "", "Selected text:", snapshot.originalText].join("\n"),
+        });
+      } else {
+        priorMessages.push({ role: entry.role, content: entry.content });
+      }
+    }
 
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
@@ -889,7 +909,9 @@ export default class AugmentTerminalPlugin extends Plugin {
         userMessage,
         this.settings,
         resolvedModel,
-        signal
+        signal,
+        1024,
+        priorMessages
       );
       if (signal.aborted) return "";
       void this.accumulateSpend(resolvedModel, genUsage);

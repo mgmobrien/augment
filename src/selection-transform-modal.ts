@@ -16,10 +16,16 @@ const TRANSFORM_PRESETS: TransformPreset[] = [
   { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format", directReplace: false },
 ];
 
+export type TransformHistoryEntry = { role: "user" | "assistant"; content: string };
+
 export interface SelectionTransformModalOptions {
   noteTitle: string;
   selectionText: string;
-  onTransform: (instruction: string, signal: AbortSignal) => Promise<string>;
+  onTransform: (
+    instruction: string,
+    history: TransformHistoryEntry[],
+    signal: AbortSignal
+  ) => Promise<string>;
   onReplace: (candidate: string) => Promise<boolean> | boolean;
   onKeepBoth: (candidate: string) => Promise<boolean> | boolean;
 }
@@ -30,8 +36,11 @@ export class SelectionTransformModal extends Modal {
   private candidate = "";
   private hasCandidate = false;
   private isLoading = false;
+  private isRefining = false;
+  private history: TransformHistoryEntry[] = [];
   private activePreset: TransformPreset | null = null;
   private instructionEl: HTMLTextAreaElement | null = null;
+  private instructionLabelEl: HTMLDivElement | null = null;
   private candidateSectionEl: HTMLDivElement | null = null;
   private candidatePreEl: HTMLPreElement | null = null;
   private buttonRowEl: HTMLDivElement | null = null;
@@ -66,7 +75,7 @@ export class SelectionTransformModal extends Modal {
     });
     selectionPre.setText(this.options.selectionText);
 
-    contentEl.createEl("div", {
+    this.instructionLabelEl = contentEl.createDiv({
       cls: "augment-selection-transform-label",
       text: "Describe the change",
     });
@@ -170,18 +179,33 @@ export class SelectionTransformModal extends Modal {
       this.instructionEl.disabled = this.isLoading || this.hasCandidate;
     }
 
+    if (this.instructionLabelEl) {
+      this.instructionLabelEl.setText(this.isRefining ? "Refine" : "Describe the change");
+    }
+
+    if (this.instructionEl && this.isRefining && !this.hasCandidate && !this.isLoading) {
+      this.instructionEl.placeholder = "Make it shorter, reformat as bullets\u2026";
+    } else if (this.instructionEl && !this.isRefining) {
+      this.instructionEl.placeholder = "Turn this into a markdown table";
+    }
+
     if (this.presetsEl) {
       const chips = this.presetsEl.querySelectorAll<HTMLButtonElement>(".augment-selection-transform-preset-chip");
       chips.forEach((chip) => {
         chip.disabled = this.isLoading || this.hasCandidate;
       });
+      // Hide presets during refinement — they don't compose with follow-up instructions.
+      this.presetsEl.style.display = this.isRefining ? "none" : "";
     }
 
     if (this.candidatePreEl) {
       if (this.isLoading && !this.hasCandidate) {
         this.candidatePreEl.setText(this.activePreset?.directReplace ? "Applying fix\u2026" : "Generating candidate\u2026");
-      } else if (!this.hasCandidate) {
+      } else if (!this.hasCandidate && !this.isRefining) {
         this.candidatePreEl.setText("Generate a candidate to preview the change.");
+      } else if (!this.hasCandidate && this.isRefining) {
+        // Refining: show previous candidate while user types follow-up
+        this.candidatePreEl.setText(this.candidate || "Generate a candidate to preview the change.");
       } else {
         this.candidatePreEl.setText(this.candidate);
       }
@@ -206,6 +230,15 @@ export class SelectionTransformModal extends Modal {
       return;
     }
 
+    // Candidate review buttons: Cancel | Refine | Keep both | Replace
+    const refineBtn = this.buttonRowEl.createEl("button", {
+      text: "Refine",
+    });
+    refineBtn.disabled = this.isLoading;
+    refineBtn.addEventListener("click", () => {
+      this.enterRefineMode();
+    });
+
     const keepBothBtn = this.buttonRowEl.createEl("button", {
       text: "Keep both",
     });
@@ -224,6 +257,20 @@ export class SelectionTransformModal extends Modal {
     });
   }
 
+  private enterRefineMode(): void {
+    if (this.isLoading) return;
+    this.isRefining = true;
+    this.hasCandidate = false;
+    // Keep this.candidate so it stays visible in the preview
+    if (this.instructionEl) {
+      this.instructionEl.value = "";
+      this.instruction = "";
+    }
+    this.activePreset = null;
+    this.render();
+    window.setTimeout(() => this.instructionEl?.focus(), 10);
+  }
+
   private getEffectiveInstruction(): string {
     if (this.activePreset) {
       return this.activePreset.instruction;
@@ -240,17 +287,23 @@ export class SelectionTransformModal extends Modal {
     if (this.isLoading) return;
 
     this.isLoading = true;
-    this.candidate = "";
     this.hasCandidate = false;
     const controller = new AbortController();
     this.abortController = controller;
     this.render();
 
     try {
-      const candidate = await this.options.onTransform(instruction, controller.signal);
+      const candidate = await this.options.onTransform(
+        instruction,
+        [...this.history],
+        controller.signal
+      );
       if (controller.signal.aborted) return;
       this.candidate = candidate;
       this.hasCandidate = true;
+      // Accumulate history
+      this.history.push({ role: "user", content: instruction });
+      this.history.push({ role: "assistant", content: candidate });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -281,7 +334,11 @@ export class SelectionTransformModal extends Modal {
     this.render();
 
     try {
-      const candidate = await this.options.onTransform(instruction, controller.signal);
+      const candidate = await this.options.onTransform(
+        instruction,
+        [...this.history],
+        controller.signal
+      );
       if (controller.signal.aborted) return;
       const applied = await this.options.onReplace(candidate);
       if (applied) {
@@ -290,6 +347,8 @@ export class SelectionTransformModal extends Modal {
       }
       this.candidate = candidate;
       this.hasCandidate = true;
+      this.history.push({ role: "user", content: instruction });
+      this.history.push({ role: "assistant", content: candidate });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);

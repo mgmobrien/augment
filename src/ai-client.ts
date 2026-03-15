@@ -309,9 +309,15 @@ export async function generateText(
   settings: AugmentSettings,
   modelOverride?: string,
   signal?: AbortSignal,
-  maxTokens = 1024
+  maxTokens = 1024,
+  priorMessages: Array<{ role: "user" | "assistant"; content: string }> = []
 ): Promise<GenerateResult> {
   const model = modelOverride ?? settings.model;
+
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [
+    ...priorMessages,
+    { role: "user", content: userMessage },
+  ];
 
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create(
@@ -319,7 +325,7 @@ export async function generateText(
       model,
       max_tokens: maxTokens,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages,
     },
     { signal }
   );
