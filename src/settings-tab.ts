@@ -531,9 +531,11 @@ export class AugmentSettingTab extends PluginSettingTab {
       "terminal": "Terminal",
     };
 
+    continuationPane.createDiv({ cls: "augment-section-label", text: "APPEARANCE" });
+
     const ribbonIconSetting = new Setting(continuationPane)
-      .setName("Generate ribbon icon")
-      .setDesc("Icon shown on the Generate ribbon button.")
+      .setName("Ribbon icon")
+      .setDesc("Icon for the Generate button in the ribbon.")
       .addDropdown((dd) => {
         for (const [id, label] of Object.entries(RIBBON_ICONS)) {
           dd.addOption(id, label);
@@ -552,8 +554,8 @@ export class AugmentSettingTab extends PluginSettingTab {
     setIcon(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
 
     new Setting(continuationPane)
-      .setName("Colored Generate icon")
-      .setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.")
+      .setName("Colored ribbon icon")
+      .setDesc("Show the ribbon icon in color. When off, it stays monochrome.")
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
           this.plugin.settings.coloredRibbonIcon = val;
@@ -563,6 +565,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       });
 
     const calloutTypes = detectCalloutTypes();
+
+    continuationPane.createDiv({ cls: "augment-section-label", text: "OUTPUT" });
 
     const formatSetting = new Setting(continuationPane)
       .setName("Output format")
@@ -717,6 +721,8 @@ export class AugmentSettingTab extends PluginSettingTab {
             });
         });
       addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
+
+      continuationPane.createDiv({ cls: "augment-section-label", text: "MODEL" });
 
       const systemPromptSetting = new Setting(continuationPane)
         .setName("System prompt")
