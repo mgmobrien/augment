@@ -304,11 +304,11 @@ export class SelectionTransformModal extends Modal {
         controller.signal
       );
       if (controller.signal.aborted) return;
-      this.candidate = candidate;
+      this.candidate = candidate.trimStart();
       this.hasCandidate = true;
       // Accumulate history
       this.history.push({ role: "user", content: instruction });
-      this.history.push({ role: "assistant", content: candidate });
+      this.history.push({ role: "assistant", content: this.candidate });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -345,15 +345,16 @@ export class SelectionTransformModal extends Modal {
         controller.signal
       );
       if (controller.signal.aborted) return;
-      const applied = await this.options.onReplace(candidate);
+      const trimmed = candidate.trimStart();
+      const applied = await this.options.onReplace(trimmed);
       if (applied) {
         this.close();
         return;
       }
-      this.candidate = candidate;
+      this.candidate = trimmed;
       this.hasCandidate = true;
       this.history.push({ role: "user", content: instruction });
-      this.history.push({ role: "assistant", content: candidate });
+      this.history.push({ role: "assistant", content: trimmed });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
