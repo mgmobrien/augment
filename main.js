@@ -27566,6 +27566,14 @@ var InitTeamModal = class extends import_obsidian13.Modal {
 
 // src/selection-transform-modal.ts
 var import_obsidian14 = require("obsidian");
+var TRANSFORM_PRESETS = [
+  { label: "\u26A1 Fix/proofread", instruction: "Fix spelling, grammar, and punctuation. Preserve meaning and tone.", category: "quality", directReplace: true },
+  { label: "Formalize", instruction: "Rewrite in clear, professional prose. Preserve meaning.", category: "quality", directReplace: false },
+  { label: "Summarize", instruction: "Summarize this text concisely, preserving key information.", category: "structure", directReplace: false },
+  { label: "Action items", instruction: "Extract action items as a markdown bullet list.", category: "structure", directReplace: false },
+  { label: "\u2192 Table", instruction: "Convert this text into a well-structured markdown table.", category: "format", directReplace: false },
+  { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format", directReplace: false }
+];
 var SelectionTransformModal = class extends import_obsidian14.Modal {
   constructor(app, options) {
     super(app);
@@ -27573,10 +27581,12 @@ var SelectionTransformModal = class extends import_obsidian14.Modal {
     this.candidate = "";
     this.hasCandidate = false;
     this.isLoading = false;
+    this.activePreset = null;
     this.instructionEl = null;
     this.candidateSectionEl = null;
     this.candidatePreEl = null;
     this.buttonRowEl = null;
+    this.presetsEl = null;
     this.abortController = null;
     this.options = options;
   }
@@ -27604,6 +27614,18 @@ var SelectionTransformModal = class extends import_obsidian14.Modal {
       cls: "augment-selection-transform-label",
       text: "Describe the change"
     });
+    this.presetsEl = contentEl.createDiv({
+      cls: "augment-selection-transform-presets"
+    });
+    for (const preset of TRANSFORM_PRESETS) {
+      const chip = this.presetsEl.createEl("button", {
+        cls: "augment-selection-transform-preset-chip",
+        text: preset.label
+      });
+      chip.addEventListener("click", () => {
+        void this.activatePreset(preset);
+      });
+    }
     this.instructionEl = contentEl.createEl("textarea", {
       cls: "augment-selection-transform-input",
       attr: {
@@ -27614,11 +27636,19 @@ var SelectionTransformModal = class extends import_obsidian14.Modal {
     this.instructionEl.addEventListener("input", () => {
       var _a3, _b;
       this.instruction = (_b = (_a3 = this.instructionEl) == null ? void 0 : _a3.value) != null ? _b : "";
+      if (this.activePreset && this.instruction !== this.activePreset.label) {
+        this.activePreset = null;
+        this.renderPresetChips();
+      }
     });
     this.instructionEl.addEventListener("keydown", (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !this.hasCandidate) {
         event.preventDefault();
-        void this.submitTransform();
+        if (event.shiftKey) {
+          void this.submitDirectReplace();
+        } else {
+          void this.submitTransform();
+        }
       }
     });
     this.candidateSectionEl = contentEl.createDiv({
@@ -27646,13 +27676,48 @@ var SelectionTransformModal = class extends import_obsidian14.Modal {
     this.abortController = null;
     this.contentEl.empty();
   }
+  renderPresetChips() {
+    if (!this.presetsEl) return;
+    const chips = this.presetsEl.querySelectorAll(".augment-selection-transform-preset-chip");
+    chips.forEach((chip, i) => {
+      const preset = TRANSFORM_PRESETS[i];
+      if (this.activePreset === preset) {
+        chip.addClass("is-active");
+      } else {
+        chip.removeClass("is-active");
+      }
+    });
+  }
+  async activatePreset(preset) {
+    var _a3;
+    if (this.isLoading || this.hasCandidate) return;
+    this.activePreset = preset;
+    this.renderPresetChips();
+    if (preset.directReplace) {
+      this.instruction = preset.instruction;
+      void this.submitDirectReplace();
+    } else {
+      if (this.instructionEl) {
+        this.instructionEl.value = preset.label;
+      }
+      this.instruction = preset.label;
+      (_a3 = this.instructionEl) == null ? void 0 : _a3.focus();
+    }
+  }
   render() {
+    var _a3;
     if (this.instructionEl) {
       this.instructionEl.disabled = this.isLoading || this.hasCandidate;
     }
+    if (this.presetsEl) {
+      const chips = this.presetsEl.querySelectorAll(".augment-selection-transform-preset-chip");
+      chips.forEach((chip) => {
+        chip.disabled = this.isLoading || this.hasCandidate;
+      });
+    }
     if (this.candidatePreEl) {
       if (this.isLoading && !this.hasCandidate) {
-        this.candidatePreEl.setText("Generating candidate\u2026");
+        this.candidatePreEl.setText(((_a3 = this.activePreset) == null ? void 0 : _a3.directReplace) ? "Applying fix\u2026" : "Generating candidate\u2026");
       } else if (!this.hasCandidate) {
         this.candidatePreEl.setText("Generate a candidate to preview the change.");
       } else {
@@ -27691,8 +27756,14 @@ var SelectionTransformModal = class extends import_obsidian14.Modal {
       void this.applyCandidate("replace");
     });
   }
+  getEffectiveInstruction() {
+    if (this.activePreset) {
+      return this.activePreset.instruction;
+    }
+    return this.instruction.trim();
+  }
   async submitTransform() {
-    const instruction = this.instruction.trim();
+    const instruction = this.getEffectiveInstruction();
     if (!instruction) {
       new import_obsidian14.Notice("Enter an instruction first");
       return;
@@ -27713,6 +27784,42 @@ var SelectionTransformModal = class extends import_obsidian14.Modal {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
       const lead = "Augment couldn't generate a candidate for this selection.";
+      new import_obsidian14.Notice(message ? `${lead} ${message}` : lead);
+    } finally {
+      if (this.abortController === controller) {
+        this.abortController = null;
+      }
+      this.isLoading = false;
+      this.render();
+    }
+  }
+  async submitDirectReplace() {
+    const instruction = this.getEffectiveInstruction();
+    if (!instruction) {
+      new import_obsidian14.Notice("Enter an instruction first");
+      return;
+    }
+    if (this.isLoading) return;
+    this.isLoading = true;
+    this.candidate = "";
+    this.hasCandidate = false;
+    const controller = new AbortController();
+    this.abortController = controller;
+    this.render();
+    try {
+      const candidate = await this.options.onTransform(instruction, controller.signal);
+      if (controller.signal.aborted) return;
+      const applied = await this.options.onReplace(candidate);
+      if (applied) {
+        this.close();
+        return;
+      }
+      this.candidate = candidate;
+      this.hasCandidate = true;
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const message = err instanceof Error ? err.message : String(err);
+      const lead = "Augment couldn't apply the transform.";
       new import_obsidian14.Notice(message ? `${lead} ${message}` : lead);
     } finally {
       if (this.abortController === controller) {
@@ -28075,8 +28182,8 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-14T18:32:24.511Z";
-    this.gitSha = "77cc760";
+    this.buildId = "2026-03-14T21:51:49.715Z";
+    this.gitSha = "17c440b";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

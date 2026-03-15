@@ -1,5 +1,21 @@
 import { App, Modal, Notice } from "obsidian";
 
+export interface TransformPreset {
+  label: string;
+  instruction: string;
+  category: "quality" | "format" | "structure";
+  directReplace: boolean;
+}
+
+const TRANSFORM_PRESETS: TransformPreset[] = [
+  { label: "\u26A1 Fix/proofread", instruction: "Fix spelling, grammar, and punctuation. Preserve meaning and tone.", category: "quality", directReplace: true },
+  { label: "Formalize", instruction: "Rewrite in clear, professional prose. Preserve meaning.", category: "quality", directReplace: false },
+  { label: "Summarize", instruction: "Summarize this text concisely, preserving key information.", category: "structure", directReplace: false },
+  { label: "Action items", instruction: "Extract action items as a markdown bullet list.", category: "structure", directReplace: false },
+  { label: "\u2192 Table", instruction: "Convert this text into a well-structured markdown table.", category: "format", directReplace: false },
+  { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format", directReplace: false },
+];
+
 export interface SelectionTransformModalOptions {
   noteTitle: string;
   selectionText: string;
@@ -14,10 +30,12 @@ export class SelectionTransformModal extends Modal {
   private candidate = "";
   private hasCandidate = false;
   private isLoading = false;
+  private activePreset: TransformPreset | null = null;
   private instructionEl: HTMLTextAreaElement | null = null;
   private candidateSectionEl: HTMLDivElement | null = null;
   private candidatePreEl: HTMLPreElement | null = null;
   private buttonRowEl: HTMLDivElement | null = null;
+  private presetsEl: HTMLDivElement | null = null;
   private abortController: AbortController | null = null;
 
   constructor(app: App, options: SelectionTransformModalOptions) {
@@ -52,6 +70,20 @@ export class SelectionTransformModal extends Modal {
       cls: "augment-selection-transform-label",
       text: "Describe the change",
     });
+
+    this.presetsEl = contentEl.createDiv({
+      cls: "augment-selection-transform-presets",
+    });
+    for (const preset of TRANSFORM_PRESETS) {
+      const chip = this.presetsEl.createEl("button", {
+        cls: "augment-selection-transform-preset-chip",
+        text: preset.label,
+      });
+      chip.addEventListener("click", () => {
+        void this.activatePreset(preset);
+      });
+    }
+
     this.instructionEl = contentEl.createEl("textarea", {
       cls: "augment-selection-transform-input",
       attr: {
@@ -61,11 +93,19 @@ export class SelectionTransformModal extends Modal {
     });
     this.instructionEl.addEventListener("input", () => {
       this.instruction = this.instructionEl?.value ?? "";
+      if (this.activePreset && this.instruction !== this.activePreset.label) {
+        this.activePreset = null;
+        this.renderPresetChips();
+      }
     });
     this.instructionEl.addEventListener("keydown", (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !this.hasCandidate) {
         event.preventDefault();
-        void this.submitTransform();
+        if (event.shiftKey) {
+          void this.submitDirectReplace();
+        } else {
+          void this.submitTransform();
+        }
       }
     });
 
@@ -94,14 +134,52 @@ export class SelectionTransformModal extends Modal {
     this.contentEl.empty();
   }
 
+  private renderPresetChips(): void {
+    if (!this.presetsEl) return;
+    const chips = this.presetsEl.querySelectorAll(".augment-selection-transform-preset-chip");
+    chips.forEach((chip, i) => {
+      const preset = TRANSFORM_PRESETS[i];
+      if (this.activePreset === preset) {
+        chip.addClass("is-active");
+      } else {
+        chip.removeClass("is-active");
+      }
+    });
+  }
+
+  private async activatePreset(preset: TransformPreset): Promise<void> {
+    if (this.isLoading || this.hasCandidate) return;
+
+    this.activePreset = preset;
+    this.renderPresetChips();
+
+    if (preset.directReplace) {
+      this.instruction = preset.instruction;
+      void this.submitDirectReplace();
+    } else {
+      if (this.instructionEl) {
+        this.instructionEl.value = preset.label;
+      }
+      this.instruction = preset.label;
+      this.instructionEl?.focus();
+    }
+  }
+
   private render(): void {
     if (this.instructionEl) {
       this.instructionEl.disabled = this.isLoading || this.hasCandidate;
     }
 
+    if (this.presetsEl) {
+      const chips = this.presetsEl.querySelectorAll<HTMLButtonElement>(".augment-selection-transform-preset-chip");
+      chips.forEach((chip) => {
+        chip.disabled = this.isLoading || this.hasCandidate;
+      });
+    }
+
     if (this.candidatePreEl) {
       if (this.isLoading && !this.hasCandidate) {
-        this.candidatePreEl.setText("Generating candidate…");
+        this.candidatePreEl.setText(this.activePreset?.directReplace ? "Applying fix\u2026" : "Generating candidate\u2026");
       } else if (!this.hasCandidate) {
         this.candidatePreEl.setText("Generate a candidate to preview the change.");
       } else {
@@ -119,7 +197,7 @@ export class SelectionTransformModal extends Modal {
     if (!this.hasCandidate) {
       const transformBtn = this.buttonRowEl.createEl("button", {
         cls: "mod-cta",
-        text: this.isLoading ? "Generating candidate…" : "Generate candidate",
+        text: this.isLoading ? "Generating candidate\u2026" : "Generate candidate",
       });
       transformBtn.disabled = this.isLoading;
       transformBtn.addEventListener("click", () => {
@@ -146,8 +224,15 @@ export class SelectionTransformModal extends Modal {
     });
   }
 
+  private getEffectiveInstruction(): string {
+    if (this.activePreset) {
+      return this.activePreset.instruction;
+    }
+    return this.instruction.trim();
+  }
+
   private async submitTransform(): Promise<void> {
-    const instruction = this.instruction.trim();
+    const instruction = this.getEffectiveInstruction();
     if (!instruction) {
       new Notice("Enter an instruction first");
       return;
@@ -170,6 +255,45 @@ export class SelectionTransformModal extends Modal {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
       const lead = "Augment couldn't generate a candidate for this selection.";
+      new Notice(message ? `${lead} ${message}` : lead);
+    } finally {
+      if (this.abortController === controller) {
+        this.abortController = null;
+      }
+      this.isLoading = false;
+      this.render();
+    }
+  }
+
+  private async submitDirectReplace(): Promise<void> {
+    const instruction = this.getEffectiveInstruction();
+    if (!instruction) {
+      new Notice("Enter an instruction first");
+      return;
+    }
+    if (this.isLoading) return;
+
+    this.isLoading = true;
+    this.candidate = "";
+    this.hasCandidate = false;
+    const controller = new AbortController();
+    this.abortController = controller;
+    this.render();
+
+    try {
+      const candidate = await this.options.onTransform(instruction, controller.signal);
+      if (controller.signal.aborted) return;
+      const applied = await this.options.onReplace(candidate);
+      if (applied) {
+        this.close();
+        return;
+      }
+      this.candidate = candidate;
+      this.hasCandidate = true;
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const message = err instanceof Error ? err.message : String(err);
+      const lead = "Augment couldn't apply the transform.";
       new Notice(message ? `${lead} ${message}` : lead);
     } finally {
       if (this.abortController === controller) {
