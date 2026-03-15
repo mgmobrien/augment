@@ -22,6 +22,7 @@ import type {
   TeamRosterProject,
 } from "../packages/shared-domain/src";
 import { ContextInspectorView, VIEW_TYPE_CONTEXT_INSPECTOR } from "./context-inspector-view";
+import { ContextWriter } from "./context-writer";
 import { openAllMessages, PartInboxView, VIEW_TYPE_PART_INBOX } from "./part-inbox-view";
 import { AugmentSettingTab } from "./settings-tab";
 import { getTemplateFiles, runGenerateTemplatesFlow, TemplatePicker, TemplatePreviewModal } from "./template-picker";
@@ -220,6 +221,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private waitingCursor: number = 0;
   private activeGenerations: Map<string, ActiveGeneration> = new Map();
   private generationCounter = 0;
+  private contextWriter: ContextWriter | null = null;
   private busPollerManager: BusPollerManager | null = null;
   private readonly managedDeliveryByRole: Map<string, DeliveryObservation> = new Map();
   private readonly addressedTerminalPollers = new Map<string, { address: string; view: AddressedTerminalView }>();
@@ -1824,6 +1826,15 @@ export default class AugmentTerminalPlugin extends Plugin {
       })
     );
 
+    // Context writer — updates .augment/context.md on active-leaf-change
+    // so CC sessions can read current vault state via UserPromptSubmit hook.
+    this.contextWriter = new ContextWriter(this.app);
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        this.contextWriter?.onActiveLeafChange(leaf);
+      })
+    );
+
     this.register(
       setBusNotifier(this.app, () => (this.app.workspace as any).trigger("augment-bus:changed"))
     );
@@ -2003,6 +2014,8 @@ export default class AugmentTerminalPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     delete (globalThis as any).__augmentCancelGeneration;
+    this.contextWriter?.destroy();
+    this.contextWriter = null;
     this.busPollerManager?.stopAll();
     this.busPollerManager = null;
     this.addressedTerminalPollers.clear();
