@@ -1,6 +1,6 @@
 {
   "name": "augment-terminal",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "author": "System 3",
   "description": "Terminal panes in Obsidian for running Claude Code sessions",
   "main": "main.js",
