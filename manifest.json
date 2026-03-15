@@ -1,7 +1,7 @@
 {
   "id": "augment-terminal",
   "name": "Augment",
-  "version": "0.0.17",
+  "version": "0.0.19",
   "minAppVersion": "0.15.0",
   "description": "Run Claude Code terminal sessions and generate inline text within your notes using the Anthropic API.",
   "author": "System 3",
