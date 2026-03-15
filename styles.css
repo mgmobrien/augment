@@ -2162,15 +2162,6 @@
 }
 
 /* ── Terminal manager: section labels and history ── */
-.augment-tm-section-label {
-  font-size: var(--font-smallest);
-  font-weight: var(--font-semibold);
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 8px 8px 4px;
-  user-select: none;
-}
 
 .augment-tm-date-group {
   font-size: var(--font-smallest);
@@ -3089,26 +3080,30 @@ details[open] .augment-advanced-summary::before { content: "\25be\00a0"; }
   overflow: hidden;
 }
 
-/* ── Terminal Manager: section divider (RECENT collapse toggle) ─────────── */
+/* ── Terminal Manager: unified section headings ─────────── */
 .augment-tm-section-divider {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 6px 8px;
   cursor: pointer;
   user-select: none;
-  border-top: 1px solid var(--background-modifier-border);
-  margin-top: 4px;
+  margin-top: 8px;
+}
+.augment-tm-section-divider.augment-tm-section-first {
+  margin-top: 0;
+  cursor: default;
 }
 .augment-tm-section-divider .augment-tm-section-label {
-  font-size: 0.7em;
-  font-weight: 600;
+  font-size: var(--font-smallest);
+  font-weight: var(--font-semibold);
   letter-spacing: 0.08em;
   color: var(--text-faint);
   text-transform: uppercase;
+  padding: 0;
 }
 .augment-tm-section-count {
-  font-size: 0.7em;
+  font-size: var(--font-smallest);
   color: var(--text-faint);
 }
 .augment-tm-section-chevron {

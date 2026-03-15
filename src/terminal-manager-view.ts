@@ -87,11 +87,10 @@ export class TerminalManagerView extends ItemView {
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
 
-  // Collapse state for RECENT and HISTORY sections (both collapsed by default).
-  private recentCollapseState: "open" | "closed" = "closed";
-  private historyCollapseState: "open" | "closed" = "closed";
+  // Collapse state for sidebar sections.
+  private terminalHistoryCollapseState: "open" | "closed" = "closed";
   private inboxCollapseState: "open" | "closed" = "open";
-  private partsCollapseState: "open" | "closed" = "open";
+  private teamsCollapseState: "open" | "closed" = "open";
   private collapsedManagedTeams: Set<string> = new Set();
 
 
@@ -461,7 +460,8 @@ export class TerminalManagerView extends ItemView {
     const hasHistory = sessions.length > 0;
     const hasOtherProjects = otherGroups.length > 0;
 
-    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
+    const sessionsDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider augment-tm-section-first" });
+    sessionsDivider.createSpan({ cls: "augment-tm-section-label", text: "SESSIONS" });
 
     if (!hasOpen && !hasHistory && !hasOtherProjects) {
       const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
@@ -494,76 +494,33 @@ export class TerminalManagerView extends ItemView {
       this.renderPartsSection(parts);
     }
 
-    // ── RECENT + HISTORY sections ──────────────────────────
+    // ── TERMINAL HISTORY section ──────────────────────────
     if (hasHistory) {
-      // Split sessions: "recent" = today + yesterday, "history" = older.
-      const now = new Date();
-      const todayStr = this.dateStr(now);
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-      const yesterdayStr = this.dateStr(yesterday);
+      const histExpanded = this.terminalHistoryCollapseState === "open";
 
-      const recentSessions: SessionMeta[] = [];
-      const historySessions: SessionMeta[] = [];
-      for (const s of sessions) {
-        const dStr = this.dateStr(new Date(s.mtimeMs));
-        if (dStr === todayStr || dStr === yesterdayStr) {
-          recentSessions.push(s);
-        } else {
-          historySessions.push(s);
-        }
-      }
+      const histDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (histExpanded) histDivider.addClass("is-open");
+      histDivider.createSpan({ cls: "augment-tm-section-label", text: "TERMINAL HISTORY" });
+      histDivider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
+      histDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
-      // ── RECENT (today + yesterday) ──
-      if (recentSessions.length > 0) {
-        const recentExpanded = this.recentCollapseState === "open";
+      const histContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+      if (!histExpanded) histContainer.style.display = "none";
+      this.renderHistorySections(sessions, histContainer);
 
-        const recentDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-        if (recentExpanded) recentDivider.addClass("is-open");
-        recentDivider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
-        recentDivider.createSpan({ cls: "augment-tm-section-count", text: `(${recentSessions.length})` });
-        recentDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
-
-        const recentContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-        if (!recentExpanded) recentContainer.style.display = "none";
-        this.renderHistorySections(recentSessions, recentContainer);
-
-        recentDivider.addEventListener("click", () => {
-          this.suppressRefresh();
-          this.recentCollapseState = recentExpanded ? "closed" : "open";
-          recentDivider.toggleClass("is-open", !recentExpanded);
-          recentContainer.style.display = recentExpanded ? "none" : "";
-        });
-      }
-
-      // ── HISTORY (older than yesterday) ──
-      if (historySessions.length > 0) {
-        const historyExpanded = this.historyCollapseState === "open";
-
-        const historyDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-        if (historyExpanded) historyDivider.addClass("is-open");
-        historyDivider.createSpan({ cls: "augment-tm-section-label", text: "HISTORY" });
-        historyDivider.createSpan({ cls: "augment-tm-section-count", text: `(${historySessions.length})` });
-        historyDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
-
-        const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-        if (!historyExpanded) historyContainer.style.display = "none";
-        this.renderHistorySections(historySessions, historyContainer);
-
-        historyDivider.addEventListener("click", () => {
-          this.suppressRefresh();
-          this.historyCollapseState = historyExpanded ? "closed" : "open";
-          historyDivider.toggleClass("is-open", !historyExpanded);
-          historyContainer.style.display = historyExpanded ? "none" : "";
-        });
-      }
+      histDivider.addEventListener("click", () => {
+        this.suppressRefresh();
+        this.terminalHistoryCollapseState = histExpanded ? "closed" : "open";
+        histDivider.toggleClass("is-open", !histExpanded);
+        histContainer.style.display = histExpanded ? "none" : "";
+      });
     }
 
     // ── OTHER WORKSPACES section ─────────────────────────────────
     if (this.otherProjectsEnabled) {
       const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
       if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
-      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "WORKSPACES" });
       otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
       const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
@@ -585,7 +542,7 @@ export class TerminalManagerView extends ItemView {
       });
     } else {
       const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "WORKSPACES" });
 
       // Info icon explaining what "other projects" reads.
       const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24d8" });
@@ -1022,11 +979,11 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderPartsSection(parts: PartInfo[]): void {
-    const isExpanded = this.partsCollapseState !== "closed";
+    const isExpanded = this.teamsCollapseState !== "closed";
 
     const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
-    divider.createSpan({ cls: "augment-tm-section-label", text: "PARTS" });
+    divider.createSpan({ cls: "augment-tm-section-label", text: "TEAMS" });
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
     const partsContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
@@ -1034,7 +991,7 @@ export class TerminalManagerView extends ItemView {
 
     partsContainer.createDiv({
       cls: "augment-tm-part-helper",
-      text: "Click a part to see conversation history. Use the pen to send a message.",
+      text: "Click a team member to see conversation history. Use the pen to send a message.",
     });
 
     if (parts.length === 0) {
@@ -1063,7 +1020,7 @@ export class TerminalManagerView extends ItemView {
 
     divider.addEventListener("click", () => {
       this.suppressRefresh();
-      this.partsCollapseState = isExpanded ? "closed" : "open";
+      this.teamsCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
       partsContainer.style.display = isExpanded ? "none" : "";
     });
