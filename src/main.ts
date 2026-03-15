@@ -2045,7 +2045,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   // Add the terminal ribbon icon if terminalSetupDone and not already added.
   public addTerminalRibbonIfNeeded(): void {
     if (this.settings.terminalSetupDone && !this.ribbonTerminalEl) {
-      this.ribbonTerminalEl = this.addRibbonIcon("terminal", "Open terminal", () => {
+      this.ribbonTerminalEl = this.addRibbonIcon("square-terminal", "Open terminal", () => {
         this.openTerminalAt(this.settings.defaultTerminalLocation);
       });
     }

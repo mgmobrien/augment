@@ -24927,6 +24927,9 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
     this.sessionStore = null;
     this.historyLoadedCount = 20;
     this.refreshFrameId = null;
+    // Short cooldown after collapse toggles to prevent active-leaf-change from
+    // triggering a full DOM rebuild that clobbers the instant toggle.
+    this.suppressRefreshUntil = 0;
     this.otherProjectsEnabled = false;
     this.otherProjectsExpanded = true;
     // Async loader state objects — owned by createAsyncLoader() closures.
@@ -24938,15 +24941,16 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
     };
     // Which other-project groups are expanded (collapsed by default).
     this.expandedProjects = /* @__PURE__ */ new Set();
-    // Collapse state for the RECENT history section.
-    // "auto": expand when no live sessions, collapse otherwise.
-    // "open" / "closed": explicit user preference.
-    this.historyCollapseState = "auto";
+    // Collapse state for sidebar sections.
+    this.terminalHistoryCollapseState = "closed";
     this.inboxCollapseState = "open";
-    this.partsCollapseState = "open";
+    this.rosterCollapseState = "open";
     this.collapsedManagedTeams = /* @__PURE__ */ new Set();
     // Hover tooltip for session activity.
     this.tooltipEl = null;
+  }
+  suppressRefresh() {
+    this.suppressRefreshUntil = Date.now() + 300;
   }
   getViewType() {
     return VIEW_TYPE_TERMINAL_MANAGER;
@@ -25047,6 +25051,10 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
   requestRefresh() {
     if (this.refreshFrameId !== null) {
       window.cancelAnimationFrame(this.refreshFrameId);
+    }
+    if (Date.now() < this.suppressRefreshUntil) {
+      this.refreshFrameId = null;
+      return;
     }
     this.refreshFrameId = window.requestAnimationFrame(() => {
       this.refreshFrameId = null;
@@ -25229,7 +25237,8 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
     const hasOpen = leaves.length > 0;
     const hasHistory = sessions.length > 0;
     const hasOtherProjects = otherGroups.length > 0;
-    this.listEl.createDiv({ cls: "augment-tm-section-label", text: "LIVE" });
+    const sessionsDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider augment-tm-section-first" });
+    sessionsDivider.createSpan({ cls: "augment-tm-section-label", text: "SESSIONS" });
     if (!hasOpen && !hasHistory && !hasOtherProjects) {
       const emptyEl = this.listEl.createDiv({ cls: "augment-tm-empty" });
       emptyEl.createDiv({ text: "No terminals yet." });
@@ -25255,25 +25264,26 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
       this.renderPartsSection(parts);
     }
     if (hasHistory) {
-      const isExpanded = this.historyCollapseState === "open" || this.historyCollapseState === "auto" && !hasOpen;
-      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (isExpanded) divider.addClass("is-open");
-      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
-      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
-      divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
-      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-      if (!isExpanded) historyContainer.style.display = "none";
-      this.renderHistorySections(sessions, historyContainer);
-      divider.addEventListener("click", () => {
-        this.historyCollapseState = isExpanded ? "closed" : "open";
-        divider.toggleClass("is-open", !isExpanded);
-        historyContainer.style.display = isExpanded ? "none" : "";
+      const histExpanded = this.terminalHistoryCollapseState === "open";
+      const histDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+      if (histExpanded) histDivider.addClass("is-open");
+      histDivider.createSpan({ cls: "augment-tm-section-label", text: "TERMINAL HISTORY" });
+      histDivider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
+      histDivider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
+      const histContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+      if (!histExpanded) histContainer.style.display = "none";
+      this.renderHistorySections(sessions, histContainer);
+      histDivider.addEventListener("click", () => {
+        this.suppressRefresh();
+        this.terminalHistoryCollapseState = histExpanded ? "closed" : "open";
+        histDivider.toggleClass("is-open", !histExpanded);
+        histContainer.style.display = histExpanded ? "none" : "";
       });
     }
     if (this.otherProjectsEnabled) {
       const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
       if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
-      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "WORKSPACES" });
       otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
       const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
       if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
@@ -25285,13 +25295,14 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
         otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other workspaces found" });
       }
       otherDivider.addEventListener("click", () => {
+        this.suppressRefresh();
         this.otherProjectsExpanded = !this.otherProjectsExpanded;
         otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
         otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
       });
     } else {
       const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "WORKSPACES" });
       const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24D8" });
       let tip = null;
       infoIcon.addEventListener("mouseenter", () => {
@@ -25559,6 +25570,7 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
         });
       }
       header.addEventListener("click", () => {
+        this.suppressRefresh();
         const nextExpanded = this.collapsedManagedTeams.has(group.teamId);
         if (nextExpanded) {
           this.collapsedManagedTeams.delete(group.teamId);
@@ -25642,21 +25654,21 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
   }
   renderPartsSection(parts) {
     var _a3;
-    const isExpanded = this.partsCollapseState !== "closed";
+    const isExpanded = this.rosterCollapseState !== "closed";
     const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
-    divider.createSpan({ cls: "augment-tm-section-label", text: "PARTS" });
+    divider.createSpan({ cls: "augment-tm-section-label", text: "ROSTER" });
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
     const partsContainer = this.listEl.createDiv({ cls: "augment-tm-parts-container" });
     if (!isExpanded) partsContainer.style.display = "none";
     partsContainer.createDiv({
       cls: "augment-tm-part-helper",
-      text: "Click a part to see conversation history. Use the pen to send a message."
+      text: "Click an agent to see conversation history. Use the pen to send a message."
     });
     if (parts.length === 0) {
       partsContainer.createDiv({
         cls: "augment-tm-empty augment-tm-parts-empty",
-        text: "No parts found. Parts are AI agents that live in your vault."
+        text: "No agents found. Set up agents in your vault to see them here."
       });
     }
     const groups = /* @__PURE__ */ new Map();
@@ -25675,7 +25687,8 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
       }
     }
     divider.addEventListener("click", () => {
-      this.partsCollapseState = isExpanded ? "closed" : "open";
+      this.suppressRefresh();
+      this.rosterCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
       partsContainer.style.display = isExpanded ? "none" : "";
     });
@@ -25712,6 +25725,7 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
       "Open messages addressed to you"
     );
     divider.addEventListener("click", () => {
+      this.suppressRefresh();
       this.inboxCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
       inboxContainer.style.display = isExpanded ? "none" : "";
@@ -25775,6 +25789,7 @@ var TerminalManagerView = class extends import_obsidian12.ItemView {
       if (!isExpanded) sessionsEl.style.display = "none";
       this.renderHistorySections(group.sessions, sessionsEl);
       projectRow.addEventListener("click", () => {
+        this.suppressRefresh();
         if (this.expandedProjects.has(group.encodedName)) {
           this.expandedProjects.delete(group.encodedName);
           projectRow.removeClass("is-expanded");
@@ -28027,10 +28042,10 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
         controller.signal
       );
       if (controller.signal.aborted) return;
-      this.candidate = candidate;
+      this.candidate = candidate.trimStart();
       this.hasCandidate = true;
       this.history.push({ role: "user", content: instruction });
-      this.history.push({ role: "assistant", content: candidate });
+      this.history.push({ role: "assistant", content: this.candidate });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -28064,15 +28079,16 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
         controller.signal
       );
       if (controller.signal.aborted) return;
-      const applied = await this.options.onReplace(candidate);
+      const trimmed = candidate.trimStart();
+      const applied = await this.options.onReplace(trimmed);
       if (applied) {
         this.close();
         return;
       }
-      this.candidate = candidate;
+      this.candidate = trimmed;
       this.hasCandidate = true;
       this.history.push({ role: "user", content: instruction });
-      this.history.push({ role: "assistant", content: candidate });
+      this.history.push({ role: "assistant", content: trimmed });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -28439,8 +28455,8 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T07:26:11.823Z";
-    this.gitSha = "219d322";
+    this.buildId = "2026-03-15T17:45:15.648Z";
+    this.gitSha = "c8f0e72";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -30041,7 +30057,7 @@ ${candidate}`;
   // Add the terminal ribbon icon if terminalSetupDone and not already added.
   addTerminalRibbonIfNeeded() {
     if (this.settings.terminalSetupDone && !this.ribbonTerminalEl) {
-      this.ribbonTerminalEl = this.addRibbonIcon("terminal", "Open terminal", () => {
+      this.ribbonTerminalEl = this.addRibbonIcon("square-terminal", "Open terminal", () => {
         this.openTerminalAt(this.settings.defaultTerminalLocation);
       });
     }
