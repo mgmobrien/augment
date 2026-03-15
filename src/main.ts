@@ -477,6 +477,20 @@ export default class AugmentTerminalPlugin extends Plugin {
 
     this.statusBarEl.empty();
     this.statusBarEl.addClass("augment-status-bridge");
+
+    // Generation indicator takes priority over status bridge session count.
+    if (this.activeGenerations.size > 0) {
+      this.statusBarEl.toggleClass("is-quiet", false);
+      this.statusBarEl.toggleClass("is-active", true);
+      this.statusBarEl.setAttribute("aria-label", "Generating…");
+      this.statusBarEl.setAttribute("title", "Generating…");
+      this.statusBarEl.createSpan({
+        cls: "augment-status-bridge-label",
+        text: "Generating…",
+      });
+      return;
+    }
+
     this.statusBarEl.toggleClass("is-quiet", snapshot.activeSessionCount === 0);
     this.statusBarEl.toggleClass("is-active", snapshot.activeSessionCount > 0);
     this.statusBarEl.setAttribute("role", "button");

@@ -28182,8 +28182,8 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T03:46:37.783Z";
-    this.gitSha = "4674d57";
+    this.buildId = "2026-03-15T03:48:05.436Z";
+    this.gitSha = "1b8d27b";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -28406,6 +28406,17 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     const snapshot = this.getStatusBridgeSnapshot();
     this.statusBarEl.empty();
     this.statusBarEl.addClass("augment-status-bridge");
+    if (this.activeGenerations.size > 0) {
+      this.statusBarEl.toggleClass("is-quiet", false);
+      this.statusBarEl.toggleClass("is-active", true);
+      this.statusBarEl.setAttribute("aria-label", "Generating\u2026");
+      this.statusBarEl.setAttribute("title", "Generating\u2026");
+      this.statusBarEl.createSpan({
+        cls: "augment-status-bridge-label",
+        text: "Generating\u2026"
+      });
+      return;
+    }
     this.statusBarEl.toggleClass("is-quiet", snapshot.activeSessionCount === 0);
     this.statusBarEl.toggleClass("is-active", snapshot.activeSessionCount > 0);
     this.statusBarEl.setAttribute("role", "button");
