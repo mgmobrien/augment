@@ -3,17 +3,17 @@ import { App, Modal, Notice } from "obsidian";
 export interface TransformPreset {
   label: string;
   instruction: string;
-  category: "quality" | "format" | "structure";
-  directReplace: boolean;
+  category: "quality" | "format" | "structure" | "voice";
 }
 
 const TRANSFORM_PRESETS: TransformPreset[] = [
-  { label: "\u26A1 Fix/proofread", instruction: "Fix spelling, grammar, and punctuation. Preserve meaning and tone.", category: "quality", directReplace: true },
-  { label: "Formalize", instruction: "Rewrite in clear, professional prose. Preserve meaning.", category: "quality", directReplace: false },
-  { label: "Summarize", instruction: "Summarize this text concisely, preserving key information.", category: "structure", directReplace: false },
-  { label: "Action items", instruction: "Extract action items as a markdown bullet list.", category: "structure", directReplace: false },
-  { label: "\u2192 Table", instruction: "Convert this text into a well-structured markdown table.", category: "format", directReplace: false },
-  { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format", directReplace: false },
+  { label: "\u26A1 Fix/proofread", instruction: "Fix spelling, grammar, and punctuation. Preserve meaning and tone.", category: "quality" },
+  { label: "Formalize", instruction: "Rewrite in clear, professional prose. Preserve meaning.", category: "quality" },
+  { label: "Summarize", instruction: "Summarize this text concisely, preserving key information.", category: "structure" },
+  { label: "Action items", instruction: "Extract action items as a markdown bullet list.", category: "structure" },
+  { label: "\u2192 Table", instruction: "Convert this text into a well-structured markdown table.", category: "format" },
+  { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format" },
+  { label: "\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74\uDB40\uDC7F Thick Scottish accent", instruction: "Rewrite this text in a thick Scottish accent. Keep the meaning but change the voice.", category: "voice" },
 ];
 
 export type TransformHistoryEntry = { role: "user" | "assistant"; content: string };
@@ -162,16 +162,11 @@ export class SelectionTransformModal extends Modal {
     this.activePreset = preset;
     this.renderPresetChips();
 
-    if (preset.directReplace) {
-      this.instruction = preset.instruction;
-      void this.submitDirectReplace();
-    } else {
-      if (this.instructionEl) {
-        this.instructionEl.value = preset.label;
-      }
-      this.instruction = preset.label;
-      this.instructionEl?.focus();
+    if (this.instructionEl) {
+      this.instructionEl.value = preset.label;
     }
+    this.instruction = preset.label;
+    void this.submitTransform();
   }
 
   private render(): void {
@@ -200,7 +195,7 @@ export class SelectionTransformModal extends Modal {
 
     if (this.candidatePreEl) {
       if (this.isLoading && !this.hasCandidate) {
-        this.candidatePreEl.setText(this.activePreset?.directReplace ? "Applying fix\u2026" : "Generating candidate\u2026");
+        this.candidatePreEl.setText("Generating candidate\u2026");
       } else if (!this.hasCandidate && !this.isRefining) {
         this.candidatePreEl.setText("Generate a candidate to preview the change.");
       } else if (!this.hasCandidate && this.isRefining) {
@@ -219,12 +214,22 @@ export class SelectionTransformModal extends Modal {
     cancelBtn.addEventListener("click", () => this.close());
 
     if (!this.hasCandidate) {
-      const transformBtn = this.buttonRowEl.createEl("button", {
+      const applyBtn = this.buttonRowEl.createEl("button", {
+        text: this.isLoading ? "Applying\u2026" : "Apply directly",
+        attr: { title: "Skip preview and replace immediately (\u2318\u21E7\u23CE)" },
+      });
+      applyBtn.disabled = this.isLoading;
+      applyBtn.addEventListener("click", () => {
+        void this.submitDirectReplace();
+      });
+
+      const previewBtn = this.buttonRowEl.createEl("button", {
         cls: "mod-cta",
         text: this.isLoading ? "Generating candidate\u2026" : "Generate candidate",
+        attr: { title: "Preview before applying (\u2318\u23CE)" },
       });
-      transformBtn.disabled = this.isLoading;
-      transformBtn.addEventListener("click", () => {
+      previewBtn.disabled = this.isLoading;
+      previewBtn.addEventListener("click", () => {
         void this.submitTransform();
       });
       return;

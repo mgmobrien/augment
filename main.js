@@ -27774,12 +27774,13 @@ var InitTeamModal = class extends import_obsidian14.Modal {
 // src/selection-transform-modal.ts
 var import_obsidian15 = require("obsidian");
 var TRANSFORM_PRESETS = [
-  { label: "\u26A1 Fix/proofread", instruction: "Fix spelling, grammar, and punctuation. Preserve meaning and tone.", category: "quality", directReplace: true },
-  { label: "Formalize", instruction: "Rewrite in clear, professional prose. Preserve meaning.", category: "quality", directReplace: false },
-  { label: "Summarize", instruction: "Summarize this text concisely, preserving key information.", category: "structure", directReplace: false },
-  { label: "Action items", instruction: "Extract action items as a markdown bullet list.", category: "structure", directReplace: false },
-  { label: "\u2192 Table", instruction: "Convert this text into a well-structured markdown table.", category: "format", directReplace: false },
-  { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format", directReplace: false }
+  { label: "\u26A1 Fix/proofread", instruction: "Fix spelling, grammar, and punctuation. Preserve meaning and tone.", category: "quality" },
+  { label: "Formalize", instruction: "Rewrite in clear, professional prose. Preserve meaning.", category: "quality" },
+  { label: "Summarize", instruction: "Summarize this text concisely, preserving key information.", category: "structure" },
+  { label: "Action items", instruction: "Extract action items as a markdown bullet list.", category: "structure" },
+  { label: "\u2192 Table", instruction: "Convert this text into a well-structured markdown table.", category: "format" },
+  { label: "Callout", instruction: "Wrap this text in an Obsidian callout block. Choose an appropriate callout type.", category: "format" },
+  { label: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F} Thick Scottish accent", instruction: "Rewrite this text in a thick Scottish accent. Keep the meaning but change the voice.", category: "voice" }
 ];
 var SelectionTransformModal = class extends import_obsidian15.Modal {
   constructor(app, options) {
@@ -27899,23 +27900,16 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     });
   }
   async activatePreset(preset) {
-    var _a3;
     if (this.isLoading || this.hasCandidate) return;
     this.activePreset = preset;
     this.renderPresetChips();
-    if (preset.directReplace) {
-      this.instruction = preset.instruction;
-      void this.submitDirectReplace();
-    } else {
-      if (this.instructionEl) {
-        this.instructionEl.value = preset.label;
-      }
-      this.instruction = preset.label;
-      (_a3 = this.instructionEl) == null ? void 0 : _a3.focus();
+    if (this.instructionEl) {
+      this.instructionEl.value = preset.label;
     }
+    this.instruction = preset.label;
+    void this.submitTransform();
   }
   render() {
-    var _a3;
     if (this.instructionEl) {
       this.instructionEl.disabled = this.isLoading || this.hasCandidate;
     }
@@ -27936,7 +27930,7 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     }
     if (this.candidatePreEl) {
       if (this.isLoading && !this.hasCandidate) {
-        this.candidatePreEl.setText(((_a3 = this.activePreset) == null ? void 0 : _a3.directReplace) ? "Applying fix\u2026" : "Generating candidate\u2026");
+        this.candidatePreEl.setText("Generating candidate\u2026");
       } else if (!this.hasCandidate && !this.isRefining) {
         this.candidatePreEl.setText("Generate a candidate to preview the change.");
       } else if (!this.hasCandidate && this.isRefining) {
@@ -27951,12 +27945,21 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     cancelBtn.disabled = false;
     cancelBtn.addEventListener("click", () => this.close());
     if (!this.hasCandidate) {
-      const transformBtn = this.buttonRowEl.createEl("button", {
-        cls: "mod-cta",
-        text: this.isLoading ? "Generating candidate\u2026" : "Generate candidate"
+      const applyBtn = this.buttonRowEl.createEl("button", {
+        text: this.isLoading ? "Applying\u2026" : "Apply directly",
+        attr: { title: "Skip preview and replace immediately (\u2318\u21E7\u23CE)" }
       });
-      transformBtn.disabled = this.isLoading;
-      transformBtn.addEventListener("click", () => {
+      applyBtn.disabled = this.isLoading;
+      applyBtn.addEventListener("click", () => {
+        void this.submitDirectReplace();
+      });
+      const previewBtn = this.buttonRowEl.createEl("button", {
+        cls: "mod-cta",
+        text: this.isLoading ? "Generating candidate\u2026" : "Generate candidate",
+        attr: { title: "Preview before applying (\u2318\u23CE)" }
+      });
+      previewBtn.disabled = this.isLoading;
+      previewBtn.addEventListener("click", () => {
         void this.submitTransform();
       });
       return;
@@ -28436,8 +28439,8 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T07:11:03.377Z";
-    this.gitSha = "ac0d04c";
+    this.buildId = "2026-03-15T07:26:11.823Z";
+    this.gitSha = "219d322";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
