@@ -129,6 +129,7 @@ export class PtyBridge {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
+      AUGMENT_OBSIDIAN: "1",
       AUGMENT_SHELL: effectiveShell,
       AUGMENT_CWD: this.cwd,
       // Pass initial dimensions so the Go binary creates the PTY at the
