@@ -221,7 +221,7 @@ export default class AugmentTerminalPlugin extends Plugin {
   private waitingCursor: number = 0;
   private activeGenerations: Map<string, ActiveGeneration> = new Map();
   private generationCounter = 0;
-  private contextWriter: ContextWriter | null = null;
+  contextWriter: ContextWriter | null = null;
   private busPollerManager: BusPollerManager | null = null;
   private readonly managedDeliveryByRole: Map<string, DeliveryObservation> = new Map();
   private readonly addressedTerminalPollers = new Map<string, { address: string; view: AddressedTerminalView }>();
@@ -1829,6 +1829,7 @@ export default class AugmentTerminalPlugin extends Plugin {
     // Context writer — updates .augment/context.md on active-leaf-change
     // so CC sessions can read current vault state via UserPromptSubmit hook.
     this.contextWriter = new ContextWriter(this.app);
+    this.contextWriter.enabled = this.settings.vaultContextForCC;
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         this.contextWriter?.onActiveLeafChange(leaf);

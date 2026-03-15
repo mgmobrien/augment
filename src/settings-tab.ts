@@ -683,6 +683,21 @@ export class AugmentSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(continuationPane)
+      .setName("Vault context for Claude Code")
+      .setDesc("Share your active note and open tabs with Claude Code terminal sessions via a UserPromptSubmit hook. Adds ~300 tokens of context per message.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.vaultContextForCC)
+          .onChange(async (value) => {
+            this.plugin.settings.vaultContextForCC = value;
+            if (this.plugin.contextWriter) {
+              this.plugin.contextWriter.enabled = value;
+            }
+            await this.plugin.saveData(this.plugin.settings);
+          });
+      });
+
     {
       const contextLimitSetting = new Setting(continuationPane)
         .setName("Context limit")
