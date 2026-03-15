@@ -83,10 +83,9 @@ export class TerminalManagerView extends ItemView {
   // Which other-project groups are expanded (collapsed by default).
   private expandedProjects: Set<string> = new Set();
 
-  // Collapse state for the RECENT history section.
-  // "auto": expand when no live sessions, collapse otherwise.
-  // "open" / "closed": explicit user preference.
-  private historyCollapseState: "auto" | "open" | "closed" = "auto";
+  // Collapse state for RECENT and HISTORY sections (both collapsed by default).
+  private recentCollapseState: "open" | "closed" = "closed";
+  private historyCollapseState: "open" | "closed" = "closed";
   private inboxCollapseState: "open" | "closed" = "open";
   private partsCollapseState: "open" | "closed" = "open";
   private collapsedManagedTeams: Set<string> = new Set();
@@ -485,27 +484,67 @@ export class TerminalManagerView extends ItemView {
       this.renderPartsSection(parts);
     }
 
-    // ── RECENT section with collapse ──────────────────────────
+    // ── RECENT + HISTORY sections ──────────────────────────
     if (hasHistory) {
-      const isExpanded =
-        this.historyCollapseState === "open" ||
-        (this.historyCollapseState === "auto" && !hasOpen);
+      // Split sessions: "recent" = today + yesterday, "history" = older.
+      const now = new Date();
+      const todayStr = this.dateStr(now);
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const yesterdayStr = this.dateStr(yesterday);
 
-      const divider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      if (isExpanded) divider.addClass("is-open");
-      divider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
-      divider.createSpan({ cls: "augment-tm-section-count", text: `(${sessions.length})` });
-      divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+      const recentSessions: SessionMeta[] = [];
+      const historySessions: SessionMeta[] = [];
+      for (const s of sessions) {
+        const dStr = this.dateStr(new Date(s.mtimeMs));
+        if (dStr === todayStr || dStr === yesterdayStr) {
+          recentSessions.push(s);
+        } else {
+          historySessions.push(s);
+        }
+      }
 
-      const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
-      if (!isExpanded) historyContainer.style.display = "none";
-      this.renderHistorySections(sessions, historyContainer);
+      // ── RECENT (today + yesterday) ──
+      if (recentSessions.length > 0) {
+        const recentExpanded = this.recentCollapseState === "open";
 
-      divider.addEventListener("click", () => {
-        this.historyCollapseState = isExpanded ? "closed" : "open";
-        divider.toggleClass("is-open", !isExpanded);
-        historyContainer.style.display = isExpanded ? "none" : "";
-      });
+        const recentDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+        if (recentExpanded) recentDivider.addClass("is-open");
+        recentDivider.createSpan({ cls: "augment-tm-section-label", text: "RECENT" });
+        recentDivider.createSpan({ cls: "augment-tm-section-count", text: `(${recentSessions.length})` });
+        recentDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+
+        const recentContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+        if (!recentExpanded) recentContainer.style.display = "none";
+        this.renderHistorySections(recentSessions, recentContainer);
+
+        recentDivider.addEventListener("click", () => {
+          this.recentCollapseState = recentExpanded ? "closed" : "open";
+          recentDivider.toggleClass("is-open", !recentExpanded);
+          recentContainer.style.display = recentExpanded ? "none" : "";
+        });
+      }
+
+      // ── HISTORY (older than yesterday) ──
+      if (historySessions.length > 0) {
+        const historyExpanded = this.historyCollapseState === "open";
+
+        const historyDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
+        if (historyExpanded) historyDivider.addClass("is-open");
+        historyDivider.createSpan({ cls: "augment-tm-section-label", text: "HISTORY" });
+        historyDivider.createSpan({ cls: "augment-tm-section-count", text: `(${historySessions.length})` });
+        historyDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
+
+        const historyContainer = this.listEl.createDiv({ cls: "augment-tm-history-container" });
+        if (!historyExpanded) historyContainer.style.display = "none";
+        this.renderHistorySections(historySessions, historyContainer);
+
+        historyDivider.addEventListener("click", () => {
+          this.historyCollapseState = historyExpanded ? "closed" : "open";
+          historyDivider.toggleClass("is-open", !historyExpanded);
+          historyContainer.style.display = historyExpanded ? "none" : "";
+        });
+      }
     }
 
     // ── OTHER WORKSPACES section ─────────────────────────────────
