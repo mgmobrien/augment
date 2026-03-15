@@ -487,6 +487,11 @@ export default class AugmentTerminalPlugin extends Plugin {
       this.statusBarEl.toggleClass("is-active", true);
       this.statusBarEl.setAttribute("aria-label", "Generating…");
       this.statusBarEl.setAttribute("title", "Generating…");
+
+      // Animated S3 pyramid dots
+      const spinner = this.statusBarEl.createSpan({ cls: "augment-sb-spinner" });
+      for (let i = 0; i < 3; i++) spinner.createSpan({ cls: "augment-sb-dot" });
+
       this.statusBarEl.createSpan({
         cls: "augment-status-bridge-label",
         text: "Generating…",

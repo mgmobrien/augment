@@ -28436,8 +28436,8 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T06:41:53.860Z";
-    this.gitSha = "41f2212";
+    this.buildId = "2026-03-15T07:11:03.377Z";
+    this.gitSha = "ac0d04c";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -28666,6 +28666,8 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
       this.statusBarEl.toggleClass("is-active", true);
       this.statusBarEl.setAttribute("aria-label", "Generating\u2026");
       this.statusBarEl.setAttribute("title", "Generating\u2026");
+      const spinner = this.statusBarEl.createSpan({ cls: "augment-sb-spinner" });
+      for (let i = 0; i < 3; i++) spinner.createSpan({ cls: "augment-sb-dot" });
       this.statusBarEl.createSpan({
         cls: "augment-status-bridge-label",
         text: "Generating\u2026"
