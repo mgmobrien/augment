@@ -36,14 +36,48 @@ export class SessionStore {
 
   // Locate ~/.claude/projects/[encoded-cwd]/ for this vault.
   // CC encodes cwd by replacing '/' and spaces with '-'.
+  // On WSL, Obsidian sees a Windows path (C:\Users\...) but CC running in
+  // WSL sees /mnt/c/Users/... — the encodings differ. Try both.
   async findProjectDir(): Promise<string | null> {
     const home = process.env.HOME ?? os.homedir();
-    const encoded = this.vaultBasePath.replace(/[/\\ ]/g, "-");
-    const dir = path.join(home, ".claude", "projects", encoded);
-    try {
-      if ((await fs.promises.stat(dir)).isDirectory()) return dir;
-    } catch {}
+    const projectsRoot = path.join(home, ".claude", "projects");
+
+    for (const candidate of this.vaultPathEncodings()) {
+      const dir = path.join(projectsRoot, candidate);
+      try {
+        if ((await fs.promises.stat(dir)).isDirectory()) return dir;
+      } catch {}
+    }
     return null;
+  }
+
+  // Generate candidate encoded directory names for this vault path.
+  // Returns the primary encoding first, then WSL cross-path alternatives.
+  private vaultPathEncodings(): string[] {
+    const primary = this.vaultBasePath.replace(/[/\\ ]/g, "-");
+    const candidates = [primary];
+
+    // Windows path → WSL path: C:\Users\Foo\Bar → /mnt/c/Users/Foo/Bar
+    const winDriveMatch = this.vaultBasePath.match(/^([A-Za-z]):[/\\]/);
+    if (winDriveMatch) {
+      const driveLetter = winDriveMatch[1].toLowerCase();
+      const rest = this.vaultBasePath.slice(3).replace(/\\/g, "/");
+      const wslPath = `/mnt/${driveLetter}/${rest}`;
+      const wslEncoded = wslPath.replace(/[/ ]/g, "-");
+      if (wslEncoded !== primary) candidates.push(wslEncoded);
+    }
+
+    // WSL path → Windows path: /mnt/c/Users/Foo/Bar → C:\Users\Foo\Bar
+    const wslMntMatch = this.vaultBasePath.match(/^\/mnt\/([a-z])\//);
+    if (wslMntMatch) {
+      const driveLetter = wslMntMatch[1].toUpperCase();
+      const rest = this.vaultBasePath.slice(7); // after /mnt/c/
+      const winPath = `${driveLetter}:\\${rest.replace(/\//g, "\\")}`;
+      const winEncoded = winPath.replace(/[/\\ ]/g, "-");
+      if (winEncoded !== primary) candidates.push(winEncoded);
+    }
+
+    return candidates;
   }
 
   // Enumerate all project directories under ~/.claude/projects/.
@@ -55,7 +89,7 @@ export class SessionStore {
   }>> {
     const home = process.env.HOME ?? os.homedir();
     const projectsRoot = path.join(home, ".claude", "projects");
-    const vaultEncoded = this.vaultBasePath.replace(/[/ ]/g, "-");
+    const vaultEncodings = new Set(this.vaultPathEncodings());
     const encodedHome = home.replace(/[/ ]/g, "-");
 
     try {
@@ -70,7 +104,7 @@ export class SessionStore {
             return null;
           }
 
-          const isVault = encodedName === vaultEncoded;
+          const isVault = vaultEncodings.has(encodedName);
           // Decode: strip home-dir prefix, convert remaining dashes to slashes.
           // Lossy (spaces and slashes both encoded as dashes) but readable.
           const relative = encodedName.startsWith(encodedHome)
