@@ -24307,7 +24307,7 @@ var AugmentSettingTab = class extends import_obsidian10.PluginSettingTab {
         });
       });
       addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
-      new import_obsidian10.Setting(terminalPane).setName("Show other projects").setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
+      new import_obsidian10.Setting(terminalPane).setName("Show other workspaces").setDesc("Display Claude Code sessions from other workspaces in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in \u2014 this reads that index. Your filesystem is not scanned directly.").addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.showOtherProjects).onChange(async (value) => {
           this.plugin.settings.showOtherProjects = value;
           await this.plugin.saveData(this.plugin.settings);
@@ -25066,7 +25066,7 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
     if (this.otherProjectsEnabled) {
       const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
       if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
-      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
       otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "\u203A" });
       const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
       if (!this.otherProjectsExpanded) otherContainer.style.display = "none";
@@ -25075,7 +25075,7 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
       } else if (this.projectsState.inFlight) {
         otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading\u2026" });
       } else {
-        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other workspaces found" });
       }
       otherDivider.addEventListener("click", () => {
         this.otherProjectsExpanded = !this.otherProjectsExpanded;
@@ -25084,13 +25084,13 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
       });
     } else {
       const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
       const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24D8" });
       let tip = null;
       infoIcon.addEventListener("mouseenter", () => {
         tip = document.createElement("div");
         tip.className = "augment-api-key-tip";
-        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
+        tip.textContent = "Shows Claude Code sessions from other workspaces. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
         document.body.appendChild(tip);
         const rect = infoIcon.getBoundingClientRect();
         tip.style.top = `${rect.bottom + 6}px`;
@@ -25102,7 +25102,7 @@ var TerminalManagerView = class extends import_obsidian11.ItemView {
       });
       const loadBtn = loadDivider.createEl("button", {
         cls: "augment-tm-load-projects-btn",
-        text: "Show other projects"
+        text: "Show other workspaces"
       });
       loadBtn.addEventListener("click", (evt) => {
         evt.stopPropagation();
@@ -28182,8 +28182,8 @@ var AugmentTerminalPlugin = class extends import_obsidian16.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T03:38:35.542Z";
-    this.gitSha = "b18881b";
+    this.buildId = "2026-03-15T03:46:37.783Z";
+    this.gitSha = "4674d57";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;

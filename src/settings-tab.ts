@@ -1254,8 +1254,8 @@ export class AugmentSettingTab extends PluginSettingTab {
       addInfoTooltip(terminalLocationSetting.descEl, "Applies to the + button in the Terminals panel and the 'Open terminal' command. Each position also has its own dedicated command (e.g. 'Open terminal in right sidebar (bottom)'). Bind those in Settings \u2192 Keyboard shortcuts to open a terminal in a specific spot without changing this default.");
 
       new Setting(terminalPane)
-        .setName("Show other projects")
-        .setDesc("Display Claude Code sessions from other projects in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in — this reads that index. Your filesystem is not scanned directly.")
+        .setName("Show other workspaces")
+        .setDesc("Display Claude Code sessions from other workspaces in the Terminal Manager. Claude Code stores session data in ~/.claude/projects/ for every directory you've worked in — this reads that index. Your filesystem is not scanned directly.")
         .addToggle((toggle) => {
           toggle
             .setValue(this.plugin.settings.showOtherProjects)

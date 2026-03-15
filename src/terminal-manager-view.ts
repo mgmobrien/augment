@@ -506,11 +506,11 @@ export class TerminalManagerView extends ItemView {
       });
     }
 
-    // ── OTHER PROJECTS section ─────────────────────────────────
+    // ── OTHER WORKSPACES section ─────────────────────────────────
     if (this.otherProjectsEnabled) {
       const otherDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
       if (this.otherProjectsExpanded) otherDivider.addClass("is-open");
-      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      otherDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
       otherDivider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
       const otherContainer = this.listEl.createDiv({ cls: "augment-tm-other-projects-container" });
@@ -521,7 +521,7 @@ export class TerminalManagerView extends ItemView {
       } else if (this.projectsState.inFlight) {
         otherContainer.createDiv({ cls: "augment-tm-empty", text: "Loading…" });
       } else {
-        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other projects found" });
+        otherContainer.createDiv({ cls: "augment-tm-empty", text: "No other workspaces found" });
       }
 
       otherDivider.addEventListener("click", () => {
@@ -531,7 +531,7 @@ export class TerminalManagerView extends ItemView {
       });
     } else {
       const loadDivider = this.listEl.createDiv({ cls: "augment-tm-section-divider" });
-      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER PROJECTS" });
+      loadDivider.createSpan({ cls: "augment-tm-section-label", text: "OTHER WORKSPACES" });
 
       // Info icon explaining what "other projects" reads.
       const infoIcon = loadDivider.createSpan({ cls: "augment-api-key-info", text: "\u24d8" });
@@ -539,7 +539,7 @@ export class TerminalManagerView extends ItemView {
       infoIcon.addEventListener("mouseenter", () => {
         tip = document.createElement("div");
         tip.className = "augment-api-key-tip";
-        tip.textContent = "Shows Claude Code sessions from other projects. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
+        tip.textContent = "Shows Claude Code sessions from other workspaces. Claude Code stores session data in ~/.claude/projects/ for every directory you\u2019ve worked in \u2014 this reads that index. Your filesystem is not scanned directly.";
         document.body.appendChild(tip);
         const rect = infoIcon.getBoundingClientRect();
         tip.style.top = `${rect.bottom + 6}px`;
@@ -552,7 +552,7 @@ export class TerminalManagerView extends ItemView {
 
       const loadBtn = loadDivider.createEl("button", {
         cls: "augment-tm-load-projects-btn",
-        text: "Show other projects",
+        text: "Show other workspaces",
       });
       loadBtn.addEventListener("click", (evt) => {
         evt.stopPropagation();
