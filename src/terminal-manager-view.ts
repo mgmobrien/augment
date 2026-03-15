@@ -90,7 +90,7 @@ export class TerminalManagerView extends ItemView {
   // Collapse state for sidebar sections.
   private terminalHistoryCollapseState: "open" | "closed" = "closed";
   private inboxCollapseState: "open" | "closed" = "open";
-  private teamsCollapseState: "open" | "closed" = "open";
+  private rosterCollapseState: "open" | "closed" = "open";
   private collapsedManagedTeams: Set<string> = new Set();
 
 
@@ -979,11 +979,11 @@ export class TerminalManagerView extends ItemView {
   }
 
   private renderPartsSection(parts: PartInfo[]): void {
-    const isExpanded = this.teamsCollapseState !== "closed";
+    const isExpanded = this.rosterCollapseState !== "closed";
 
     const divider = this.listEl!.createDiv({ cls: "augment-tm-section-divider" });
     if (isExpanded) divider.addClass("is-open");
-    divider.createSpan({ cls: "augment-tm-section-label", text: "TEAMS" });
+    divider.createSpan({ cls: "augment-tm-section-label", text: "ROSTER" });
     divider.createSpan({ cls: "augment-tm-section-chevron", text: "›" });
 
     const partsContainer = this.listEl!.createDiv({ cls: "augment-tm-parts-container" });
@@ -991,13 +991,13 @@ export class TerminalManagerView extends ItemView {
 
     partsContainer.createDiv({
       cls: "augment-tm-part-helper",
-      text: "Click a team member to see conversation history. Use the pen to send a message.",
+      text: "Click an agent to see conversation history. Use the pen to send a message.",
     });
 
     if (parts.length === 0) {
       partsContainer.createDiv({
         cls: "augment-tm-empty augment-tm-parts-empty",
-        text: "No parts found. Parts are AI agents that live in your vault.",
+        text: "No agents found. Set up agents in your vault to see them here.",
       });
     }
 
@@ -1020,7 +1020,7 @@ export class TerminalManagerView extends ItemView {
 
     divider.addEventListener("click", () => {
       this.suppressRefresh();
-      this.teamsCollapseState = isExpanded ? "closed" : "open";
+      this.rosterCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
       partsContainer.style.display = isExpanded ? "none" : "";
     });
