@@ -18030,15 +18030,19 @@ function logApiDiagnostics(err, apiKey, model) {
     console.log("[Augment] diagnostic \u2014 error:", err.message);
   }
 }
-async function generateText(systemPrompt, userMessage, settings, modelOverride, signal, maxTokens = 1024) {
+async function generateText(systemPrompt, userMessage, settings, modelOverride, signal, maxTokens = 1024, priorMessages = []) {
   const model = modelOverride != null ? modelOverride : settings.model;
+  const messages = [
+    ...priorMessages,
+    { role: "user", content: userMessage }
+  ];
   const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true });
   const message = await client.messages.create(
     {
       model,
       max_tokens: maxTokens,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }]
+      messages
     },
     { signal }
   );
@@ -19615,7 +19619,8 @@ var DEFAULT_SETTINGS = {
   coloredRibbonIcon: false,
   ribbonIcon: "augment-pyramid",
   projectRoots: [],
-  workspaceScope: "open"
+  workspaceScope: "open",
+  vaultContextForCC: true
 };
 function stripObsidianMeta(fm) {
   if (!fm) return null;
@@ -19934,14 +19939,33 @@ var import_obsidian7 = require("obsidian");
 var CONTEXT_DIR = ".augment";
 var CONTEXT_FILE = `${CONTEXT_DIR}/context.md`;
 var DEBOUNCE_MS = 300;
-var CONTENT_PREVIEW_CHARS = 2e3;
+var CONTENT_PREVIEW_CHARS = 500;
+var MAX_FRONTMATTER_KEYS = 10;
+var SENSITIVE_PATTERNS = /credential|secret|password|token|api.key/i;
+var PREFIX_TYPE_MAP = {
+  "Ref.": "reference",
+  "Project.": "project",
+  "Template.": "template",
+  "Session.": "session",
+  "Process.": "process",
+  "Kanban.": "kanban"
+};
+var INSTRUCTION_PREAMBLE = "The user is working in Obsidian. This is the note they're currently viewing. Use it for context but do not reference this injection in your response unless asked.";
 var ContextWriter = class {
   constructor(app) {
     this.debounceTimer = null;
+    this._enabled = true;
     this.app = app;
+  }
+  get enabled() {
+    return this._enabled;
+  }
+  set enabled(value) {
+    this._enabled = value;
   }
   /** Call from plugin.registerEvent(workspace.on("active-leaf-change", ...)). */
   onActiveLeafChange(_leaf) {
+    if (!this._enabled) return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       void this.writeContextFile();
@@ -19955,7 +19979,7 @@ var ContextWriter = class {
   }
   async writeContextFile() {
     const activeFile = this.app.workspace.getActiveFile();
-    const content = await this.buildContextContent(activeFile);
+    const content = this.buildContextContent(activeFile);
     if (!this.app.vault.getAbstractFileByPath(CONTEXT_DIR)) {
       try {
         await this.app.vault.createFolder(CONTEXT_DIR);
@@ -19964,61 +19988,89 @@ var ContextWriter = class {
     }
     const existing = this.app.vault.getAbstractFileByPath(CONTEXT_FILE);
     if (existing instanceof import_obsidian7.TFile) {
-      await this.app.vault.modify(existing, content);
+      await this.app.vault.modify(existing, await content);
     } else {
-      await this.app.vault.create(CONTEXT_FILE, content);
+      await this.app.vault.create(CONTEXT_FILE, await content);
     }
   }
   async buildContextContent(activeFile) {
-    const sections = [];
-    sections.push("# Obsidian vault context");
-    sections.push("");
-    sections.push(`_Updated: ${(/* @__PURE__ */ new Date()).toLocaleString()}_`);
-    sections.push("");
-    if (activeFile) {
-      sections.push("## Active note");
-      sections.push("");
-      sections.push(`**Path:** ${activeFile.path}`);
-      sections.push(`**Title:** ${activeFile.basename}`);
-      sections.push("");
-      const cache = this.app.metadataCache.getFileCache(activeFile);
-      const fm = cache == null ? void 0 : cache.frontmatter;
-      if (fm) {
-        sections.push("### Frontmatter");
-        sections.push("");
-        sections.push("```yaml");
-        for (const [key, value] of Object.entries(fm)) {
-          if (key === "position") continue;
-          sections.push(`${key}: ${this.formatYamlValue(value)}`);
+    const lines = [INSTRUCTION_PREAMBLE, ""];
+    if (!activeFile) {
+      lines.push("Active note: (none)");
+      return lines.join("\n");
+    }
+    const isMarkdown = activeFile.extension === "md";
+    const isSensitive = SENSITIVE_PATTERNS.test(activeFile.basename);
+    const isThessaly = activeFile.path.startsWith("Thessaly/");
+    lines.push(`Active note: ${activeFile.basename}`);
+    lines.push(`Path: ${activeFile.path}`);
+    const noteType = this.detectNoteType(activeFile);
+    if (noteType) lines.push(`Type: ${noteType}`);
+    if (!isMarkdown) {
+      lines.push(`File type: ${activeFile.extension}`);
+      lines.push("");
+      this.appendOpenTabs(lines);
+      return lines.join("\n");
+    }
+    if (isSensitive) {
+      lines.push("(content excluded \u2014 sensitive filename)");
+      lines.push("");
+      this.appendOpenTabs(lines);
+      return lines.join("\n");
+    }
+    const cache = this.app.metadataCache.getFileCache(activeFile);
+    const fm = cache == null ? void 0 : cache.frontmatter;
+    if (fm) {
+      lines.push("");
+      lines.push("Frontmatter:");
+      let keyCount = 0;
+      const totalKeys = Object.keys(fm).filter((k) => k !== "position").length;
+      for (const [key, value] of Object.entries(fm)) {
+        if (key === "position") continue;
+        if (keyCount >= MAX_FRONTMATTER_KEYS) {
+          lines.push(`(+${totalKeys - MAX_FRONTMATTER_KEYS} more)`);
+          break;
         }
-        sections.push("```");
-        sections.push("");
+        lines.push(`  ${key}: ${this.formatYamlValue(value)}`);
+        keyCount++;
       }
+    }
+    if (isThessaly) {
+      lines.push("");
+      lines.push("(content excluded \u2014 therapeutic note)");
+    } else {
       try {
         const raw2 = await this.app.vault.cachedRead(activeFile);
-        const preview = raw2.length > CONTENT_PREVIEW_CHARS ? raw2.slice(0, CONTENT_PREVIEW_CHARS) + "\n\u2026(truncated)" : raw2;
-        sections.push("### Content preview");
-        sections.push("");
-        sections.push(preview);
-        sections.push("");
+        const body = raw2.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
+        if (body.length > 0) {
+          const preview = body.length > CONTENT_PREVIEW_CHARS ? body.slice(0, CONTENT_PREVIEW_CHARS) + "\u2026" : body;
+          lines.push("");
+          lines.push(`Preview (first ${Math.min(body.length, CONTENT_PREVIEW_CHARS)} chars):`);
+          lines.push(preview);
+        }
       } catch (e) {
       }
-    } else {
-      sections.push("## Active note");
-      sections.push("");
-      sections.push("_No note is currently active._");
-      sections.push("");
     }
+    lines.push("");
+    this.appendOpenTabs(lines);
+    return lines.join("\n");
+  }
+  detectNoteType(file) {
+    var _a3;
+    const cache = this.app.metadataCache.getFileCache(file);
+    const fmType = (_a3 = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a3.type;
+    if (typeof fmType === "string" && fmType.length > 0) return fmType;
+    for (const [prefix, type] of Object.entries(PREFIX_TYPE_MAP)) {
+      if (file.basename.startsWith(prefix)) return type;
+    }
+    return null;
+  }
+  appendOpenTabs(lines) {
     const openFiles = this.getOpenFilePaths();
     if (openFiles.length > 0) {
-      sections.push("## Open tabs");
-      sections.push("");
-      for (const path9 of openFiles) {
-        sections.push(`- ${path9}`);
-      }
-      sections.push("");
+      const display = openFiles.length <= 8 ? openFiles.join(", ") : openFiles.slice(0, 8).join(", ") + `\u2026 (${openFiles.length} total)`;
+      lines.push(`Open tabs: ${display}`);
     }
-    return sections.join("\n");
   }
   getOpenFilePaths() {
     const paths = [];
@@ -20141,6 +20193,7 @@ var PtyBridge = class {
       ...process.env,
       TERM: "xterm-256color",
       LANG: process.env.LANG || "en_US.UTF-8",
+      AUGMENT_OBSIDIAN: "1",
       AUGMENT_SHELL: effectiveShell,
       AUGMENT_CWD: this.cwd,
       // Pass initial dimensions so the Go binary creates the PTY at the
@@ -23863,7 +23916,8 @@ var AugmentSettingTab = class extends import_obsidian11.PluginSettingTab {
       "code-2": "Code",
       "terminal": "Terminal"
     };
-    const ribbonIconSetting = new import_obsidian11.Setting(continuationPane).setName("Generate ribbon icon").setDesc("Icon shown on the Generate ribbon button.").addDropdown((dd) => {
+    continuationPane.createDiv({ cls: "augment-section-label", text: "APPEARANCE" });
+    const ribbonIconSetting = new import_obsidian11.Setting(continuationPane).setName("Ribbon icon").setDesc("Icon for the Generate button in the ribbon.").addDropdown((dd) => {
       for (const [id, label] of Object.entries(RIBBON_ICONS)) {
         dd.addOption(id, label);
       }
@@ -23878,7 +23932,7 @@ var AugmentSettingTab = class extends import_obsidian11.PluginSettingTab {
     const ribbonPreviewEl = ribbonIconSetting.controlEl.createEl("span", { cls: "augment-ribbon-icon-preview" });
     ribbonPreviewEl.style.cssText = "display:inline-flex;align-items:center;margin-left:8px;opacity:0.7;";
     (0, import_obsidian11.setIcon)(ribbonPreviewEl, this.plugin.settings.ribbonIcon || "augment-pyramid");
-    new import_obsidian11.Setting(continuationPane).setName("Colored Generate icon").setDesc("Show the Generate ribbon icon in color (red/green/blue). When off, the icon stays monochrome.").addToggle((toggle) => {
+    new import_obsidian11.Setting(continuationPane).setName("Colored ribbon icon").setDesc("Show the ribbon icon in color. When off, it stays monochrome.").addToggle((toggle) => {
       toggle.setValue(this.plugin.settings.coloredRibbonIcon).onChange(async (val) => {
         this.plugin.settings.coloredRibbonIcon = val;
         await this.plugin.saveData(this.plugin.settings);
@@ -23886,6 +23940,7 @@ var AugmentSettingTab = class extends import_obsidian11.PluginSettingTab {
       });
     });
     const calloutTypes = detectCalloutTypes();
+    continuationPane.createDiv({ cls: "augment-section-label", text: "OUTPUT" });
     const formatSetting = new import_obsidian11.Setting(continuationPane).setName("Output format").setDesc("How generated text is wrapped when inserted.").addDropdown((drop) => {
       drop.addOption("plain", "Plain text").addOption("codeblock", "Code block").addOption("blockquote", "Blockquote").addOption("heading", "Heading").addOption("callout", "Callout box").setValue(this.plugin.settings.outputFormat).onChange(async (value) => {
         this.plugin.settings.outputFormat = value;
@@ -23972,6 +24027,15 @@ var AugmentSettingTab = class extends import_obsidian11.PluginSettingTab {
         await this.plugin.saveData(this.plugin.settings);
       });
     });
+    new import_obsidian11.Setting(continuationPane).setName("Vault context for Claude Code").setDesc("Share your active note and open tabs with Claude Code terminal sessions via a UserPromptSubmit hook. Adds ~300 tokens of context per message.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.vaultContextForCC).onChange(async (value) => {
+        this.plugin.settings.vaultContextForCC = value;
+        if (this.plugin.contextWriter) {
+          this.plugin.contextWriter.enabled = value;
+        }
+        await this.plugin.saveData(this.plugin.settings);
+      });
+    });
     {
       const contextLimitSetting = new import_obsidian11.Setting(continuationPane).setName("Context limit").setDesc("Maximum context sent per generation (measured in tokens; 1 token \u2248 4 characters). Default 2000 tokens fits most notes.").addText((text) => {
         text.inputEl.type = "number";
@@ -23985,6 +24049,7 @@ var AugmentSettingTab = class extends import_obsidian11.PluginSettingTab {
         });
       });
       addInfoTooltip(contextLimitSetting.descEl, "Controls how many characters around your cursor are sent to Claude. Increase for long notes where you want Claude to see more surrounding content. Higher values use more tokens per request, which slightly increases cost and response time.");
+      continuationPane.createDiv({ cls: "augment-section-label", text: "MODEL" });
       const systemPromptSetting = new import_obsidian11.Setting(continuationPane).setName("System prompt").setDesc("Sent to Claude before every generation. Supports LiquidJS variables \u2014 {{ now }} inserts the current date and time.").addTextArea((text) => {
         text.setPlaceholder("The current date and time is {{ now }}.").setValue(this.plugin.settings.systemPrompt).onChange(async (value) => {
           this.plugin.settings.systemPrompt = value;
@@ -27694,8 +27759,11 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     this.candidate = "";
     this.hasCandidate = false;
     this.isLoading = false;
+    this.isRefining = false;
+    this.history = [];
     this.activePreset = null;
     this.instructionEl = null;
+    this.instructionLabelEl = null;
     this.candidateSectionEl = null;
     this.candidatePreEl = null;
     this.buttonRowEl = null;
@@ -27723,7 +27791,7 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
       cls: "augment-selection-transform-preview"
     });
     selectionPre.setText(this.options.selectionText);
-    contentEl.createEl("div", {
+    this.instructionLabelEl = contentEl.createDiv({
       cls: "augment-selection-transform-label",
       text: "Describe the change"
     });
@@ -27822,17 +27890,28 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     if (this.instructionEl) {
       this.instructionEl.disabled = this.isLoading || this.hasCandidate;
     }
+    if (this.instructionLabelEl) {
+      this.instructionLabelEl.setText(this.isRefining ? "Refine" : "Describe the change");
+    }
+    if (this.instructionEl && this.isRefining && !this.hasCandidate && !this.isLoading) {
+      this.instructionEl.placeholder = "Make it shorter, reformat as bullets\u2026";
+    } else if (this.instructionEl && !this.isRefining) {
+      this.instructionEl.placeholder = "Turn this into a markdown table";
+    }
     if (this.presetsEl) {
       const chips = this.presetsEl.querySelectorAll(".augment-selection-transform-preset-chip");
       chips.forEach((chip) => {
         chip.disabled = this.isLoading || this.hasCandidate;
       });
+      this.presetsEl.style.display = this.isRefining ? "none" : "";
     }
     if (this.candidatePreEl) {
       if (this.isLoading && !this.hasCandidate) {
         this.candidatePreEl.setText(((_a3 = this.activePreset) == null ? void 0 : _a3.directReplace) ? "Applying fix\u2026" : "Generating candidate\u2026");
-      } else if (!this.hasCandidate) {
+      } else if (!this.hasCandidate && !this.isRefining) {
         this.candidatePreEl.setText("Generate a candidate to preview the change.");
+      } else if (!this.hasCandidate && this.isRefining) {
+        this.candidatePreEl.setText(this.candidate || "Generate a candidate to preview the change.");
       } else {
         this.candidatePreEl.setText(this.candidate);
       }
@@ -27853,6 +27932,13 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
       });
       return;
     }
+    const refineBtn = this.buttonRowEl.createEl("button", {
+      text: "Refine"
+    });
+    refineBtn.disabled = this.isLoading;
+    refineBtn.addEventListener("click", () => {
+      this.enterRefineMode();
+    });
     const keepBothBtn = this.buttonRowEl.createEl("button", {
       text: "Keep both"
     });
@@ -27869,6 +27955,21 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
       void this.applyCandidate("replace");
     });
   }
+  enterRefineMode() {
+    if (this.isLoading) return;
+    this.isRefining = true;
+    this.hasCandidate = false;
+    if (this.instructionEl) {
+      this.instructionEl.value = "";
+      this.instruction = "";
+    }
+    this.activePreset = null;
+    this.render();
+    window.setTimeout(() => {
+      var _a3;
+      return (_a3 = this.instructionEl) == null ? void 0 : _a3.focus();
+    }, 10);
+  }
   getEffectiveInstruction() {
     if (this.activePreset) {
       return this.activePreset.instruction;
@@ -27883,16 +27984,21 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     }
     if (this.isLoading) return;
     this.isLoading = true;
-    this.candidate = "";
     this.hasCandidate = false;
     const controller = new AbortController();
     this.abortController = controller;
     this.render();
     try {
-      const candidate = await this.options.onTransform(instruction, controller.signal);
+      const candidate = await this.options.onTransform(
+        instruction,
+        [...this.history],
+        controller.signal
+      );
       if (controller.signal.aborted) return;
       this.candidate = candidate;
       this.hasCandidate = true;
+      this.history.push({ role: "user", content: instruction });
+      this.history.push({ role: "assistant", content: candidate });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -27920,7 +28026,11 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
     this.abortController = controller;
     this.render();
     try {
-      const candidate = await this.options.onTransform(instruction, controller.signal);
+      const candidate = await this.options.onTransform(
+        instruction,
+        [...this.history],
+        controller.signal
+      );
       if (controller.signal.aborted) return;
       const applied = await this.options.onReplace(candidate);
       if (applied) {
@@ -27929,6 +28039,8 @@ var SelectionTransformModal = class extends import_obsidian15.Modal {
       }
       this.candidate = candidate;
       this.hasCandidate = true;
+      this.history.push({ role: "user", content: instruction });
+      this.history.push({ role: "assistant", content: candidate });
     } catch (err) {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -28295,8 +28407,8 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
     this.settings = { ...DEFAULT_SETTINGS };
     this.availableModels = [];
     this.contextHistory = [];
-    this.buildId = "2026-03-15T03:56:26.540Z";
-    this.gitSha = "1c73707";
+    this.buildId = "2026-03-15T06:25:26.746Z";
+    this.gitSha = "25dd4d9";
     this.recentTeamCreateSpawnSignatures = /* @__PURE__ */ new Map();
     this.calloutStyleEl = null;
     this.statusBarEl = null;
@@ -28797,7 +28909,7 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
     new SelectionTransformModal(this.app, {
       noteTitle: snapshot.noteTitle,
       selectionText: snapshot.originalText,
-      onTransform: (instruction, signal) => this.runSelectionTransform(snapshot, instruction, signal),
+      onTransform: (instruction, history, signal) => this.runSelectionTransform(snapshot, instruction, history, signal),
       onReplace: (candidate) => this.applySelectionTransform(editor, snapshot, candidate, "replace"),
       onKeepBoth: (candidate) => this.applySelectionTransform(editor, snapshot, candidate, "keep-both")
     }).open();
@@ -28820,7 +28932,7 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
       onInsert: (answer) => this.insertSideQuestionAnswer(editor, snapshot, answer)
     }).open();
   }
-  async runSelectionTransform(snapshot, instruction, signal) {
+  async runSelectionTransform(snapshot, instruction, history, signal) {
     var _a3;
     const context = {
       title: snapshot.noteTitle,
@@ -28839,13 +28951,26 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
       baseSystemPrompt,
       "Transform the selected text according to the user's instruction. Return only the replacement text. Do not add commentary or code fences unless the instruction asks for them."
     ].filter(Boolean).join("\n\n");
-    const userMessage = [
+    const isRefinement = history.length > 0;
+    const userMessage = isRefinement ? instruction.trim() : [
       "Instruction:",
       instruction.trim(),
       "",
       "Selected text:",
       snapshot.originalText
     ].join("\n");
+    const priorMessages = [];
+    for (let i = 0; i < history.length; i++) {
+      const entry = history[i];
+      if (i === 0 && entry.role === "user") {
+        priorMessages.push({
+          role: "user",
+          content: ["Instruction:", entry.content, "", "Selected text:", snapshot.originalText].join("\n")
+        });
+      } else {
+        priorMessages.push({ role: entry.role, content: entry.content });
+      }
+    }
     this.showStatusBarGenerating();
     if (this.settings.showGenerationToast) {
       new import_obsidian17.Notice("Generating...", 3e3);
@@ -28858,7 +28983,9 @@ var AugmentTerminalPlugin = class extends import_obsidian17.Plugin {
         userMessage,
         this.settings,
         resolvedModel,
-        signal
+        signal,
+        1024,
+        priorMessages
       );
       if (signal.aborted) return "";
       void this.accumulateSpend(resolvedModel, genUsage);
@@ -29683,6 +29810,7 @@ ${candidate}`;
       })
     );
     this.contextWriter = new ContextWriter(this.app);
+    this.contextWriter.enabled = this.settings.vaultContextForCC;
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         var _a4;
