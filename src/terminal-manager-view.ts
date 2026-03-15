@@ -70,6 +70,10 @@ export class TerminalManagerView extends ItemView {
   private sessionStore: SessionStore | null = null;
   private historyLoadedCount: number = 20;
   private refreshFrameId: number | null = null;
+  // Short cooldown after collapse toggles to prevent active-leaf-change from
+  // triggering a full DOM rebuild that clobbers the instant toggle.
+  private suppressRefreshUntil: number = 0;
+  private suppressRefresh(): void { this.suppressRefreshUntil = Date.now() + 300; }
 
   private otherProjectsEnabled = false;
   private otherProjectsExpanded = true;
@@ -218,6 +222,12 @@ export class TerminalManagerView extends ItemView {
     // the TM never shows the auto-renamed session until the next layout-change.
     if (this.refreshFrameId !== null) {
       window.cancelAnimationFrame(this.refreshFrameId);
+    }
+    // After a collapse toggle, skip the next full rebuild so the instant DOM
+    // toggle isn't clobbered by active-leaf-change triggering a full refresh.
+    if (Date.now() < this.suppressRefreshUntil) {
+      this.refreshFrameId = null;
+      return;
     }
     this.refreshFrameId = window.requestAnimationFrame(() => {
       this.refreshFrameId = null;
@@ -519,6 +529,7 @@ export class TerminalManagerView extends ItemView {
         this.renderHistorySections(recentSessions, recentContainer);
 
         recentDivider.addEventListener("click", () => {
+          this.suppressRefresh();
           this.recentCollapseState = recentExpanded ? "closed" : "open";
           recentDivider.toggleClass("is-open", !recentExpanded);
           recentContainer.style.display = recentExpanded ? "none" : "";
@@ -540,6 +551,7 @@ export class TerminalManagerView extends ItemView {
         this.renderHistorySections(historySessions, historyContainer);
 
         historyDivider.addEventListener("click", () => {
+          this.suppressRefresh();
           this.historyCollapseState = historyExpanded ? "closed" : "open";
           historyDivider.toggleClass("is-open", !historyExpanded);
           historyContainer.style.display = historyExpanded ? "none" : "";
@@ -566,6 +578,7 @@ export class TerminalManagerView extends ItemView {
       }
 
       otherDivider.addEventListener("click", () => {
+        this.suppressRefresh();
         this.otherProjectsExpanded = !this.otherProjectsExpanded;
         otherDivider.toggleClass("is-open", this.otherProjectsExpanded);
         otherContainer.style.display = this.otherProjectsExpanded ? "" : "none";
@@ -913,6 +926,7 @@ export class TerminalManagerView extends ItemView {
       }
 
       header.addEventListener("click", () => {
+        this.suppressRefresh();
         const nextExpanded = this.collapsedManagedTeams.has(group.teamId);
         if (nextExpanded) {
           this.collapsedManagedTeams.delete(group.teamId);
@@ -1048,6 +1062,7 @@ export class TerminalManagerView extends ItemView {
     }
 
     divider.addEventListener("click", () => {
+      this.suppressRefresh();
       this.partsCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
       partsContainer.style.display = isExpanded ? "none" : "";
@@ -1093,6 +1108,7 @@ export class TerminalManagerView extends ItemView {
     );
 
     divider.addEventListener("click", () => {
+      this.suppressRefresh();
       this.inboxCollapseState = isExpanded ? "closed" : "open";
       divider.toggleClass("is-open", !isExpanded);
       inboxContainer.style.display = isExpanded ? "none" : "";
@@ -1175,6 +1191,7 @@ export class TerminalManagerView extends ItemView {
       this.renderHistorySections(group.sessions, sessionsEl);
 
       projectRow.addEventListener("click", () => {
+        this.suppressRefresh();
         if (this.expandedProjects.has(group.encodedName)) {
           this.expandedProjects.delete(group.encodedName);
           projectRow.removeClass("is-expanded");
